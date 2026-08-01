@@ -1,5 +1,5 @@
 import { createRoute, type RouteConfig, type z } from '@hono/zod-openapi'
-import { AGENT_OAUTH_SCOPES } from '@shared/agent-oauth'
+import { OAUTH_SCOPES } from '@shared/oauth'
 import { errorResponseSchema } from '@shared/schemas'
 import { authorize, type RouteAuthorizationDeclaration, type ScopedAuthorizationPolicy } from '../middleware/authz'
 
@@ -24,7 +24,7 @@ export const jsonBody = <T extends z.ZodType>(schema: T) => ({
 // `jsonError`; this just documents the response shape in the OpenAPI document.
 export const errorResponse = (description: string) => jsonContent(errorResponseSchema, description)
 
-const AGENT_OAUTH_SCOPE_SET = new Set<string>(AGENT_OAUTH_SCOPES)
+const OAUTH_SCOPE_SET = new Set<string>(OAUTH_SCOPES)
 
 export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> & { path: P }>(
   auth: RouteAuthorizationDeclaration,
@@ -86,7 +86,7 @@ function openApiPolicySecurity(policy: ScopedAuthorizationPolicy): Record<string
 }
 
 function isAgentCallablePolicy(policy: ScopedAuthorizationPolicy): boolean {
-  return policy.scopes.every((scope) => AGENT_OAUTH_SCOPE_SET.has(scope))
+  return policy.scopes.every((scope) => OAUTH_SCOPE_SET.has(scope))
 }
 
 function openApiPolicyMetadata(policy: ScopedAuthorizationPolicy): Record<string, unknown> {

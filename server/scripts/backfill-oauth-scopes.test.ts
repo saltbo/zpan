@@ -4,12 +4,12 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  buildAgentOAuthScopeBackfill,
-  parseAgentOAuthScopeBackfillOptions,
-  runAgentOAuthScopeBackfill,
-} from '../../scripts/backfill-agent-oauth-scopes'
-import { AGENT_OAUTH_SCOPES } from '../../shared/agent-oauth'
+  buildOAuthScopeBackfill,
+  parseOAuthScopeBackfillOptions,
+  runOAuthScopeBackfill,
+} from '../../scripts/backfill-oauth-scopes'
 import { AuthorizationScope } from '../../shared/authorization'
+import { OAUTH_SCOPES } from '../../shared/oauth'
 
 const tempDirs: string[] = []
 
@@ -18,7 +18,7 @@ afterEach(() => {
 })
 
 function createScopeDatabase() {
-  const dir = mkdtempSync(join(tmpdir(), 'zpan-agent-oauth-backfill-'))
+  const dir = mkdtempSync(join(tmpdir(), 'zpan-oauth-backfill-'))
   tempDirs.push(dir)
   const path = join(dir, 'zpan.db')
   const db = new Database(path)
@@ -29,9 +29,9 @@ function createScopeDatabase() {
   return { db, path }
 }
 
-describe('buildAgentOAuthScopeBackfill', () => {
+describe('buildOAuthScopeBackfill', () => {
   it('updates ZPan resources and upload clients without expanding read-only clients', () => {
-    const changes = buildAgentOAuthScopeBackfill(
+    const changes = buildOAuthScopeBackfill(
       [
         {
           id: 'zpan-resource',
@@ -57,7 +57,7 @@ describe('buildAgentOAuthScopeBackfill', () => {
     )
 
     expect(changes).toEqual({
-      resources: [{ id: 'zpan-resource', scopes: JSON.stringify(AGENT_OAUTH_SCOPES) }],
+      resources: [{ id: 'zpan-resource', scopes: JSON.stringify(OAUTH_SCOPES) }],
       clients: [
         {
           id: 'upload-client',
@@ -68,8 +68,8 @@ describe('buildAgentOAuthScopeBackfill', () => {
   })
 
   it('is idempotent after the scopes are current', () => {
-    const changes = buildAgentOAuthScopeBackfill(
-      [{ id: 'zpan-resource', name: 'ZPan API', allowedScopes: JSON.stringify(AGENT_OAUTH_SCOPES) }],
+    const changes = buildOAuthScopeBackfill(
+      [{ id: 'zpan-resource', name: 'ZPan API', allowedScopes: JSON.stringify(OAUTH_SCOPES) }],
       [
         {
           id: 'upload-client',
@@ -82,26 +82,26 @@ describe('buildAgentOAuthScopeBackfill', () => {
   })
 
   it('rejects malformed client scope documents', () => {
-    expect(() => buildAgentOAuthScopeBackfill([], [{ id: 'bad', scopes: '{' }])).toThrow(SyntaxError)
-    expect(() => buildAgentOAuthScopeBackfill([], [{ id: 'bad', scopes: '["objects:create", 1]' }])).toThrow(
+    expect(() => buildOAuthScopeBackfill([], [{ id: 'bad', scopes: '{' }])).toThrow(SyntaxError)
+    expect(() => buildOAuthScopeBackfill([], [{ id: 'bad', scopes: '["objects:create", 1]' }])).toThrow(
       'invalid_oauth_client_scopes',
     )
-    expect(buildAgentOAuthScopeBackfill([], [{ id: 'empty', scopes: null }])).toEqual({ resources: [], clients: [] })
+    expect(buildOAuthScopeBackfill([], [{ id: 'empty', scopes: null }])).toEqual({ resources: [], clients: [] })
   })
 
   it('parses sqlite and D1 targets and rejects ambiguous invocations', () => {
-    expect(parseAgentOAuthScopeBackfillOptions(['--sqlite', '/tmp/zpan.db', '--apply'])).toEqual({
+    expect(parseOAuthScopeBackfillOptions(['--sqlite', '/tmp/zpan.db', '--apply'])).toEqual({
       apply: true,
       target: { kind: 'sqlite', path: '/tmp/zpan.db' },
     })
-    expect(parseAgentOAuthScopeBackfillOptions(['--d1', 'zpan-db', '--remote', '--env', 'staging'])).toEqual({
+    expect(parseOAuthScopeBackfillOptions(['--d1', 'zpan-db', '--remote', '--env', 'staging'])).toEqual({
       apply: false,
       target: { kind: 'd1', database: 'zpan-db', remote: true, env: 'staging' },
     })
-    expect(() => parseAgentOAuthScopeBackfillOptions([])).toThrow('Usage:')
-    expect(() => parseAgentOAuthScopeBackfillOptions(['--sqlite', 'a', '--d1', 'b'])).toThrow('Usage:')
-    expect(() => parseAgentOAuthScopeBackfillOptions(['--sqlite'])).toThrow('Usage:')
-    expect(() => parseAgentOAuthScopeBackfillOptions(['--d1'])).toThrow('Usage:')
+    expect(() => parseOAuthScopeBackfillOptions([])).toThrow('Usage:')
+    expect(() => parseOAuthScopeBackfillOptions(['--sqlite', 'a', '--d1', 'b'])).toThrow('Usage:')
+    expect(() => parseOAuthScopeBackfillOptions(['--sqlite'])).toThrow('Usage:')
+    expect(() => parseOAuthScopeBackfillOptions(['--d1'])).toThrow('Usage:')
   })
 
   it('dry-runs and applies the SQLite backfill end to end', () => {
@@ -118,13 +118,13 @@ describe('buildAgentOAuthScopeBackfill', () => {
     db.close()
     const logs: string[] = []
 
-    runAgentOAuthScopeBackfill(['--sqlite', path], (message) => logs.push(message))
+    runOAuthScopeBackfill(['--sqlite', path], (message) => logs.push(message))
     expect(JSON.parse(logs[0])).toEqual({ mode: 'dry-run', resources: 1, clients: 1 })
 
-    runAgentOAuthScopeBackfill(['--sqlite', path, '--apply'], (message) => logs.push(message))
+    runOAuthScopeBackfill(['--sqlite', path, '--apply'], (message) => logs.push(message))
     const after = new Database(path, { readonly: true })
     expect(after.prepare('SELECT allowed_scopes FROM oauthResource WHERE id = ?').pluck().get('zpan-resource')).toBe(
-      JSON.stringify(AGENT_OAUTH_SCOPES),
+      JSON.stringify(OAUTH_SCOPES),
     )
     expect(after.prepare('SELECT scopes FROM oauthClient WHERE id = ?').pluck().get('upload-client')).toBe(
       JSON.stringify([AuthorizationScope.OBJECTS_CREATE, AuthorizationScope.QUOTA_PURCHASE]),
@@ -134,7 +134,7 @@ describe('buildAgentOAuthScopeBackfill', () => {
   })
 
   it('reads and applies a remote D1 backfill with escaped identifiers', () => {
-    const resourceScopes = JSON.stringify(AGENT_OAUTH_SCOPES)
+    const resourceScopes = JSON.stringify(OAUTH_SCOPES)
     const clientScopes = JSON.stringify([AuthorizationScope.OBJECTS_CREATE, AuthorizationScope.QUOTA_PURCHASE])
     const execute = vi
       .fn()
@@ -151,7 +151,7 @@ describe('buildAgentOAuthScopeBackfill', () => {
       )
       .mockReturnValueOnce(JSON.stringify([{ results: [{ id: 'client-1', scopes: clientScopes }] }]))
 
-    runAgentOAuthScopeBackfill(['--d1', 'zpan-db', '--remote', '--env', 'production', '--apply'], () => {}, execute)
+    runOAuthScopeBackfill(['--d1', 'zpan-db', '--remote', '--env', 'production', '--apply'], () => {}, execute)
 
     expect(execute).toHaveBeenCalledTimes(6)
     expect(execute.mock.calls[0]?.[0]).toEqual({

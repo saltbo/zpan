@@ -1,7 +1,7 @@
 import { AuthorizationScope } from '@shared/authorization'
 import { describe, expect, it, vi } from 'vitest'
-import { getAgentOAuthConsentContext } from './agent-oauth-consent'
-import type { AgentOAuthGateway, OrgRepo } from './ports'
+import { getOAuthConsentContext } from './oauth-consent'
+import type { OAuthGateway, OrgRepo } from './ports'
 
 const db = {} as never
 const CLIENT_ID = 'dynamic-client'
@@ -14,7 +14,6 @@ function org(overrides: Partial<OrgRepo> = {}): OrgRepo {
     getOrgNames: vi.fn(async () => new Map([['org-1', 'Personal']])),
     canReadOrg: vi.fn(async () => true),
     canWriteToOrg: vi.fn(),
-    canManageAgentAccess: vi.fn(),
     isPersonalOrg: vi.fn(),
     ...overrides,
   }
@@ -31,7 +30,7 @@ function deps(
 ) {
   return {
     org: orgRepo,
-    agentOAuth: {
+    oauth: {
       findClient: vi.fn(async () => ({
         clientId: client.clientId ?? CLIENT_ID,
         clientName: client.clientName ?? CLIENT_NAME,
@@ -45,7 +44,7 @@ function deps(
           AuthorizationScope.QUOTA_READ,
         ],
       })),
-    } as unknown as AgentOAuthGateway,
+    } as unknown as OAuthGateway,
   }
 }
 
@@ -59,14 +58,14 @@ function oauthQuery(overrides: Record<string, string> = {}) {
   }).toString()
 }
 
-describe('Agent OAuth consent usecase', () => {
+describe('OAuth consent usecase', () => {
   it('resolves a dynamically registered client instead of hard-coding its identity', async () => {
     const dynamicQuery = oauthQuery({
       client_id: 'dynamic-client',
       redirect_uri: 'https://broker.example.com/oauth/callback',
     })
     await expect(
-      getAgentOAuthConsentContext(
+      getOAuthConsentContext(
         deps(org(), {
           clientId: 'dynamic-client',
           clientName: 'Broker',
@@ -76,7 +75,7 @@ describe('Agent OAuth consent usecase', () => {
           db,
           userId: 'user-1',
           orgId: 'org-1',
-          requestUrl: 'https://zpan.example.test/api/agent-oauth-consent',
+          requestUrl: 'https://zpan.example.test/api/oauth-consent',
           oauthQuery: dynamicQuery,
         },
       ),
@@ -89,11 +88,11 @@ describe('Agent OAuth consent usecase', () => {
 
   it('builds server-owned consent context for the active workspace', async () => {
     await expect(
-      getAgentOAuthConsentContext(deps(org()), {
+      getOAuthConsentContext(deps(org()), {
         db,
         userId: 'user-1',
         orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/agent-oauth-consent',
+        requestUrl: 'https://zpan.example.test/api/oauth-consent',
         oauthQuery: oauthQuery(),
       }),
     ).resolves.toEqual({
@@ -113,11 +112,11 @@ describe('Agent OAuth consent usecase', () => {
 
   it('keeps the active workspace id when the workspace name is unavailable', async () => {
     await expect(
-      getAgentOAuthConsentContext(deps(org({ getOrgNames: vi.fn(async () => new Map()) })), {
+      getOAuthConsentContext(deps(org({ getOrgNames: vi.fn(async () => new Map()) })), {
         db,
         userId: 'user-1',
         orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/agent-oauth-consent',
+        requestUrl: 'https://zpan.example.test/api/oauth-consent',
         oauthQuery: oauthQuery(),
       }),
     ).resolves.toMatchObject({
@@ -127,11 +126,11 @@ describe('Agent OAuth consent usecase', () => {
 
   it('rejects requests that are not the managed authorization-code client flow', async () => {
     await expect(
-      getAgentOAuthConsentContext(deps(org()), {
+      getOAuthConsentContext(deps(org()), {
         db,
         userId: 'user-1',
         orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/agent-oauth-consent',
+        requestUrl: 'https://zpan.example.test/api/oauth-consent',
         oauthQuery: oauthQuery({ response_type: 'token' }),
       }),
     ).rejects.toMatchObject({ httpStatus: 400 })
@@ -139,21 +138,21 @@ describe('Agent OAuth consent usecase', () => {
 
   it('rejects untrusted redirect URIs and non-grantable scopes', async () => {
     await expect(
-      getAgentOAuthConsentContext(deps(org()), {
+      getOAuthConsentContext(deps(org()), {
         db,
         userId: 'user-1',
         orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/agent-oauth-consent',
+        requestUrl: 'https://zpan.example.test/api/oauth-consent',
         oauthQuery: oauthQuery({ redirect_uri: 'https://evil.example/callback' }),
       }),
     ).rejects.toMatchObject({ httpStatus: 400 })
 
     await expect(
-      getAgentOAuthConsentContext(deps(org()), {
+      getOAuthConsentContext(deps(org()), {
         db,
         userId: 'user-1',
         orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/agent-oauth-consent',
+        requestUrl: 'https://zpan.example.test/api/oauth-consent',
         oauthQuery: oauthQuery({ scope: 'objects:purge' }),
       }),
     ).rejects.toMatchObject({ httpStatus: 400 })
@@ -161,11 +160,11 @@ describe('Agent OAuth consent usecase', () => {
 
   it('rejects missing or inaccessible workspaces', async () => {
     await expect(
-      getAgentOAuthConsentContext(deps(org({ canReadOrg: vi.fn(async () => false) })), {
+      getOAuthConsentContext(deps(org({ canReadOrg: vi.fn(async () => false) })), {
         db,
         userId: 'user-1',
         orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/agent-oauth-consent',
+        requestUrl: 'https://zpan.example.test/api/oauth-consent',
         oauthQuery: oauthQuery(),
       }),
     ).rejects.toMatchObject({ httpStatus: 403 })

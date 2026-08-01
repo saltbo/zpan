@@ -1,7 +1,7 @@
 import { release as osRelease } from 'node:os'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
-import { AGENT_OAUTH_SCOPE_DESCRIPTIONS, AGENT_OAUTH_SCOPES } from '@shared/agent-oauth'
+import { OAUTH_SCOPE_DESCRIPTIONS, OAUTH_SCOPES } from '@shared/oauth'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
@@ -10,7 +10,6 @@ import { createDeps } from './composition'
 import { isPotentialWebDavPublicRequest, isWebDavPublicRequest } from './domain/webdav-public-url'
 import { adminOverview } from './http/admin-overview'
 import { adminStats } from './http/admin-stats'
-import { agentOAuthGrants } from './http/agent-oauth-grants'
 import { ARAZZO_DOCUMENT_PATH, ARAZZO_MEDIA_TYPE, createArazzoDocument } from './http/arazzo'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
@@ -22,6 +21,7 @@ import ihostConfig from './http/image-hosting/config'
 import ihost from './http/image-hosting/images'
 import internal from './http/internal'
 import { notifications } from './http/notifications'
+import { oauthGrants } from './http/oauth-grants'
 import { oauthResourceScopes } from './http/oauth-resource-scopes'
 import objects from './http/objects'
 import { adminQuotas, userQuotas } from './http/quotas'
@@ -146,7 +146,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       if (error?.error === 'unsupported_token_type') {
         const token = (await revokeRequest.formData()).get('token')
         if (typeof token === 'string') {
-          await c.get('deps').agentOAuth.revokeJwtAccessToken(c.get('platform').db, token)
+          await c.get('deps').oauth.revokeJwtAccessToken(c.get('platform').db, token)
           return new Response(null, {
             status: 200,
             headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' },
@@ -172,7 +172,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       resource: `${origin}/api`,
       authorization_servers: [authorizationServer],
       bearer_methods_supported: ['header'],
-      scopes_supported: AGENT_OAUTH_SCOPES.filter((scope) => scope.includes(':')),
+      scopes_supported: OAUTH_SCOPES.filter((scope) => scope.includes(':')),
       dpop_signing_alg_values_supported: ['ES256', 'EdDSA'],
       resource_name: 'ZPan API',
     })
@@ -237,7 +237,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       ...(doc.components.securitySchemes ?? {}),
       cookieAuth: { type: 'apiKey', in: 'cookie', name: 'zp.session_token' },
       bearerAuth: { type: 'http', scheme: 'bearer' },
-      agentOAuth2: {
+      oauth2: {
         type: 'oauth2',
         flows: {
           authorizationCode: {
@@ -357,7 +357,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/objects', objects)
   app.route('/api/shares', authedShares)
   app.route('/api/trash', trash)
-  app.route('/api', agentOAuthGrants)
+  app.route('/api', oauthGrants)
   app.route('/api/teams', teams)
   app.route('/api/teams', adminTeams)
   app.route('/api/site/storages', storages)
@@ -462,7 +462,7 @@ function getCorsOrigins(platform: Platform): Set<string> {
 }
 
 function agentScopeDescriptions(): Record<string, string> {
-  return { ...AGENT_OAUTH_SCOPE_DESCRIPTIONS }
+  return { ...OAUTH_SCOPE_DESCRIPTIONS }
 }
 
 export type AppType = ReturnType<typeof createApp>
@@ -508,5 +508,5 @@ export type AdminAuditRoute = typeof adminAudit
 export type AdminOverviewRoute = typeof adminOverview
 export type AdminStatsRoute = typeof adminStats
 export type StorageUsageRoute = typeof storageUsage
-export type AgentOAuthGrantsRoute = typeof agentOAuthGrants
+export type OAuthGrantsRoute = typeof oauthGrants
 export type OAuthResourceScopesRoute = typeof oauthResourceScopes

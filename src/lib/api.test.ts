@@ -47,7 +47,6 @@ import {
   getAdminDashboardStorageStats,
   getAdminDashboardTrafficStats,
   getAdminOverview,
-  getAgentOAuthConsentContext,
   getAnnouncement,
   getBackgroundJob,
   getChangelog,
@@ -59,6 +58,7 @@ import {
   getInstanceInfo,
   getLicenseEntitlements,
   getLicensingStatus,
+  getOAuthConsentContext,
   getObject,
   getProfile,
   getSession,
@@ -80,7 +80,6 @@ import {
   listActiveAnnouncements,
   listAdminAnnouncements,
   listAdminAuditLogs,
-  listAgentOAuthGrants,
   listAnnouncements,
   listApiKeys,
   listAuthProviders,
@@ -96,6 +95,7 @@ import {
   listIhostImages,
   listInviteCodes,
   listNotifications,
+  listOAuthGrants,
   listObjectsByPath,
   listOrgEntitlements,
   listQuotas,
@@ -122,8 +122,8 @@ import {
   resetBrandingField,
   restoreObject,
   retryBackgroundJob,
-  revokeAgentOAuthGrant,
   revokeIhostApiKey,
+  revokeOAuthGrant,
   revokeOrgEntitlement,
   revokeRemoteDownloadApiKey,
   revokeShare,
@@ -138,7 +138,7 @@ import {
   sendDownloaderHeartbeat,
   serverEventsUrl,
   setSharePrivacy,
-  submitAgentOAuthConsent,
+  submitOAuthConsent,
   testEmail,
   testImageDomainProvider,
   transferObject,
@@ -3118,7 +3118,7 @@ describe('api', () => {
     })
   })
 
-  describe('Agent OAuth consent and grants', () => {
+  describe('OAuth consent and grants', () => {
     const sampleGrantList = {
       items: [
         {
@@ -3149,11 +3149,11 @@ describe('api', () => {
       }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await getAgentOAuthConsentContext('client_id=dynamic-client&scope=objects%3Aread')
+      const result = await getOAuthConsentContext('client_id=dynamic-client&scope=objects%3Aread')
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/agent-oauth-consent')
+      expect(url).toContain('/api/oauth-consent')
       expect(url).toContain('oauthQuery=client_id%3Ddynamic-client%26scope%3Dobjects%253Aread')
       expect(init.method).toBe('GET')
     })
@@ -3161,11 +3161,11 @@ describe('api', () => {
     it('submits full OAuth consent through the Hono RPC wrapper without sending scope overrides', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ url: 'http://127.0.0.1:8484/callback?code=abc' }))
 
-      const result = await submitAgentOAuthConsent({ accept: true, oauthQuery: 'client_id=dynamic-client' })
+      const result = await submitOAuthConsent({ accept: true, oauthQuery: 'client_id=dynamic-client' })
 
       expect(result).toEqual({ url: 'http://127.0.0.1:8484/callback?code=abc' })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/agent-oauth-consent')
+      expect(url).toBe('/api/oauth-consent')
       expect(init.method).toBe('POST')
       expect(init.credentials).toBe('include')
       expect(JSON.parse(init.body as string)).toEqual({
@@ -3184,29 +3184,29 @@ describe('api', () => {
         },
       } as unknown as Response)
 
-      await expect(submitAgentOAuthConsent({ accept: false, oauthQuery: 'client_id=dynamic-client' })).rejects.toThrow(
+      await expect(submitOAuthConsent({ accept: false, oauthQuery: 'client_id=dynamic-client' })).rejects.toThrow(
         ApiError,
       )
     })
 
-    it('lists delegated Agent OAuth grants', async () => {
+    it('lists delegated OAuth grants', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(sampleGrantList))
 
-      const result = await listAgentOAuthGrants()
+      const result = await listOAuthGrants()
 
       expect(result).toEqual(sampleGrantList)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/agent-oauth-grants')
+      expect(url).toContain('/api/oauth-grants')
       expect(init.method).toBe('GET')
     })
 
-    it('revokes delegated Agent OAuth grants with DELETE', async () => {
+    it('revokes delegated OAuth grants with DELETE', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      await revokeAgentOAuthGrant('grant-1')
+      await revokeOAuthGrant('grant-1')
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/agent-oauth-grants/grant-1')
+      expect(url).toContain('/api/oauth-grants/grant-1')
       expect(init.method).toBe('DELETE')
     })
   })

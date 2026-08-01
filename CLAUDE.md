@@ -19,7 +19,7 @@ Core architecture: clients upload directly to S3-compatible storage via presigne
 - [docs/architecture.md](docs/architecture.md) — system architecture, tech decisions, platform abstraction
 - [docs/design/admin-form-ui.md](docs/design/admin-form-ui.md) — admin form layout, density, required/help/placeholder rules
 - [docs/design/upload-policies.md](docs/design/upload-policies.md) — proposed selector-based upload placement policies for multiple storage backends
-- [docs/design/agent-authentication.md](docs/design/agent-authentication.md) — Agent OAuth, CI API keys, protocol-neutral authorization, Restish credential handling, and future Agent Auth compatibility
+- [docs/design/oauth-server.md](docs/design/oauth-server.md) — OAuth, CI API keys, protocol-neutral authorization, Restish credential handling, and future Agent Auth compatibility
 - [V2_ROADMAP.md](V2_ROADMAP.md) — product positioning, release plan (v2.0–v2.9)
 - [docs/roadmap/](docs/roadmap/) — per-version technical specs (v2.0.md–v2.9.md)
 - [docs/design/spaces-quota-sharing.md](docs/design/spaces-quota-sharing.md) — spaces/quota/sharing design decisions (team billing, allocation, cross-space transfer, no per-item ACL)

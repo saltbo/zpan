@@ -7,42 +7,42 @@ import {
 } from '@better-auth/oauth-provider'
 import { APIError, type User } from 'better-auth'
 import { createLocalJWKSet, createRemoteJWKSet, type JSONWebKeySet, jwtVerify } from 'jose'
+import { isAuthorizationScope } from '../../shared/authorization'
 import {
   AGENT_ACTOR_RESOURCE,
-  AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
-  AGENT_OAUTH_ACTOR_TOKEN_SECONDS,
-  AGENT_OAUTH_REFRESH_TOKEN_SECONDS,
-  AGENT_OAUTH_SCOPES,
-  AGENT_OAUTH_STANDARD_SCOPES,
   JWT_BEARER_GRANT_TYPE,
+  OAUTH_ACCESS_TOKEN_SECONDS,
   OAUTH_ACCESS_TOKEN_TYPE,
+  OAUTH_ACTOR_TOKEN_SECONDS,
+  OAUTH_REFRESH_TOKEN_SECONDS,
+  OAUTH_SCOPES,
+  OAUTH_STANDARD_SCOPES,
   TOKEN_EXCHANGE_GRANT_TYPE,
-} from '../../shared/agent-oauth'
-import { isAuthorizationScope } from '../../shared/authorization'
+} from '../../shared/oauth'
 import { createOrgRepo } from '../adapters/repos/org'
 import type { Database } from '../platform/interface'
 
-type AgentOAuthOrgLookup = Pick<ReturnType<typeof createOrgRepo>, 'findPersonalOrg' | 'getMemberRole'>
-type AgentOAuthProviderOptions = Parameters<typeof oauthProvider>[0]
+type OAuthOrgLookup = Pick<ReturnType<typeof createOrgRepo>, 'findPersonalOrg' | 'getMemberRole'>
+type OAuthProviderOptions = Parameters<typeof oauthProvider>[0]
 
-export function createAgentOAuthProviderOptions(input: {
+export function createOAuthProviderOptions(input: {
   db: Database
   resourceAudience?: string
-  orgs?: AgentOAuthOrgLookup
-}): AgentOAuthProviderOptions {
+  orgs?: OAuthOrgLookup
+}): OAuthProviderOptions {
   const orgs = input.orgs ?? createOrgRepo(input.db)
   const resources = input.resourceAudience
     ? [
         {
           identifier: input.resourceAudience,
           name: 'ZPan API',
-          accessTokenTtl: AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
-          allowedScopes: [...AGENT_OAUTH_SCOPES],
+          accessTokenTtl: OAUTH_ACCESS_TOKEN_SECONDS,
+          allowedScopes: [...OAUTH_SCOPES],
         },
         {
           identifier: AGENT_ACTOR_RESOURCE,
           name: 'ZPan Agent Actor',
-          accessTokenTtl: AGENT_OAUTH_ACTOR_TOKEN_SECONDS,
+          accessTokenTtl: OAUTH_ACTOR_TOKEN_SECONDS,
           allowedScopes: ['openid'],
         },
       ]
@@ -50,42 +50,42 @@ export function createAgentOAuthProviderOptions(input: {
 
   return {
     loginPage: '/sign-in',
-    consentPage: '/settings/agent-access',
-    accessTokenExpiresIn: AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
-    m2mAccessTokenExpiresIn: AGENT_OAUTH_ACTOR_TOKEN_SECONDS,
-    refreshTokenExpiresIn: AGENT_OAUTH_REFRESH_TOKEN_SECONDS,
+    consentPage: '/settings/oauth-apps',
+    accessTokenExpiresIn: OAUTH_ACCESS_TOKEN_SECONDS,
+    m2mAccessTokenExpiresIn: OAUTH_ACTOR_TOKEN_SECONDS,
+    refreshTokenExpiresIn: OAUTH_REFRESH_TOKEN_SECONDS,
     grantTypes: ['authorization_code', 'refresh_token'],
-    scopes: [...AGENT_OAUTH_SCOPES],
+    scopes: [...OAUTH_SCOPES],
     resources,
     enforcePerClientResources: false,
     allowDynamicClientRegistration: true,
     allowUnauthenticatedClientRegistration: true,
     clientRegistrationRequirePKCE: true,
-    clientRegistrationAllowedScopes: [...AGENT_OAUTH_SCOPES],
-    clientRegistrationDefaultScopes: [...AGENT_OAUTH_STANDARD_SCOPES],
+    clientRegistrationAllowedScopes: [...OAUTH_SCOPES],
+    clientRegistrationDefaultScopes: [...OAUTH_STANDARD_SCOPES],
     extensions: input.resourceAudience ? [externalResourceGrantExtension(input.resourceAudience)] : [],
-    advertisedMetadata: { scopes_supported: [...AGENT_OAUTH_SCOPES] },
+    advertisedMetadata: { scopes_supported: [...OAUTH_SCOPES] },
     silenceWarnings: {
       oauthAuthServerConfig: true,
       openidConfig: true,
     },
     postLogin: {
-      page: '/settings/agent-access',
+      page: '/settings/oauth-apps',
       shouldRedirect: async () => false,
       consentReferenceId: async ({ user, session, scopes }) => {
         const clientScopes = scopes.filter((scope) => scope !== 'openid' && scope !== 'profile' && scope !== 'email')
-        const grantableScopes = new Set<string>(AGENT_OAUTH_SCOPES)
+        const grantableScopes = new Set<string>(OAUTH_SCOPES)
         if (clientScopes.some((scope) => !grantableScopes.has(scope))) {
           throw oauthError('invalid_scope', 'Scope is not grantable')
         }
         const orgId = typeof session.activeOrganizationId === 'string' ? session.activeOrganizationId : null
         const selectedOrgId = orgId || (await orgs.findPersonalOrg(user.id))
-        if (!selectedOrgId) throw oauthError('invalid_request', 'A workspace is required for Agent OAuth')
+        if (!selectedOrgId) throw oauthError('invalid_request', 'A workspace is required for OAuth')
         const role = await orgs.getMemberRole(selectedOrgId, user.id)
         if (!role && selectedOrgId !== (await orgs.findPersonalOrg(user.id))) {
           throw new APIError('FORBIDDEN', {
             error: 'access_denied',
-            error_description: 'Workspace access is required for Agent OAuth',
+            error_description: 'Workspace access is required for OAuth',
           })
         }
         return selectedOrgId
@@ -95,7 +95,7 @@ export function createAgentOAuthProviderOptions(input: {
       if (!user?.id || !referenceId) return {}
       return {
         zpan_org_id: referenceId,
-        zpan_actor: 'agent_oauth',
+        zpan_actor: 'oauth',
       }
     },
   }

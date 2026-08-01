@@ -65,11 +65,5 @@ export function createOrgRepo(db: Database): OrgRepo {
     return orgId === (await findPersonalOrg(userId))
   }
 
-  async function canManageAgentAccess(userId: string, orgId: string): Promise<boolean> {
-    const role = await getMemberRole(orgId, userId)
-    if (role !== null) return role === 'owner' || role === 'admin'
-    return orgId === (await findPersonalOrg(userId))
-  }
-
-  return { findPersonalOrg, getMemberRole, getOrgNames, canReadOrg, canWriteToOrg, canManageAgentAccess, isPersonalOrg }
+  return { findPersonalOrg, getMemberRole, getOrgNames, canReadOrg, canWriteToOrg, isPersonalOrg }
 }

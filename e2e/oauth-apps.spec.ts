@@ -4,11 +4,11 @@ import { signUpAndGoToFiles } from './helpers'
 const oauthQuery =
   'client_id=dynamic-client&redirect_uri=https%3A%2F%2Fbroker.example.com%2Fcallback&response_type=code&scope=openid%20offline_access%20objects%3Aread%20shares%3Acreate%20quota%3Aread'
 
-test.describe('Agent Access OAuth UI', () => {
+test.describe('OAuth Apps UI', () => {
   test('renders consent details and submits full approval @desktop', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
-    await page.route('**/api/agent-oauth-consent?*', async (route) => {
+    await page.route('**/api/oauth-consent?*', async (route) => {
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
@@ -23,7 +23,7 @@ test.describe('Agent Access OAuth UI', () => {
         }),
       })
     })
-    await page.route('**/api/agent-oauth-consent', async (route) => {
+    await page.route('**/api/oauth-consent', async (route) => {
       if (route.request().method() !== 'POST') return route.fallback()
       expect(route.request().method()).toBe('POST')
       const body = route.request().postDataJSON() as { accept: boolean; oauthQuery?: string; scope?: string }
@@ -37,7 +37,7 @@ test.describe('Agent Access OAuth UI', () => {
       await route.fulfill({ contentType: 'text/html', body: '<main>Returned to FlareAuth</main>' })
     })
 
-    await page.goto(`/settings/agent-access?${oauthQuery}`)
+    await page.goto(`/settings/oauth-apps?${oauthQuery}`)
 
     await expect(page.getByRole('heading', { name: 'Authorize Application' })).toBeVisible()
     await expect(page.getByText('http://localhost:5185')).toBeVisible()
@@ -55,7 +55,7 @@ test.describe('Agent Access OAuth UI', () => {
     await signUpAndGoToFiles(page)
     let revoked = false
 
-    await page.route('**/api/agent-oauth-grants', async (route) => {
+    await page.route('**/api/oauth-grants', async (route) => {
       if (route.request().method() !== 'GET') return route.fallback()
       await route.fulfill({
         contentType: 'application/json',
@@ -79,15 +79,15 @@ test.describe('Agent Access OAuth UI', () => {
         }),
       })
     })
-    await page.route('**/api/agent-oauth-grants/grant-e2e', async (route) => {
+    await page.route('**/api/oauth-grants/grant-e2e', async (route) => {
       expect(route.request().method()).toBe('DELETE')
       revoked = true
       await route.fulfill({ status: 204 })
     })
 
-    await page.goto('/settings/agent-access')
+    await page.goto('/settings/oauth-apps')
 
-    await expect(page.getByText('Delegated OAuth Grants')).toBeVisible()
+    await expect(page.getByText('Authorized OAuth Apps')).toBeVisible()
     await expect(page.getByRole('cell', { name: 'FlareAuth' })).toBeVisible()
     await expect(page.getByText('Shares: create shares')).toBeVisible()
 
@@ -95,13 +95,13 @@ test.describe('Agent Access OAuth UI', () => {
     await revokeButtons.last().click()
     await expect(page.getByRole('dialog', { name: 'Revoke OAuth Grant' })).toBeVisible()
     await page.getByRole('dialog').getByRole('button', { name: 'Revoke' }).click()
-    await expect(page.getByText('No delegated OAuth grants yet')).toBeVisible()
+    await expect(page.getByText('No authorized OAuth apps yet')).toBeVisible()
   })
 
   test('keeps consent and delegated grants usable on narrow screens @mobile', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
-    await page.route('**/api/agent-oauth-consent?*', async (route) => {
+    await page.route('**/api/oauth-consent?*', async (route) => {
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
@@ -116,7 +116,7 @@ test.describe('Agent Access OAuth UI', () => {
         }),
       })
     })
-    await page.route('**/api/agent-oauth-grants', async (route) => {
+    await page.route('**/api/oauth-grants', async (route) => {
       if (route.request().method() !== 'GET') return route.fallback()
       await route.fulfill({
         contentType: 'application/json',
@@ -139,7 +139,7 @@ test.describe('Agent Access OAuth UI', () => {
       })
     })
 
-    await page.goto(`/settings/agent-access?${oauthQuery}`)
+    await page.goto(`/settings/oauth-apps?${oauthQuery}`)
     await expect(page.getByRole('heading', { name: 'Authorize Application' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Approve Access' })).toBeVisible()
     await expect(page.getByText('Files: read objects')).toBeVisible()
@@ -148,8 +148,8 @@ test.describe('Agent Access OAuth UI', () => {
       .poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
       .toBe(true)
 
-    await page.goto('/settings/agent-access')
-    await expect(page.getByText('Delegated OAuth Grants')).toBeVisible()
+    await page.goto('/settings/oauth-apps')
+    await expect(page.getByText('Authorized OAuth Apps')).toBeVisible()
     await expect(page.getByRole('cell', { name: 'FlareAuth' })).toBeVisible()
     const grantsTableContainer = page.locator('[data-slot="table-container"]').last()
     await expect(grantsTableContainer).toBeVisible()

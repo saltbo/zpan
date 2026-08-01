@@ -1,11 +1,6 @@
 import { type ApiKeyMetadata, ApiKeyTemplate } from '@shared/api-key-templates'
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
-  AgentOAuthConsentContext,
-  AgentOAuthConsentResult,
-  AgentOAuthConsentSubmit,
-  AgentOAuthGrant,
-  AgentOAuthGrantList,
   AllowedImageMime,
   AnnouncementInput,
   CloudCreditBalanceResponse,
@@ -21,6 +16,11 @@ import type {
   DownloadTaskActionInput,
   EmailSettings,
   ImageDomainProviderResponse,
+  OAuthConsentContext,
+  OAuthConsentResult,
+  OAuthConsentSubmit,
+  OAuthGrant,
+  OAuthGrantList,
   PatchStorageInput,
   PresignObjectUploadPartsInput,
   PublicProfile,
@@ -102,7 +102,6 @@ import {
   adminQuotas,
   adminSiteInvitations,
   adminTeams,
-  agentOAuthGrantsApi,
   announcementsApi,
   authedSharesApi,
   authProviders,
@@ -121,6 +120,7 @@ import {
   licensingAdminApi,
   licensingApi,
   notificationsApi,
+  oauthGrantsApi,
   objects,
   publicSharesApi,
   publicSiteInvitations,
@@ -1090,22 +1090,22 @@ export function deleteIhostConfig() {
   })
 }
 
-export type { AgentOAuthConsentContext, AgentOAuthConsentResult, AgentOAuthGrant, AgentOAuthGrantList }
+export type { OAuthConsentContext, OAuthConsentResult, OAuthGrant, OAuthGrantList }
 
-export function getAgentOAuthConsentContext(oauthQuery: string) {
-  return unwrap<AgentOAuthConsentContext>(agentOAuthGrantsApi['agent-oauth-consent'].$get({ query: { oauthQuery } }))
+export function getOAuthConsentContext(oauthQuery: string) {
+  return unwrap<OAuthConsentContext>(oauthGrantsApi['oauth-consent'].$get({ query: { oauthQuery } }))
 }
 
-export function submitAgentOAuthConsent(input: AgentOAuthConsentSubmit) {
-  return unwrap<AgentOAuthConsentResult>(agentOAuthGrantsApi['agent-oauth-consent'].$post({ json: input }))
+export function submitOAuthConsent(input: OAuthConsentSubmit) {
+  return unwrap<OAuthConsentResult>(oauthGrantsApi['oauth-consent'].$post({ json: input }))
 }
 
-export function listAgentOAuthGrants() {
-  return unwrap<AgentOAuthGrantList>(agentOAuthGrantsApi['agent-oauth-grants'].$get())
+export function listOAuthGrants() {
+  return unwrap<OAuthGrantList>(oauthGrantsApi['oauth-grants'].$get())
 }
 
-export function revokeAgentOAuthGrant(grantId: string) {
-  return discard(agentOAuthGrantsApi['agent-oauth-grants'][':grantId'].$delete({ param: { grantId } }))
+export function revokeOAuthGrant(grantId: string) {
+  return discard(oauthGrantsApi['oauth-grants'][':grantId'].$delete({ param: { grantId } }))
 }
 
 // Image Host API Keys (via better-auth apiKey plugin)

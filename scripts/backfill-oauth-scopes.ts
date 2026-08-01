@@ -2,16 +2,16 @@
 
 import { execFileSync } from 'node:child_process'
 import Database from 'better-sqlite3'
-import { AGENT_OAUTH_SCOPES } from '../shared/agent-oauth'
+import { OAUTH_SCOPES } from '../shared/oauth'
 import { AuthorizationScope } from '../shared/authorization'
 
-export type AgentOAuthScopeBackfillTarget =
+export type OAuthScopeBackfillTarget =
   | { kind: 'sqlite'; path: string }
   | { kind: 'd1'; database: string; remote: boolean; env?: string }
 
-export interface AgentOAuthScopeBackfillOptions {
+export interface OAuthScopeBackfillOptions {
   apply: boolean
-  target: AgentOAuthScopeBackfillTarget
+  target: OAuthScopeBackfillTarget
 }
 
 interface OAuthResourceRow {
@@ -25,16 +25,16 @@ interface OAuthClientRow {
   scopes: string | null
 }
 
-export interface AgentOAuthScopeBackfill {
+export interface OAuthScopeBackfill {
   resources: Array<{ id: string; scopes: string }>
   clients: Array<{ id: string; scopes: string }>
 }
 
-export function buildAgentOAuthScopeBackfill(
+export function buildOAuthScopeBackfill(
   resources: OAuthResourceRow[],
   clients: OAuthClientRow[],
-): AgentOAuthScopeBackfill {
-  const resourceScopes = JSON.stringify(AGENT_OAUTH_SCOPES)
+): OAuthScopeBackfill {
+  const resourceScopes = JSON.stringify(OAUTH_SCOPES)
   return {
     resources: resources.flatMap((resource) =>
       resource.name === 'ZPan API' && resource.allowedScopes !== resourceScopes
@@ -60,7 +60,7 @@ function parseScopes(value: string | null): string[] {
   return parsed
 }
 
-export function parseAgentOAuthScopeBackfillOptions(argv: string[]): AgentOAuthScopeBackfillOptions {
+export function parseOAuthScopeBackfillOptions(argv: string[]): OAuthScopeBackfillOptions {
   const sqliteIndex = argv.indexOf('--sqlite')
   const d1Index = argv.indexOf('--d1')
   if ((sqliteIndex >= 0) === (d1Index >= 0)) usage()
@@ -85,11 +85,11 @@ export function parseAgentOAuthScopeBackfillOptions(argv: string[]): AgentOAuthS
 
 function usage(): never {
   throw new Error(
-    'Usage: pnpm agent-oauth-scopes:backfill -- (--sqlite <path> | --d1 <database> [--remote] [--env <name>]) [--apply]',
+    'Usage: pnpm oauth-scopes:backfill -- (--sqlite <path> | --d1 <database> [--remote] [--env <name>]) [--apply]',
   )
 }
 
-function d1Args(target: Extract<AgentOAuthScopeBackfillTarget, { kind: 'd1' }>): string[] {
+function d1Args(target: Extract<OAuthScopeBackfillTarget, { kind: 'd1' }>): string[] {
   return [
     'exec',
     'wrangler',
@@ -101,27 +101,27 @@ function d1Args(target: Extract<AgentOAuthScopeBackfillTarget, { kind: 'd1' }>):
   ]
 }
 
-function executeD1(target: Extract<AgentOAuthScopeBackfillTarget, { kind: 'd1' }>, sql: string, json = false): string {
+function executeD1(target: Extract<OAuthScopeBackfillTarget, { kind: 'd1' }>, sql: string, json = false): string {
   return execFileSync('pnpm', [...d1Args(target), '--command', sql, ...(json ? ['--json'] : [])], {
     encoding: 'utf8',
     stdio: json ? 'pipe' : 'inherit',
   }) as string
 }
 
-export type AgentOAuthScopeD1Executor = typeof executeD1
+export type OAuthScopeD1Executor = typeof executeD1
 
 function d1Rows<T>(
-  target: Extract<AgentOAuthScopeBackfillTarget, { kind: 'd1' }>,
+  target: Extract<OAuthScopeBackfillTarget, { kind: 'd1' }>,
   sql: string,
-  execute: AgentOAuthScopeD1Executor,
+  execute: OAuthScopeD1Executor,
 ): T[] {
   const payload = JSON.parse(execute(target, sql, true)) as Array<{ results?: T[] }>
   return payload.flatMap((entry) => entry.results ?? [])
 }
 
 function readRows(
-  target: AgentOAuthScopeBackfillTarget,
-  execute: AgentOAuthScopeD1Executor,
+  target: OAuthScopeBackfillTarget,
+  execute: OAuthScopeD1Executor,
 ): { resources: OAuthResourceRow[]; clients: OAuthClientRow[] } {
   const resourceSql = 'SELECT id, name, allowed_scopes AS allowedScopes FROM oauthResource;'
   const clientSql = 'SELECT id, scopes FROM oauthClient;'
@@ -147,9 +147,9 @@ function sqlString(value: string): string {
 }
 
 function applyBackfill(
-  target: AgentOAuthScopeBackfillTarget,
-  changes: AgentOAuthScopeBackfill,
-  execute: AgentOAuthScopeD1Executor,
+  target: OAuthScopeBackfillTarget,
+  changes: OAuthScopeBackfill,
+  execute: OAuthScopeD1Executor,
 ): void {
   if (target.kind === 'd1') {
     for (const resource of changes.resources) {
@@ -180,18 +180,18 @@ function applyBackfill(
   }
 }
 
-function countChanges(changes: AgentOAuthScopeBackfill): number {
+function countChanges(changes: OAuthScopeBackfill): number {
   return changes.resources.length + changes.clients.length
 }
 
-export function runAgentOAuthScopeBackfill(
+export function runOAuthScopeBackfill(
   argv: string[],
   log: (message: string) => void = console.log,
-  execute: AgentOAuthScopeD1Executor = executeD1,
+  execute: OAuthScopeD1Executor = executeD1,
 ): void {
-  const options = parseAgentOAuthScopeBackfillOptions(argv)
+  const options = parseOAuthScopeBackfillOptions(argv)
   const rows = readRows(options.target, execute)
-  const changes = buildAgentOAuthScopeBackfill(rows.resources, rows.clients)
+  const changes = buildOAuthScopeBackfill(rows.resources, rows.clients)
   log(
     JSON.stringify(
       {
@@ -206,8 +206,8 @@ export function runAgentOAuthScopeBackfill(
   if (!options.apply) return
   applyBackfill(options.target, changes, execute)
   const after = readRows(options.target, execute)
-  const remaining = buildAgentOAuthScopeBackfill(after.resources, after.clients)
-  if (countChanges(remaining) > 0) throw new Error(`agent_oauth_scope_backfill_failed:${countChanges(remaining)}`)
+  const remaining = buildOAuthScopeBackfill(after.resources, after.clients)
+  if (countChanges(remaining) > 0) throw new Error(`oauth_scope_backfill_failed:${countChanges(remaining)}`)
 }
 
-if (process.argv[1]?.endsWith('backfill-agent-oauth-scopes.ts')) runAgentOAuthScopeBackfill(process.argv.slice(2))
+if (process.argv[1]?.endsWith('backfill-oauth-scopes.ts')) runOAuthScopeBackfill(process.argv.slice(2))

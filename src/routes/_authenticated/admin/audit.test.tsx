@@ -131,7 +131,7 @@ describe('AuditLogsPage filters and pagination', () => {
     vi.mocked(listAdminAuditLogs).mockResolvedValue(
       auditPage(1, [
         auditEvent({
-          actorType: 'agent_oauth',
+          actorType: 'oauth',
           actorRef: 'agt_agent-1',
           actorIssuer: 'https://id.realmroot.dev/api/auth',
         }),

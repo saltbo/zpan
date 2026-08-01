@@ -74,14 +74,14 @@ describe('[CF] Auth API', () => {
     expect(rejected.status).toBe(403)
   })
 
-  it('completes managed Agent OAuth consent on D1', async () => {
+  it('completes managed OAuth consent on D1', async () => {
     const app = await buildApp()
     const signUp = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: 'CF Agent OAuth',
-        email: `cf-agent-oauth-${Date.now()}@example.com`,
+        name: 'CF OAuth',
+        email: `cf-oauth-${Date.now()}@example.com`,
         password: 'password123456',
       }),
     })
@@ -108,7 +108,7 @@ describe('[CF] Auth API', () => {
       redirect_uri: 'https://broker.example.com/callback',
       response_type: 'code',
       scope: 'openid offline_access objects:read quota:read',
-      state: 'cf-agent-oauth',
+      state: 'cf-oauth',
       code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
       code_challenge_method: 'S256',
     })
@@ -117,9 +117,9 @@ describe('[CF] Auth API', () => {
     })
     const consentLocation = authorize.headers.get('location')
     expect(authorize.status).toBe(302)
-    expect(consentLocation).toMatch(/^\/settings\/agent-access\?/)
+    expect(consentLocation).toMatch(/^\/settings\/oauth-apps\?/)
 
-    const consent = await app.request('/api/agent-oauth-consent', {
+    const consent = await app.request('/api/oauth-consent', {
       method: 'POST',
       headers: { Cookie: cookie, Origin: 'http://localhost', 'Content-Type': 'application/json' },
       body: JSON.stringify({

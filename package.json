@@ -29,7 +29,7 @@
     "storage:backfill": "tsx scripts/backfill-storage-usage.ts",
     "storage-status:backfill": "tsx scripts/backfill-storage-enabled-status.ts",
     "api-key-scopes:backfill": "tsx scripts/backfill-api-key-scopes.ts",
-    "agent-oauth-scopes:backfill": "tsx scripts/backfill-agent-oauth-scopes.ts",
+    "oauth-scopes:backfill": "tsx scripts/backfill-oauth-scopes.ts",
     "typecheck": "tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p src/tsconfig.json",
     "test": "vitest run --project unit --project integration",
     "test:cf": "vitest run --project cloudflare",

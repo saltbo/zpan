@@ -79,7 +79,7 @@ function ActivityItem({ event }: { event: AuditEvent }) {
 }
 
 function formatActor(event: AuditEvent): string {
-  if (event.actorType === 'agent_oauth') {
+  if (event.actorType === 'oauth') {
     const identity = event.actorRef ?? 'unknown'
     return event.actorIssuer ? `Agent:${identity} · ${event.actorIssuer}` : `Agent:${identity}`
   }

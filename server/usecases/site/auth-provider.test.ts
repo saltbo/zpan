@@ -2,7 +2,7 @@ import { FREE_SOCIAL_LOGIN_LIMIT } from '@shared/constants'
 import type { BindingState } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '../../platform/interface'
-import type { AgentOAuthGateway, LicenseBindingRepo, SystemOption, SystemOptionsRepo } from '../ports'
+import type { LicenseBindingRepo, OAuthGateway, SystemOption, SystemOptionsRepo } from '../ports'
 import {
   type AuthProviderDeps,
   deleteAuthProvider,
@@ -150,10 +150,10 @@ describe('auth-provider usecase', () => {
         },
       ]
       const listRegisteredApplications = vi.fn(async () => registeredApplications)
-      const agentOAuth = { listRegisteredApplications } as unknown as AgentOAuthGateway
+      const oauth = { listRegisteredApplications } as unknown as OAuthGateway
       const db = {} as Database
 
-      const result = await listAuthProviderSettings({ ...deps, agentOAuth }, db, listOptions)
+      const result = await listAuthProviderSettings({ ...deps, oauth }, db, listOptions)
 
       expect(result.items).toHaveLength(1)
       expect(result.registeredApplications).toEqual(registeredApplications)

@@ -1,7 +1,7 @@
-import { AGENT_OAUTH_ACCESS_TOKEN_SECONDS, AGENT_OAUTH_SCOPES } from '@shared/agent-oauth'
 import { AuthorizationScope } from '@shared/authorization'
+import { OAUTH_ACCESS_TOKEN_SECONDS, OAUTH_SCOPES } from '@shared/oauth'
 import { describe, expect, it, vi } from 'vitest'
-import { createAgentOAuthProviderOptions } from './agent-oauth-provider'
+import { createOAuthProviderOptions } from './oauth-provider'
 
 const db = {} as never
 
@@ -9,7 +9,7 @@ function createOptions(input?: {
   findPersonalOrg?: (userId: string) => Promise<string | null>
   getMemberRole?: (orgId: string, userId: string) => Promise<string | null>
 }) {
-  return createAgentOAuthProviderOptions({
+  return createOAuthProviderOptions({
     db,
     orgs: {
       findPersonalOrg: input?.findPersonalOrg ?? vi.fn(async () => 'personal-org'),
@@ -18,18 +18,18 @@ function createOptions(input?: {
   })
 }
 
-describe('createAgentOAuthProviderOptions', () => {
+describe('createOAuthProviderOptions', () => {
   it('configures a dynamic-client OAuth provider contract', async () => {
     const options = createOptions()
 
     expect(options).toMatchObject({
       loginPage: '/sign-in',
-      consentPage: '/settings/agent-access',
-      accessTokenExpiresIn: AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
+      consentPage: '/settings/oauth-apps',
+      accessTokenExpiresIn: OAUTH_ACCESS_TOKEN_SECONDS,
       grantTypes: ['authorization_code', 'refresh_token'],
-      postLogin: { page: '/settings/agent-access' },
+      postLogin: { page: '/settings/oauth-apps' },
     })
-    expect(options.scopes).toEqual([...AGENT_OAUTH_SCOPES])
+    expect(options.scopes).toEqual([...OAUTH_SCOPES])
     expect(options.cachedTrustedClients).toBeUndefined()
     expect(options.allowDynamicClientRegistration).toBe(true)
     expect(options.allowUnauthenticatedClientRegistration).toBe(true)
@@ -79,7 +79,7 @@ describe('createAgentOAuthProviderOptions', () => {
         scopes: [AuthorizationScope.OBJECTS_READ],
       } as never),
     ).rejects.toMatchObject({
-      body: expect.objectContaining({ error_description: 'A workspace is required for Agent OAuth' }),
+      body: expect.objectContaining({ error_description: 'A workspace is required for OAuth' }),
     })
 
     await expect(
@@ -92,7 +92,7 @@ describe('createAgentOAuthProviderOptions', () => {
         scopes: [AuthorizationScope.OBJECTS_READ],
       } as never),
     ).rejects.toMatchObject({
-      body: expect.objectContaining({ error_description: 'Workspace access is required for Agent OAuth' }),
+      body: expect.objectContaining({ error_description: 'Workspace access is required for OAuth' }),
     })
   })
 
@@ -103,7 +103,7 @@ describe('createAgentOAuthProviderOptions', () => {
         user: { id: 'user-1' },
         referenceId: 'team-org',
       } as never),
-    ).resolves.toEqual({ zpan_org_id: 'team-org', zpan_actor: 'agent_oauth' })
+    ).resolves.toEqual({ zpan_org_id: 'team-org', zpan_actor: 'oauth' })
   })
 
   it('omits ZPan resource claims without user or workspace context', async () => {

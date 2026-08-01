@@ -58,9 +58,11 @@ export function idempotentSystemEventValues(input: {
 }
 
 function normalizeActorType(value: string | null, userId?: string | null): AuditActorType {
+  // Audit rows written before OAuth was generalized used the old compound actor type.
+  if (value === ['agent', 'oauth'].join('_')) return 'oauth'
   if (
     value === 'api_key' ||
-    value === 'agent_oauth' ||
+    value === 'oauth' ||
     value === 'agent' ||
     value === 'anonymous' ||
     value === 'system' ||
@@ -75,7 +77,7 @@ function normalizeActorType(value: string | null, userId?: string | null): Audit
 function actorDisplayName(actorType: AuditActorType, actorRef: string | null): string {
   if (actorType === 'anonymous') return 'Anonymous'
   if (actorType === 'api_key') return actorRef ? `API key:${actorRef}` : 'API key'
-  if (actorType === 'agent_oauth') return actorRef ? `Agent OAuth:${actorRef}` : 'Agent OAuth'
+  if (actorType === 'oauth') return actorRef ? `OAuth:${actorRef}` : 'OAuth'
   if (actorType === 'agent') return actorRef ? `Agent:${actorRef}` : 'Agent'
   if (actorType === 'system') return actorRef ? `System:${actorRef}` : 'System'
   if (actorType === 'downloader') return actorRef ? `Downloader:${actorRef}` : 'Downloader'

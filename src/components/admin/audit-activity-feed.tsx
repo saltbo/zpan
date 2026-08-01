@@ -111,7 +111,7 @@ function AdminAuditActivityItem({ event }: { event: AdminAuditEvent }) {
 }
 
 function formatActor(event: AdminAuditEvent): string {
-  if (event.actorType === 'agent_oauth') {
+  if (event.actorType === 'oauth') {
     const identity = event.actorRef ?? 'unknown'
     return event.actorIssuer ? `Agent:${identity} · ${event.actorIssuer}` : `Agent:${identity}`
   }

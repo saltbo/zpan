@@ -1,5 +1,5 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
-import { AGENT_OAUTH_RESOURCE_SCOPES, AGENT_OAUTH_SCOPE_DESCRIPTIONS } from '@shared/agent-oauth'
+import { OAUTH_RESOURCE_SCOPES, OAUTH_SCOPE_DESCRIPTIONS } from '@shared/oauth'
 import type { Env } from '../middleware/platform'
 import { authRoute, jsonContent } from './openapi'
 
@@ -28,7 +28,7 @@ const route = authRoute(
 // security. The empty alternative truthfully documents that this catalog
 // endpoint itself is public. Protected business operations remain unbound so a
 // delegated credential hook can sign them before Restish's built-in auth runs.
-const scopeCatalogSecurity: Record<string, string[]>[] = [{ agentOAuth2: [...AGENT_OAUTH_RESOURCE_SCOPES] }, {}]
+const scopeCatalogSecurity: Record<string, string[]>[] = [{ oauth2: [...OAUTH_RESOURCE_SCOPES] }, {}]
 const scopeCatalogRoute = Object.assign(route, {
   security: scopeCatalogSecurity,
   'x-mcp-ignore': true,
@@ -37,9 +37,9 @@ const scopeCatalogRoute = Object.assign(route, {
 export const oauthResourceScopes = new OpenAPIHono<Env>().openapi(scopeCatalogRoute, (c) =>
   c.json(
     {
-      scopes: AGENT_OAUTH_RESOURCE_SCOPES.map((value) => ({
+      scopes: OAUTH_RESOURCE_SCOPES.map((value) => ({
         value,
-        description: AGENT_OAUTH_SCOPE_DESCRIPTIONS[value],
+        description: OAUTH_SCOPE_DESCRIPTIONS[value],
       })),
     },
     200,

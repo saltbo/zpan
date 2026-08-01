@@ -47,14 +47,14 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     }
     if (
       typeof payload.jti !== 'string' ||
-      (await c.get('deps').agentOAuth.isJwtAccessTokenRevoked(c.get('platform').db, payload.jti))
+      (await c.get('deps').oauth.isJwtAccessTokenRevoked(c.get('platform').db, payload.jti))
     ) {
       throw dpopUnauthorized(audience)
     }
     if (await c.get('deps').userAdmin.isBanned(userId)) throw unauthorized('Unauthorized')
     const scopes = typeof payload.scope === 'string' ? payload.scope.split(/\s+/).filter(isAuthorizationScope) : []
     c.set('principal', {
-      kind: 'agent-oauth',
+      kind: 'oauth',
       actorIssuer,
       actorSubject,
       clientId,
@@ -64,11 +64,11 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
       authMethod: 'dpop',
     })
     c.set('authzContext', {
-      credential: 'agent_oauth',
+      credential: 'oauth',
       userId,
       workspace: { mode: 'bound', orgId },
       grantedScopes: new Set(scopes),
-      actor: { type: 'agent_oauth', ref: actorSubject, issuer: actorIssuer },
+      actor: { type: 'oauth', ref: actorSubject, issuer: actorIssuer },
       state: { clientId },
     })
     c.set('userId', userId)

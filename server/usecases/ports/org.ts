@@ -4,6 +4,5 @@ export interface OrgRepo {
   getOrgNames(orgIds: string[]): Promise<Map<string, string>>
   canReadOrg(userId: string, orgId: string): Promise<boolean>
   canWriteToOrg(userId: string, orgId: string): Promise<boolean>
-  canManageAgentAccess(userId: string, orgId: string): Promise<boolean>
   isPersonalOrg(orgId: string): Promise<boolean>
 }

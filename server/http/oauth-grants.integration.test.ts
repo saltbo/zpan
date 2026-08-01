@@ -1,5 +1,5 @@
-import { AGENT_OAUTH_ACCESS_TOKEN_SECONDS, AGENT_OAUTH_REFRESH_TOKEN_SECONDS } from '@shared/agent-oauth'
 import { AuthorizationScope } from '@shared/authorization'
+import { OAUTH_ACCESS_TOKEN_SECONDS, OAUTH_REFRESH_TOKEN_SECONDS } from '@shared/oauth'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
@@ -97,14 +97,14 @@ function oauthQuery() {
   }).toString()
 }
 
-describe('Agent OAuth grants API integration', () => {
+describe('OAuth grants API integration', () => {
   it('returns consent context for a dynamically registered application', async () => {
     const { app, db } = await createTestApp()
     await insertClient(db)
     const headers = await authedHeaders(app, 'agent-consent@example.com')
     const { orgId } = await getUserAndPersonalOrg(db, 'agent-consent@example.com')
 
-    const res = await app.request(`/api/agent-oauth-consent?oauthQuery=${encodeURIComponent(oauthQuery())}`, {
+    const res = await app.request(`/api/oauth-consent?oauthQuery=${encodeURIComponent(oauthQuery())}`, {
       headers,
     })
 
@@ -118,8 +118,8 @@ describe('Agent OAuth grants API integration', () => {
       standardScopes: ['openid', 'offline_access'],
       redirectUri: REDIRECT_URI,
       grantLifetime: {
-        accessTokenSeconds: AGENT_OAUTH_ACCESS_TOKEN_SECONDS,
-        refreshTokenSeconds: AGENT_OAUTH_REFRESH_TOKEN_SECONDS,
+        accessTokenSeconds: OAUTH_ACCESS_TOKEN_SECONDS,
+        refreshTokenSeconds: OAUTH_REFRESH_TOKEN_SECONDS,
       },
     })
   })
@@ -129,14 +129,14 @@ describe('Agent OAuth grants API integration', () => {
     await insertClient(db)
     const headers = await authedHeaders(app, 'agent-submit@example.com')
 
-    const res = await app.request('/api/agent-oauth-consent', {
+    const res = await app.request('/api/oauth-consent', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ accept: true, oauthQuery: `client_id=${CLIENT_ID}&response_type=token` }),
     })
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toMatchObject({ error: { message: 'Invalid Agent OAuth request' } })
+    await expect(res.json()).resolves.toMatchObject({ error: { message: 'Invalid OAuth request' } })
   })
 
   it('lists and revokes the current user dynamic-client grant family', async () => {
@@ -146,7 +146,7 @@ describe('Agent OAuth grants API integration', () => {
     const { userId, orgId } = await getUserAndPersonalOrg(db, 'agent-grants@example.com')
     await insertGrant(db, { userId, orgId, scopes: [AuthorizationScope.OBJECTS_READ, AuthorizationScope.QUOTA_READ] })
 
-    const list = await app.request('/api/agent-oauth-grants', { headers })
+    const list = await app.request('/api/oauth-grants', { headers })
     expect(list.status).toBe(200)
     await expect(list.json()).resolves.toEqual({
       items: [
@@ -165,7 +165,7 @@ describe('Agent OAuth grants API integration', () => {
       ],
     })
 
-    const revoke = await app.request('/api/agent-oauth-grants/grant-1', { method: 'DELETE', headers })
+    const revoke = await app.request('/api/oauth-grants/grant-1', { method: 'DELETE', headers })
     expect(revoke.status).toBe(204)
     expect(await db.select().from(authSchema.oauthConsent)).toHaveLength(0)
     expect(await db.select().from(authSchema.oauthAccessToken)).toHaveLength(0)
@@ -177,9 +177,9 @@ describe('Agent OAuth grants API integration', () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app, 'agent-missing-grant@example.com')
 
-    const revoke = await app.request('/api/agent-oauth-grants/missing-grant', { method: 'DELETE', headers })
+    const revoke = await app.request('/api/oauth-grants/missing-grant', { method: 'DELETE', headers })
 
     expect(revoke.status).toBe(404)
-    await expect(revoke.json()).resolves.toMatchObject({ error: { message: 'Agent OAuth grant not found' } })
+    await expect(revoke.json()).resolves.toMatchObject({ error: { message: 'OAuth grant not found' } })
   })
 })

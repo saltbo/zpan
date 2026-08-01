@@ -20,7 +20,7 @@ export function SettingsLayout() {
       ? []
       : [{ to: '/settings/webdav', label: t('settings.tabWebDav') }]),
     { to: '/settings/api-keys', label: t('settings.tabApiKeys') },
-    { to: '/settings/agent-access', label: t('settings.tabAgentAccess') },
+    { to: '/settings/oauth-apps', label: t('settings.tabOAuthApps') },
   ]
 
   return (
