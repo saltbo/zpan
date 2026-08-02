@@ -7,6 +7,14 @@ import type { OrgRepo } from '../../usecases/ports'
 const ROLE_LEVELS: Record<string, number> = { owner: 3, admin: 3, editor: 2, viewer: 1, member: 1 }
 
 export function createOrgRepo(db: Database): OrgRepo {
+  async function listUserOrgs(userId: string): Promise<Array<{ id: string; name: string }>> {
+    return db
+      .select({ id: organization.id, name: organization.name })
+      .from(member)
+      .innerJoin(organization, eq(organization.id, member.organizationId))
+      .where(eq(member.userId, userId))
+  }
+
   // Find the user's personal org, if they still belong to it. New personal orgs
   // are identified by metadata.type; legacy rows keep the `personal-*` slug.
   // The member row remains load-bearing because admins can revoke access without
@@ -65,5 +73,5 @@ export function createOrgRepo(db: Database): OrgRepo {
     return orgId === (await findPersonalOrg(userId))
   }
 
-  return { findPersonalOrg, getMemberRole, getOrgNames, canReadOrg, canWriteToOrg, isPersonalOrg }
+  return { listUserOrgs, findPersonalOrg, getMemberRole, getOrgNames, canReadOrg, canWriteToOrg, isPersonalOrg }
 }

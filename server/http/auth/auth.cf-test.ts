@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers'
+import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import { describe, expect, it } from 'vitest'
 import { createApp } from '../../app'
 import { createAuth } from '../../auth'
@@ -111,20 +112,30 @@ describe('[CF] Auth API', () => {
       state: 'cf-oauth',
       code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
       code_challenge_method: 'S256',
+      authorization_details: JSON.stringify([{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE }]),
     })
     const authorize = await app.request(`/api/auth/oauth2/authorize?${params}`, {
       headers: { Cookie: cookie, Origin: 'http://localhost' },
     })
     const consentLocation = authorize.headers.get('location')
     expect(authorize.status).toBe(302)
-    expect(consentLocation).toMatch(/^\/settings\/oauth-apps\?/)
+    expect(consentLocation).toMatch(/^\/oauth\/consent\?/)
+
+    const oauthQuery = consentLocation?.slice(consentLocation.indexOf('?') + 1) ?? ''
+    const contextResponse = await app.request(`/api/oauth-consent?oauthQuery=${encodeURIComponent(oauthQuery)}`, {
+      headers: { Cookie: cookie },
+    })
+    const context = (await contextResponse.json()) as { workspaces: Array<{ id: string }> }
+    expect(contextResponse.status).toBe(200)
+    expect(context.workspaces).toHaveLength(1)
 
     const consent = await app.request('/api/oauth-consent', {
       method: 'POST',
       headers: { Cookie: cookie, Origin: 'http://localhost', 'Content-Type': 'application/json' },
       body: JSON.stringify({
         accept: true,
-        oauthQuery: consentLocation?.slice(consentLocation.indexOf('?') + 1),
+        oauthQuery,
+        workspaceIds: [context.workspaces[0].id],
       }),
     })
     const consentBody = await consent.text()

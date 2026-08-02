@@ -15,6 +15,7 @@
 // idempotent fulfillment.
 
 import {
+  type CapacityPurchaseResult,
   type CheckoutInput,
   type CloudOrderQuotaChange,
   cloudCreditBalanceResponseSchema,
@@ -25,6 +26,7 @@ import {
   discountQuoteSchema,
   type RedeemGiftCardInput,
   redeemGiftCardResponseSchema,
+  type X402PaymentRequired,
 } from '@shared/schemas'
 import type { CloudStoreTarget } from '@shared/types'
 import type { z } from 'zod'
@@ -324,13 +326,13 @@ export type CapacityPurchaseOutcome =
   | {
       ok: true
       kind: 'payment_required'
-      paymentRequired: unknown
+      paymentRequired: X402PaymentRequired
       paymentRequiredHeader: string
     }
   | {
       ok: true
       kind: 'pending' | 'delivered'
-      attempt: z.infer<typeof x402PaymentAttemptSchema>
+      purchase: CapacityPurchaseResult
       paymentResponseHeader: string | null
     }
   | { ok: false; error: AppError }
@@ -530,7 +532,10 @@ export async function purchaseCapacity(
     })
   }
 
-  if (!params.paymentSignature || quoteWasReplaced) {
+  if (
+    quoteWasReplaced ||
+    (!params.paymentSignature && attempt.status !== 'verified' && attempt.status !== 'paid_pending_fulfillment')
+  ) {
     if (attempt.status !== 'quoted') {
       return terminalCapacityPurchaseOutcome(attempt)
     }
@@ -582,6 +587,7 @@ export async function purchaseCapacity(
           storeId,
           orderId: cloudOrderId,
           attemptId: attempt.id,
+          deliveryCallbackUrl: `${params.origin}/api/store/webhook`,
         }),
         x402PaymentAttemptSchema,
       ),
@@ -606,10 +612,19 @@ function terminalCapacityPurchaseOutcome(attempt: z.infer<typeof x402PaymentAtte
       error: conflict('Payment was not completed', `X402_PAYMENT_${attempt.status.toUpperCase()}`),
     }
   }
+  if (!attempt.resourceId) {
+    return { ok: false, error: badGateway('Cloud capacity purchase response is missing its resource identity') }
+  }
   return {
     ok: true,
     kind: attempt.status === 'delivered' ? 'delivered' : 'pending',
-    attempt,
+    purchase: {
+      attemptId: attempt.id,
+      orderId: attempt.orderId,
+      resourceId: attempt.resourceId,
+      requestHash: attempt.requestHash,
+      status: attempt.status === 'delivered' ? 'delivered' : 'pending',
+    },
     paymentResponseHeader: attempt.settlementResponseHeader,
   }
 }

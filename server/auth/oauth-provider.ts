@@ -1,4 +1,5 @@
 import {
+  type AuthorizationDetail,
   consumeClientAssertion,
   type OAuthProviderExtension,
   type oauthProvider,
@@ -18,11 +19,14 @@ import {
   OAUTH_SCOPES,
   OAUTH_STANDARD_SCOPES,
   TOKEN_EXCHANGE_GRANT_TYPE,
+  WORKSPACE_AUTHORIZATION_DETAIL_TYPE,
 } from '../../shared/oauth'
+import { workspaceAuthorizationDetailSchema } from '../../shared/schemas'
 import { createOrgRepo } from '../adapters/repos/org'
 import type { Database } from '../platform/interface'
+import { resolvePushedAuthorizationRequest } from './oauth-par'
 
-type OAuthOrgLookup = Pick<ReturnType<typeof createOrgRepo>, 'findPersonalOrg' | 'getMemberRole'>
+type OAuthOrgLookup = Pick<ReturnType<typeof createOrgRepo>, 'canReadOrg'>
 type OAuthProviderOptions = Parameters<typeof oauthProvider>[0]
 
 export function createOAuthProviderOptions(input: {
@@ -50,7 +54,7 @@ export function createOAuthProviderOptions(input: {
 
   return {
     loginPage: '/sign-in',
-    consentPage: '/settings/oauth-apps',
+    consentPage: '/oauth/consent',
     accessTokenExpiresIn: OAUTH_ACCESS_TOKEN_SECONDS,
     m2mAccessTokenExpiresIn: OAUTH_ACTOR_TOKEN_SECONDS,
     refreshTokenExpiresIn: OAUTH_REFRESH_TOKEN_SECONDS,
@@ -63,41 +67,61 @@ export function createOAuthProviderOptions(input: {
     clientRegistrationRequirePKCE: true,
     clientRegistrationAllowedScopes: [...OAUTH_SCOPES],
     clientRegistrationDefaultScopes: [...OAUTH_STANDARD_SCOPES],
-    extensions: input.resourceAudience ? [externalResourceGrantExtension(input.resourceAudience)] : [],
+    extensions: [
+      oauthStandardsMetadataExtension(),
+      ...(input.resourceAudience ? [externalResourceGrantExtension(input.resourceAudience)] : []),
+    ],
     advertisedMetadata: { scopes_supported: [...OAUTH_SCOPES] },
+    authorizationDetails: {
+      typesSupported: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
+      validate: async ({ details, phase, requested, user }) => {
+        const workspaces = details.map(parseWorkspaceAuthorizationDetail)
+        if (phase === 'request') {
+          if (workspaces.length !== 1)
+            throw oauthError('invalid_authorization_details', 'Exactly one workspace request is required')
+          assertUniqueWorkspaceIdentifiers(workspaces)
+          return workspaces
+        }
+        if (phase === 'consent') {
+          if (!user?.id) throw oauthError('access_denied', 'Authentication is required')
+          const original = (requested ?? []).map(parseWorkspaceAuthorizationDetail)
+          if (original.length === 0 || workspaces.length === 0) {
+            throw oauthError('invalid_authorization_details', 'At least one workspace is required')
+          }
+          assertUniqueWorkspaceIdentifiers(workspaces)
+          const fixedWorkspaceId = original[0].identifier
+          if (fixedWorkspaceId && workspaces.some((detail) => detail.identifier !== fixedWorkspaceId)) {
+            throw oauthError('access_denied', 'Workspace selection exceeds the authorization request')
+          }
+          for (const detail of workspaces) {
+            if (!detail.identifier || !(await orgs.canReadOrg(user.id, detail.identifier))) {
+              throw oauthError('access_denied', 'Workspace access is required')
+            }
+          }
+          return workspaces
+        }
+        assertUniqueWorkspaceIdentifiers(workspaces)
+        return workspaces
+      },
+      isSubset: ({ requested, granted }) => workspaceAuthorizationDetailsCovered(requested, granted),
+      resolve: ({ requested, granted }) =>
+        requested.every((detail) => parseWorkspaceAuthorizationDetail(detail).identifier) ? requested : granted,
+    },
+    requestUriResolver: resolvePushedAuthorizationRequest,
     silenceWarnings: {
       oauthAuthServerConfig: true,
       openidConfig: true,
     },
-    postLogin: {
-      page: '/settings/oauth-apps',
-      shouldRedirect: async () => false,
-      consentReferenceId: async ({ user, session, scopes }) => {
-        const clientScopes = scopes.filter((scope) => scope !== 'openid' && scope !== 'profile' && scope !== 'email')
-        const grantableScopes = new Set<string>(OAUTH_SCOPES)
-        if (clientScopes.some((scope) => !grantableScopes.has(scope))) {
-          throw oauthError('invalid_scope', 'Scope is not grantable')
-        }
-        const orgId = typeof session.activeOrganizationId === 'string' ? session.activeOrganizationId : null
-        const selectedOrgId = orgId || (await orgs.findPersonalOrg(user.id))
-        if (!selectedOrgId) throw oauthError('invalid_request', 'A workspace is required for OAuth')
-        const role = await orgs.getMemberRole(selectedOrgId, user.id)
-        if (!role && selectedOrgId !== (await orgs.findPersonalOrg(user.id))) {
-          throw new APIError('FORBIDDEN', {
-            error: 'access_denied',
-            error_description: 'Workspace access is required for OAuth',
-          })
-        }
-        return selectedOrgId
-      },
-    },
-    customAccessTokenClaims: async ({ user, referenceId }) => {
-      if (!user?.id || !referenceId) return {}
-      return {
-        zpan_org_id: referenceId,
-        zpan_actor: 'oauth',
-      }
-    },
+    customAccessTokenClaims: async ({ user }) => (user?.id ? { zpan_actor: 'oauth' } : {}),
+  }
+}
+
+function oauthStandardsMetadataExtension(): OAuthProviderExtension {
+  return {
+    metadata: ({ ctx }) => ({
+      pushed_authorization_request_endpoint: `${ctx.context.baseURL}/oauth2/par`,
+      require_pushed_authorization_requests: false,
+    }),
   }
 }
 
@@ -145,8 +169,15 @@ function externalResourceGrantExtension(resourceAudience: string): OAuthProvider
           throw oauthError('invalid_scope', 'Requested scope exceeds the connected account grant')
         }
         if (typeof subject.sub !== 'string') throw oauthError('invalid_grant', 'Subject token has no user')
-        const orgId = typeof subject.zpan_org_id === 'string' ? subject.zpan_org_id : undefined
-        if (!orgId) throw oauthError('invalid_grant', 'Subject token has no workspace')
+        const authorizationDetails = parseTokenExchangeAuthorizationDetails(ctx.body)
+        const subjectAuthorizationDetails = Array.isArray(subject.authorization_details)
+          ? (subject.authorization_details as AuthorizationDetail[])
+          : []
+        if (!workspaceAuthorizationDetailsCovered(authorizationDetails, subjectAuthorizationDetails)) {
+          throw oauthError('invalid_authorization_details', 'Requested workspace is not authorized')
+        }
+        const orgId = parseWorkspaceAuthorizationDetail(authorizationDetails[0]).identifier
+        if (!orgId) throw oauthError('invalid_authorization_details', 'Token exchange requires one workspace')
         const user = await ctx.context.internalAdapter.findUserById(subject.sub)
         if (!user) throw oauthError('invalid_grant', 'Subject user no longer exists')
 
@@ -154,7 +185,7 @@ function externalResourceGrantExtension(resourceAudience: string): OAuthProvider
           client,
           scopes: requestedScopes,
           user,
-          referenceId: orgId,
+          authorizationDetails,
           resources: [resourceAudience],
           accessTokenClaims: {
             act: {
@@ -167,6 +198,46 @@ function externalResourceGrantExtension(resourceAudience: string): OAuthProvider
       },
     },
   }
+}
+
+function parseWorkspaceAuthorizationDetail(detail: AuthorizationDetail) {
+  const parsed = workspaceAuthorizationDetailSchema.safeParse(detail)
+  if (!parsed.success) throw oauthError('invalid_authorization_details', 'Invalid workspace authorization detail')
+  return parsed.data
+}
+
+function assertUniqueWorkspaceIdentifiers(details: Array<{ identifier?: string }>) {
+  const identifiers = details.flatMap((detail) => (detail.identifier ? [detail.identifier] : []))
+  if (new Set(identifiers).size !== identifiers.length) {
+    throw oauthError('invalid_authorization_details', 'Workspace authorization details must be unique')
+  }
+}
+
+function workspaceAuthorizationDetailsCovered(
+  requested: AuthorizationDetail[],
+  granted: AuthorizationDetail[],
+): boolean {
+  const grantedIds = new Set(
+    granted.map(parseWorkspaceAuthorizationDetail).flatMap((detail) => (detail.identifier ? [detail.identifier] : [])),
+  )
+  return requested
+    .map(parseWorkspaceAuthorizationDetail)
+    .every((detail) => (detail.identifier ? grantedIds.has(detail.identifier) : grantedIds.size > 0))
+}
+
+function parseTokenExchangeAuthorizationDetails(body: unknown): AuthorizationDetail[] {
+  const raw = body && typeof body === 'object' ? (body as Record<string, unknown>).authorization_details : undefined
+  if (typeof raw !== 'string') throw oauthError('invalid_authorization_details', 'authorization_details is required')
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw oauthError('invalid_authorization_details', 'authorization_details must be valid JSON')
+  }
+  if (!Array.isArray(parsed) || parsed.length !== 1) {
+    throw oauthError('invalid_authorization_details', 'Token exchange requires exactly one workspace')
+  }
+  return parsed.map((detail) => parseWorkspaceAuthorizationDetail(detail as AuthorizationDetail))
 }
 
 async function verifyAgentAssertion(

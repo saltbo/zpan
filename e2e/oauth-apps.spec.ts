@@ -1,8 +1,13 @@
 import { expect, test } from '@playwright/test'
 import { signUpAndGoToFiles } from './helpers'
 
-const oauthQuery =
-  'client_id=dynamic-client&redirect_uri=https%3A%2F%2Fbroker.example.com%2Fcallback&response_type=code&scope=openid%20offline_access%20objects%3Aread%20shares%3Acreate%20quota%3Aread'
+const oauthQuery = new URLSearchParams({
+  client_id: 'dynamic-client',
+  redirect_uri: 'https://broker.example.com/callback',
+  response_type: 'code',
+  scope: 'openid offline_access objects:read shares:create quota:read',
+  authorization_details: JSON.stringify([{ type: 'https://zpan.space/authorization-details/workspace' }]),
+}).toString()
 
 test.describe('OAuth Apps UI', () => {
   test('renders consent details and submits full approval @desktop', async ({ page }) => {
@@ -14,8 +19,9 @@ test.describe('OAuth Apps UI', () => {
         body: JSON.stringify({
           clientId: 'dynamic-client',
           clientName: 'FlareAuth',
-          instanceOrigin: 'http://localhost:5185',
-          workspace: { id: 'org-e2e', name: 'Personal' },
+          clientOrigin: 'https://broker.example.com',
+          workspaces: [{ id: 'org-e2e', name: 'Personal' }],
+          requestedWorkspaceIds: [],
           scopes: ['objects:read', 'shares:create', 'quota:read'],
           standardScopes: ['openid', 'offline_access'],
           redirectUri: 'https://broker.example.com/callback',
@@ -26,8 +32,8 @@ test.describe('OAuth Apps UI', () => {
     await page.route('**/api/oauth-consent', async (route) => {
       if (route.request().method() !== 'POST') return route.fallback()
       expect(route.request().method()).toBe('POST')
-      const body = route.request().postDataJSON() as { accept: boolean; oauthQuery?: string; scope?: string }
-      expect(body).toEqual({ accept: true, oauthQuery })
+      const body = route.request().postDataJSON() as { accept: boolean; oauthQuery?: string; workspaceIds?: string[] }
+      expect(body).toEqual({ accept: true, oauthQuery, workspaceIds: ['org-e2e'] })
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({ url: 'https://broker.example.com/callback?code=e2e-code' }),
@@ -37,16 +43,21 @@ test.describe('OAuth Apps UI', () => {
       await route.fulfill({ contentType: 'text/html', body: '<main>Returned to FlareAuth</main>' })
     })
 
-    await page.goto(`/settings/oauth-apps?${oauthQuery}`)
+    await page.goto(`/oauth/consent?${oauthQuery}`)
 
-    await expect(page.getByRole('heading', { name: 'Authorize Application' })).toBeVisible()
-    await expect(page.getByText('http://localhost:5185')).toBeVisible()
-    await expect(page.getByText('https://broker.example.com/callback')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'FlareAuth wants to access your workspaces' })).toBeVisible()
+    await expect(page.getByText('https://broker.example.com', { exact: true })).toBeVisible()
+    await expect(page.getByText('Personal')).toBeVisible()
     await expect(page.getByText('Files: read objects')).toBeVisible()
     await expect(page.getByText('Shares: create shares')).toBeVisible()
     await expect(page.getByText('Quota: read workspace quota')).toBeVisible()
+    await expect(page.getByRole('navigation')).toHaveCount(0)
 
-    await page.getByRole('button', { name: 'Approve Access' }).click()
+    const approve = page.getByRole('button', { name: 'Approve Access' })
+    await expect(approve).toBeDisabled()
+    await page.getByRole('checkbox', { name: 'Personal' }).check()
+    await expect(approve).toBeEnabled()
+    await approve.click()
     await expect(page).toHaveURL(/broker\.example\.com\/callback\?code=e2e-code/, { timeout: 10000 })
     await expect(page.getByText('Returned to FlareAuth')).toBeVisible()
   })
@@ -68,8 +79,7 @@ test.describe('OAuth Apps UI', () => {
                   clientId: 'dynamic-client',
                   clientName: 'FlareAuth',
                   userId: 'user-e2e',
-                  orgId: 'org-e2e',
-                  workspaceName: 'Personal',
+                  workspaces: [{ id: 'org-e2e', name: 'Personal' }],
                   scopes: ['objects:read', 'shares:create'],
                   createdAt: '2026-07-29T12:00:00.000Z',
                   lastUsedAt: null,
@@ -107,8 +117,9 @@ test.describe('OAuth Apps UI', () => {
         body: JSON.stringify({
           clientId: 'dynamic-client',
           clientName: 'FlareAuth',
-          instanceOrigin: 'http://localhost:5185',
-          workspace: { id: 'org-e2e', name: 'Personal' },
+          clientOrigin: 'https://broker.example.com',
+          workspaces: [{ id: 'org-e2e', name: 'Personal' }],
+          requestedWorkspaceIds: [],
           scopes: ['objects:read', 'shares:create', 'quota:read'],
           standardScopes: ['openid', 'offline_access'],
           redirectUri: 'https://broker.example.com/callback',
@@ -127,8 +138,7 @@ test.describe('OAuth Apps UI', () => {
               clientId: 'dynamic-client',
               clientName: 'FlareAuth',
               userId: 'user-e2e',
-              orgId: 'org-e2e',
-              workspaceName: 'Personal',
+              workspaces: [{ id: 'org-e2e', name: 'Personal' }],
               scopes: ['objects:read', 'shares:create', 'quota:read'],
               createdAt: '2026-07-29T12:00:00.000Z',
               lastUsedAt: '2026-07-29T12:30:00.000Z',
@@ -139,11 +149,12 @@ test.describe('OAuth Apps UI', () => {
       })
     })
 
-    await page.goto(`/settings/oauth-apps?${oauthQuery}`)
-    await expect(page.getByRole('heading', { name: 'Authorize Application' })).toBeVisible()
+    await page.goto(`/oauth/consent?${oauthQuery}`)
+    await expect(page.getByRole('heading', { name: 'FlareAuth wants to access your workspaces' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Approve Access' })).toBeVisible()
     await expect(page.getByText('Files: read objects')).toBeVisible()
     await expect(page.getByText('Shares: create shares')).toBeVisible()
+    await page.getByRole('checkbox', { name: 'Personal' }).check()
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
       .toBe(true)

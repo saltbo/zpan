@@ -12,11 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DeviceRouteImport } from './routes/device'
 import { Route as URouteRouteImport } from './routes/u/route'
 import { Route as SRouteRouteImport } from './routes/s/route'
+import { Route as OauthRouteRouteImport } from './routes/oauth/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as UUsernameRouteImport } from './routes/u/$username'
 import { Route as StoreCheckoutRouteImport } from './routes/store/checkout'
 import { Route as STokenRouteImport } from './routes/s/$token'
+import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
 import { Route as AuthenticatedStorageRouteImport } from './routes/_authenticated/storage'
 import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
@@ -78,6 +80,11 @@ const SRouteRoute = SRouteRouteImport.update({
   path: '/s',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OauthRouteRoute = OauthRouteRouteImport.update({
+  id: '/oauth',
+  path: '/oauth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
@@ -101,6 +108,11 @@ const STokenRoute = STokenRouteImport.update({
   id: '/$token',
   path: '/$token',
   getParentRoute: () => SRouteRoute,
+} as any)
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/consent',
+  path: '/consent',
+  getParentRoute: () => OauthRouteRoute,
 } as any)
 const AuthenticatedStorageRoute = AuthenticatedStorageRouteImport.update({
   id: '/storage',
@@ -362,6 +374,7 @@ const AuthenticatedAdminSettingsEmailRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
+  '/oauth': typeof OauthRouteRouteWithChildren
   '/s': typeof SRouteRouteWithChildren
   '/u': typeof URouteRouteWithChildren
   '/device': typeof DeviceRoute
@@ -372,6 +385,7 @@ export interface FileRoutesByFullPath {
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
   '/storage': typeof AuthenticatedStorageRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/s/$token': typeof STokenRoute
   '/store/checkout': typeof StoreCheckoutRoute
   '/u/$username': typeof UUsernameRoute
@@ -415,6 +429,7 @@ export interface FileRoutesByFullPath {
   '/teams/$teamId/': typeof AuthenticatedTeamsTeamIdIndexRoute
 }
 export interface FileRoutesByTo {
+  '/oauth': typeof OauthRouteRouteWithChildren
   '/s': typeof SRouteRouteWithChildren
   '/u': typeof URouteRouteWithChildren
   '/device': typeof DeviceRoute
@@ -423,6 +438,7 @@ export interface FileRoutesByTo {
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
   '/storage': typeof AuthenticatedStorageRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/s/$token': typeof STokenRoute
   '/store/checkout': typeof StoreCheckoutRoute
   '/u/$username': typeof UUsernameRoute
@@ -468,6 +484,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/oauth': typeof OauthRouteRouteWithChildren
   '/s': typeof SRouteRouteWithChildren
   '/u': typeof URouteRouteWithChildren
   '/device': typeof DeviceRoute
@@ -478,6 +495,7 @@ export interface FileRoutesById {
   '/(auth)/sign-in': typeof authSignInRoute
   '/(auth)/sign-up': typeof authSignUpRoute
   '/_authenticated/storage': typeof AuthenticatedStorageRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/s/$token': typeof STokenRoute
   '/store/checkout': typeof StoreCheckoutRoute
   '/u/$username': typeof UUsernameRoute
@@ -525,6 +543,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/oauth'
     | '/s'
     | '/u'
     | '/device'
@@ -535,6 +554,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/storage'
+    | '/oauth/consent'
     | '/s/$token'
     | '/store/checkout'
     | '/u/$username'
@@ -578,6 +598,7 @@ export interface FileRouteTypes {
     | '/teams/$teamId/'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/oauth'
     | '/s'
     | '/u'
     | '/device'
@@ -586,6 +607,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/sign-up'
     | '/storage'
+    | '/oauth/consent'
     | '/s/$token'
     | '/store/checkout'
     | '/u/$username'
@@ -630,6 +652,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_authenticated'
+    | '/oauth'
     | '/s'
     | '/u'
     | '/device'
@@ -640,6 +663,7 @@ export interface FileRouteTypes {
     | '/(auth)/sign-in'
     | '/(auth)/sign-up'
     | '/_authenticated/storage'
+    | '/oauth/consent'
     | '/s/$token'
     | '/store/checkout'
     | '/u/$username'
@@ -686,6 +710,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  OauthRouteRoute: typeof OauthRouteRouteWithChildren
   SRouteRoute: typeof SRouteRouteWithChildren
   URouteRoute: typeof URouteRouteWithChildren
   DeviceRoute: typeof DeviceRoute
@@ -717,6 +742,13 @@ declare module '@tanstack/react-router' {
       path: '/s'
       fullPath: '/s'
       preLoaderRoute: typeof SRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth': {
+      id: '/oauth'
+      path: '/oauth'
+      fullPath: '/oauth'
+      preLoaderRoute: typeof OauthRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -753,6 +785,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/s/$token'
       preLoaderRoute: typeof STokenRouteImport
       parentRoute: typeof SRouteRoute
+    }
+    '/oauth/consent': {
+      id: '/oauth/consent'
+      path: '/consent'
+      fullPath: '/oauth/consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
+      parentRoute: typeof OauthRouteRoute
     }
     '/_authenticated/storage': {
       id: '/_authenticated/storage'
@@ -1204,6 +1243,18 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface OauthRouteRouteChildren {
+  OauthConsentRoute: typeof OauthConsentRoute
+}
+
+const OauthRouteRouteChildren: OauthRouteRouteChildren = {
+  OauthConsentRoute: OauthConsentRoute,
+}
+
+const OauthRouteRouteWithChildren = OauthRouteRoute._addFileChildren(
+  OauthRouteRouteChildren,
+)
+
 interface SRouteRouteChildren {
   STokenRoute: typeof STokenRoute
 }
@@ -1228,6 +1279,7 @@ const URouteRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  OauthRouteRoute: OauthRouteRouteWithChildren,
   SRouteRoute: SRouteRouteWithChildren,
   URouteRoute: URouteRouteWithChildren,
   DeviceRoute: DeviceRoute,

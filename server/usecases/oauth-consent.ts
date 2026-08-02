@@ -1,19 +1,25 @@
 import { isAuthorizationScope } from '@shared/authorization'
 import { OAUTH_ACCESS_TOKEN_SECONDS, OAUTH_REFRESH_TOKEN_SECONDS, OAUTH_STANDARD_SCOPES } from '@shared/oauth'
-import { type OAuthConsentContext, type OAuthResourceScope, oauthResourceScopeSchema } from '@shared/schemas'
+import {
+  type OAuthConsentContext,
+  type OAuthResourceScope,
+  oauthResourceScopeSchema,
+  parseWorkspaceAuthorizationDetails,
+} from '@shared/schemas'
 import type { Database } from '../platform/interface'
 import type { Deps } from './deps'
 import { badRequest, forbidden } from './ports'
 
 export async function getOAuthConsentContext(
   deps: Pick<Deps, 'oauth' | 'org'>,
-  input: { db: Database; userId: string; orgId: string | null; requestUrl: string; oauthQuery: string },
+  input: { db: Database; userId: string; oauthQuery: string },
 ): Promise<OAuthConsentContext> {
   const params = new URLSearchParams(input.oauthQuery)
   const clientId = params.get('client_id')
   const redirectUri = params.get('redirect_uri')
   const responseType = params.get('response_type')
   const scopeValue = params.get('scope') ?? ''
+  const authorizationDetailsValue = params.get('authorization_details')
 
   if (!clientId || responseType !== 'code' || !redirectUri) {
     throw badRequest('Invalid OAuth request')
@@ -39,17 +45,26 @@ export async function getOAuthConsentContext(
     throw badRequest('Invalid OAuth scope')
   }
 
-  const orgId = input.orgId
-  if (!orgId || !(await deps.org.canReadOrg(input.userId, orgId))) {
-    throw forbidden('Workspace access is required for OAuth')
+  let authorizationDetails: ReturnType<typeof parseWorkspaceAuthorizationDetails>
+  try {
+    authorizationDetails = parseWorkspaceAuthorizationDetails(authorizationDetailsValue)
+  } catch {
+    throw badRequest('Invalid OAuth authorization details')
   }
-  const names = await deps.org.getOrgNames([orgId])
+  if (authorizationDetails.length !== 1) throw badRequest('Exactly one workspace authorization request is required')
+  const requestedWorkspaceId = authorizationDetails[0].identifier
+  const availableWorkspaces = await deps.org.listUserOrgs(input.userId)
+  const workspaces = requestedWorkspaceId
+    ? availableWorkspaces.filter((workspace) => workspace.id === requestedWorkspaceId)
+    : availableWorkspaces
+  if (workspaces.length === 0) throw forbidden('Workspace access is required for OAuth')
 
   return {
     clientId,
     clientName: client.clientName,
-    instanceOrigin: new URL(input.requestUrl).origin,
-    workspace: { id: orgId, name: names.get(orgId) ?? null },
+    clientOrigin: new URL(redirectUri).origin,
+    workspaces: workspaces.map((workspace) => ({ id: workspace.id, name: workspace.name })),
+    requestedWorkspaceIds: requestedWorkspaceId ? [requestedWorkspaceId] : [],
     scopes,
     standardScopes,
     redirectUri,

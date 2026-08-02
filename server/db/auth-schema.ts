@@ -1,5 +1,6 @@
 import { relations, sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import type { WorkspaceAuthorizationDetail } from '../../shared/schemas'
 
 export const user = sqliteTable(
   'user',
@@ -343,6 +344,7 @@ export const oauthRefreshToken = sqliteTable(
     authorizationCodeId: text('authorization_code_id'),
     resources: text('resources'),
     requestedUserInfoClaims: text('requested_user_info_claims'),
+    authorizationDetails: text('authorization_details', { mode: 'json' }).$type<WorkspaceAuthorizationDetail[]>(),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -377,6 +379,7 @@ export const oauthAccessToken = sqliteTable(
     authorizationCodeId: text('authorization_code_id'),
     resources: text('resources'),
     requestedUserInfoClaims: text('requested_user_info_claims'),
+    authorizationDetails: text('authorization_details', { mode: 'json' }).$type<WorkspaceAuthorizationDetail[]>(),
     refreshId: text('refresh_id').references(() => oauthRefreshToken.id, { onDelete: 'cascade' }),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' })
@@ -406,6 +409,7 @@ export const oauthConsent = sqliteTable(
     referenceId: text('reference_id'),
     resources: text('resources'),
     requestedUserInfoClaims: text('requested_user_info_claims'),
+    authorizationDetails: text('authorization_details', { mode: 'json' }).$type<WorkspaceAuthorizationDetail[]>(),
     scopes: text('scopes').notNull(), // JSON-serialized string[]
     createdAt: integer('created_at', { mode: 'timestamp_ms' })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -426,6 +430,26 @@ export const oauthClientAssertion = sqliteTable('oauthClientAssertion', {
   id: text('id').primaryKey(),
   expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+export const oauthPushedAuthorizationRequest = sqliteTable(
+  'oauthPushedAuthorizationRequest',
+  {
+    id: text('id').primaryKey(),
+    requestUri: text('request_uri').notNull().unique(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    parameters: text('parameters', { mode: 'json' }).$type<Record<string, string>>().notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    index('oauthPushedAuthorizationRequest_client_id_idx').on(table.clientId),
+    index('oauthPushedAuthorizationRequest_expires_at_idx').on(table.expiresAt),
+  ],
+)
 
 export const oauthJwtRevocation = sqliteTable(
   'oauthJwtRevocation',

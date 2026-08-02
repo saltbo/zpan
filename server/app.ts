@@ -1,7 +1,7 @@
 import { release as osRelease } from 'node:os'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
-import { OAUTH_SCOPE_DESCRIPTIONS, OAUTH_SCOPES } from '@shared/oauth'
+import { OAUTH_RESOURCE_SCOPES, OAUTH_SCOPE_DESCRIPTIONS, OAUTH_SCOPES } from '@shared/oauth'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
@@ -22,7 +22,6 @@ import ihost from './http/image-hosting/images'
 import internal from './http/internal'
 import { notifications } from './http/notifications'
 import { oauthGrants } from './http/oauth-grants'
-import { oauthResourceScopes } from './http/oauth-resource-scopes'
 import objects from './http/objects'
 import { adminQuotas, userQuotas } from './http/quotas'
 import redirect from './http/redirect'
@@ -232,6 +231,26 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     for (const [path, item] of Object.entries(authDoc.paths ?? {})) {
       doc.paths[`/api/auth${path}`] = item as (typeof doc.paths)[string]
     }
+    // better-auth 1.7.0-rc.2 documents POST /device/token with its session
+    // response even though the handler returns an OAuth device token. Keep the
+    // generated contract aligned with the wire response until upstream fixes it.
+    const deviceTokenJson = (
+      doc.paths['/api/auth/device/token'] as
+        | { post?: { responses?: Record<string, { content?: Record<string, { schema?: unknown }> }> } }
+        | undefined
+    )?.post?.responses?.['200']?.content?.['application/json']
+    if (deviceTokenJson) {
+      deviceTokenJson.schema = {
+        type: 'object',
+        properties: {
+          access_token: { type: 'string' },
+          token_type: { type: 'string' },
+          expires_in: { type: 'integer' },
+          scope: { type: 'string' },
+        },
+        required: ['access_token', 'token_type', 'expires_in'],
+      }
+    }
     doc.components ??= {}
     doc.components.securitySchemes = {
       ...(doc.components.securitySchemes ?? {}),
@@ -260,42 +279,28 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
         oauthAuthorizationServer: '/.well-known/oauth-authorization-server/api/auth',
         oauthProtectedResource: '/.well-known/oauth-protected-resource/api',
       },
-    })
-
-    // better-auth's device-authorization plugin advertises POST /device/token as
-    // returning { session, user }, but its handler actually returns the OAuth
-    // device token { access_token, token_type, expires_in } (see better-auth's
-    // device-authorization/routes.mjs). Correct that one wrong response so the
-    // document — and the generated downloader client — match the real wire shape.
-    const deviceTokenJson = (
-      doc.paths['/api/auth/device/token'] as
-        | { post?: { responses?: Record<string, { content?: Record<string, { schema?: unknown }> }> } }
-        | undefined
-    )?.post?.responses?.['200']?.content?.['application/json']
-    if (deviceTokenJson) {
-      deviceTokenJson.schema = {
-        type: 'object',
-        properties: {
-          access_token: { type: 'string' },
-          token_type: { type: 'string' },
-          expires_in: { type: 'integer' },
-          scope: { type: 'string' },
+      'x-cli-config': {
+        profiles: {
+          default: {
+            credentials: {
+              oauth2: {
+                auth: {
+                  type: 'api-key',
+                  params: {
+                    in: 'header',
+                    name: 'Authorization',
+                    value: 'DPoP',
+                    provider: 'realmroot-target',
+                    scopes: OAUTH_RESOURCE_SCOPES.join(' '),
+                  },
+                },
+                params: { provider: 'realmroot-target' },
+              },
+            },
+          },
         },
-        required: ['access_token', 'token_type', 'expires_in'],
-      }
-    }
-
-    for (const [path, pathItem] of Object.entries(doc.paths)) {
-      if (!path.startsWith('/api/auth/') || !pathItem || typeof pathItem !== 'object') continue
-      for (const operation of Object.values(pathItem)) {
-        if (!operation || typeof operation !== 'object') continue
-        Object.assign(operation, {
-          'x-zpan-auth': { public: true, scopes: [] },
-          'x-mcp-ignore': true,
-        })
-        if (path.includes('/callback')) Object.assign(operation, { 'x-cli-ignore': true })
-      }
-    }
+      },
+    })
 
     return c.json(doc)
   })
@@ -337,7 +342,6 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   // /s/:token is intentionally left for the SPA landing page.
   app.route('/api/shares', publicShares)
   app.route('/api/configz', configz)
-  app.route('/api/oauth-resource-scopes', oauthResourceScopes)
   // Self-hosted avatar blobs (CF + AVATARS R2 binding, no AVATARS_PUBLIC_URL). Public.
   app.get('/api/avatar-blobs/:scope/:id', serveAvatarBlob)
   app.route('/r', redirect)
@@ -509,4 +513,3 @@ export type AdminOverviewRoute = typeof adminOverview
 export type AdminStatsRoute = typeof adminStats
 export type StorageUsageRoute = typeof storageUsage
 export type OAuthGrantsRoute = typeof oauthGrants
-export type OAuthResourceScopesRoute = typeof oauthResourceScopes

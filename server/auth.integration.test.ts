@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import { deriveDpopAth } from 'better-auth/oauth2'
 import { eq, sql } from 'drizzle-orm'
@@ -843,6 +844,7 @@ describe('OAuth consent guards', () => {
         token_endpoint_auth_method: 'client_secret_basic',
         scope: 'openid offline_access',
         jwks_uri: 'https://broker.example.com/api/auth/jwks',
+        authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
       }),
     })
     const body = (await res.json()) as Record<string, unknown>
@@ -852,6 +854,7 @@ describe('OAuth consent guards', () => {
       client_id: expect.any(String),
       client_secret: expect.any(String),
       token_endpoint_auth_method: 'client_secret_basic',
+      authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
     })
     expect(String(body.scope).split(' ')).toEqual(expect.arrayContaining(['openid', 'offline_access', 'objects:read']))
 
@@ -870,6 +873,28 @@ describe('OAuth consent guards', () => {
         }),
       ]),
     )
+  })
+
+  it('rejects unsupported authorization detail types during dynamic client registration', async () => {
+    const ctx = await createTestApp()
+    const response = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Unsupported RAR Client',
+        redirect_uris: ['https://broker.example.com/oauth/callback'],
+        grant_types: ['authorization_code'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none',
+        authorization_details_types: ['https://broker.example.com/authorization-details/unknown'],
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'invalid_client_metadata',
+      error_description: 'authorization_details_types contains an unsupported type',
+    })
   })
 
   it('returns a DPoP challenge for a foreign access token instead of an internal error', async () => {
@@ -976,6 +1001,8 @@ describe('OAuth consent guards', () => {
     expect(registration.status).toBe(201)
 
     const signUpResponse = await signUp(ctx, 'external-resource@example.com')
+    const signUpBody = (await signUpResponse.clone().json()) as { user: { id: string } }
+    const workspaceId = await personalOrgForUser(ctx, signUpBody.user.id)
     const cookie = signUpResponse.headers
       .getSetCookie()
       .map((value) => value.split(';', 1)[0])
@@ -993,6 +1020,7 @@ describe('OAuth consent guards', () => {
       state: 'external-resource',
       code_challenge: challenge,
       code_challenge_method: 'S256',
+      authorization_details: JSON.stringify([{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE }]),
     })
     const authorize = await ctx.app.request(
       `http://localhost:3000/api/auth/oauth2/authorize?${authorizeParams.toString()}`,
@@ -1000,12 +1028,13 @@ describe('OAuth consent guards', () => {
     )
     const consentLocation = authorize.headers.get('location')
     expect(authorize.status).toBe(302)
-    expect(consentLocation).toMatch(/^\/settings\/oauth-apps\?/)
+    expect(consentLocation).toMatch(/^\/oauth\/consent\?/)
     const consent = await ctx.app.request('http://localhost:3000/api/auth/oauth2/consent', {
       method: 'POST',
       headers: { Cookie: cookie, Origin: 'http://localhost:3000', 'Content-Type': 'application/json' },
       body: JSON.stringify({
         accept: true,
+        authorization_details: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: workspaceId }],
         oauth_query: consentLocation?.slice(consentLocation.indexOf('?') + 1),
       }),
     })
@@ -1027,8 +1056,58 @@ describe('OAuth consent guards', () => {
         resource: 'http://localhost:3000/api',
       }).toString(),
     })
-    const subject = (await subjectResponse.json()) as { access_token: string }
+    const subject = (await subjectResponse.json()) as {
+      access_token: string
+      refresh_token: string
+      authorization_details: Array<{ type: string; identifier: string }>
+    }
     expect(subjectResponse.status).toBe(200)
+    expect(subject.authorization_details).toEqual([
+      { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: workspaceId },
+    ])
+
+    const reusedVerifier = 'reused-consent-verifier-with-sufficient-entropy-1234567890'
+    const reusedParams = new URLSearchParams(authorizeParams)
+    reusedParams.set('state', 'reused-consent')
+    reusedParams.set('code_challenge', createHash('sha256').update(reusedVerifier).digest('base64url'))
+    const reusedAuthorize = await ctx.app.request(
+      `http://localhost:3000/api/auth/oauth2/authorize?${reusedParams.toString()}`,
+      { headers: { Cookie: cookie, Origin: 'http://localhost:3000' } },
+    )
+    const reusedLocation = reusedAuthorize.headers.get('location')
+    expect(reusedAuthorize.status).toBe(302)
+    expect(reusedLocation).toMatch(/^https:\/\/broker\.example\.com\/api\/account-connections\/oauth\/callback\?/)
+    const reusedSubjectResponse = await ctx.app.request(tokenEndpoint, {
+      method: 'POST',
+      headers: { Authorization: basic, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: new URL(reusedLocation!).searchParams.get('code')!,
+        redirect_uri: redirectUri,
+        code_verifier: reusedVerifier,
+        resource: 'http://localhost:3000/api',
+      }).toString(),
+    })
+    const reusedSubject = (await reusedSubjectResponse.json()) as {
+      authorization_details: Array<{ type: string; identifier: string }>
+    }
+    expect(reusedSubjectResponse.status).toBe(200)
+    expect(reusedSubject.authorization_details).toEqual(subject.authorization_details)
+
+    const refreshedResponse = await ctx.app.request(tokenEndpoint, {
+      method: 'POST',
+      headers: { Authorization: basic, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: subject.refresh_token,
+        resource: 'http://localhost:3000/api',
+      }).toString(),
+    })
+    const refreshed = (await refreshedResponse.json()) as {
+      authorization_details: Array<{ type: string; identifier: string }>
+    }
+    expect(refreshedResponse.status).toBe(200)
+    expect(refreshed.authorization_details).toEqual(subject.authorization_details)
 
     const now = Math.floor(Date.now() / 1000)
     const assertion = await new SignJWT({})
@@ -1077,11 +1156,18 @@ describe('OAuth consent guards', () => {
         requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
         resource: 'http://localhost:3000/api',
         scope: 'objects:read quota:read',
+        authorization_details: JSON.stringify([{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: workspaceId }]),
       }).toString(),
     })
-    const exchanged = (await exchangeResponse.json()) as { access_token: string; token_type: string; scope: string }
+    const exchanged = (await exchangeResponse.json()) as {
+      access_token: string
+      token_type: string
+      scope: string
+      authorization_details: Array<{ type: string; identifier: string }>
+    }
     expect(exchangeResponse.status).toBe(200)
     expect(exchanged).toMatchObject({ token_type: 'DPoP', scope: 'objects:read quota:read' })
+    expect(exchanged.authorization_details).toEqual(subject.authorization_details)
 
     const apiUrl = 'http://localhost:3000/api/test-agent-audit'
     const apiProof = await new SignJWT({
@@ -1139,6 +1225,8 @@ describe('OAuth consent guards', () => {
     const auth = await createAuth(ctx.platform, 'test-secret', 'https://zpan-staging.example.com', [previewOrigin])
     const app = createApp(ctx.platform, auth)
     const signUpResponse = await signUp({ ...ctx, app }, 'oauth-consent@example.com')
+    const signUpBody = (await signUpResponse.clone().json()) as { user: { id: string } }
+    const workspaceId = await personalOrgForUser(ctx, signUpBody.user.id)
     const cookie = signUpResponse.headers
       .getSetCookie()
       .map((value) => value.split(';', 1)[0])
@@ -1165,13 +1253,14 @@ describe('OAuth consent guards', () => {
       state: 'oauth-consent-test',
       code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
       code_challenge_method: 'S256',
+      authorization_details: JSON.stringify([{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE }]),
     })
     const authorize = await app.request(`${previewOrigin}/api/auth/oauth2/authorize?${params}`, {
       headers: { Cookie: cookie, Origin: previewOrigin },
     })
     const consentLocation = authorize.headers.get('location')
     expect(authorize.status).toBe(302)
-    expect(consentLocation).toMatch(/^\/settings\/oauth-apps\?/)
+    expect(consentLocation).toMatch(/^\/oauth\/consent\?/)
 
     const consent = await app.request(`${previewOrigin}/api/auth/oauth2/consent`, {
       method: 'POST',
@@ -1182,6 +1271,7 @@ describe('OAuth consent guards', () => {
       },
       body: JSON.stringify({
         accept: true,
+        authorization_details: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: workspaceId }],
         oauth_query: consentLocation?.slice(consentLocation.indexOf('?') + 1),
       }),
     })
@@ -1191,6 +1281,102 @@ describe('OAuth consent guards', () => {
     expect(JSON.parse(consentBody)).toMatchObject({
       url: expect.stringMatching(/^https:\/\/broker\.example\.com\/callback\?code=/),
     })
+  })
+
+  it('accepts a pushed authorization request and consumes its request URI once', async () => {
+    const ctx = await createTestApp()
+    const metadata = await ctx.app.request('/.well-known/oauth-authorization-server/api/auth')
+    await expect(metadata.json()).resolves.toMatchObject({
+      pushed_authorization_request_endpoint: 'http://localhost:3000/api/auth/oauth2/par',
+      request_uri_parameter_supported: true,
+      authorization_details_types_supported: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
+    })
+    const signUpResponse = await signUp(ctx, 'oauth-par@example.com')
+    const cookie = signUpResponse.headers
+      .getSetCookie()
+      .map((value) => value.split(';', 1)[0])
+      .join('; ')
+    const registration = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'PAR Test Client',
+        redirect_uris: ['https://broker.example.com/par-callback'],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none',
+        scope: 'openid offline_access objects:read',
+      }),
+    })
+    const registered = (await registration.json()) as { client_id: string }
+    const pushedParams = new URLSearchParams({
+      client_id: registered.client_id,
+      redirect_uri: 'https://broker.example.com/par-callback',
+      response_type: 'code',
+      scope: 'openid offline_access objects:read',
+      state: 'par-test',
+      code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+      code_challenge_method: 'S256',
+      authorization_details: JSON.stringify([{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE }]),
+    })
+    const invalidRedirectParams = new URLSearchParams(pushedParams)
+    invalidRedirectParams.set('redirect_uri', 'https://attacker.example.com/callback')
+    const invalidRedirect = await ctx.app.request('/api/auth/oauth2/par', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: invalidRedirectParams.toString(),
+    })
+    expect(invalidRedirect.status).toBe(400)
+    await expect(invalidRedirect.json()).resolves.toMatchObject({ error: 'invalid_request' })
+
+    const otherRegistration = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Other PAR Client',
+        redirect_uris: ['https://other.example.com/callback'],
+        grant_types: ['authorization_code'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_basic',
+        scope: 'openid objects:read',
+      }),
+    })
+    const other = (await otherRegistration.json()) as { client_id: string; client_secret: string }
+    const mismatchedCredentials = await ctx.app.request('/api/auth/oauth2/par', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${other.client_id}:${other.client_secret}`).toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: pushedParams.toString(),
+    })
+    expect(mismatchedCredentials.status).toBe(400)
+    await expect(mismatchedCredentials.json()).resolves.toMatchObject({ error: 'invalid_client' })
+
+    const pushed = await ctx.app.request('/api/auth/oauth2/par', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: pushedParams.toString(),
+    })
+    const pushedBody = (await pushed.json()) as { request_uri: string; expires_in: number }
+    expect(pushed.status, JSON.stringify(pushedBody)).toBe(201)
+    expect(pushedBody).toMatchObject({
+      request_uri: expect.stringMatching(/^urn:ietf:params:oauth:request_uri:/),
+      expires_in: 90,
+    })
+
+    const authorizeUrl = new URL('/api/auth/oauth2/authorize', 'http://localhost')
+    authorizeUrl.searchParams.set('client_id', registered.client_id)
+    authorizeUrl.searchParams.set('request_uri', pushedBody.request_uri)
+    const authorize = await ctx.app.request(authorizeUrl, { headers: { Cookie: cookie } })
+    expect(authorize.status).toBe(302)
+    expect(authorize.headers.get('location')).toMatch(/^\/oauth\/consent\?/)
+
+    const replay = await ctx.app.request(authorizeUrl, { headers: { Cookie: cookie } })
+    expect(replay.status).toBe(302)
+    expect(new URL(replay.headers.get('location')!, 'http://localhost').searchParams.get('error')).toBe(
+      'invalid_request_uri',
+    )
   })
 
   it('blocks partial OAuth consent changes through the Better Auth endpoint', async () => {

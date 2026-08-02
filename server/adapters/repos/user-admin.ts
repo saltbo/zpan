@@ -17,6 +17,11 @@ async function isBanned(db: Database, userId: string): Promise<boolean> {
   return Boolean(rows[0]?.banned)
 }
 
+async function getSiteRole(db: Database, userId: string): Promise<string | null> {
+  const rows = await db.select({ role: user.role }).from(user).where(eq(user.id, userId)).limit(1)
+  return rows[0]?.role ?? null
+}
+
 async function findActiveUserIdByUsername(db: Database, username: string): Promise<string | null> {
   const normalizedEmail = username.toLowerCase()
   const rows = await db
@@ -224,6 +229,7 @@ function mergeGrantMetadata(existing: string | null, patch: Record<string, unkno
 export function createUserAdminRepo(db: Database): UserAdminRepo {
   return {
     isBanned: (userId) => isBanned(db, userId),
+    getSiteRole: (userId) => getSiteRole(db, userId),
     findActiveUserIdByUsername: (username) => findActiveUserIdByUsername(db, username),
     listUserPersonalEntitlements: (userId) => listUserPersonalEntitlements(db, userId),
     grantUserPersonalEntitlement: (input) => grantUserPersonalEntitlement(db, input),

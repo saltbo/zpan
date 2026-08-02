@@ -201,6 +201,7 @@ const AUTH_SCHEMA_SQL = `
     authorization_code_id TEXT,
     resources TEXT,
     requested_user_info_claims TEXT,
+    authorization_details TEXT,
     expires_at INTEGER NOT NULL,
     created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
     revoked INTEGER,
@@ -225,6 +226,7 @@ const AUTH_SCHEMA_SQL = `
     authorization_code_id TEXT,
     resources TEXT,
     requested_user_info_claims TEXT,
+    authorization_details TEXT,
     refresh_id TEXT REFERENCES oauthRefreshToken(id) ON DELETE CASCADE,
     expires_at INTEGER NOT NULL,
     created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
@@ -244,6 +246,7 @@ const AUTH_SCHEMA_SQL = `
     reference_id TEXT,
     resources TEXT,
     requested_user_info_claims TEXT,
+    authorization_details TEXT,
     scopes TEXT NOT NULL,
     created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
     last_used_at INTEGER,
@@ -255,6 +258,16 @@ const AUTH_SCHEMA_SQL = `
     id TEXT PRIMARY KEY,
     expires_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS oauthPushedAuthorizationRequest (
+    id TEXT PRIMARY KEY,
+    request_uri TEXT NOT NULL UNIQUE,
+    client_id TEXT NOT NULL REFERENCES oauthClient(client_id) ON DELETE CASCADE,
+    parameters TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  );
+  CREATE INDEX IF NOT EXISTS oauthPushedAuthorizationRequest_client_id_idx ON oauthPushedAuthorizationRequest(client_id);
+  CREATE INDEX IF NOT EXISTS oauthPushedAuthorizationRequest_expires_at_idx ON oauthPushedAuthorizationRequest(expires_at);
   CREATE TABLE IF NOT EXISTS oauthJwtRevocation (
     id TEXT PRIMARY KEY,
     client_id TEXT NOT NULL,

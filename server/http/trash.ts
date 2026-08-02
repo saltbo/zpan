@@ -104,7 +104,7 @@ const restoreObjectRoute = authRoute(
 )
 
 const purgeObjectRoute = authRoute(
-  { scopes: [AuthorizationScope.OBJECTS_PURGE], minTeamRole: 'editor' },
+  { scopes: [AuthorizationScope.OBJECTS_PURGE], oauth: false, minTeamRole: 'editor' },
   {
     operationId: 'purgeTrashObject',
     summary: 'Permanently delete trashed object',

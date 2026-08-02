@@ -18,6 +18,7 @@ function gateway(overrides: Partial<OAuthGateway> = {}): OAuthGateway {
 
 function org(overrides: Partial<OrgRepo> = {}): OrgRepo {
   return {
+    listUserOrgs: vi.fn(async () => []),
     findPersonalOrg: vi.fn(),
     getMemberRole: vi.fn(),
     getOrgNames: vi.fn(async () => new Map([['org-1', 'Personal']])),
@@ -37,7 +38,7 @@ describe('OAuth grant usecases', () => {
           clientId: 'dynamic-client',
           clientName: 'FlareAuth',
           userId: 'user-1',
-          orgId: 'org-1',
+          workspaceIds: ['org-1'],
           scopes: [],
           createdAt: '2026-07-29T12:00:00.000Z',
           lastUsedAt: null,
@@ -52,8 +53,7 @@ describe('OAuth grant usecases', () => {
           clientId: 'dynamic-client',
           clientName: 'FlareAuth',
           userId: 'user-1',
-          orgId: 'org-1',
-          workspaceName: 'Personal',
+          workspaces: [{ id: 'org-1', name: 'Personal' }],
           scopes: [],
           createdAt: '2026-07-29T12:00:00.000Z',
           lastUsedAt: null,

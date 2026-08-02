@@ -1,4 +1,5 @@
 import { AuthorizationScope } from '@shared/authorization'
+import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import { describe, expect, it, vi } from 'vitest'
 import { getOAuthConsentContext } from './oauth-consent'
 import type { OAuthGateway, OrgRepo } from './ports'
@@ -9,6 +10,7 @@ const CLIENT_NAME = 'FlareAuth'
 
 function org(overrides: Partial<OrgRepo> = {}): OrgRepo {
   return {
+    listUserOrgs: vi.fn(async () => [{ id: 'org-1', name: 'Personal' }]),
     findPersonalOrg: vi.fn(),
     getMemberRole: vi.fn(),
     getOrgNames: vi.fn(async () => new Map([['org-1', 'Personal']])),
@@ -54,6 +56,7 @@ function oauthQuery(overrides: Record<string, string> = {}) {
     redirect_uri: 'http://127.0.0.1:8484/callback',
     response_type: 'code',
     scope: `openid offline_access ${AuthorizationScope.OBJECTS_READ} ${AuthorizationScope.QUOTA_READ}`,
+    authorization_details: JSON.stringify([{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE }]),
     ...overrides,
   }).toString()
 }
@@ -74,8 +77,6 @@ describe('OAuth consent usecase', () => {
         {
           db,
           userId: 'user-1',
-          orgId: 'org-1',
-          requestUrl: 'https://zpan.example.test/api/oauth-consent',
           oauthQuery: dynamicQuery,
         },
       ),
@@ -91,15 +92,14 @@ describe('OAuth consent usecase', () => {
       getOAuthConsentContext(deps(org()), {
         db,
         userId: 'user-1',
-        orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/oauth-consent',
         oauthQuery: oauthQuery(),
       }),
     ).resolves.toEqual({
       clientId: CLIENT_ID,
       clientName: CLIENT_NAME,
-      instanceOrigin: 'https://zpan.example.test',
-      workspace: { id: 'org-1', name: 'Personal' },
+      clientOrigin: 'http://127.0.0.1:8484',
+      workspaces: [{ id: 'org-1', name: 'Personal' }],
+      requestedWorkspaceIds: [],
       scopes: [AuthorizationScope.OBJECTS_READ, AuthorizationScope.QUOTA_READ],
       standardScopes: ['openid', 'offline_access'],
       redirectUri: 'http://127.0.0.1:8484/callback',
@@ -110,17 +110,18 @@ describe('OAuth consent usecase', () => {
     })
   })
 
-  it('keeps the active workspace id when the workspace name is unavailable', async () => {
+  it('honors a workspace identifier fixed by the client', async () => {
     await expect(
-      getOAuthConsentContext(deps(org({ getOrgNames: vi.fn(async () => new Map()) })), {
+      getOAuthConsentContext(deps(org()), {
         db,
         userId: 'user-1',
-        orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/oauth-consent',
-        oauthQuery: oauthQuery(),
+        oauthQuery: oauthQuery({
+          authorization_details: JSON.stringify([{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'org-1' }]),
+        }),
       }),
     ).resolves.toMatchObject({
-      workspace: { id: 'org-1', name: null },
+      workspaces: [{ id: 'org-1', name: 'Personal' }],
+      requestedWorkspaceIds: ['org-1'],
     })
   })
 
@@ -129,8 +130,6 @@ describe('OAuth consent usecase', () => {
       getOAuthConsentContext(deps(org()), {
         db,
         userId: 'user-1',
-        orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/oauth-consent',
         oauthQuery: oauthQuery({ response_type: 'token' }),
       }),
     ).rejects.toMatchObject({ httpStatus: 400 })
@@ -141,8 +140,6 @@ describe('OAuth consent usecase', () => {
       getOAuthConsentContext(deps(org()), {
         db,
         userId: 'user-1',
-        orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/oauth-consent',
         oauthQuery: oauthQuery({ redirect_uri: 'https://evil.example/callback' }),
       }),
     ).rejects.toMatchObject({ httpStatus: 400 })
@@ -151,22 +148,28 @@ describe('OAuth consent usecase', () => {
       getOAuthConsentContext(deps(org()), {
         db,
         userId: 'user-1',
-        orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/oauth-consent',
         oauthQuery: oauthQuery({ scope: 'objects:purge' }),
       }),
     ).rejects.toMatchObject({ httpStatus: 400 })
   })
 
-  it('rejects missing or inaccessible workspaces', async () => {
+  it('rejects users without available workspaces', async () => {
     await expect(
-      getOAuthConsentContext(deps(org({ canReadOrg: vi.fn(async () => false) })), {
+      getOAuthConsentContext(deps(org({ listUserOrgs: vi.fn(async () => []) })), {
         db,
         userId: 'user-1',
-        orgId: 'org-1',
-        requestUrl: 'https://zpan.example.test/api/oauth-consent',
         oauthQuery: oauthQuery(),
       }),
     ).rejects.toMatchObject({ httpStatus: 403 })
+  })
+
+  it('rejects malformed authorization details', async () => {
+    await expect(
+      getOAuthConsentContext(deps(org()), {
+        db,
+        userId: 'user-1',
+        oauthQuery: oauthQuery({ authorization_details: 'not-json' }),
+      }),
+    ).rejects.toMatchObject({ httpStatus: 400, message: 'Invalid OAuth authorization details' })
   })
 })

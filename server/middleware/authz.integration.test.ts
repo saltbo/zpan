@@ -1,4 +1,4 @@
-import { AuthorizationScope } from '@shared/authorization'
+import { AuthorizationScope, CANONICAL_AUTHORIZATION_SCOPES } from '@shared/authorization'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { adminHeaders, authedHeaders, createTestApp } from '../test/setup.js'
@@ -419,7 +419,7 @@ describe('evaluateAuthorization', () => {
     credential: 'session' as const,
     userId: 'user-1',
     workspace: { mode: 'selected' as const, orgId: 'org-1' },
-    grantedScopes: null,
+    grantedScopes: new Set(CANONICAL_AUTHORIZATION_SCOPES),
     actor: { type: 'user' as const, ref: 'user-1' },
     state: { firstParty: true as const, role: 'admin' },
   }
@@ -469,7 +469,7 @@ describe('evaluateAuthorization', () => {
       workspace: { mode: 'none' as const, orgId: null },
       grantedScopes: new Set([AuthorizationScope.DOWNLOADERS_CREATE]),
       actor: { type: 'user' as const, ref: 'user-1' },
-      state: { clientId: 'zpan-cli' as const, scope: 'downloader:register' as const },
+      state: { clientId: 'zpan-cli' as const, scope: 'downloader:register' as const, role: 'admin' },
     }
 
     await expect(
@@ -493,6 +493,32 @@ describe('evaluateAuthorization', () => {
         deps,
       }),
     ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'missing_scope' })
+  })
+
+  it('enforces OAuth credential exclusions independently from scopes', async () => {
+    const oauthContext = {
+      credential: 'oauth' as const,
+      userId: 'user-1',
+      workspace: { mode: 'bound' as const, orgId: 'org-1' },
+      grantedScopes: new Set([AuthorizationScope.OBJECTS_PURGE]),
+      actor: { type: 'oauth' as const, ref: 'grant-1', issuer: 'https://realmroot.example' },
+      state: { clientId: 'agent-client' },
+    }
+
+    await expect(
+      evaluateAuthorization({
+        context: oauthContext,
+        declaration: { scopes: [AuthorizationScope.OBJECTS_PURGE], oauth: false },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'actor_not_allowed' })
+    await expect(
+      evaluateAuthorization({
+        context: sessionContext,
+        declaration: { scopes: [AuthorizationScope.OBJECTS_PURGE], oauth: false },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: true })
   })
 
   it('uses task-upload token scopes', async () => {
@@ -533,7 +559,7 @@ describe('evaluateAuthorization', () => {
           credential: 'session',
           userId: 'user-1',
           workspace: { mode: 'selected', orgId: 'org-1' },
-          grantedScopes: null,
+          grantedScopes: new Set(CANONICAL_AUTHORIZATION_SCOPES),
           actor: { type: 'user', ref: 'user-1' },
           state: { firstParty: true },
         },

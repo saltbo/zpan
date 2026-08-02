@@ -102,7 +102,7 @@ export type AuthzContext =
       credential: 'session'
       userId: string
       workspace: { mode: 'selected'; orgId: string | null }
-      grantedScopes: null
+      grantedScopes: ReadonlySet<AuthorizationScope>
       actor: { type: 'user'; ref: string }
       state: { firstParty: true; role?: string }
     }
@@ -112,7 +112,7 @@ export type AuthzContext =
       workspace: { mode: 'none'; orgId: null } | { mode: 'bound'; orgId: string }
       grantedScopes: ReadonlySet<AuthorizationScope>
       actor: { type: 'api_key'; ref: string }
-      state: { configId: string; enabled: true }
+      state: { configId: string; enabled: true; role?: string }
     }
   | {
       credential: 'oauth'
@@ -120,7 +120,7 @@ export type AuthzContext =
       workspace: { mode: 'bound'; orgId: string }
       grantedScopes: ReadonlySet<AuthorizationScope>
       actor: { type: 'oauth'; ref: string; issuer: string }
-      state: { clientId: string }
+      state: { clientId: string; role?: string }
     }
   | {
       credential: 'downloader'
@@ -136,7 +136,7 @@ export type AuthzContext =
       workspace: { mode: 'none'; orgId: null }
       grantedScopes: ReadonlySet<AuthorizationScope>
       actor: { type: 'user'; ref: string }
-      state: { clientId: 'zpan-cli'; scope: 'downloader:register' }
+      state: { clientId: 'zpan-cli'; scope: 'downloader:register'; role?: string }
     }
   | {
       credential: 'download-task-upload'

@@ -6,7 +6,7 @@ export interface OAuthGrant {
   clientId: string
   clientName: string
   userId: string
-  orgId: string
+  workspaceIds: string[]
   scopes: AuthorizationScope[]
   createdAt: string
   lastUsedAt: string | null

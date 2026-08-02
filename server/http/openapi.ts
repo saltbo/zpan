@@ -1,5 +1,4 @@
 import { createRoute, type RouteConfig, type z } from '@hono/zod-openapi'
-import { OAUTH_SCOPES } from '@shared/oauth'
 import { errorResponseSchema } from '@shared/schemas'
 import { authorize, type RouteAuthorizationDeclaration, type ScopedAuthorizationPolicy } from '../middleware/authz'
 
@@ -24,8 +23,6 @@ export const jsonBody = <T extends z.ZodType>(schema: T) => ({
 // `jsonError`; this just documents the response shape in the OpenAPI document.
 export const errorResponse = (description: string) => jsonContent(errorResponseSchema, description)
 
-const OAUTH_SCOPE_SET = new Set<string>(OAUTH_SCOPES)
-
 export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> & { path: P }>(
   auth: RouteAuthorizationDeclaration,
   config: T,
@@ -35,8 +32,7 @@ export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> 
     ...config,
     middleware,
     ...openApiSecurity(auth),
-    'x-zpan-auth': openApiAuthMetadata(auth),
-    ...openApiCliMetadata(auth),
+    ...openApiAuthorizationConstraints(auth),
   } as T) as T & { getRoutingPath(): string }
 }
 
@@ -44,6 +40,7 @@ export function findOperationsMissingAuthContract(paths: Record<string, Record<s
   const methods = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'options'])
   const missing: string[] = []
   for (const [path, operations] of Object.entries(paths)) {
+    if (path.startsWith('/api/auth/')) continue
     for (const [method, operation] of Object.entries(operations)) {
       if (!methods.has(method)) continue
       if (!operation || typeof operation !== 'object') continue
@@ -54,46 +51,32 @@ export function findOperationsMissingAuthContract(paths: Record<string, Record<s
   return missing
 }
 
+function openApiAuthorizationConstraints(auth: RouteAuthorizationDeclaration): Record<string, unknown> {
+  if ('public' in auth) return {}
+  return {
+    'x-zpan-authorization-constraints': {
+      requiredScopes: [...auth.scopes],
+      ...(auth.oauth === false ? { oauth: false } : {}),
+      ...(auth.minTeamRole ? { minTeamRole: auth.minTeamRole } : {}),
+      ...(auth.siteRole ? { siteRole: auth.siteRole } : {}),
+    },
+  }
+}
+
 function hasValidAuthContract(operation: object): boolean {
-  if (!('x-zpan-auth' in operation)) return false
-  const auth = operation['x-zpan-auth']
-  if (!auth || typeof auth !== 'object' || !('public' in auth) || !('scopes' in auth)) return false
-  if (typeof auth.public !== 'boolean' || !Array.isArray(auth.scopes)) return false
-  return auth.public ? auth.scopes.length === 0 : auth.scopes.length > 0
+  if (!('security' in operation) || !Array.isArray(operation.security)) return false
+  if (operation.security.length === 0) return true
+  const constraints =
+    'x-zpan-authorization-constraints' in operation ? operation['x-zpan-authorization-constraints'] : null
+  if (!constraints || typeof constraints !== 'object' || !('requiredScopes' in constraints)) return false
+  return Array.isArray(constraints.requiredScopes) && constraints.requiredScopes.length > 0
 }
 
 function openApiSecurity(auth: RouteAuthorizationDeclaration): { security?: Record<string, string[]>[] } {
   if ('public' in auth) return { security: [] }
-  if (isAgentCallablePolicy(auth)) return {}
   return { security: openApiPolicySecurity(auth) }
 }
 
-function openApiCliMetadata(auth: RouteAuthorizationDeclaration): Record<string, boolean> {
-  if ('public' in auth) return {}
-  return isAgentCallablePolicy(auth) ? {} : { 'x-mcp-ignore': true }
-}
-
-function openApiAuthMetadata(auth: RouteAuthorizationDeclaration): Record<string, unknown> {
-  if ('public' in auth) return { public: true, scopes: [] }
-  return {
-    public: false,
-    ...openApiPolicyMetadata(auth),
-  }
-}
-
 function openApiPolicySecurity(policy: ScopedAuthorizationPolicy): Record<string, string[]>[] {
-  return [{ bearerAuth: [...policy.scopes] }, { cookieAuth: [] }]
-}
-
-function isAgentCallablePolicy(policy: ScopedAuthorizationPolicy): boolean {
-  return policy.scopes.every((scope) => OAUTH_SCOPE_SET.has(scope))
-}
-
-function openApiPolicyMetadata(policy: ScopedAuthorizationPolicy): Record<string, unknown> {
-  return {
-    scopes: [...policy.scopes],
-    minTeamRole: policy.minTeamRole ?? null,
-    siteRole: policy.siteRole ?? null,
-    auditDenied: policy.auditDenied !== false,
-  }
+  return [...(policy.oauth === false ? [] : [{ oauth2: [...policy.scopes] }]), { bearerAuth: [] }, { cookieAuth: [] }]
 }

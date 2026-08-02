@@ -2199,19 +2199,19 @@ func (e GetApiAuthDeleteUserCallback200JSONResponseBodyMessage) Valid() bool {
 
 // Defines values for GetApiAuthDevice200JSONResponseBodyStatus.
 const (
-	Approved GetApiAuthDevice200JSONResponseBodyStatus = "approved"
-	Denied   GetApiAuthDevice200JSONResponseBodyStatus = "denied"
-	Pending  GetApiAuthDevice200JSONResponseBodyStatus = "pending"
+	GetApiAuthDevice200JSONResponseBodyStatusApproved GetApiAuthDevice200JSONResponseBodyStatus = "approved"
+	GetApiAuthDevice200JSONResponseBodyStatusDenied   GetApiAuthDevice200JSONResponseBodyStatus = "denied"
+	GetApiAuthDevice200JSONResponseBodyStatusPending  GetApiAuthDevice200JSONResponseBodyStatus = "pending"
 )
 
 // Valid indicates whether the value is a known member of the GetApiAuthDevice200JSONResponseBodyStatus enum.
 func (e GetApiAuthDevice200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Approved:
+	case GetApiAuthDevice200JSONResponseBodyStatusApproved:
 		return true
-	case Denied:
+	case GetApiAuthDevice200JSONResponseBodyStatusDenied:
 		return true
-	case Pending:
+	case GetApiAuthDevice200JSONResponseBodyStatusPending:
 		return true
 	default:
 		return false
@@ -3057,21 +3057,180 @@ func (e PresignImageHostingUploadJSONBodyMime) Valid() bool {
 
 // Defines values for GetOAuthConsentContext200JSONResponseBodyScopes.
 const (
-	GetOAuthConsentContext200JSONResponseBodyScopesObjectsCreate    GetOAuthConsentContext200JSONResponseBodyScopes = "objects:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesObjectsDelete    GetOAuthConsentContext200JSONResponseBodyScopes = "objects:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesObjectsRead      GetOAuthConsentContext200JSONResponseBodyScopes = "objects:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesObjectsUpdate    GetOAuthConsentContext200JSONResponseBodyScopes = "objects:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesQuotaPurchase    GetOAuthConsentContext200JSONResponseBodyScopes = "quota:purchase"
-	GetOAuthConsentContext200JSONResponseBodyScopesQuotaRead        GetOAuthConsentContext200JSONResponseBodyScopes = "quota:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesSharesCreate     GetOAuthConsentContext200JSONResponseBodyScopes = "shares:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesSharesDelete     GetOAuthConsentContext200JSONResponseBodyScopes = "shares:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesSharesRead       GetOAuthConsentContext200JSONResponseBodyScopes = "shares:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesStorageUsageRead GetOAuthConsentContext200JSONResponseBodyScopes = "storage-usage:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsCreate       GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsDelete       GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsRead         GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsUpdate       GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesAuditEventsRead           GetOAuthConsentContext200JSONResponseBodyScopes = "audit-events:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersDelete       GetOAuthConsentContext200JSONResponseBodyScopes = "auth-providers:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersRead         GetOAuthConsentContext200JSONResponseBodyScopes = "auth-providers:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersUpdate       GetOAuthConsentContext200JSONResponseBodyScopes = "auth-providers:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsCreate      GetOAuthConsentContext200JSONResponseBodyScopes = "background-jobs:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsRead        GetOAuthConsentContext200JSONResponseBodyScopes = "background-jobs:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsUpdate      GetOAuthConsentContext200JSONResponseBodyScopes = "background-jobs:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesBrandingUpdate            GetOAuthConsentContext200JSONResponseBodyScopes = "branding:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksCancel       GetOAuthConsentContext200JSONResponseBodyScopes = "download-tasks:cancel"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksCreate       GetOAuthConsentContext200JSONResponseBodyScopes = "download-tasks:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksRead         GetOAuthConsentContext200JSONResponseBodyScopes = "download-tasks:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersCreate         GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersDelete         GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersRead           GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersUpdate         GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigRead           GetOAuthConsentContext200JSONResponseBodyScopes = "email-config:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigTest           GetOAuthConsentContext200JSONResponseBodyScopes = "email-config:test"
+	GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigUpdate         GetOAuthConsentContext200JSONResponseBodyScopes = "email-config:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderRead   GetOAuthConsentContext200JSONResponseBodyScopes = "image-domain-provider:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderTest   GetOAuthConsentContext200JSONResponseBodyScopes = "image-domain-provider:test"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderUpdate GetOAuthConsentContext200JSONResponseBodyScopes = "image-domain-provider:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigDelete  GetOAuthConsentContext200JSONResponseBodyScopes = "image-hosting-config:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigRead    GetOAuthConsentContext200JSONResponseBodyScopes = "image-hosting-config:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigUpdate  GetOAuthConsentContext200JSONResponseBodyScopes = "image-hosting-config:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesImagesCreate              GetOAuthConsentContext200JSONResponseBodyScopes = "images:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesImagesDelete              GetOAuthConsentContext200JSONResponseBodyScopes = "images:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesImagesRead                GetOAuthConsentContext200JSONResponseBodyScopes = "images:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesImagesUpdate              GetOAuthConsentContext200JSONResponseBodyScopes = "images:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesImagesUpload              GetOAuthConsentContext200JSONResponseBodyScopes = "images:upload"
+	GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesCreate         GetOAuthConsentContext200JSONResponseBodyScopes = "invite-codes:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesDelete         GetOAuthConsentContext200JSONResponseBodyScopes = "invite-codes:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesRead           GetOAuthConsentContext200JSONResponseBodyScopes = "invite-codes:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesLicensingRead             GetOAuthConsentContext200JSONResponseBodyScopes = "licensing:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesLicensingUpdate           GetOAuthConsentContext200JSONResponseBodyScopes = "licensing:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesNotificationsRead         GetOAuthConsentContext200JSONResponseBodyScopes = "notifications:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesNotificationsUpdate       GetOAuthConsentContext200JSONResponseBodyScopes = "notifications:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsCreate         GetOAuthConsentContext200JSONResponseBodyScopes = "oauth-grants:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsDelete         GetOAuthConsentContext200JSONResponseBodyScopes = "oauth-grants:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsRead           GetOAuthConsentContext200JSONResponseBodyScopes = "oauth-grants:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesObjectsCreate             GetOAuthConsentContext200JSONResponseBodyScopes = "objects:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesObjectsDelete             GetOAuthConsentContext200JSONResponseBodyScopes = "objects:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesObjectsRead               GetOAuthConsentContext200JSONResponseBodyScopes = "objects:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesObjectsUpdate             GetOAuthConsentContext200JSONResponseBodyScopes = "objects:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesQuotaPurchase             GetOAuthConsentContext200JSONResponseBodyScopes = "quota:purchase"
+	GetOAuthConsentContext200JSONResponseBodyScopesQuotaRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "quota:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesSharesCreate              GetOAuthConsentContext200JSONResponseBodyScopes = "shares:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesSharesDelete              GetOAuthConsentContext200JSONResponseBodyScopes = "shares:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesSharesRead                GetOAuthConsentContext200JSONResponseBodyScopes = "shares:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteAnalyticsRead         GetOAuthConsentContext200JSONResponseBodyScopes = "site-analytics:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsCreate     GetOAuthConsentContext200JSONResponseBodyScopes = "site-invitations:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsDelete     GetOAuthConsentContext200JSONResponseBodyScopes = "site-invitations:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsRead       GetOAuthConsentContext200JSONResponseBodyScopes = "site-invitations:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteSettingsRead          GetOAuthConsentContext200JSONResponseBodyScopes = "site-settings:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteSettingsUpdate        GetOAuthConsentContext200JSONResponseBodyScopes = "site-settings:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesStorageUsageRead          GetOAuthConsentContext200JSONResponseBodyScopes = "storage-usage:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoragesCreate            GetOAuthConsentContext200JSONResponseBodyScopes = "storages:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoragesDelete            GetOAuthConsentContext200JSONResponseBodyScopes = "storages:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoragesRead              GetOAuthConsentContext200JSONResponseBodyScopes = "storages:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoragesUpdate            GetOAuthConsentContext200JSONResponseBodyScopes = "storages:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoreCreate               GetOAuthConsentContext200JSONResponseBodyScopes = "store:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoreRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "store:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoreUpdate               GetOAuthConsentContext200JSONResponseBodyScopes = "store:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesSystemRead                GetOAuthConsentContext200JSONResponseBodyScopes = "system:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsCreate    GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsDelete    GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsRead      GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsUpdate    GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamInvitationsCreate     GetOAuthConsentContext200JSONResponseBodyScopes = "team-invitations:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamInvitationsRead       GetOAuthConsentContext200JSONResponseBodyScopes = "team-invitations:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamMembersCreate         GetOAuthConsentContext200JSONResponseBodyScopes = "team-members:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamsCreate               GetOAuthConsentContext200JSONResponseBodyScopes = "teams:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamsRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "teams:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamsUpdate               GetOAuthConsentContext200JSONResponseBodyScopes = "teams:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsCreate    GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsDelete    GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsRead      GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsUpdate    GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesUsersRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "users:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesUsersUpdate               GetOAuthConsentContext200JSONResponseBodyScopes = "users:update"
 )
 
 // Valid indicates whether the value is a known member of the GetOAuthConsentContext200JSONResponseBodyScopes enum.
 func (e GetOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
 	switch e {
+	case GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesAuditEventsRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesBrandingUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksCancel:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesDownloadersCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesDownloadersDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesDownloadersRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesDownloadersUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigTest:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderTest:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesImagesCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesImagesDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesImagesRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesImagesUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesImagesUpload:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesLicensingRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesLicensingUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesNotificationsRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesNotificationsUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsRead:
+		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesObjectsCreate:
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesObjectsDelete:
@@ -3090,7 +3249,67 @@ func (e GetOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesSharesRead:
 		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesSiteAnalyticsRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesSiteSettingsRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesSiteSettingsUpdate:
+		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesStorageUsageRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesStoragesCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesStoragesDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesStoragesRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesStoragesUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesStoreCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesStoreRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesStoreUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesSystemRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTeamInvitationsCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTeamInvitationsRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTeamMembersCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTeamsCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTeamsRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTeamsUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesUsersRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesUsersUpdate:
 		return true
 	default:
 		return false
@@ -3099,21 +3318,180 @@ func (e GetOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
 
 // Defines values for ListOAuthGrants200JSONResponseBodyItemsScopes.
 const (
-	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsCreate    ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsDelete    ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsRead      ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsUpdate    ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesQuotaPurchase    ListOAuthGrants200JSONResponseBodyItemsScopes = "quota:purchase"
-	ListOAuthGrants200JSONResponseBodyItemsScopesQuotaRead        ListOAuthGrants200JSONResponseBodyItemsScopes = "quota:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSharesCreate     ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSharesDelete     ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSharesRead       ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesStorageUsageRead ListOAuthGrants200JSONResponseBodyItemsScopes = "storage-usage:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsCreate       ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsDelete       ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsUpdate       ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAuditEventsRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "audit-events:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersDelete       ListOAuthGrants200JSONResponseBodyItemsScopes = "auth-providers:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "auth-providers:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersUpdate       ListOAuthGrants200JSONResponseBodyItemsScopes = "auth-providers:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsCreate      ListOAuthGrants200JSONResponseBodyItemsScopes = "background-jobs:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsRead        ListOAuthGrants200JSONResponseBodyItemsScopes = "background-jobs:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsUpdate      ListOAuthGrants200JSONResponseBodyItemsScopes = "background-jobs:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesBrandingUpdate            ListOAuthGrants200JSONResponseBodyItemsScopes = "branding:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCancel       ListOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:cancel"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCreate       ListOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersCreate         ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersDelete         ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersUpdate         ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "email-config:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigTest           ListOAuthGrants200JSONResponseBodyItemsScopes = "email-config:test"
+	ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigUpdate         ListOAuthGrants200JSONResponseBodyItemsScopes = "email-config:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderRead   ListOAuthGrants200JSONResponseBodyItemsScopes = "image-domain-provider:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderTest   ListOAuthGrants200JSONResponseBodyItemsScopes = "image-domain-provider:test"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderUpdate ListOAuthGrants200JSONResponseBodyItemsScopes = "image-domain-provider:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigDelete  ListOAuthGrants200JSONResponseBodyItemsScopes = "image-hosting-config:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigRead    ListOAuthGrants200JSONResponseBodyItemsScopes = "image-hosting-config:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigUpdate  ListOAuthGrants200JSONResponseBodyItemsScopes = "image-hosting-config:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImagesCreate              ListOAuthGrants200JSONResponseBodyItemsScopes = "images:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImagesDelete              ListOAuthGrants200JSONResponseBodyItemsScopes = "images:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImagesRead                ListOAuthGrants200JSONResponseBodyItemsScopes = "images:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImagesUpdate              ListOAuthGrants200JSONResponseBodyItemsScopes = "images:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImagesUpload              ListOAuthGrants200JSONResponseBodyItemsScopes = "images:upload"
+	ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesCreate         ListOAuthGrants200JSONResponseBodyItemsScopes = "invite-codes:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesDelete         ListOAuthGrants200JSONResponseBodyItemsScopes = "invite-codes:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "invite-codes:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesLicensingRead             ListOAuthGrants200JSONResponseBodyItemsScopes = "licensing:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesLicensingUpdate           ListOAuthGrants200JSONResponseBodyItemsScopes = "licensing:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesNotificationsRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "notifications:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesNotificationsUpdate       ListOAuthGrants200JSONResponseBodyItemsScopes = "notifications:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsCreate         ListOAuthGrants200JSONResponseBodyItemsScopes = "oauth-grants:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsDelete         ListOAuthGrants200JSONResponseBodyItemsScopes = "oauth-grants:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "oauth-grants:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsCreate             ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsDelete             ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsRead               ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsUpdate             ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesQuotaPurchase             ListOAuthGrants200JSONResponseBodyItemsScopes = "quota:purchase"
+	ListOAuthGrants200JSONResponseBodyItemsScopesQuotaRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "quota:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSharesCreate              ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSharesDelete              ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSharesRead                ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteAnalyticsRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "site-analytics:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsCreate     ListOAuthGrants200JSONResponseBodyItemsScopes = "site-invitations:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsDelete     ListOAuthGrants200JSONResponseBodyItemsScopes = "site-invitations:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsRead       ListOAuthGrants200JSONResponseBodyItemsScopes = "site-invitations:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteSettingsRead          ListOAuthGrants200JSONResponseBodyItemsScopes = "site-settings:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteSettingsUpdate        ListOAuthGrants200JSONResponseBodyItemsScopes = "site-settings:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStorageUsageRead          ListOAuthGrants200JSONResponseBodyItemsScopes = "storage-usage:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesCreate            ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesDelete            ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesRead              ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesUpdate            ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoreCreate               ListOAuthGrants200JSONResponseBodyItemsScopes = "store:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoreRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "store:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoreUpdate               ListOAuthGrants200JSONResponseBodyItemsScopes = "store:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSystemRead                ListOAuthGrants200JSONResponseBodyItemsScopes = "system:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsCreate    ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsDelete    ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsRead      ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsUpdate    ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamInvitationsCreate     ListOAuthGrants200JSONResponseBodyItemsScopes = "team-invitations:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamInvitationsRead       ListOAuthGrants200JSONResponseBodyItemsScopes = "team-invitations:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamMembersCreate         ListOAuthGrants200JSONResponseBodyItemsScopes = "team-members:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsCreate               ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsUpdate               ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsCreate    ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsDelete    ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsRead      ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsUpdate    ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUsersRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "users:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUsersUpdate               ListOAuthGrants200JSONResponseBodyItemsScopes = "users:update"
 )
 
 // Valid indicates whether the value is a known member of the ListOAuthGrants200JSONResponseBodyItemsScopes enum.
 func (e ListOAuthGrants200JSONResponseBodyItemsScopes) Valid() bool {
 	switch e {
+	case ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesAuditEventsRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesBrandingUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCancel:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigTest:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderTest:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesImagesCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesImagesDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesImagesRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesImagesUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesImagesUpload:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesLicensingRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesLicensingUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesNotificationsRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesNotificationsUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsRead:
+		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesObjectsCreate:
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesObjectsDelete:
@@ -3132,7 +3510,67 @@ func (e ListOAuthGrants200JSONResponseBodyItemsScopes) Valid() bool {
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesSharesRead:
 		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesSiteAnalyticsRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesSiteSettingsRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesSiteSettingsUpdate:
+		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesStorageUsageRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesStoragesCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesStoragesDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesStoragesRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesStoragesUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesStoreCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesStoreRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesStoreUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesSystemRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamInvitationsCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamInvitationsRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamMembersCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamsCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamsRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamsUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesUsersRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesUsersUpdate:
 		return true
 	default:
 		return false
@@ -3961,6 +4399,36 @@ func (e ListStorageUsageItems200JSONResponseBodyItemsSource) Valid() bool {
 	case ListStorageUsageItems200JSONResponseBodyItemsSourceImageHosting:
 		return true
 	case ListStorageUsageItems200JSONResponseBodyItemsSourceTrash:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PurchaseStorageCapacity200JSONResponseBodyStatus.
+const (
+	Delivered PurchaseStorageCapacity200JSONResponseBodyStatus = "delivered"
+)
+
+// Valid indicates whether the value is a known member of the PurchaseStorageCapacity200JSONResponseBodyStatus enum.
+func (e PurchaseStorageCapacity200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case Delivered:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PurchaseStorageCapacity202JSONResponseBodyStatus.
+const (
+	PurchaseStorageCapacity202JSONResponseBodyStatusPending PurchaseStorageCapacity202JSONResponseBodyStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the PurchaseStorageCapacity202JSONResponseBodyStatus enum.
+func (e PurchaseStorageCapacity202JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case PurchaseStorageCapacity202JSONResponseBodyStatusPending:
 		return true
 	default:
 		return false
@@ -6935,10 +7403,11 @@ type PostApiAuthOauth2ClientRotateSecretJSONBody struct {
 // PostApiAuthOauth2ConsentJSONBody defines parameters for PostApiAuthOauth2Consent.
 type PostApiAuthOauth2ConsentJSONBody struct {
 	// Accept Accept or deny user consent for a set of scopes
-	Accept     bool                                     `json:"accept"`
-	Claims     *PostApiAuthOauth2ConsentJSONBody_Claims `json:"claims,omitempty"`
-	OauthQuery *string                                  `json:"oauth_query,omitempty"`
-	Scope      *string                                  `json:"scope,omitempty"`
+	Accept               bool                                     `json:"accept"`
+	AuthorizationDetails *[]map[string]interface{}                `json:"authorization_details,omitempty"`
+	Claims               *PostApiAuthOauth2ConsentJSONBody_Claims `json:"claims,omitempty"`
+	OauthQuery           *string                                  `json:"oauth_query,omitempty"`
+	Scope                *string                                  `json:"scope,omitempty"`
 }
 
 // PostApiAuthOauth2ConsentJSONBodyClaims0 defines parameters for PostApiAuthOauth2Consent.
@@ -7053,6 +7522,9 @@ type PostApiAuthOauth2IntrospectJSONBody struct {
 	TokenTypeHint *string `json:"token_type_hint,omitempty"`
 }
 
+// PostApiAuthOauth2ParJSONBody defines parameters for PostApiAuthOauth2Par.
+type PostApiAuthOauth2ParJSONBody map[string]string
+
 // GetApiAuthOauth2PublicClientParams defines parameters for GetApiAuthOauth2PublicClient.
 type GetApiAuthOauth2PublicClientParams struct {
 	ClientId *string `form:"client_id,omitempty" json:"client_id,omitempty"`
@@ -7066,6 +7538,7 @@ type PostApiAuthOauth2PublicClientPreloginJSONBody struct {
 
 // PostApiAuthOauth2RegisterJSONBody defines parameters for PostApiAuthOauth2Register.
 type PostApiAuthOauth2RegisterJSONBody struct {
+	AuthorizationDetailsTypes        *[]string                                         `json:"authorization_details_types,omitempty"`
 	BackchannelLogoutSessionRequired *bool                                             `json:"backchannel_logout_session_required,omitempty"`
 	BackchannelLogoutUri             *string                                           `json:"backchannel_logout_uri,omitempty"`
 	ClientName                       *string                                           `json:"client_name,omitempty"`
@@ -7926,8 +8399,9 @@ type GetOAuthConsentContext200JSONResponseBodyScopes string
 
 // SubmitOAuthConsentJSONBody defines parameters for SubmitOAuthConsent.
 type SubmitOAuthConsentJSONBody struct {
-	Accept     bool   `json:"accept"`
-	OauthQuery string `json:"oauthQuery"`
+	Accept       bool     `json:"accept"`
+	OauthQuery   string   `json:"oauthQuery"`
+	WorkspaceIds []string `json:"workspaceIds"`
 }
 
 // ListOAuthGrants200JSONResponseBodyItemsScopes defines parameters for ListOAuthGrants.
@@ -8379,6 +8853,12 @@ type PurchaseStorageCapacityParams struct {
 	PaymentSignature *string `json:"payment-signature,omitempty"`
 }
 
+// PurchaseStorageCapacity200JSONResponseBodyStatus defines parameters for PurchaseStorageCapacity.
+type PurchaseStorageCapacity200JSONResponseBodyStatus string
+
+// PurchaseStorageCapacity202JSONResponseBodyStatus defines parameters for PurchaseStorageCapacity.
+type PurchaseStorageCapacity202JSONResponseBodyStatus string
+
 // CreateCheckoutJSONBody defines parameters for CreateCheckout.
 type CreateCheckoutJSONBody struct {
 	PackageId     string  `json:"packageId"`
@@ -8586,6 +9066,9 @@ type PostApiAuthOauth2DeleteConsentJSONRequestBody PostApiAuthOauth2DeleteConsen
 
 // PostApiAuthOauth2IntrospectJSONRequestBody defines body for PostApiAuthOauth2Introspect for application/json ContentType.
 type PostApiAuthOauth2IntrospectJSONRequestBody PostApiAuthOauth2IntrospectJSONBody
+
+// PostApiAuthOauth2ParJSONRequestBody defines body for PostApiAuthOauth2Par for application/json ContentType.
+type PostApiAuthOauth2ParJSONRequestBody PostApiAuthOauth2ParJSONBody
 
 // PostApiAuthOauth2PublicClientPreloginJSONRequestBody defines body for PostApiAuthOauth2PublicClientPrelogin for application/json ContentType.
 type PostApiAuthOauth2PublicClientPreloginJSONRequestBody PostApiAuthOauth2PublicClientPreloginJSONBody
@@ -10751,6 +11234,11 @@ type ClientInterface interface {
 
 	PostApiAuthOauth2Introspect(ctx context.Context, body PostApiAuthOauth2IntrospectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PostApiAuthOauth2ParWithBody request with any body
+	PostApiAuthOauth2ParWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostApiAuthOauth2Par(ctx context.Context, body PostApiAuthOauth2ParJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetApiAuthOauth2PublicClient request
 	GetApiAuthOauth2PublicClient(ctx context.Context, params *GetApiAuthOauth2PublicClientParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -11118,9 +11606,6 @@ type ClientInterface interface {
 
 	// RevokeOAuthGrant request
 	RevokeOAuthGrant(ctx context.Context, grantId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListOAuthResourceScopes request
-	ListOAuthResourceScopes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListObjects request
 	ListObjects(ctx context.Context, params *ListObjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -12611,6 +13096,30 @@ func (c *Client) PostApiAuthOauth2IntrospectWithBody(ctx context.Context, conten
 
 func (c *Client) PostApiAuthOauth2Introspect(ctx context.Context, body PostApiAuthOauth2IntrospectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiAuthOauth2IntrospectRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiAuthOauth2ParWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiAuthOauth2ParRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PostApiAuthOauth2Par(ctx context.Context, body PostApiAuthOauth2ParJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostApiAuthOauth2ParRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14279,18 +14788,6 @@ func (c *Client) ListOAuthGrants(ctx context.Context, reqEditors ...RequestEdito
 
 func (c *Client) RevokeOAuthGrant(ctx context.Context, grantId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRevokeOAuthGrantRequest(c.Server, grantId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListOAuthResourceScopes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListOAuthResourceScopesRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -18820,6 +19317,46 @@ func NewPostApiAuthOauth2IntrospectRequestWithBody(server string, contentType st
 	return req, nil
 }
 
+// NewPostApiAuthOauth2ParRequest calls the generic PostApiAuthOauth2Par builder with application/json body
+func NewPostApiAuthOauth2ParRequest(server string, body PostApiAuthOauth2ParJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostApiAuthOauth2ParRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostApiAuthOauth2ParRequestWithBody generates requests for PostApiAuthOauth2Par with any type of body
+func NewPostApiAuthOauth2ParRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/oauth2/par")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetApiAuthOauth2PublicClientRequest generates requests for GetApiAuthOauth2PublicClient
 func NewGetApiAuthOauth2PublicClientRequest(server string, params *GetApiAuthOauth2PublicClientParams) (*http.Request, error) {
 	var err error
@@ -22523,33 +23060,6 @@ func NewRevokeOAuthGrantRequest(server string, grantId string) (*http.Request, e
 	}
 
 	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListOAuthResourceScopesRequest generates requests for ListOAuthResourceScopes
-func NewListOAuthResourceScopesRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/oauth-resource-scopes")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -27960,6 +28470,11 @@ type ClientWithResponsesInterface interface {
 
 	PostApiAuthOauth2IntrospectWithResponse(ctx context.Context, body PostApiAuthOauth2IntrospectJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2IntrospectResponse, error)
 
+	// PostApiAuthOauth2ParWithBodyWithResponse request with any body
+	PostApiAuthOauth2ParWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2ParResponse, error)
+
+	PostApiAuthOauth2ParWithResponse(ctx context.Context, body PostApiAuthOauth2ParJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2ParResponse, error)
+
 	// GetApiAuthOauth2PublicClientWithResponse request
 	GetApiAuthOauth2PublicClientWithResponse(ctx context.Context, params *GetApiAuthOauth2PublicClientParams, reqEditors ...RequestEditorFn) (*GetApiAuthOauth2PublicClientResponse, error)
 
@@ -28327,9 +28842,6 @@ type ClientWithResponsesInterface interface {
 
 	// RevokeOAuthGrantWithResponse request
 	RevokeOAuthGrantWithResponse(ctx context.Context, grantId string, reqEditors ...RequestEditorFn) (*RevokeOAuthGrantResponse, error)
-
-	// ListOAuthResourceScopesWithResponse request
-	ListOAuthResourceScopesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListOAuthResourceScopesResponse, error)
 
 	// ListObjectsWithResponse request
 	ListObjectsWithResponse(ctx context.Context, params *ListObjectsParams, reqEditors ...RequestEditorFn) (*ListObjectsResponse, error)
@@ -31942,6 +32454,53 @@ func (r PostApiAuthOauth2IntrospectResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PostApiAuthOauth2IntrospectResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostApiAuthOauth2ParResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *struct {
+		Message string `json:"message"`
+	}
+	JSON401 *struct {
+		Message string `json:"message"`
+	}
+	JSON403 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON404 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON429 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+	JSON500 *struct {
+		Message *string `json:"message,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r PostApiAuthOauth2ParResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostApiAuthOauth2ParResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostApiAuthOauth2ParResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -35821,18 +36380,19 @@ type GetOAuthConsentContextResponse struct {
 	JSON200      *struct {
 		ClientId      string `json:"clientId"`
 		ClientName    string `json:"clientName"`
+		ClientOrigin  string `json:"clientOrigin"`
 		GrantLifetime struct {
 			AccessTokenSeconds  *int `json:"accessTokenSeconds,omitempty"`
 			RefreshTokenSeconds *int `json:"refreshTokenSeconds,omitempty"`
 		} `json:"grantLifetime"`
-		InstanceOrigin string                                            `json:"instanceOrigin"`
-		RedirectUri    string                                            `json:"redirectUri"`
-		Scopes         []GetOAuthConsentContext200JSONResponseBodyScopes `json:"scopes"`
-		StandardScopes []string                                          `json:"standardScopes"`
-		Workspace      struct {
+		RedirectUri           string                                            `json:"redirectUri"`
+		RequestedWorkspaceIds []string                                          `json:"requestedWorkspaceIds"`
+		Scopes                []GetOAuthConsentContext200JSONResponseBodyScopes `json:"scopes"`
+		StandardScopes        []string                                          `json:"standardScopes"`
+		Workspaces            []struct {
 			Id   string  `json:"id"`
 			Name *string `json:"name"`
-		} `json:"workspace"`
+		} `json:"workspaces"`
 	}
 	JSON400 *Error
 	JSON403 *Error
@@ -35901,16 +36461,18 @@ type ListOAuthGrantsResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *struct {
 		Items []struct {
-			ClientId      string                                          `json:"clientId"`
-			ClientName    string                                          `json:"clientName"`
-			CreatedAt     string                                          `json:"createdAt"`
-			Id            string                                          `json:"id"`
-			LastUsedAt    *string                                         `json:"lastUsedAt"`
-			OrgId         string                                          `json:"orgId"`
-			Scopes        []ListOAuthGrants200JSONResponseBodyItemsScopes `json:"scopes"`
-			Status        ListOAuthGrants200JSONResponseBodyItemsStatus   `json:"status"`
-			UserId        string                                          `json:"userId"`
-			WorkspaceName *string                                         `json:"workspaceName"`
+			ClientId   string                                          `json:"clientId"`
+			ClientName string                                          `json:"clientName"`
+			CreatedAt  string                                          `json:"createdAt"`
+			Id         string                                          `json:"id"`
+			LastUsedAt *string                                         `json:"lastUsedAt"`
+			Scopes     []ListOAuthGrants200JSONResponseBodyItemsScopes `json:"scopes"`
+			Status     ListOAuthGrants200JSONResponseBodyItemsStatus   `json:"status"`
+			UserId     string                                          `json:"userId"`
+			Workspaces []struct {
+				Id   string  `json:"id"`
+				Name *string `json:"name"`
+			} `json:"workspaces"`
 		} `json:"items"`
 	}
 }
@@ -35963,41 +36525,6 @@ func (r RevokeOAuthGrantResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RevokeOAuthGrantResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type ListOAuthResourceScopesResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Scopes []struct {
-			Description string `json:"description"`
-			Value       string `json:"value"`
-		} `json:"scopes"`
-	}
-}
-
-// Status returns HTTPResponse.Status
-func (r ListOAuthResourceScopesResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListOAuthResourceScopesResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListOAuthResourceScopesResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -36106,6 +36633,7 @@ type CreateObjectResponse struct {
 	JSON402 *CapacityRequired
 	JSON403 *Error
 	JSON409 *Error
+	JSON422 *Error
 	JSON503 *Error
 }
 
@@ -38604,14 +39132,47 @@ func (r CreateBillingPortalSessionResponse) ContentType() string {
 type PurchaseStorageCapacityResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *CloudStoreValue
-	JSON202      *CloudStoreValue
-	JSON400      *Error
-	JSON402      *CloudStoreValue
-	JSON403      *Error
-	JSON409      *Error
-	JSON429      *Error
-	JSON502      *Error
+	JSON200      *struct {
+		AttemptId   string                                           `json:"attemptId"`
+		OrderId     string                                           `json:"orderId"`
+		RequestHash string                                           `json:"requestHash"`
+		ResourceId  string                                           `json:"resourceId"`
+		Status      PurchaseStorageCapacity200JSONResponseBodyStatus `json:"status"`
+	}
+	JSON202 *struct {
+		AttemptId   string                                           `json:"attemptId"`
+		OrderId     string                                           `json:"orderId"`
+		RequestHash string                                           `json:"requestHash"`
+		ResourceId  string                                           `json:"resourceId"`
+		Status      PurchaseStorageCapacity202JSONResponseBodyStatus `json:"status"`
+	}
+	JSON400 *Error
+	JSON402 *struct {
+		Accepts []struct {
+			Amount            string                  `json:"amount"`
+			Asset             string                  `json:"asset"`
+			Extra             map[string]*interface{} `json:"extra"`
+			MaxTimeoutSeconds int                     `json:"maxTimeoutSeconds"`
+			Network           string                  `json:"network"`
+			PayTo             string                  `json:"payTo"`
+			Scheme            string                  `json:"scheme"`
+		} `json:"accepts"`
+		Error      *string                  `json:"error,omitempty"`
+		Extensions *map[string]*interface{} `json:"extensions,omitempty"`
+		Resource   struct {
+			Description *string   `json:"description,omitempty"`
+			IconUrl     *string   `json:"iconUrl,omitempty"`
+			MimeType    *string   `json:"mimeType,omitempty"`
+			ServiceName *string   `json:"serviceName,omitempty"`
+			Tags        *[]string `json:"tags,omitempty"`
+			Url         string    `json:"url"`
+		} `json:"resource"`
+		X402Version int `json:"x402Version"`
+	}
+	JSON403 *Error
+	JSON409 *Error
+	JSON429 *Error
+	JSON502 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -40561,6 +41122,23 @@ func (c *ClientWithResponses) PostApiAuthOauth2IntrospectWithResponse(ctx contex
 	return ParsePostApiAuthOauth2IntrospectResponse(rsp)
 }
 
+// PostApiAuthOauth2ParWithBodyWithResponse request with arbitrary body returning *PostApiAuthOauth2ParResponse
+func (c *ClientWithResponses) PostApiAuthOauth2ParWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2ParResponse, error) {
+	rsp, err := c.PostApiAuthOauth2ParWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiAuthOauth2ParResponse(rsp)
+}
+
+func (c *ClientWithResponses) PostApiAuthOauth2ParWithResponse(ctx context.Context, body PostApiAuthOauth2ParJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2ParResponse, error) {
+	rsp, err := c.PostApiAuthOauth2Par(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostApiAuthOauth2ParResponse(rsp)
+}
+
 // GetApiAuthOauth2PublicClientWithResponse request returning *GetApiAuthOauth2PublicClientResponse
 func (c *ClientWithResponses) GetApiAuthOauth2PublicClientWithResponse(ctx context.Context, params *GetApiAuthOauth2PublicClientParams, reqEditors ...RequestEditorFn) (*GetApiAuthOauth2PublicClientResponse, error) {
 	rsp, err := c.GetApiAuthOauth2PublicClient(ctx, params, reqEditors...)
@@ -41761,15 +42339,6 @@ func (c *ClientWithResponses) RevokeOAuthGrantWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseRevokeOAuthGrantResponse(rsp)
-}
-
-// ListOAuthResourceScopesWithResponse request returning *ListOAuthResourceScopesResponse
-func (c *ClientWithResponses) ListOAuthResourceScopesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListOAuthResourceScopesResponse, error) {
-	rsp, err := c.ListOAuthResourceScopes(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListOAuthResourceScopesResponse(rsp)
 }
 
 // ListObjectsWithResponse request returning *ListObjectsResponse
@@ -48000,6 +48569,79 @@ func ParsePostApiAuthOauth2IntrospectResponse(rsp *http.Response) (*PostApiAuthO
 	return response, nil
 }
 
+// ParsePostApiAuthOauth2ParResponse parses an HTTP response from a PostApiAuthOauth2ParWithResponse call
+func ParsePostApiAuthOauth2ParResponse(rsp *http.Response) (*PostApiAuthOauth2ParResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostApiAuthOauth2ParResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetApiAuthOauth2PublicClientResponse parses an HTTP response from a GetApiAuthOauth2PublicClientWithResponse call
 func ParseGetApiAuthOauth2PublicClientResponse(rsp *http.Response) (*GetApiAuthOauth2PublicClientResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -53731,18 +54373,19 @@ func ParseGetOAuthConsentContextResponse(rsp *http.Response) (*GetOAuthConsentCo
 		var dest struct {
 			ClientId      string `json:"clientId"`
 			ClientName    string `json:"clientName"`
+			ClientOrigin  string `json:"clientOrigin"`
 			GrantLifetime struct {
 				AccessTokenSeconds  *int `json:"accessTokenSeconds,omitempty"`
 				RefreshTokenSeconds *int `json:"refreshTokenSeconds,omitempty"`
 			} `json:"grantLifetime"`
-			InstanceOrigin string                                            `json:"instanceOrigin"`
-			RedirectUri    string                                            `json:"redirectUri"`
-			Scopes         []GetOAuthConsentContext200JSONResponseBodyScopes `json:"scopes"`
-			StandardScopes []string                                          `json:"standardScopes"`
-			Workspace      struct {
+			RedirectUri           string                                            `json:"redirectUri"`
+			RequestedWorkspaceIds []string                                          `json:"requestedWorkspaceIds"`
+			Scopes                []GetOAuthConsentContext200JSONResponseBodyScopes `json:"scopes"`
+			StandardScopes        []string                                          `json:"standardScopes"`
+			Workspaces            []struct {
 				Id   string  `json:"id"`
 				Name *string `json:"name"`
-			} `json:"workspace"`
+			} `json:"workspaces"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -53827,16 +54470,18 @@ func ParseListOAuthGrantsResponse(rsp *http.Response) (*ListOAuthGrantsResponse,
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
 			Items []struct {
-				ClientId      string                                          `json:"clientId"`
-				ClientName    string                                          `json:"clientName"`
-				CreatedAt     string                                          `json:"createdAt"`
-				Id            string                                          `json:"id"`
-				LastUsedAt    *string                                         `json:"lastUsedAt"`
-				OrgId         string                                          `json:"orgId"`
-				Scopes        []ListOAuthGrants200JSONResponseBodyItemsScopes `json:"scopes"`
-				Status        ListOAuthGrants200JSONResponseBodyItemsStatus   `json:"status"`
-				UserId        string                                          `json:"userId"`
-				WorkspaceName *string                                         `json:"workspaceName"`
+				ClientId   string                                          `json:"clientId"`
+				ClientName string                                          `json:"clientName"`
+				CreatedAt  string                                          `json:"createdAt"`
+				Id         string                                          `json:"id"`
+				LastUsedAt *string                                         `json:"lastUsedAt"`
+				Scopes     []ListOAuthGrants200JSONResponseBodyItemsScopes `json:"scopes"`
+				Status     ListOAuthGrants200JSONResponseBodyItemsStatus   `json:"status"`
+				UserId     string                                          `json:"userId"`
+				Workspaces []struct {
+					Id   string  `json:"id"`
+					Name *string `json:"name"`
+				} `json:"workspaces"`
 			} `json:"items"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -53869,37 +54514,6 @@ func ParseRevokeOAuthGrantResponse(rsp *http.Response) (*RevokeOAuthGrantRespons
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListOAuthResourceScopesResponse parses an HTTP response from a ListOAuthResourceScopesWithResponse call
-func ParseListOAuthResourceScopesResponse(rsp *http.Response) (*ListOAuthResourceScopesResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListOAuthResourceScopesResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Scopes []struct {
-				Description string `json:"description"`
-				Value       string `json:"value"`
-			} `json:"scopes"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
 
 	}
 
@@ -54056,6 +54670,13 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest Error
@@ -56802,14 +57423,26 @@ func ParsePurchaseStorageCapacityResponse(rsp *http.Response) (*PurchaseStorageC
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest CloudStoreValue
+		var dest struct {
+			AttemptId   string                                           `json:"attemptId"`
+			OrderId     string                                           `json:"orderId"`
+			RequestHash string                                           `json:"requestHash"`
+			ResourceId  string                                           `json:"resourceId"`
+			Status      PurchaseStorageCapacity200JSONResponseBodyStatus `json:"status"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
-		var dest CloudStoreValue
+		var dest struct {
+			AttemptId   string                                           `json:"attemptId"`
+			OrderId     string                                           `json:"orderId"`
+			RequestHash string                                           `json:"requestHash"`
+			ResourceId  string                                           `json:"resourceId"`
+			Status      PurchaseStorageCapacity202JSONResponseBodyStatus `json:"status"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -56823,7 +57456,28 @@ func ParsePurchaseStorageCapacityResponse(rsp *http.Response) (*PurchaseStorageC
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest CloudStoreValue
+		var dest struct {
+			Accepts []struct {
+				Amount            string                  `json:"amount"`
+				Asset             string                  `json:"asset"`
+				Extra             map[string]*interface{} `json:"extra"`
+				MaxTimeoutSeconds int                     `json:"maxTimeoutSeconds"`
+				Network           string                  `json:"network"`
+				PayTo             string                  `json:"payTo"`
+				Scheme            string                  `json:"scheme"`
+			} `json:"accepts"`
+			Error      *string                  `json:"error,omitempty"`
+			Extensions *map[string]*interface{} `json:"extensions,omitempty"`
+			Resource   struct {
+				Description *string   `json:"description,omitempty"`
+				IconUrl     *string   `json:"iconUrl,omitempty"`
+				MimeType    *string   `json:"mimeType,omitempty"`
+				ServiceName *string   `json:"serviceName,omitempty"`
+				Tags        *[]string `json:"tags,omitempty"`
+				Url         string    `json:"url"`
+			} `json:"resource"`
+			X402Version int `json:"x402Version"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

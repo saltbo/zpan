@@ -10,8 +10,7 @@ export const oauthGrantSchema = z.object({
   clientId: z.string(),
   clientName: z.string(),
   userId: z.string(),
-  orgId: z.string(),
-  workspaceName: z.string().nullable(),
+  workspaces: z.array(z.object({ id: z.string(), name: z.string().nullable() })).min(1),
   scopes: z.array(oauthResourceScopeSchema),
   createdAt: z.string(),
   lastUsedAt: z.string().nullable(),
@@ -25,11 +24,16 @@ export type OAuthGrantList = z.infer<typeof oauthGrantListSchema>
 export const oauthConsentContextSchema = z.object({
   clientId: z.string(),
   clientName: z.string(),
-  instanceOrigin: z.string(),
-  workspace: z.object({
-    id: z.string(),
-    name: z.string().nullable(),
-  }),
+  clientOrigin: z.string(),
+  workspaces: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string().nullable(),
+      }),
+    )
+    .min(1),
+  requestedWorkspaceIds: z.array(z.string()),
   scopes: z.array(oauthResourceScopeSchema),
   standardScopes: z.array(z.string()),
   redirectUri: z.string(),
@@ -48,6 +52,7 @@ export type OAuthConsentContextRequest = z.infer<typeof oauthConsentContextReque
 export const oauthConsentSubmitSchema = z.object({
   accept: z.boolean(),
   oauthQuery: z.string().min(1),
+  workspaceIds: z.array(z.string().min(1)),
 })
 export type OAuthConsentSubmit = z.infer<typeof oauthConsentSubmitSchema>
 

@@ -624,6 +624,13 @@
       "when": 1785506906336,
       "tag": "0089_better-auth-account-issuer-backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "6",
+      "when": 1785649535282,
+      "tag": "0090_oauth-rar-par",
+      "breakpoints": true
     }
   ]
 }

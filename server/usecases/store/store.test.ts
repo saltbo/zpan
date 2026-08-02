@@ -779,7 +779,7 @@ describe('cloud-store usecase', () => {
         ok: true,
         kind: 'delivered',
         paymentResponseHeader: 'response-header',
-        attempt: { id: 'attempt-1', status: 'delivered' },
+        purchase: { attemptId: 'attempt-1', status: 'delivered' },
       })
       expect(requests[8]).toMatchObject({
         method: 'GET',
@@ -801,6 +801,7 @@ describe('cloud-store usecase', () => {
       expect(requests[11]).toMatchObject({
         method: 'POST',
         path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/fulfillment-attempts',
+        input: { json: { deliveryCallbackUrl: `${params.origin}/api/store/webhook` } },
       })
     })
 
@@ -828,14 +829,40 @@ describe('cloud-store usecase', () => {
         ok: true,
         kind: 'delivered',
         paymentResponseHeader: 'response-header',
-        attempt: { id: 'attempt-1', status: 'delivered' },
+        purchase: { attemptId: 'attempt-1', status: 'delivered' },
       })
       expect(
         requests.filter((request) => request.path === 'stores/:storeId/orders/:orderId/x402/payment-attempts'),
       ).toHaveLength(1)
     })
 
-    it('retries paid-pending fulfillment after quote expiry without creating a replacement quote', async () => {
+    it('rejects a terminal Cloud attempt without its resource identity', async () => {
+      const quoted = attempt()
+      const delivered = { ...attempt('delivered'), resourceId: null, expiresAt: '2026-07-30T00:00:00.000Z' }
+      const { deps } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...quoted, reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(delivered),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, {
+        httpStatus: 502,
+        message: 'Cloud capacity purchase response is missing its resource identity',
+      })
+    })
+
+    it('retries paid-pending fulfillment with the current callback and no payment replay', async () => {
       const quoted = attempt()
       const paidPending = { ...attempt('paid_pending_fulfillment'), expiresAt: '2026-07-30T00:00:00.000Z' }
       const delivered = { ...attempt('delivered'), expiresAt: '2026-07-30T00:00:00.000Z' }
@@ -855,17 +882,63 @@ describe('cloud-store usecase', () => {
       })
       await purchaseCapacity(deps, CLOUD, params)
 
-      const out = await purchaseCapacity(deps, CLOUD, { ...params, paymentSignature: 'signature' })
+      const out = await purchaseCapacity(deps, CLOUD, { ...params, idempotencyKey: 'fresh-caller-key' })
 
       expect(out).toMatchObject({
         ok: true,
         kind: 'delivered',
         paymentResponseHeader: 'response-header',
-        attempt: { id: 'attempt-1', status: 'delivered' },
+        purchase: { attemptId: 'attempt-1', status: 'delivered' },
       })
       expect(
         requests.filter((request) => request.path === 'stores/:storeId/orders/:orderId/x402/payment-attempts'),
       ).toHaveLength(1)
+      expect(requests.at(-1)).toMatchObject({
+        method: 'POST',
+        path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/fulfillment-attempts',
+        input: { json: { deliveryCallbackUrl: `${params.origin}/api/store/webhook` } },
+      })
+      expect(requests).not.toContainEqual(
+        expect.objectContaining({
+          path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/settlements',
+        }),
+      )
+    })
+
+    it('continues a verified attempt through settlement without replaying the payment signature', async () => {
+      const quoted = attempt()
+      const verified = { ...attempt('verified'), expiresAt: '2026-07-30T00:00:00.000Z' }
+      const paidPending = { ...attempt('paid_pending_fulfillment'), expiresAt: '2026-07-30T00:00:00.000Z' }
+      const delivered = { ...attempt('delivered'), expiresAt: '2026-07-30T00:00:00.000Z' }
+      const { deps, requests } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...quoted, reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(verified),
+          ok(paidPending),
+          ok(delivered),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, { ...params, idempotencyKey: 'fresh-caller-key' })
+
+      expect(out).toMatchObject({ ok: true, kind: 'delivered', purchase: { status: 'delivered' } })
+      expect(requests).not.toContainEqual(
+        expect.objectContaining({
+          path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/verifications',
+        }),
+      )
+      expect(requests.at(-2)).toMatchObject({
+        method: 'POST',
+        path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/settlements',
+      })
       expect(requests.at(-1)).toMatchObject({
         method: 'POST',
         path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/fulfillment-attempts',

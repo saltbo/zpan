@@ -1,7 +1,11 @@
 import { AuthorizationScope } from '@shared/authorization'
-import { OAUTH_ACCESS_TOKEN_SECONDS, OAUTH_REFRESH_TOKEN_SECONDS } from '@shared/oauth'
+import {
+  OAUTH_ACCESS_TOKEN_SECONDS,
+  OAUTH_REFRESH_TOKEN_SECONDS,
+  WORKSPACE_AUTHORIZATION_DETAIL_TYPE,
+} from '@shared/oauth'
 import { sql } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
@@ -60,7 +64,7 @@ async function insertGrant(
     id: 'grant-1',
     clientId: CLIENT_ID,
     userId: input.userId,
-    referenceId: input.orgId,
+    authorizationDetails: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: input.orgId }],
     scopes: JSON.stringify(input.scopes),
     createdAt: now,
     updatedAt: now,
@@ -70,7 +74,7 @@ async function insertGrant(
     token: 'hashed-refresh',
     clientId: CLIENT_ID,
     userId: input.userId,
-    referenceId: input.orgId,
+    authorizationDetails: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: input.orgId }],
     expiresAt: new Date(Date.now() + 60_000),
     createdAt: now,
     scopes: JSON.stringify(input.scopes),
@@ -80,7 +84,7 @@ async function insertGrant(
     token: 'hashed-access',
     clientId: CLIENT_ID,
     userId: input.userId,
-    referenceId: input.orgId,
+    authorizationDetails: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: input.orgId }],
     refreshId: 'refresh-1',
     expiresAt: new Date(Date.now() + 60_000),
     createdAt: now,
@@ -94,6 +98,7 @@ function oauthQuery() {
     redirect_uri: REDIRECT_URI,
     response_type: 'code',
     scope: `${AuthorizationScope.OBJECTS_READ} ${AuthorizationScope.QUOTA_READ} openid offline_access`,
+    authorization_details: JSON.stringify([{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE }]),
   }).toString()
 }
 
@@ -112,8 +117,9 @@ describe('OAuth grants API integration', () => {
     await expect(res.json()).resolves.toEqual({
       clientId: CLIENT_ID,
       clientName: CLIENT_NAME,
-      instanceOrigin: 'http://localhost',
-      workspace: { id: orgId, name: expect.any(String) },
+      clientOrigin: new URL(REDIRECT_URI).origin,
+      workspaces: [{ id: orgId, name: expect.any(String) }],
+      requestedWorkspaceIds: [],
       scopes: [AuthorizationScope.OBJECTS_READ, AuthorizationScope.QUOTA_READ],
       standardScopes: ['openid', 'offline_access'],
       redirectUri: REDIRECT_URI,
@@ -132,11 +138,57 @@ describe('OAuth grants API integration', () => {
     const res = await app.request('/api/oauth-consent', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accept: true, oauthQuery: `client_id=${CLIENT_ID}&response_type=token` }),
+      body: JSON.stringify({
+        accept: true,
+        oauthQuery: `client_id=${CLIENT_ID}&response_type=token`,
+        workspaceIds: ['org-1'],
+      }),
     })
 
     expect(res.status).toBe(400)
     await expect(res.json()).resolves.toMatchObject({ error: { message: 'Invalid OAuth request' } })
+  })
+
+  it('rejects workspace selections outside the server-owned consent context', async () => {
+    const { app, db } = await createTestApp()
+    await insertClient(db)
+    const headers = await authedHeaders(app, 'agent-invalid-workspace@example.com')
+
+    const res = await app.request('/api/oauth-consent', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accept: true,
+        oauthQuery: oauthQuery(),
+        workspaceIds: ['org-not-owned'],
+      }),
+    })
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({ error: { message: 'Invalid workspace selection' } })
+  })
+
+  it('forwards validated workspace authorization details to Better Auth', async () => {
+    const { app, auth, db } = await createTestApp()
+    await insertClient(db)
+    const headers = await authedHeaders(app, 'agent-valid-workspace@example.com')
+    const { orgId } = await getUserAndPersonalOrg(db, 'agent-valid-workspace@example.com')
+    const handler = vi
+      .spyOn(auth, 'handler')
+      .mockResolvedValue(Response.json({ url: 'https://flareauth.example/callback?code=issued' }))
+
+    const res = await app.request('/api/oauth-consent', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accept: true, oauthQuery: oauthQuery(), workspaceIds: [orgId] }),
+    })
+
+    expect(res.status).toBe(200)
+    const forwarded = handler.mock.calls[0]?.[0]
+    await expect(forwarded?.json()).resolves.toMatchObject({
+      accept: true,
+      authorization_details: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: orgId }],
+    })
   })
 
   it('lists and revokes the current user dynamic-client grant family', async () => {
@@ -155,8 +207,7 @@ describe('OAuth grants API integration', () => {
           clientId: CLIENT_ID,
           clientName: CLIENT_NAME,
           userId,
-          orgId,
-          workspaceName: expect.any(String),
+          workspaces: [{ id: orgId, name: expect.any(String) }],
           scopes: [AuthorizationScope.OBJECTS_READ, AuthorizationScope.QUOTA_READ],
           createdAt: '2026-07-29T12:00:00.000Z',
           lastUsedAt: null,

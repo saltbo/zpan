@@ -869,6 +869,12 @@ describe('Quota Store API', () => {
     })
     const response = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
     const verified = { ...capacityAttempt(), status: 'verified', verifiedAt: '2026-07-30T00:01:00.000Z' }
+    const paidPending = {
+      ...capacityAttempt(),
+      status: 'paid_pending_fulfillment',
+      settlementResponseHeader: 'receipt-header',
+      settledAt: '2026-07-30T00:02:00.000Z',
+    }
     const delivered = {
       ...capacityAttempt(),
       status: 'delivered',
@@ -881,6 +887,8 @@ describe('Quota Store API', () => {
       .mockResolvedValueOnce(response(cloudProduct()))
       .mockResolvedValueOnce(response(capacityReceiver()))
       .mockResolvedValueOnce(response(verified))
+      .mockResolvedValueOnce(response(paidPending))
+      .mockResolvedValueOnce(response(paidPending))
       .mockResolvedValueOnce(response(capacityPublication()))
       .mockResolvedValueOnce(response(cloudProduct()))
       .mockResolvedValueOnce(response(capacityReceiver()))
@@ -894,9 +902,27 @@ describe('Quota Store API', () => {
       })
     const pendingResponse = await request()
     expect(pendingResponse.status).toBe(202)
+    await expect(pendingResponse.json()).resolves.toEqual({
+      attemptId: 'attempt-1',
+      orderId: 'order-cloud-1',
+      resourceId: 'cloud-pkg-1:price-usd',
+      requestHash: 'hash-1',
+      status: 'pending',
+    })
     const deliveredResponse = await request()
     expect(deliveredResponse.status).toBe(200)
     expect(deliveredResponse.headers.get('PAYMENT-RESPONSE')).toBe('receipt-header')
+    const deliveredBody = await deliveredResponse.json()
+    expect(deliveredBody).toEqual({
+      attemptId: 'attempt-1',
+      orderId: 'order-cloud-1',
+      resourceId: 'cloud-pkg-1:price-usd',
+      requestHash: 'hash-1',
+      status: 'delivered',
+    })
+    expect(deliveredBody).not.toHaveProperty('paymentRequiredHeader')
+    expect(deliveredBody).not.toHaveProperty('paymentSignatureHeader')
+    expect(deliveredBody).not.toHaveProperty('settlementResponseHeader')
   })
 
   it('allows team checkout for the team owner and targets the team org [spec: quota-store/team-checkout]', async () => {

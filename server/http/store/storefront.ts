@@ -1,6 +1,13 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { checkoutInputSchema, discountQuoteInputSchema, redeemGiftCardInputSchema } from '@shared/schemas'
+import {
+  capacityPurchaseDeliveredResultSchema,
+  capacityPurchasePendingResultSchema,
+  checkoutInputSchema,
+  discountQuoteInputSchema,
+  redeemGiftCardInputSchema,
+  x402PaymentRequiredSchema,
+} from '@shared/schemas'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { badGateway, badRequest, forbidden } from '../../usecases/ports'
@@ -182,10 +189,10 @@ const capacityPurchaseRoute = authRoute(
       ...jsonBody(capacityPurchaseInputSchema),
     },
     responses: {
-      200: cloudBody('Capacity delivered'),
-      202: cloudBody('Payment accepted; capacity fulfillment is pending'),
+      200: jsonContent(capacityPurchaseDeliveredResultSchema, 'Capacity delivered'),
+      202: jsonContent(capacityPurchasePendingResultSchema, 'Payment accepted; capacity fulfillment is pending'),
       400: errorResponse('Invalid capacity offer'),
-      402: cloudBody('x402 payment required'),
+      402: jsonContent(x402PaymentRequiredSchema, 'x402 payment required'),
       403: errorResponse('License not bound'),
       409: errorResponse('Purchase request conflict'),
       429: errorResponse('Too many pending capacity purchases'),
@@ -362,7 +369,8 @@ export const cloudStore = app
       return c.json(result.paymentRequired, 402)
     }
     if (result.paymentResponseHeader) c.header('PAYMENT-RESPONSE', result.paymentResponseHeader)
-    return c.json(result.attempt, result.kind === 'delivered' ? 200 : 202)
+    if (result.purchase.status === 'delivered') return c.json(result.purchase, 200)
+    return c.json(result.purchase, 202)
   })
   .openapi(discountRoute, async (c) => {
     const result = await getDiscountQuote(c.get('deps'), getCloudBaseUrl(c), c.req.valid('json'))
