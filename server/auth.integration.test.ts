@@ -844,6 +844,7 @@ describe('OAuth consent guards', () => {
         token_endpoint_auth_method: 'client_secret_basic',
         scope: 'openid offline_access',
         jwks_uri: 'https://broker.example.com/api/auth/jwks',
+        authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
       }),
     })
     const body = (await res.json()) as Record<string, unknown>
@@ -853,6 +854,7 @@ describe('OAuth consent guards', () => {
       client_id: expect.any(String),
       client_secret: expect.any(String),
       token_endpoint_auth_method: 'client_secret_basic',
+      authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
     })
     expect(String(body.scope).split(' ')).toEqual(expect.arrayContaining(['openid', 'offline_access', 'objects:read']))
 
@@ -871,6 +873,28 @@ describe('OAuth consent guards', () => {
         }),
       ]),
     )
+  })
+
+  it('rejects unsupported authorization detail types during dynamic client registration', async () => {
+    const ctx = await createTestApp()
+    const response = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Unsupported RAR Client',
+        redirect_uris: ['https://broker.example.com/oauth/callback'],
+        grant_types: ['authorization_code'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none',
+        authorization_details_types: ['https://broker.example.com/authorization-details/unknown'],
+      }),
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'invalid_client_metadata',
+      error_description: 'authorization_details_types contains an unsupported type',
+    })
   })
 
   it('returns a DPoP challenge for a foreign access token instead of an internal error', async () => {

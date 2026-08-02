@@ -37,7 +37,9 @@ Starting from `https://zpan.example/api`, clients discover:
 Authorization-server metadata advertises `scopes_supported`,
 `authorization_details_types_supported`, and
 `pushed_authorization_request_endpoint`. ZPan does not maintain a second scope
-catalog endpoint.
+catalog endpoint. RFC 7591 clients can register `authorization_details_types`;
+ZPan persists and echoes supported values and rejects unknown types as invalid
+client metadata.
 
 OpenAPI uses standard `security` declarations. Every protected ZPan operation
 declares its OAuth scopes, plus cookie and bearer alternatives. Role constraints

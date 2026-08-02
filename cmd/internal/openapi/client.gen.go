@@ -7508,6 +7508,7 @@ type PostApiAuthOauth2PublicClientPreloginJSONBody struct {
 
 // PostApiAuthOauth2RegisterJSONBody defines parameters for PostApiAuthOauth2Register.
 type PostApiAuthOauth2RegisterJSONBody struct {
+	AuthorizationDetailsTypes        *[]string                                         `json:"authorization_details_types,omitempty"`
 	BackchannelLogoutSessionRequired *bool                                             `json:"backchannel_logout_session_required,omitempty"`
 	BackchannelLogoutUri             *string                                           `json:"backchannel_logout_uri,omitempty"`
 	ClientName                       *string                                           `json:"client_name,omitempty"`

@@ -16,7 +16,7 @@ index 74c48338addc218100218739af9f51bbf59db2f2..2d9c07f812efc04019f5512bb0feaf6d
 \ No newline at end of file
 +export { type ActiveAccessTokenPayload, type AuthMethod, type AuthServerMetadata, type AuthorizationDetail, type AuthorizePrompt, type BearerMethodsSupported, type ClientDiscovery, type ClientRegistrationRequest, type Confirmation, DEFAULT_OAUTH_SCOPES, type GrantType, type InitialAccessTokenAuthorization, type OAuthAuthenticatedClient, type OAuthAuthorizationQuery, type OAuthClaimExtensionInput, type OAuthClient, type OAuthClientAuthenticationInput, type OAuthClientAuthenticationRequest, type OAuthClientAuthenticationResult, type OAuthClientAuthenticationStrategy, type OAuthClientResource, type OAuthConsent, type OAuthEndpointErrorResult, type OAuthEndpointRedirectContext, type OAuthErrorCode, type OAuthExtensionGrantHandler, type OAuthExtensionGrantHandlerInput, type OAuthFieldErrorCode, type OAuthFieldErrorCodeMap, type OAuthMetadataExtensionInput, type OAuthOpaqueAccessToken, type OAuthOptions, type OAuthProviderApi, type OAuthProviderExtension, type OAuthRedirectOnError, type OAuthRefreshToken, type OAuthResource, type OAuthResourceInput, type OAuthTokenIssueParams, type OAuthTokenResponse, type OAuthUserInfoExtensionInput, type OIDCMetadata, type Prompt, type ResourceServerMetadata, ResourceUriSchema, type SchemaClient, type Scope, type StoreTokenType, type StoredAuthorizationQuery, type TokenEndpointAuthMethod, type TokenType, type VerificationValue, authServerMetadata, checkOAuthClient, consumeClientAssertion, extendOAuthProvider, getIssuer, getOAuthProviderApi, getOAuthProviderState, metadataResponse, oauthAuthorizationServerMetadata, oauthProvider, oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata, oauthToSchema, oidcServerMetadata, raiseResourceServerChallenge };
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d38a68315 100644
+index 3896e50f99997176d2f99c934d52701cf076d11b..e26efc84ae50f385d3bb7de89d5b5b059d9f21e8 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -166,6 +166,44 @@ const STANDARD_CLAIM_NAMES = Object.keys(STANDARD_CLAIMS);
@@ -127,7 +127,15 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  	dpop_jkt: dpopJktSchema.optional(),
  	resource: z.union([ResourceUriSchema, z.array(ResourceUriSchema).min(1)]).optional()
  }).passthrough();
-@@ -1478,6 +1530,7 @@ async function createJwtAccessToken(ctx, opts, user, client, audienceClaim, scop
+@@ -1241,6 +1293,7 @@ const clientRegistrationRequestSchema = z.object({
+ 	]).optional(),
+ 	subject_type: z.enum(["public", "pairwise"]).optional(),
+ 	dpop_bound_access_tokens: z.boolean().optional(),
++	authorization_details_types: z.array(z.string().trim().min(1)).min(1).optional(),
+ 	resources: z.array(ResourceUriSchema).optional(),
+ 	skip_consent: z.never({ error: "skip_consent cannot be set during dynamic client registration" }).optional()
+ });
+@@ -1478,6 +1531,7 @@ async function createJwtAccessToken(ctx, opts, user, client, audienceClaim, scop
  		signingAlgorithm: overrides?.signingAlgorithm ?? void 0,
  		payload: {
  			...overrides?.accessTokenClaims ?? {},
@@ -135,7 +143,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  			sub: subject,
  			aud: toAudienceClaim(audienceClaim),
  			client_id: client.clientId,
-@@ -1574,7 +1627,7 @@ async function decodeRefreshToken(opts, token) {
+@@ -1574,7 +1628,7 @@ async function decodeRefreshToken(opts, token) {
  	});
  	return opts.formatRefreshToken?.decrypt ? opts.formatRefreshToken?.decrypt(token) : { token };
  }
@@ -144,7 +152,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  	const iat = payload.iat ?? Math.floor(Date.now() / 1e3);
  	const exp = payload?.exp ?? iat + (opts.accessTokenExpiresIn ?? 3600);
  	const token = opts.generateOpaqueAccessToken ? await opts.generateOpaqueAccessToken() : generateRandomString(32, "A-Z", "a-z");
-@@ -1591,6 +1644,7 @@ async function createOpaqueAccessToken(ctx, opts, user, client, scopes, payload,
+@@ -1591,6 +1645,7 @@ async function createOpaqueAccessToken(ctx, opts, user, client, scopes, payload,
  			refreshId,
  			confirmation,
  			requestedUserInfoClaims: requestedUserInfoClaims?.length ? requestedUserInfoClaims : void 0,
@@ -152,7 +160,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  			scopes,
  			createdAt: /* @__PURE__ */ new Date(iat * 1e3),
  			expiresAt: /* @__PURE__ */ new Date(exp * 1e3)
-@@ -1662,7 +1716,7 @@ async function revokeTokensIssuedForAuthorizationCode(ctx, authorizationCodeId)
+@@ -1662,7 +1717,7 @@ async function revokeTokensIssuedForAuthorizationCode(ctx, authorizationCodeId)
  	await deleteIssuedTokens("oauthAccessToken");
  	await deleteIssuedTokens("oauthRefreshToken");
  }
@@ -161,7 +169,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  	const iat = payload.iat ?? Math.floor(Date.now() / 1e3);
  	const exp = payload?.exp ?? iat + (opts.refreshTokenExpiresIn ?? 2592e3);
  	const token = opts.generateRefreshToken ? await opts.generateRefreshToken() : generateRandomString(32, "A-Z", "a-z");
-@@ -1677,6 +1731,7 @@ async function createRefreshToken(ctx, opts, user, referenceId, authorizationCod
+@@ -1677,6 +1732,7 @@ async function createRefreshToken(ctx, opts, user, referenceId, authorizationCod
  		authTime,
  		confirmation,
  		requestedUserInfoClaims: requestedUserInfoClaims?.length ? requestedUserInfoClaims : void 0,
@@ -169,7 +177,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  		scopes,
  		resources,
  		createdAt: /* @__PURE__ */ new Date(iat * 1e3),
-@@ -1950,11 +2005,12 @@ async function createUserTokens(ctx, opts, params) {
+@@ -1950,11 +2006,12 @@ async function createUserTokens(ctx, opts, params) {
  		refreshToken: existingRefreshToken
  	});
  	const requestedUserInfoClaims = params.requestedUserInfoClaims ?? existingRefreshToken?.requestedUserInfoClaims ?? [];
@@ -183,7 +191,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  	const accessTokenClaims = isJwtAccessToken ? await resolveAccessTokenClaims({
  		ctx,
  		opts,
-@@ -1976,16 +2032,17 @@ async function createUserTokens(ctx, opts, params) {
+@@ -1976,16 +2033,17 @@ async function createUserTokens(ctx, opts, params) {
  		signingAlgorithm: grantIssuance.signingAlgorithm,
  		signingKeyId: grantIssuance.signingKeyId,
  		accessTokenClaims,
@@ -203,7 +211,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  	const idToken = isIdToken ? await createIdToken(ctx, opts, user, client, effectiveScopes, nonce, sessionId, authTime, accessToken, additionalIdTokenClaims) : void 0;
  	const responseBody = {
  		...customFields,
-@@ -1996,6 +2053,7 @@ async function createUserTokens(ctx, opts, params) {
+@@ -1996,6 +2054,7 @@ async function createUserTokens(ctx, opts, params) {
  		token_type: confirmationTokenType(confirmation),
  		refresh_token: refreshToken?.token,
  		scope: effectiveScopes.join(" "),
@@ -211,7 +219,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  		id_token: idToken
  	};
  	if (existingRefreshToken?.id && refreshToken?.id) try {
-@@ -2163,6 +2221,7 @@ async function handleAuthorizationCodeGrant(ctx, opts) {
+@@ -2163,6 +2222,7 @@ async function handleAuthorizationCodeGrant(ctx, opts) {
  		authTime,
  		verificationValue,
  		authorizationCodeId,
@@ -219,7 +227,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  		requestedUserInfoClaims,
  		resources: effectiveResources,
  		originalResources: authorizedResources
-@@ -2490,6 +2549,7 @@ async function validateOpaqueAccessToken(ctx, opts, token, clientId) {
+@@ -2490,6 +2550,7 @@ async function validateOpaqueAccessToken(ctx, opts, token, clientId) {
  			exp: Math.floor(new Date(accessToken.expiresAt).getTime() / 1e3),
  			iat: Math.floor(new Date(accessToken.createdAt).getTime() / 1e3),
  			scope: accessToken.scopes?.join(" "),
@@ -227,7 +235,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  			token_type: confirmationTokenType(accessToken.confirmation),
  			...accessToken.confirmation ? { cnf: accessToken.confirmation } : {}
  		},
-@@ -2538,6 +2598,7 @@ async function validateRefreshToken(ctx, opts, token, clientId) {
+@@ -2538,6 +2599,7 @@ async function validateRefreshToken(ctx, opts, token, clientId) {
  		exp: Math.floor(new Date(refreshToken.expiresAt).getTime() / 1e3),
  		iat: Math.floor(new Date(refreshToken.createdAt).getTime() / 1e3),
  		scope: refreshToken.scopes?.join(" "),
@@ -235,7 +243,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  		token_type: confirmationTokenType(refreshToken.confirmation),
  		...refreshToken.confirmation ? { cnf: refreshToken.confirmation } : {}
  	};
-@@ -3029,7 +3090,9 @@ function oauthAuthorizationServerMetadata(ctx, opts) {
+@@ -3029,7 +3091,9 @@ function oauthAuthorizationServerMetadata(ctx, opts) {
  	const { clientDiscoveries, authMetadata } = buildAuthServerMetadata(ctx, opts);
  	return applyOAuthProviderMetadataExtensions(ctx, opts, "oauth-authorization-server", {
  		...mergeDiscoveryMetadata(clientDiscoveries),
@@ -246,7 +254,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  	});
  }
  function oidcServerMetadata(ctx, opts) {
-@@ -3037,6 +3100,7 @@ function oidcServerMetadata(ctx, opts) {
+@@ -3037,6 +3101,7 @@ function oidcServerMetadata(ctx, opts) {
  	const { jwtPluginOptions, clientDiscoveries, authMetadata } = buildAuthServerMetadata(ctx, opts);
  	const metadata = {
  		...authMetadata,
@@ -254,7 +262,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  		claims_supported: getSupportedClaims(opts),
  		claims_parameter_supported: true,
  		userinfo_endpoint: `${baseURL}/oauth2/userinfo`,
-@@ -3050,7 +3114,7 @@ function oidcServerMetadata(ctx, opts) {
+@@ -3050,7 +3115,7 @@ function oidcServerMetadata(ctx, opts) {
  		})(),
  		end_session_endpoint: `${baseURL}/oauth2/end-session`,
  		request_parameter_supported: false,
@@ -263,7 +271,21 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  		prompt_values_supported: [
  			"login",
  			"consent",
-@@ -5379,6 +5443,10 @@ const schema = {
+@@ -3408,6 +3473,13 @@ async function checkOAuthClient(client, opts, settings) {
+ 		error: "invalid_client_metadata",
+ 		error_description: "dpop_bound_access_tokens must be a boolean"
+ 	});
++	if (clientWithDefaults.authorization_details_types !== void 0) {
++		const supportedTypes = opts.authorizationDetails?.typesSupported ?? [];
++		if (!opts.authorizationDetails || clientWithDefaults.authorization_details_types.some((type) => !supportedTypes.includes(type))) throw new APIError("BAD_REQUEST", {
++			error: "invalid_client_metadata",
++			error_description: "authorization_details_types contains an unsupported type"
++		});
++	}
+ 	if (clientWithDefaults.type) {
+ 		if (isPublic && !(clientWithDefaults.type === "native" || clientWithDefaults.type === "user-agent-based")) throw new APIError("BAD_REQUEST", {
+ 			error: "invalid_client_metadata",
+@@ -5379,6 +5451,10 @@ const schema = {
  			type: "string[]",
  			required: false
  		},
@@ -274,7 +296,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  		expiresAt: { type: "date" },
  		createdAt: { type: "date" },
  		revoked: {
-@@ -5474,6 +5542,10 @@ const schema = {
+@@ -5474,6 +5550,10 @@ const schema = {
  				type: "string[]",
  				required: false
  			},
@@ -285,7 +307,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  			refreshId: {
  				type: "string",
  				required: false,
-@@ -5532,6 +5604,10 @@ const schema = {
+@@ -5532,6 +5612,10 @@ const schema = {
  				type: "string[]",
  				required: false
  			},
@@ -296,7 +318,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  			scopes: {
  				type: "string[]",
  				required: true
-@@ -5949,6 +6025,7 @@ const oauthProvider = (options) => {
+@@ -5949,6 +6033,7 @@ const oauthProvider = (options) => {
  					accept: z.boolean().meta({ description: "Accept or deny user consent for a set of scopes" }),
  					scope: z.string().optional().meta({ description: "List of accept of accepted space-separated scopes. If none is provided, then all originally requested scopes are accepted." }),
  					claims: claimsRequestParameterSchema.optional().meta({ description: "Accepted OIDC claims request object. If none is provided, then all originally requested claims are accepted." }),
@@ -304,7 +326,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  					oauth_query: z.string().optional().meta({ description: "The redirected page's query parameters" })
  				}),
  				use: [sessionMiddleware],
-@@ -6916,6 +6993,14 @@ async function authorizeEndpoint(ctx, opts, settings) {
+@@ -6916,6 +7001,14 @@ async function authorizeEndpoint(ctx, opts, settings) {
  	if (client.disabled) return handleRedirect(ctx, getErrorURL(ctx, "client_disabled", "client is disabled"));
  	if (!clientAllowsGrant(client, "authorization_code")) return handleRedirect(ctx, getErrorURL(ctx, "unauthorized_client", "client is not authorized to use the authorization_code grant"));
  	if (!findRegisteredRedirectUri(client.redirectUris, query.redirect_uri) || !query.redirect_uri) return handleRedirect(ctx, getErrorURL(ctx, "invalid_redirect", "invalid redirect uri"));
@@ -319,7 +341,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  	let requestedScopes = query.scope?.split(" ").filter((s) => s);
  	if (requestedScopes) {
  		const validScopes = new Set(client.scopes ?? opts.scopes);
-@@ -7042,6 +7127,18 @@ async function authorizeEndpoint(ctx, opts, settings) {
+@@ -7042,6 +7135,18 @@ async function authorizeEndpoint(ctx, opts, settings) {
  		if (promptNone) return redirectWithPromptNoneError(ctx, opts, query, "consent_required", "End-User consent is required");
  		return redirectWithPromptCode(ctx, opts, "consent", { sessionId: session.session.id });
  	}
@@ -339,7 +361,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d
  		query,
  		clientId: client.clientId,
 diff --git a/dist/oauth-CSzjH7fO.d.mts b/dist/oauth-CSzjH7fO.d.mts
-index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f42655df498c 100644
+index ce35cc05b9c72a8070a244d18e86227917c0d3a9..8bdd12f1cc643c042818895756efc10b24258b96 100644
 --- a/dist/oauth-CSzjH7fO.d.mts
 +++ b/dist/oauth-CSzjH7fO.d.mts
 @@ -348,6 +348,10 @@ declare const schema: {
@@ -375,7 +397,15 @@ index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f426
        scopes: {
          type: "string[]";
          required: true;
-@@ -704,6 +716,8 @@ interface OAuthTokenIssueParams {
+@@ -604,6 +616,7 @@ declare const clientRegistrationRequestSchema: z.ZodObject<{
+     pairwise: "pairwise";
+   }>>;
+   dpop_bound_access_tokens: z.ZodOptional<z.ZodBoolean>;
++  authorization_details_types: z.ZodOptional<z.ZodArray<z.ZodString>>;
+   resources: z.ZodOptional<z.ZodArray<z.ZodString>>;
+   skip_consent: z.ZodOptional<z.ZodNever>;
+ }, z.core.$strip>;
+@@ -704,6 +717,8 @@ interface OAuthTokenIssueParams {
    resources?: string[];
    /** Full original authorized resources for the grant, used to seed refresh tokens. */
    originalResources?: string[];
@@ -384,7 +414,7 @@ index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f426
    /**
     * OIDC UserInfo claim names requested by the authorization request's
     * `claims.userinfo` object. The authorization server persists these names so
-@@ -749,6 +763,7 @@ interface OAuthTokenResponse {
+@@ -749,6 +764,7 @@ interface OAuthTokenResponse {
    token_type: TokenType;
    refresh_token: string | undefined;
    scope: string;
@@ -392,7 +422,7 @@ index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f426
    id_token: string | undefined;
    [key: string]: unknown;
  }
-@@ -1000,6 +1015,23 @@ interface OAuthOptions<Scopes extends readonly Scope[] = InternallySupportedScop
+@@ -1000,6 +1016,23 @@ interface OAuthOptions<Scopes extends readonly Scope[] = InternallySupportedScop
     * Custom schema definitions
     */
    schema?: InferOptionSchema<typeof schema>;
@@ -416,7 +446,7 @@ index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f426
    /**
     * The scopes that the client is allowed to request.
     * Must contain "openid" to be considered an OIDC server,
-@@ -1919,6 +1951,8 @@ interface OAuthAuthorizationQuery {
+@@ -1919,6 +1952,8 @@ interface OAuthAuthorizationQuery {
     * - "offline_access" is required for requests that require a refresh token.
     */
    scope?: string;
@@ -425,7 +455,7 @@ index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f426
    /**
     * Opaque value used to maintain state between the request and the callback. Typically,
     * Cross-Site Request Forgery (CSRF, XSRF) mitigation is done by cryptographically binding the
-@@ -2138,6 +2172,11 @@ interface VerificationValue {
+@@ -2138,6 +2173,11 @@ interface VerificationValue {
    referenceId?: string;
    authTime?: number;
  }
@@ -437,7 +467,7 @@ index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f426
  /**
   * Client registered values as used within the plugin
   */
-@@ -2341,6 +2380,7 @@ interface OAuthOpaqueAccessToken<Scopes extends readonly Scope[] = InternallySup
+@@ -2341,6 +2381,7 @@ interface OAuthOpaqueAccessToken<Scopes extends readonly Scope[] = InternallySup
     * `claims.userinfo` object.
     */
    requestedUserInfoClaims?: string[];
@@ -445,7 +475,7 @@ index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f426
    /**
     * RFC 7800 `cnf` confirmation that sender-constrains this access token (for
     * example DPoP `{ jkt }`). Surfaced as the `cnf` claim at introspection.
-@@ -2399,6 +2439,7 @@ interface OAuthRefreshToken<Scopes extends readonly Scope[] = InternallySupporte
+@@ -2399,6 +2440,7 @@ interface OAuthRefreshToken<Scopes extends readonly Scope[] = InternallySupporte
     * `claims.userinfo` object. Carried forward on rotation.
     */
    requestedUserInfoClaims?: string[];
@@ -453,7 +483,7 @@ index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f426
    /**
     * RFC 7800 `cnf` confirmation that sender-constrains this refresh-token
     * family (for example DPoP `{ jkt }`). Carried forward on rotation.
-@@ -2419,6 +2460,7 @@ type OAuthConsent<Scopes extends readonly Scope[] = InternallySupportedScopes[]>
+@@ -2419,6 +2461,7 @@ type OAuthConsent<Scopes extends readonly Scope[] = InternallySupportedScopes[]>
     * `claims.userinfo` object.
     */
    requestedUserInfoClaims?: string[];
@@ -461,7 +491,7 @@ index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f426
    scopes: Scopes;
    createdAt: Date;
    updatedAt: Date;
-@@ -2500,6 +2542,7 @@ interface AuthServerMetadata {
+@@ -2500,6 +2543,7 @@ interface AuthServerMetadata {
     * Supported scopes.
     */
    scopes_supported?: string[];
@@ -469,7 +499,7 @@ index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f426
    /**
     * Supported response types. (for /authorize endpoint)
     */
-@@ -2859,4 +2902,4 @@ interface ResourceServerMetadata {
+@@ -2859,4 +2903,4 @@ interface ResourceServerMetadata {
    dpop_bound_access_tokens_required?: boolean;
  }
  //#endregion
