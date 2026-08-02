@@ -22,6 +22,7 @@ interface OAuthResourceRow {
 
 interface OAuthClientRow {
   id: string
+  name?: string | null
   scopes: string | null
 }
 
@@ -43,6 +44,11 @@ export function buildOAuthScopeBackfill(
     ),
     clients: clients.flatMap((client) => {
       const scopes = parseScopes(client.scopes)
+      if (client.name === 'Realmroot ZPan') {
+        return scopes.length === OAUTH_SCOPES.length && OAUTH_SCOPES.every((scope) => scopes.includes(scope))
+          ? []
+          : [{ id: client.id, scopes: JSON.stringify(OAUTH_SCOPES) }]
+      }
       if (!scopes.includes(AuthorizationScope.OBJECTS_CREATE) || scopes.includes(AuthorizationScope.QUOTA_PURCHASE)) {
         return []
       }
@@ -124,7 +130,7 @@ function readRows(
   execute: OAuthScopeD1Executor,
 ): { resources: OAuthResourceRow[]; clients: OAuthClientRow[] } {
   const resourceSql = 'SELECT id, name, allowed_scopes AS allowedScopes FROM oauthResource;'
-  const clientSql = 'SELECT id, scopes FROM oauthClient;'
+  const clientSql = 'SELECT id, name, scopes FROM oauthClient;'
   if (target.kind === 'd1') {
     return {
       resources: d1Rows(target, resourceSql, execute),

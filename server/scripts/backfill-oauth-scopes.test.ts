@@ -24,7 +24,7 @@ function createScopeDatabase() {
   const db = new Database(path)
   db.exec(`
     CREATE TABLE oauthResource (id TEXT PRIMARY KEY, name TEXT NOT NULL, allowed_scopes TEXT, updated_at INTEGER);
-    CREATE TABLE oauthClient (id TEXT PRIMARY KEY, scopes TEXT, updated_at INTEGER);
+    CREATE TABLE oauthClient (id TEXT PRIMARY KEY, name TEXT, scopes TEXT, updated_at INTEGER);
   `)
   return { db, path }
 }
@@ -46,6 +46,11 @@ describe('buildOAuthScopeBackfill', () => {
       ],
       [
         {
+          id: 'realmroot-client',
+          name: 'Realmroot ZPan',
+          scopes: JSON.stringify([AuthorizationScope.OBJECTS_CREATE, AuthorizationScope.QUOTA_PURCHASE]),
+        },
+        {
           id: 'upload-client',
           scopes: JSON.stringify([AuthorizationScope.OBJECTS_CREATE]),
         },
@@ -59,6 +64,10 @@ describe('buildOAuthScopeBackfill', () => {
     expect(changes).toEqual({
       resources: [{ id: 'zpan-resource', scopes: JSON.stringify(OAUTH_SCOPES) }],
       clients: [
+        {
+          id: 'realmroot-client',
+          scopes: JSON.stringify(OAUTH_SCOPES),
+        },
         {
           id: 'upload-client',
           scopes: JSON.stringify([AuthorizationScope.OBJECTS_CREATE, AuthorizationScope.QUOTA_PURCHASE]),
@@ -141,7 +150,9 @@ describe('buildOAuthScopeBackfill', () => {
       .mockReturnValueOnce(JSON.stringify([{ results: [{ id: "resource'1", name: 'ZPan API', allowedScopes: '[]' }] }]))
       .mockReturnValueOnce(
         JSON.stringify([
-          { results: [{ id: 'client-1', scopes: JSON.stringify([AuthorizationScope.OBJECTS_CREATE]) }] },
+          {
+            results: [{ id: 'client-1', name: null, scopes: JSON.stringify([AuthorizationScope.OBJECTS_CREATE]) }],
+          },
         ]),
       )
       .mockReturnValueOnce('')
@@ -149,7 +160,7 @@ describe('buildOAuthScopeBackfill', () => {
       .mockReturnValueOnce(
         JSON.stringify([{ results: [{ id: "resource'1", name: 'ZPan API', allowedScopes: resourceScopes }] }]),
       )
-      .mockReturnValueOnce(JSON.stringify([{ results: [{ id: 'client-1', scopes: clientScopes }] }]))
+      .mockReturnValueOnce(JSON.stringify([{ results: [{ id: 'client-1', name: null, scopes: clientScopes }] }]))
 
     runOAuthScopeBackfill(['--d1', 'zpan-db', '--remote', '--env', 'production', '--apply'], () => {}, execute)
 
@@ -161,6 +172,7 @@ describe('buildOAuthScopeBackfill', () => {
       env: 'production',
     })
     expect(execute.mock.calls[0]?.[2]).toBe(true)
+    expect(execute.mock.calls[1]?.[1]).toBe('SELECT id, name, scopes FROM oauthClient;')
     expect(execute.mock.calls[2]?.[1]).toContain("resource''1")
   })
 })
