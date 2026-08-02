@@ -1,4 +1,5 @@
 import { AuthorizationScope } from '@shared/authorization'
+import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import { isNull } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import * as authSchema from '../../db/auth-schema'
@@ -37,7 +38,7 @@ describe('OAuth gateway', () => {
         id: 'grant-1',
         clientId: CLIENT_ID,
         userId,
-        referenceId: orgId,
+        authorizationDetails: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: orgId }],
         scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
         createdAt: new Date('2026-07-29T12:00:00.000Z'),
         lastUsedAt: new Date('2026-07-29T12:20:00.000Z'),
@@ -47,7 +48,7 @@ describe('OAuth gateway', () => {
         id: 'grant-without-workspace',
         clientId: CLIENT_ID,
         userId,
-        referenceId: null,
+        authorizationDetails: null,
         scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -60,7 +61,7 @@ describe('OAuth gateway', () => {
         clientId: CLIENT_ID,
         clientName: 'FlareAuth',
         userId,
-        orgId,
+        workspaceIds: [orgId],
         scopes: [AuthorizationScope.OBJECTS_READ],
         createdAt: '2026-07-29T12:00:00.000Z',
         lastUsedAt: '2026-07-29T12:20:00.000Z',
@@ -78,7 +79,7 @@ describe('OAuth gateway', () => {
       id: 'grant-1',
       clientId: CLIENT_ID,
       userId,
-      referenceId: orgId,
+      authorizationDetails: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: orgId }],
       scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -88,7 +89,7 @@ describe('OAuth gateway', () => {
       token: 'hashed-refresh',
       clientId: CLIENT_ID,
       userId,
-      referenceId: orgId,
+      authorizationDetails: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: orgId }],
       expiresAt: new Date(Date.now() + 60_000),
       createdAt: new Date(),
       scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
@@ -98,7 +99,7 @@ describe('OAuth gateway', () => {
       token: 'hashed-access',
       clientId: CLIENT_ID,
       userId,
-      referenceId: orgId,
+      authorizationDetails: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: orgId }],
       refreshId: 'refresh-1',
       expiresAt: new Date(Date.now() + 60_000),
       createdAt: new Date(),

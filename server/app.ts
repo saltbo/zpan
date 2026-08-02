@@ -22,7 +22,6 @@ import ihost from './http/image-hosting/images'
 import internal from './http/internal'
 import { notifications } from './http/notifications'
 import { oauthGrants } from './http/oauth-grants'
-import { oauthResourceScopes } from './http/oauth-resource-scopes'
 import objects from './http/objects'
 import { adminQuotas, userQuotas } from './http/quotas'
 import redirect from './http/redirect'
@@ -262,41 +261,6 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       },
     })
 
-    // better-auth's device-authorization plugin advertises POST /device/token as
-    // returning { session, user }, but its handler actually returns the OAuth
-    // device token { access_token, token_type, expires_in } (see better-auth's
-    // device-authorization/routes.mjs). Correct that one wrong response so the
-    // document — and the generated downloader client — match the real wire shape.
-    const deviceTokenJson = (
-      doc.paths['/api/auth/device/token'] as
-        | { post?: { responses?: Record<string, { content?: Record<string, { schema?: unknown }> }> } }
-        | undefined
-    )?.post?.responses?.['200']?.content?.['application/json']
-    if (deviceTokenJson) {
-      deviceTokenJson.schema = {
-        type: 'object',
-        properties: {
-          access_token: { type: 'string' },
-          token_type: { type: 'string' },
-          expires_in: { type: 'integer' },
-          scope: { type: 'string' },
-        },
-        required: ['access_token', 'token_type', 'expires_in'],
-      }
-    }
-
-    for (const [path, pathItem] of Object.entries(doc.paths)) {
-      if (!path.startsWith('/api/auth/') || !pathItem || typeof pathItem !== 'object') continue
-      for (const operation of Object.values(pathItem)) {
-        if (!operation || typeof operation !== 'object') continue
-        Object.assign(operation, {
-          'x-zpan-auth': { public: true, scopes: [] },
-          'x-mcp-ignore': true,
-        })
-        if (path.includes('/callback')) Object.assign(operation, { 'x-cli-ignore': true })
-      }
-    }
-
     return c.json(doc)
   })
 
@@ -337,7 +301,6 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   // /s/:token is intentionally left for the SPA landing page.
   app.route('/api/shares', publicShares)
   app.route('/api/configz', configz)
-  app.route('/api/oauth-resource-scopes', oauthResourceScopes)
   // Self-hosted avatar blobs (CF + AVATARS R2 binding, no AVATARS_PUBLIC_URL). Public.
   app.get('/api/avatar-blobs/:scope/:id', serveAvatarBlob)
   app.route('/r', redirect)
@@ -509,4 +472,3 @@ export type AdminOverviewRoute = typeof adminOverview
 export type AdminStatsRoute = typeof adminStats
 export type StorageUsageRoute = typeof storageUsage
 export type OAuthGrantsRoute = typeof oauthGrants
-export type OAuthResourceScopesRoute = typeof oauthResourceScopes

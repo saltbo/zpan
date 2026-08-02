@@ -63,17 +63,19 @@ async function evaluateScopedPolicy(
 ): Promise<AuthzDecision> {
   if (context.credential === 'anonymous') return deny(context, 401, 'missing_credential', policy)
 
-  if (context.credential !== 'session') {
-    for (const scope of policy.scopes) {
-      if (!context.grantedScopes.has(scope)) return deny(context, 403, 'missing_scope', policy)
-    }
+  for (const scope of policy.scopes) {
+    if (!context.grantedScopes.has(scope)) return deny(context, 403, 'missing_scope', policy)
   }
 
-  if (context.credential === 'session' && policy.siteRole === 'admin' && context.state.role !== 'admin') {
+  if (policy.siteRole === 'admin' && contextSiteRole(context) !== 'admin') {
     return deny(context, 403, 'insufficient_site_role', policy)
   }
 
   return evaluateRole(context, policy.minTeamRole, policy, deps)
+}
+
+function contextSiteRole(context: Exclude<AuthzContext, { credential: 'anonymous' }>): string | undefined {
+  return 'role' in context.state && typeof context.state.role === 'string' ? context.state.role : undefined
 }
 
 async function evaluateRole(

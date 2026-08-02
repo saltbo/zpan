@@ -3126,8 +3126,7 @@ describe('api', () => {
           clientId: 'dynamic-client',
           clientName: 'ZPan Agent',
           userId: 'user-1',
-          orgId: 'org-1',
-          workspaceName: 'Personal',
+          workspaces: [{ id: 'org-1', name: 'Personal' }],
           scopes: ['objects:read'],
           createdAt: '2026-07-29T00:00:00.000Z',
           lastUsedAt: null,
@@ -3140,8 +3139,9 @@ describe('api', () => {
       const payload = {
         clientId: 'dynamic-client',
         clientName: 'ZPan Agent',
-        instanceOrigin: 'https://zpan.example.test',
-        workspace: { id: 'org-1', name: 'Personal' },
+        clientOrigin: 'http://127.0.0.1:8484',
+        workspaces: [{ id: 'org-1', name: 'Personal' }],
+        requestedWorkspaceIds: [],
         scopes: ['objects:read'],
         standardScopes: ['openid', 'offline_access'],
         redirectUri: 'http://127.0.0.1:8484/callback',
@@ -3161,7 +3161,11 @@ describe('api', () => {
     it('submits full OAuth consent through the Hono RPC wrapper without sending scope overrides', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ url: 'http://127.0.0.1:8484/callback?code=abc' }))
 
-      const result = await submitOAuthConsent({ accept: true, oauthQuery: 'client_id=dynamic-client' })
+      const result = await submitOAuthConsent({
+        accept: true,
+        oauthQuery: 'client_id=dynamic-client',
+        workspaceIds: ['org-1'],
+      })
 
       expect(result).toEqual({ url: 'http://127.0.0.1:8484/callback?code=abc' })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
@@ -3171,6 +3175,7 @@ describe('api', () => {
       expect(JSON.parse(init.body as string)).toEqual({
         accept: true,
         oauthQuery: 'client_id=dynamic-client',
+        workspaceIds: ['org-1'],
       })
     })
 
@@ -3184,9 +3189,9 @@ describe('api', () => {
         },
       } as unknown as Response)
 
-      await expect(submitOAuthConsent({ accept: false, oauthQuery: 'client_id=dynamic-client' })).rejects.toThrow(
-        ApiError,
-      )
+      await expect(
+        submitOAuthConsent({ accept: false, oauthQuery: 'client_id=dynamic-client', workspaceIds: [] }),
+      ).rejects.toThrow(ApiError)
     })
 
     it('lists delegated OAuth grants', async () => {

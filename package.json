@@ -192,7 +192,10 @@
       "esbuild",
       "sharp",
       "workerd"
-    ]
+    ],
+    "patchedDependencies": {
+      "@better-auth/oauth-provider@1.7.0-rc.2": "patches/@better-auth__oauth-provider@1.7.0-rc.2.patch"
+    }
   },
   "volta": {
     "node": "24.14.1",

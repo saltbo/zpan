@@ -38,6 +38,7 @@ const failure: UserOperationFailure = { error: 'User not found: missing', status
 function makeDeps(userAdmin: Partial<UserAdminRepo> = {}) {
   const repo: UserAdminRepo = {
     isBanned: async () => false,
+    getSiteRole: async () => null,
     findActiveUserIdByUsername: async () => null,
     listUserPersonalEntitlements: async () => ({ orgId: 'org-1', items: [] }),
     grantUserPersonalEntitlement: async () => sampleResult,

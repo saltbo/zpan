@@ -143,6 +143,8 @@ export {
 } from './errors'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
+export type { WorkspaceAuthorizationDetail } from './oauth-authorization'
+export { parseWorkspaceAuthorizationDetails, workspaceAuthorizationDetailSchema } from './oauth-authorization'
 export type {
   OAuthConsentContext,
   OAuthConsentContextRequest,

@@ -1,4 +1,5 @@
 import { type AuthorizationScope, isAuthorizationScope } from '@shared/authorization'
+import { parseWorkspaceAuthorizationDetails } from '@shared/schemas'
 import { and, eq, gt, inArray, isNull } from 'drizzle-orm'
 import { decodeJwt } from 'jose'
 import {
@@ -98,7 +99,7 @@ export function createOAuthGateway(): OAuthGateway {
           clientId: oauthConsent.clientId,
           clientName: oauthClient.name,
           userId: oauthConsent.userId,
-          orgId: oauthConsent.referenceId,
+          authorizationDetails: oauthConsent.authorizationDetails,
           scopes: oauthConsent.scopes,
           createdAt: oauthConsent.createdAt,
           lastUsedAt: oauthConsent.lastUsedAt,
@@ -107,14 +108,16 @@ export function createOAuthGateway(): OAuthGateway {
         .innerJoin(oauthClient, eq(oauthClient.clientId, oauthConsent.clientId))
         .where(eq(oauthConsent.userId, userId))
       return rows.flatMap((row) => {
-        if (!row.userId || !row.orgId) return []
+        if (!row.userId) return []
+        const workspaceIds = workspaceIdsFromAuthorizationDetails(row.authorizationDetails)
+        if (workspaceIds.length === 0) return []
         return [
           {
             id: row.id,
             clientId: row.clientId,
             clientName: row.clientName || row.clientId,
             userId: row.userId,
-            orgId: row.orgId,
+            workspaceIds,
             scopes: parseScopes(row.scopes),
             createdAt: toIso(row.createdAt),
             lastUsedAt: row.lastUsedAt ? toIso(row.lastUsedAt) : null,
@@ -129,12 +132,11 @@ export function createOAuthGateway(): OAuthGateway {
           id: oauthConsent.id,
           clientId: oauthConsent.clientId,
           userId: oauthConsent.userId,
-          referenceId: oauthConsent.referenceId,
         })
         .from(oauthConsent)
         .where(and(eq(oauthConsent.id, input.grantId), eq(oauthConsent.userId, input.userId)))
         .limit(1)
-      if (!grant?.userId || !grant.referenceId) return false
+      if (!grant?.userId) return false
       const refreshRows = await db
         .select({ id: oauthRefreshToken.id })
         .from(oauthRefreshToken)
@@ -142,7 +144,6 @@ export function createOAuthGateway(): OAuthGateway {
           and(
             eq(oauthRefreshToken.clientId, grant.clientId),
             eq(oauthRefreshToken.userId, grant.userId),
-            eq(oauthRefreshToken.referenceId, grant.referenceId),
             isNull(oauthRefreshToken.revoked),
           ),
         )
@@ -150,13 +151,7 @@ export function createOAuthGateway(): OAuthGateway {
       await executeWriteTransaction(db, [
         db
           .delete(oauthAccessToken)
-          .where(
-            and(
-              eq(oauthAccessToken.clientId, grant.clientId),
-              eq(oauthAccessToken.userId, grant.userId),
-              eq(oauthAccessToken.referenceId, grant.referenceId),
-            ),
-          ),
+          .where(and(eq(oauthAccessToken.clientId, grant.clientId), eq(oauthAccessToken.userId, grant.userId))),
         ...(refreshIds.length > 0
           ? [db.update(oauthRefreshToken).set({ revoked: input.now }).where(inArray(oauthRefreshToken.id, refreshIds))]
           : []),
@@ -165,6 +160,11 @@ export function createOAuthGateway(): OAuthGateway {
       return true
     },
   }
+}
+
+function workspaceIdsFromAuthorizationDetails(value: unknown): string[] {
+  if (value == null) return []
+  return parseWorkspaceAuthorizationDetails(value).flatMap((detail) => (detail.identifier ? [detail.identifier] : []))
 }
 
 function parseScopes(value: string | string[] | null): AuthorizationScope[] {

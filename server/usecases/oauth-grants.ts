@@ -14,15 +14,17 @@ export async function listOAuthGrants(
   input: { userId: string },
 ): Promise<{ items: OAuthGrantDTO[] }> {
   const items = await deps.oauth.listGrants(db, input.userId)
-  const orgNames = await deps.org.getOrgNames(items.map((item) => item.orgId))
+  const workspaceIds = [...new Set(items.flatMap((item) => item.workspaceIds))]
+  const orgNames = await deps.org.getOrgNames(workspaceIds)
   return {
-    items: items.map((item) =>
-      oauthGrantDTO({
-        ...item,
+    items: items.map((item) => {
+      const { workspaceIds: itemWorkspaceIds, ...grant } = item
+      return oauthGrantDTO({
+        ...grant,
         scopes: item.scopes.filter(isOAuthResourceScope),
-        workspaceName: orgNames.get(item.orgId) ?? null,
-      }),
-    ),
+        workspaces: itemWorkspaceIds.map((id) => ({ id, name: orgNames.get(id) ?? null })),
+      })
+    }),
   }
 }
 

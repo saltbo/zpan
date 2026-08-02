@@ -1,4 +1,5 @@
 export interface OrgRepo {
+  listUserOrgs(userId: string): Promise<Array<{ id: string; name: string }>>
   findPersonalOrg(userId: string): Promise<string | null>
   getMemberRole(orgId: string, userId: string): Promise<string | null>
   getOrgNames(orgIds: string[]): Promise<Map<string, string>>

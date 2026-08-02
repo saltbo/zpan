@@ -1,0 +1,478 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 74c48338addc218100218739af9f51bbf59db2f2..2d9c07f812efc04019f5512bb0feaf6d006fa495 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -1,4 +1,4 @@
+-import { A as OAuthProviderExtension, B as StoreTokenType, C as OAuthConsent, D as OAuthOpaqueAccessToken, E as OAuthMetadataExtensionInput, F as OAuthTokenResponse, H as VerificationValue, I as OAuthUserInfoExtensionInput, L as Prompt, M as OAuthResource, N as OAuthResourceInput, O as OAuthOptions, P as OAuthTokenIssueParams, R as SchemaClient, S as OAuthClientResource, T as OAuthExtensionGrantHandlerInput, U as ClientRegistrationRequest, V as StoredAuthorizationQuery, W as ResourceUriSchema, _ as OAuthClaimExtensionInput, a as GrantType, b as OAuthClientAuthenticationResult, c as ResourceServerMetadata, d as ActiveAccessTokenPayload, f as AuthorizePrompt, g as OAuthAuthorizationQuery, h as OAuthAuthenticatedClient, i as Confirmation, j as OAuthRefreshToken, k as OAuthProviderApi, l as TokenEndpointAuthMethod, m as InitialAccessTokenAuthorization, n as AuthServerMetadata, o as OAuthClient, p as ClientDiscovery, r as BearerMethodsSupported, s as OIDCMetadata, t as AuthMethod, u as TokenType, v as OAuthClientAuthenticationInput, w as OAuthExtensionGrantHandler, x as OAuthClientAuthenticationStrategy, y as OAuthClientAuthenticationRequest, z as Scope } from "./oauth-CSzjH7fO.mjs";
++import { A as OAuthProviderExtension, B as StoreTokenType, C as OAuthConsent, D as OAuthOpaqueAccessToken, E as OAuthMetadataExtensionInput, F as OAuthTokenResponse, H as VerificationValue, I as OAuthUserInfoExtensionInput, L as Prompt, M as OAuthResource, N as OAuthResourceInput, O as OAuthOptions, P as OAuthTokenIssueParams, Q as AuthorizationDetail, R as SchemaClient, S as OAuthClientResource, T as OAuthExtensionGrantHandlerInput, U as ClientRegistrationRequest, V as StoredAuthorizationQuery, W as ResourceUriSchema, _ as OAuthClaimExtensionInput, a as GrantType, b as OAuthClientAuthenticationResult, c as ResourceServerMetadata, d as ActiveAccessTokenPayload, f as AuthorizePrompt, g as OAuthAuthorizationQuery, h as OAuthAuthenticatedClient, i as Confirmation, j as OAuthRefreshToken, k as OAuthProviderApi, l as TokenEndpointAuthMethod, m as InitialAccessTokenAuthorization, n as AuthServerMetadata, o as OAuthClient, p as ClientDiscovery, r as BearerMethodsSupported, s as OIDCMetadata, t as AuthMethod, u as TokenType, v as OAuthClientAuthenticationInput, w as OAuthExtensionGrantHandler, x as OAuthClientAuthenticationStrategy, y as OAuthClientAuthenticationRequest, z as Scope } from "./oauth-CSzjH7fO.mjs";
+ import { a as OAuthEndpointErrorResult, c as OAuthFieldErrorCode, i as getIssuer, l as OAuthFieldErrorCodeMap, n as getOAuthProviderState, o as OAuthEndpointRedirectContext, r as oauthProvider, s as OAuthErrorCode, t as DEFAULT_OAUTH_SCOPES, u as OAuthRedirectOnError } from "./oauth-DdSU0qF6.mjs";
+ import { getSessionFromCtx } from "better-auth/api";
+ import { JWSAlgorithms, JwtOptions } from "better-auth/plugins";
+@@ -195,4 +195,4 @@ declare function consumeClientAssertion(ctx: GenericEndpointContext, opts: OAuth
+   expectedAudience: string;
+ }): Promise<void>;
+ //#endregion
+-export { type ActiveAccessTokenPayload, type AuthMethod, type AuthServerMetadata, type AuthorizePrompt, type BearerMethodsSupported, type ClientDiscovery, type ClientRegistrationRequest, type Confirmation, DEFAULT_OAUTH_SCOPES, type GrantType, type InitialAccessTokenAuthorization, type OAuthAuthenticatedClient, type OAuthAuthorizationQuery, type OAuthClaimExtensionInput, type OAuthClient, type OAuthClientAuthenticationInput, type OAuthClientAuthenticationRequest, type OAuthClientAuthenticationResult, type OAuthClientAuthenticationStrategy, type OAuthClientResource, type OAuthConsent, type OAuthEndpointErrorResult, type OAuthEndpointRedirectContext, type OAuthErrorCode, type OAuthExtensionGrantHandler, type OAuthExtensionGrantHandlerInput, type OAuthFieldErrorCode, type OAuthFieldErrorCodeMap, type OAuthMetadataExtensionInput, type OAuthOpaqueAccessToken, type OAuthOptions, type OAuthProviderApi, type OAuthProviderExtension, type OAuthRedirectOnError, type OAuthRefreshToken, type OAuthResource, type OAuthResourceInput, type OAuthTokenIssueParams, type OAuthTokenResponse, type OAuthUserInfoExtensionInput, type OIDCMetadata, type Prompt, type ResourceServerMetadata, ResourceUriSchema, type SchemaClient, type Scope, type StoreTokenType, type StoredAuthorizationQuery, type TokenEndpointAuthMethod, type TokenType, type VerificationValue, authServerMetadata, checkOAuthClient, consumeClientAssertion, extendOAuthProvider, getIssuer, getOAuthProviderApi, getOAuthProviderState, metadataResponse, oauthAuthorizationServerMetadata, oauthProvider, oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata, oauthToSchema, oidcServerMetadata, raiseResourceServerChallenge };
+\ No newline at end of file
++export { type ActiveAccessTokenPayload, type AuthMethod, type AuthServerMetadata, type AuthorizationDetail, type AuthorizePrompt, type BearerMethodsSupported, type ClientDiscovery, type ClientRegistrationRequest, type Confirmation, DEFAULT_OAUTH_SCOPES, type GrantType, type InitialAccessTokenAuthorization, type OAuthAuthenticatedClient, type OAuthAuthorizationQuery, type OAuthClaimExtensionInput, type OAuthClient, type OAuthClientAuthenticationInput, type OAuthClientAuthenticationRequest, type OAuthClientAuthenticationResult, type OAuthClientAuthenticationStrategy, type OAuthClientResource, type OAuthConsent, type OAuthEndpointErrorResult, type OAuthEndpointRedirectContext, type OAuthErrorCode, type OAuthExtensionGrantHandler, type OAuthExtensionGrantHandlerInput, type OAuthFieldErrorCode, type OAuthFieldErrorCodeMap, type OAuthMetadataExtensionInput, type OAuthOpaqueAccessToken, type OAuthOptions, type OAuthProviderApi, type OAuthProviderExtension, type OAuthRedirectOnError, type OAuthRefreshToken, type OAuthResource, type OAuthResourceInput, type OAuthTokenIssueParams, type OAuthTokenResponse, type OAuthUserInfoExtensionInput, type OIDCMetadata, type Prompt, type ResourceServerMetadata, ResourceUriSchema, type SchemaClient, type Scope, type StoreTokenType, type StoredAuthorizationQuery, type TokenEndpointAuthMethod, type TokenType, type VerificationValue, authServerMetadata, checkOAuthClient, consumeClientAssertion, extendOAuthProvider, getIssuer, getOAuthProviderApi, getOAuthProviderState, metadataResponse, oauthAuthorizationServerMetadata, oauthProvider, oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata, oauthToSchema, oidcServerMetadata, raiseResourceServerChallenge };
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 3896e50f99997176d2f99c934d52701cf076d11b..19df320164a25494a6aac59dfd9b712d38a68315 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -166,6 +166,44 @@ const STANDARD_CLAIM_NAMES = Object.keys(STANDARD_CLAIMS);
+ function getSupportedClaims(opts) {
+ 	return opts.advertisedMetadata?.claims_supported ?? opts.claims ?? [];
+ }
++function parseAuthorizationDetails(value) {
++	if (value == null || value === "") return [];
++	let parsed = value;
++	if (typeof value === "string") try {
++		parsed = JSON.parse(value);
++	} catch {
++		throw new APIError("BAD_REQUEST", {
++			error_description: "authorization_details must be valid JSON",
++			error: "invalid_authorization_details"
++		});
++	}
++	if (!Array.isArray(parsed) || parsed.some((detail) => !detail || typeof detail !== "object" || Array.isArray(detail) || typeof detail.type !== "string" || !detail.type)) throw new APIError("BAD_REQUEST", {
++		error_description: "authorization_details must be an array of objects with a type",
++		error: "invalid_authorization_details"
++	});
++	return parsed;
++}
++async function validateAuthorizationDetails(ctx, opts, details, phase, extra = {}) {
++	const config = opts.authorizationDetails;
++	if (!details.length && !config) return details;
++	if (!config) throw new APIError("BAD_REQUEST", {
++		error_description: "authorization_details is not supported",
++		error: "invalid_authorization_details"
++	});
++	const supported = new Set(config.typesSupported);
++	if (details.some((detail) => !supported.has(detail.type))) throw new APIError("BAD_REQUEST", {
++		error_description: "authorization_details contains an unsupported type",
++		error: "invalid_authorization_details"
++	});
++	const validated = config.validate ? await config.validate({ ctx, details, phase, ...extra }) : details;
++	return parseAuthorizationDetails(validated);
++}
++function authorizationDetailsCovered(opts, requested, granted) {
++	if (!requested.length) return true;
++	if (opts.authorizationDetails?.isSubset) return opts.authorizationDetails.isSubset({ requested, granted });
++	const grantedJson = new Set(granted.map((detail) => JSON.stringify(detail)));
++	return requested.every((detail) => grantedJson.has(JSON.stringify(detail)));
++}
+ //#endregion
+ //#region src/consent.ts
+ async function consentEndpoint(ctx, opts, authorize) {
+@@ -184,6 +222,7 @@ async function consentEndpoint(ctx, opts, authorize) {
+ 		error_description: "client_id is required",
+ 		error: "invalid_client"
+ 	});
++	const requestedAuthorizationDetails = await validateAuthorizationDetails(ctx, opts, parseAuthorizationDetails(query.get("authorization_details")), "request", { clientId });
+ 	const requestedScopes = ctx.body.scope?.split(" ");
+ 	if (requestedScopes) {
+ 		if (!requestedScopes.every((sc) => originalRequestedScopes?.includes(sc))) throw new APIError("BAD_REQUEST", {
+@@ -209,6 +248,13 @@ async function consentEndpoint(ctx, opts, authorize) {
+ 		ctx.query = searchParamsToQuery(query);
+ 		return await authorize(ctx);
+ 	}
++	const acceptedAuthorizationDetails = ctx.body.authorization_details === void 0 ? requestedAuthorizationDetails : parseAuthorizationDetails(ctx.body.authorization_details);
++	const authorizationDetails = await validateAuthorizationDetails(ctx, opts, acceptedAuthorizationDetails, "consent", {
++		clientId,
++		requested: requestedAuthorizationDetails,
++		user: session?.user,
++		session: session?.session
++	});
+ 	const referenceId = await opts.postLogin?.consentReferenceId?.({
+ 		user: session?.user,
+ 		session: session?.session,
+@@ -241,6 +287,7 @@ async function consentEndpoint(ctx, opts, authorize) {
+ 		createdAt: /* @__PURE__ */ new Date(iat * 1e3),
+ 		updatedAt: /* @__PURE__ */ new Date(iat * 1e3),
+ 		resources: resource.length ? resource : void 0,
++		authorizationDetails: authorizationDetails.length ? authorizationDetails : void 0,
+ 		referenceId
+ 	};
+ 	foundConsent?.id ? await ctx.context.adapter.update({
+@@ -251,6 +298,7 @@ async function consentEndpoint(ctx, opts, authorize) {
+ 		}],
+ 		update: {
+ 			resources: consent.resources,
++			authorizationDetails: consent.authorizationDetails,
+ 			scopes: consent.scopes,
+ 			requestedUserInfoClaims: consent.requestedUserInfoClaims,
+ 			updatedAt: /* @__PURE__ */ new Date(iat * 1e3)
+@@ -262,6 +310,8 @@ async function consentEndpoint(ctx, opts, authorize) {
+ 			scopes: consent.scopes
+ 		}
+ 	});
++	if (authorizationDetails.length) query.set("authorization_details", JSON.stringify(authorizationDetails));
++	else query.delete("authorization_details");
+ 	if (requestedScopes) query.set("scope", consent.scopes.join(" "));
+ 	if (acceptedClaims !== void 0) {
+ 		const claimsRequest = filterClaimsRequestUserInfoClaims(query.get("claims"), acceptedUserInfoClaims);
+@@ -344,6 +394,7 @@ const RESERVED_ACCESS_TOKEN_CLAIMS = /* @__PURE__ */ new Set([
+ 	"jti",
+ 	"client_id",
+ 	"scope",
++	"authorization_details",
+ 	"auth_time",
+ 	"acr",
+ 	"amr",
+@@ -1183,6 +1234,7 @@ const authorizationQuerySchema = z.object({
+ 	code_challenge_method: z.string().pipe(z.enum(["S256"])).optional(),
+ 	nonce: z.string().optional(),
+ 	claims: claimsRequestParameterSchema.optional(),
++	authorization_details: z.string().optional(),
+ 	dpop_jkt: dpopJktSchema.optional(),
+ 	resource: z.union([ResourceUriSchema, z.array(ResourceUriSchema).min(1)]).optional()
+ }).passthrough();
+@@ -1478,6 +1530,7 @@ async function createJwtAccessToken(ctx, opts, user, client, audienceClaim, scop
+ 		signingAlgorithm: overrides?.signingAlgorithm ?? void 0,
+ 		payload: {
+ 			...overrides?.accessTokenClaims ?? {},
++			...overrides?.authorizationDetails?.length ? { authorization_details: overrides.authorizationDetails } : {},
+ 			sub: subject,
+ 			aud: toAudienceClaim(audienceClaim),
+ 			client_id: client.clientId,
+@@ -1574,7 +1627,7 @@ async function decodeRefreshToken(opts, token) {
+ 	});
+ 	return opts.formatRefreshToken?.decrypt ? opts.formatRefreshToken?.decrypt(token) : { token };
+ }
+-async function createOpaqueAccessToken(ctx, opts, user, client, scopes, payload, resources, referenceId, authorizationCodeId, refreshId, confirmation, requestedUserInfoClaims) {
++async function createOpaqueAccessToken(ctx, opts, user, client, scopes, payload, resources, referenceId, authorizationCodeId, refreshId, confirmation, requestedUserInfoClaims, authorizationDetails) {
+ 	const iat = payload.iat ?? Math.floor(Date.now() / 1e3);
+ 	const exp = payload?.exp ?? iat + (opts.accessTokenExpiresIn ?? 3600);
+ 	const token = opts.generateOpaqueAccessToken ? await opts.generateOpaqueAccessToken() : generateRandomString(32, "A-Z", "a-z");
+@@ -1591,6 +1644,7 @@ async function createOpaqueAccessToken(ctx, opts, user, client, scopes, payload,
+ 			refreshId,
+ 			confirmation,
+ 			requestedUserInfoClaims: requestedUserInfoClaims?.length ? requestedUserInfoClaims : void 0,
++			authorizationDetails: authorizationDetails?.length ? authorizationDetails : void 0,
+ 			scopes,
+ 			createdAt: /* @__PURE__ */ new Date(iat * 1e3),
+ 			expiresAt: /* @__PURE__ */ new Date(exp * 1e3)
+@@ -1662,7 +1716,7 @@ async function revokeTokensIssuedForAuthorizationCode(ctx, authorizationCodeId)
+ 	await deleteIssuedTokens("oauthAccessToken");
+ 	await deleteIssuedTokens("oauthRefreshToken");
+ }
+-async function createRefreshToken(ctx, opts, user, referenceId, authorizationCodeId, client, scopes, payload, originalRefresh, authTime, resources, confirmation, requestedUserInfoClaims) {
++async function createRefreshToken(ctx, opts, user, referenceId, authorizationCodeId, client, scopes, payload, originalRefresh, authTime, resources, confirmation, requestedUserInfoClaims, authorizationDetails) {
+ 	const iat = payload.iat ?? Math.floor(Date.now() / 1e3);
+ 	const exp = payload?.exp ?? iat + (opts.refreshTokenExpiresIn ?? 2592e3);
+ 	const token = opts.generateRefreshToken ? await opts.generateRefreshToken() : generateRandomString(32, "A-Z", "a-z");
+@@ -1677,6 +1731,7 @@ async function createRefreshToken(ctx, opts, user, referenceId, authorizationCod
+ 		authTime,
+ 		confirmation,
+ 		requestedUserInfoClaims: requestedUserInfoClaims?.length ? requestedUserInfoClaims : void 0,
++		authorizationDetails: authorizationDetails?.length ? authorizationDetails : void 0,
+ 		scopes,
+ 		resources,
+ 		createdAt: /* @__PURE__ */ new Date(iat * 1e3),
+@@ -1950,11 +2005,12 @@ async function createUserTokens(ctx, opts, params) {
+ 		refreshToken: existingRefreshToken
+ 	});
+ 	const requestedUserInfoClaims = params.requestedUserInfoClaims ?? existingRefreshToken?.requestedUserInfoClaims ?? [];
++	const authorizationDetails = await validateAuthorizationDetails(ctx, opts, parseAuthorizationDetails(params.authorizationDetails ?? existingRefreshToken?.authorizationDetails), "token", { client, user, grantType });
+ 	const earlyRefreshToken = isRefreshToken && user && !isJwtAccessToken ? await createRefreshToken(ctx, opts, user, referenceId, params.authorizationCodeId, client, effectiveScopes, {
+ 		iat,
+ 		exp: refreshTokenExp,
+ 		sid: sessionId
+-	}, existingRefreshToken, authTime, refreshResources, confirmation, requestedUserInfoClaims) : void 0;
++	}, existingRefreshToken, authTime, refreshResources, confirmation, requestedUserInfoClaims, authorizationDetails) : void 0;
+ 	const accessTokenClaims = isJwtAccessToken ? await resolveAccessTokenClaims({
+ 		ctx,
+ 		opts,
+@@ -1976,16 +2032,17 @@ async function createUserTokens(ctx, opts, params) {
+ 		signingAlgorithm: grantIssuance.signingAlgorithm,
+ 		signingKeyId: grantIssuance.signingKeyId,
+ 		accessTokenClaims,
++		authorizationDetails,
+ 		confirmation
+ 	}) : createOpaqueAccessToken(ctx, opts, user, client, effectiveScopes, {
+ 		iat,
+ 		exp,
+ 		sid: sessionId
+-	}, params?.resources, referenceId, params.authorizationCodeId, earlyRefreshToken?.id, confirmation, requestedUserInfoClaims), earlyRefreshToken ? earlyRefreshToken : isRefreshToken && user ? createRefreshToken(ctx, opts, user, referenceId, params.authorizationCodeId, client, effectiveScopes, {
++	}, params?.resources, referenceId, params.authorizationCodeId, earlyRefreshToken?.id, confirmation, requestedUserInfoClaims, authorizationDetails), earlyRefreshToken ? earlyRefreshToken : isRefreshToken && user ? createRefreshToken(ctx, opts, user, referenceId, params.authorizationCodeId, client, effectiveScopes, {
+ 		iat,
+ 		exp: refreshTokenExp,
+ 		sid: sessionId
+-	}, existingRefreshToken, authTime, refreshResources, confirmation, requestedUserInfoClaims) : void 0]);
++	}, existingRefreshToken, authTime, refreshResources, confirmation, requestedUserInfoClaims, authorizationDetails) : void 0]);
+ 	const idToken = isIdToken ? await createIdToken(ctx, opts, user, client, effectiveScopes, nonce, sessionId, authTime, accessToken, additionalIdTokenClaims) : void 0;
+ 	const responseBody = {
+ 		...customFields,
+@@ -1996,6 +2053,7 @@ async function createUserTokens(ctx, opts, params) {
+ 		token_type: confirmationTokenType(confirmation),
+ 		refresh_token: refreshToken?.token,
+ 		scope: effectiveScopes.join(" "),
++		...authorizationDetails.length ? { authorization_details: authorizationDetails } : {},
+ 		id_token: idToken
+ 	};
+ 	if (existingRefreshToken?.id && refreshToken?.id) try {
+@@ -2163,6 +2221,7 @@ async function handleAuthorizationCodeGrant(ctx, opts) {
+ 		authTime,
+ 		verificationValue,
+ 		authorizationCodeId,
++		authorizationDetails: parseAuthorizationDetails(verificationValue.query.authorization_details),
+ 		requestedUserInfoClaims,
+ 		resources: effectiveResources,
+ 		originalResources: authorizedResources
+@@ -2490,6 +2549,7 @@ async function validateOpaqueAccessToken(ctx, opts, token, clientId) {
+ 			exp: Math.floor(new Date(accessToken.expiresAt).getTime() / 1e3),
+ 			iat: Math.floor(new Date(accessToken.createdAt).getTime() / 1e3),
+ 			scope: accessToken.scopes?.join(" "),
++			...accessToken.authorizationDetails?.length ? { authorization_details: accessToken.authorizationDetails } : {},
+ 			token_type: confirmationTokenType(accessToken.confirmation),
+ 			...accessToken.confirmation ? { cnf: accessToken.confirmation } : {}
+ 		},
+@@ -2538,6 +2598,7 @@ async function validateRefreshToken(ctx, opts, token, clientId) {
+ 		exp: Math.floor(new Date(refreshToken.expiresAt).getTime() / 1e3),
+ 		iat: Math.floor(new Date(refreshToken.createdAt).getTime() / 1e3),
+ 		scope: refreshToken.scopes?.join(" "),
++		...refreshToken.authorizationDetails?.length ? { authorization_details: refreshToken.authorizationDetails } : {},
+ 		token_type: confirmationTokenType(refreshToken.confirmation),
+ 		...refreshToken.confirmation ? { cnf: refreshToken.confirmation } : {}
+ 	};
+@@ -3029,7 +3090,9 @@ function oauthAuthorizationServerMetadata(ctx, opts) {
+ 	const { clientDiscoveries, authMetadata } = buildAuthServerMetadata(ctx, opts);
+ 	return applyOAuthProviderMetadataExtensions(ctx, opts, "oauth-authorization-server", {
+ 		...mergeDiscoveryMetadata(clientDiscoveries),
+-		...authMetadata
++		...authMetadata,
++		...opts.authorizationDetails ? { authorization_details_types_supported: opts.authorizationDetails.typesSupported } : {},
++		request_uri_parameter_supported: Boolean(opts.requestUriResolver)
+ 	});
+ }
+ function oidcServerMetadata(ctx, opts) {
+@@ -3037,6 +3100,7 @@ function oidcServerMetadata(ctx, opts) {
+ 	const { jwtPluginOptions, clientDiscoveries, authMetadata } = buildAuthServerMetadata(ctx, opts);
+ 	const metadata = {
+ 		...authMetadata,
++		...opts.authorizationDetails ? { authorization_details_types_supported: opts.authorizationDetails.typesSupported } : {},
+ 		claims_supported: getSupportedClaims(opts),
+ 		claims_parameter_supported: true,
+ 		userinfo_endpoint: `${baseURL}/oauth2/userinfo`,
+@@ -3050,7 +3114,7 @@ function oidcServerMetadata(ctx, opts) {
+ 		})(),
+ 		end_session_endpoint: `${baseURL}/oauth2/end-session`,
+ 		request_parameter_supported: false,
+-		request_uri_parameter_supported: false,
++		request_uri_parameter_supported: Boolean(opts.requestUriResolver),
+ 		prompt_values_supported: [
+ 			"login",
+ 			"consent",
+@@ -5379,6 +5443,10 @@ const schema = {
+ 			type: "string[]",
+ 			required: false
+ 		},
++		authorizationDetails: {
++			type: "json",
++			required: false
++		},
+ 		expiresAt: { type: "date" },
+ 		createdAt: { type: "date" },
+ 		revoked: {
+@@ -5474,6 +5542,10 @@ const schema = {
+ 				type: "string[]",
+ 				required: false
+ 			},
++			authorizationDetails: {
++				type: "json",
++				required: false
++			},
+ 			refreshId: {
+ 				type: "string",
+ 				required: false,
+@@ -5532,6 +5604,10 @@ const schema = {
+ 				type: "string[]",
+ 				required: false
+ 			},
++			authorizationDetails: {
++				type: "json",
++				required: false
++			},
+ 			scopes: {
+ 				type: "string[]",
+ 				required: true
+@@ -5949,6 +6025,7 @@ const oauthProvider = (options) => {
+ 					accept: z.boolean().meta({ description: "Accept or deny user consent for a set of scopes" }),
+ 					scope: z.string().optional().meta({ description: "List of accept of accepted space-separated scopes. If none is provided, then all originally requested scopes are accepted." }),
+ 					claims: claimsRequestParameterSchema.optional().meta({ description: "Accepted OIDC claims request object. If none is provided, then all originally requested claims are accepted." }),
++					authorization_details: z.array(z.record(z.string(), z.unknown())).optional().meta({ description: "Accepted RFC 9396 authorization details" }),
+ 					oauth_query: z.string().optional().meta({ description: "The redirected page's query parameters" })
+ 				}),
+ 				use: [sessionMiddleware],
+@@ -6916,6 +6993,14 @@ async function authorizeEndpoint(ctx, opts, settings) {
+ 	if (client.disabled) return handleRedirect(ctx, getErrorURL(ctx, "client_disabled", "client is disabled"));
+ 	if (!clientAllowsGrant(client, "authorization_code")) return handleRedirect(ctx, getErrorURL(ctx, "unauthorized_client", "client is not authorized to use the authorization_code grant"));
+ 	if (!findRegisteredRedirectUri(client.redirectUris, query.redirect_uri) || !query.redirect_uri) return handleRedirect(ctx, getErrorURL(ctx, "invalid_redirect", "invalid redirect uri"));
++	let requestedAuthorizationDetails;
++	try {
++		requestedAuthorizationDetails = await validateAuthorizationDetails(ctx, opts, parseAuthorizationDetails(query.authorization_details), "request", { client });
++	} catch (error) {
++		if (error instanceof APIError$1 || error instanceof APIError) return handleRedirect(ctx, formatErrorURL(query.redirect_uri, error.body?.error ?? "invalid_authorization_details", error.body?.error_description ?? "invalid authorization details", query.state, getIssuer(ctx, opts)));
++		throw error;
++	}
++	if (requestedAuthorizationDetails.length) query.authorization_details = JSON.stringify(requestedAuthorizationDetails);
+ 	let requestedScopes = query.scope?.split(" ").filter((s) => s);
+ 	if (requestedScopes) {
+ 		const validScopes = new Set(client.scopes ?? opts.scopes);
+@@ -7042,6 +7127,18 @@ async function authorizeEndpoint(ctx, opts, settings) {
+ 		if (promptNone) return redirectWithPromptNoneError(ctx, opts, query, "consent_required", "End-User consent is required");
+ 		return redirectWithPromptCode(ctx, opts, "consent", { sessionId: session.session.id });
+ 	}
++	const consentedAuthorizationDetails = parseAuthorizationDetails(consent.authorizationDetails);
++	if (!authorizationDetailsCovered(opts, requestedAuthorizationDetails, consentedAuthorizationDetails)) {
++		if (promptNone) return redirectWithPromptNoneError(ctx, opts, query, "consent_required", "End-User consent is required");
++		return redirectWithPromptCode(ctx, opts, "consent", { sessionId: session.session.id });
++	}
++	const effectiveAuthorizationDetails = opts.authorizationDetails?.resolve ? await opts.authorizationDetails.resolve({ requested: requestedAuthorizationDetails, granted: consentedAuthorizationDetails }) : requestedAuthorizationDetails;
++	if (!authorizationDetailsCovered(opts, effectiveAuthorizationDetails, consentedAuthorizationDetails)) throw new APIError("BAD_REQUEST", {
++		error_description: "resolved authorization_details exceed the consented grant",
++		error: "invalid_authorization_details"
++	});
++	if (effectiveAuthorizationDetails.length) query.authorization_details = JSON.stringify(effectiveAuthorizationDetails);
++	else delete query.authorization_details;
+ 	return redirectWithAuthorizationCode(ctx, opts, {
+ 		query,
+ 		clientId: client.clientId,
+diff --git a/dist/oauth-CSzjH7fO.d.mts b/dist/oauth-CSzjH7fO.d.mts
+index ce35cc05b9c72a8070a244d18e86227917c0d3a9..6938f0b09624e05c1673f7bffea2f42655df498c 100644
+--- a/dist/oauth-CSzjH7fO.d.mts
++++ b/dist/oauth-CSzjH7fO.d.mts
+@@ -348,6 +348,10 @@ declare const schema: {
+         type: "string[]";
+         required: false;
+       };
++      authorizationDetails: {
++        type: "json";
++        required: false;
++      };
+       expiresAt: {
+         type: "date";
+       };
+@@ -448,6 +452,10 @@ declare const schema: {
+         type: "string[]";
+         required: false;
+       };
++      authorizationDetails: {
++        type: "json";
++        required: false;
++      };
+       refreshId: {
+         type: "string";
+         required: false;
+@@ -510,6 +518,10 @@ declare const schema: {
+         type: "string[]";
+         required: false;
+       };
++      authorizationDetails: {
++        type: "json";
++        required: false;
++      };
+       scopes: {
+         type: "string[]";
+         required: true;
+@@ -704,6 +716,8 @@ interface OAuthTokenIssueParams {
+   resources?: string[];
+   /** Full original authorized resources for the grant, used to seed refresh tokens. */
+   originalResources?: string[];
++  /** RFC 9396 Rich Authorization Requests granted for this token. */
++  authorizationDetails?: AuthorizationDetail[];
+   /**
+    * OIDC UserInfo claim names requested by the authorization request's
+    * `claims.userinfo` object. The authorization server persists these names so
+@@ -749,6 +763,7 @@ interface OAuthTokenResponse {
+   token_type: TokenType;
+   refresh_token: string | undefined;
+   scope: string;
++  authorization_details?: AuthorizationDetail[];
+   id_token: string | undefined;
+   [key: string]: unknown;
+ }
+@@ -1000,6 +1015,23 @@ interface OAuthOptions<Scopes extends readonly Scope[] = InternallySupportedScop
+    * Custom schema definitions
+    */
+   schema?: InferOptionSchema<typeof schema>;
++  /** RFC 9396 Rich Authorization Requests support. */
++  authorizationDetails?: {
++    typesSupported: string[];
++    validate?: (input: {
++      ctx: GenericEndpointContext;
++      details: AuthorizationDetail[];
++      phase: "request" | "consent" | "token";
++      requested?: AuthorizationDetail[];
++      client?: SchemaClient<Scope[]>;
++      clientId?: string;
++      user?: User & Record<string, unknown>;
++      session?: Session & Record<string, unknown>;
++      grantType?: GrantType;
++    }) => Awaitable<AuthorizationDetail[]>;
++    isSubset?: (input: { requested: AuthorizationDetail[]; granted: AuthorizationDetail[] }) => boolean;
++    resolve?: (input: { requested: AuthorizationDetail[]; granted: AuthorizationDetail[] }) => Awaitable<AuthorizationDetail[]>;
++  };
+   /**
+    * The scopes that the client is allowed to request.
+    * Must contain "openid" to be considered an OIDC server,
+@@ -1919,6 +1951,8 @@ interface OAuthAuthorizationQuery {
+    * - "offline_access" is required for requests that require a refresh token.
+    */
+   scope?: string;
++  /** JSON-encoded RFC 9396 Rich Authorization Request details. */
++  authorization_details?: string;
+   /**
+    * Opaque value used to maintain state between the request and the callback. Typically,
+    * Cross-Site Request Forgery (CSRF, XSRF) mitigation is done by cryptographically binding the
+@@ -2138,6 +2172,11 @@ interface VerificationValue {
+   referenceId?: string;
+   authTime?: number;
+ }
++/** One RFC 9396 authorization detail. */
++type AuthorizationDetail = {
++  type: string;
++  [key: string]: unknown;
++};
+ /**
+  * Client registered values as used within the plugin
+  */
+@@ -2341,6 +2380,7 @@ interface OAuthOpaqueAccessToken<Scopes extends readonly Scope[] = InternallySup
+    * `claims.userinfo` object.
+    */
+   requestedUserInfoClaims?: string[];
++  authorizationDetails?: AuthorizationDetail[];
+   /**
+    * RFC 7800 `cnf` confirmation that sender-constrains this access token (for
+    * example DPoP `{ jkt }`). Surfaced as the `cnf` claim at introspection.
+@@ -2399,6 +2439,7 @@ interface OAuthRefreshToken<Scopes extends readonly Scope[] = InternallySupporte
+    * `claims.userinfo` object. Carried forward on rotation.
+    */
+   requestedUserInfoClaims?: string[];
++  authorizationDetails?: AuthorizationDetail[];
+   /**
+    * RFC 7800 `cnf` confirmation that sender-constrains this refresh-token
+    * family (for example DPoP `{ jkt }`). Carried forward on rotation.
+@@ -2419,6 +2460,7 @@ type OAuthConsent<Scopes extends readonly Scope[] = InternallySupportedScopes[]>
+    * `claims.userinfo` object.
+    */
+   requestedUserInfoClaims?: string[];
++  authorizationDetails?: AuthorizationDetail[];
+   scopes: Scopes;
+   createdAt: Date;
+   updatedAt: Date;
+@@ -2500,6 +2542,7 @@ interface AuthServerMetadata {
+    * Supported scopes.
+    */
+   scopes_supported?: string[];
++  authorization_details_types_supported?: string[];
+   /**
+    * Supported response types. (for /authorize endpoint)
+    */
+@@ -2859,4 +2902,4 @@ interface ResourceServerMetadata {
+   dpop_bound_access_tokens_required?: boolean;
+ }
+ //#endregion
+-export { OAuthProviderExtension as A, StoreTokenType as B, OAuthConsent as C, OAuthOpaqueAccessToken as D, OAuthMetadataExtensionInput as E, OAuthTokenResponse as F, VerificationValue as H, OAuthUserInfoExtensionInput as I, Prompt as L, OAuthResource as M, OAuthResourceInput as N, OAuthOptions as O, OAuthTokenIssueParams as P, SchemaClient as R, OAuthClientResource as S, OAuthExtensionGrantHandlerInput as T, ClientRegistrationRequest as U, StoredAuthorizationQuery as V, ResourceUriSchema as W, OAuthClaimExtensionInput as _, GrantType as a, OAuthClientAuthenticationResult as b, ResourceServerMetadata as c, ActiveAccessTokenPayload as d, AuthorizePrompt as f, OAuthAuthorizationQuery as g, OAuthAuthenticatedClient as h, Confirmation as i, OAuthRefreshToken as j, OAuthProviderApi as k, TokenEndpointAuthMethod as l, InitialAccessTokenAuthorization as m, AuthServerMetadata as n, OAuthClient as o, ClientDiscovery as p, BearerMethodsSupported as r, OIDCMetadata as s, AuthMethod as t, TokenType as u, OAuthClientAuthenticationInput as v, OAuthExtensionGrantHandler as w, OAuthClientAuthenticationStrategy as x, OAuthClientAuthenticationRequest as y, Scope as z };
+\ No newline at end of file
++export { OAuthProviderExtension as A, StoreTokenType as B, OAuthConsent as C, OAuthOpaqueAccessToken as D, OAuthMetadataExtensionInput as E, OAuthTokenResponse as F, VerificationValue as H, OAuthUserInfoExtensionInput as I, Prompt as L, OAuthResource as M, OAuthResourceInput as N, OAuthOptions as O, OAuthTokenIssueParams as P, AuthorizationDetail as Q, SchemaClient as R, OAuthClientResource as S, OAuthExtensionGrantHandlerInput as T, ClientRegistrationRequest as U, StoredAuthorizationQuery as V, ResourceUriSchema as W, OAuthClaimExtensionInput as _, GrantType as a, OAuthClientAuthenticationResult as b, ResourceServerMetadata as c, ActiveAccessTokenPayload as d, AuthorizePrompt as f, OAuthAuthorizationQuery as g, OAuthAuthenticatedClient as h, Confirmation as i, OAuthRefreshToken as j, OAuthProviderApi as k, TokenEndpointAuthMethod as l, InitialAccessTokenAuthorization as m, AuthServerMetadata as n, OAuthClient as o, ClientDiscovery as p, BearerMethodsSupported as r, OIDCMetadata as s, AuthMethod as t, TokenType as u, OAuthClientAuthenticationInput as v, OAuthExtensionGrantHandler as w, OAuthClientAuthenticationStrategy as x, OAuthClientAuthenticationRequest as y, Scope as z };

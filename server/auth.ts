@@ -54,6 +54,7 @@ import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { initialStorageUsageProjectionQueries } from './adapters/repos/storage-usage-breakdown'
 import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import { recordUserActivity } from './adapters/repos/user-activity'
+import { oauthPushedAuthorizationRequests } from './auth/oauth-par'
 import { createOAuthProviderOptions } from './auth/oauth-provider'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
@@ -428,6 +429,7 @@ export async function createAuth(
   const email = createEmailGateway(systemOptionsRepo)
   const providerConfigs = await loadProviderConfigs(rawDb)
   const resourceAudience = baseURL ? `${new URL(baseURL).origin}/api` : undefined
+  const oauthProviderOptions = createOAuthProviderOptions({ db, resourceAudience })
   const usesNativeWebDavRateLimit = Boolean(authPlatform.getBinding(WEBDAV_RATE_LIMITER_BINDING))
   const authOptions = {
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
@@ -721,7 +723,8 @@ export async function createAuth(
         validateClient: async (clientId) => clientId === LEGACY_DOWNLOADER_CLIENT_ID,
       }),
       jwt(),
-      oauthProvider(createOAuthProviderOptions({ db, resourceAudience })),
+      oauthPushedAuthorizationRequests(oauthProviderOptions),
+      oauthProvider(oauthProviderOptions),
       apiKey([
         {
           configId: ApiKeyTemplate.IHOST,

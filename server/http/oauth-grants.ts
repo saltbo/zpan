@@ -1,5 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
+import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import {
   oauthConsentContextSchema,
   oauthConsentResultSchema,
@@ -9,6 +10,7 @@ import {
 import type { Env } from '../middleware/platform'
 import { getOAuthConsentContext } from '../usecases/oauth-consent'
 import { listOAuthGrants, revokeOAuthGrant } from '../usecases/oauth-grants'
+import { badRequest } from '../usecases/ports'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 
 const paramsSchema = z.object({ grantId: z.string().min(1) })
@@ -84,21 +86,21 @@ export const oauthGrants = new OpenAPIHono<Env>()
     const context = await getOAuthConsentContext(c.get('deps'), {
       db: c.get('platform').db,
       userId: c.get('userId')!,
-      orgId: c.get('orgId'),
-      requestUrl: c.req.url,
       oauthQuery,
     })
     return c.json(context, 200)
   })
   .openapi(consentSubmitRoute, async (c) => {
-    const { accept, oauthQuery } = c.req.valid('json')
-    await getOAuthConsentContext(c.get('deps'), {
+    const { accept, oauthQuery, workspaceIds } = c.req.valid('json')
+    const context = await getOAuthConsentContext(c.get('deps'), {
       db: c.get('platform').db,
       userId: c.get('userId')!,
-      orgId: c.get('orgId'),
-      requestUrl: c.req.url,
       oauthQuery,
     })
+    const availableWorkspaceIds = new Set(context.workspaces.map((workspace) => workspace.id))
+    if (accept && (workspaceIds.length === 0 || workspaceIds.some((id) => !availableWorkspaceIds.has(id)))) {
+      throw badRequest('Invalid workspace selection')
+    }
     const headers = new Headers(c.req.raw.headers)
     headers.set('content-type', 'application/json')
     headers.delete('content-length')
@@ -106,7 +108,14 @@ export const oauthGrants = new OpenAPIHono<Env>()
       new Request(new URL('/api/auth/oauth2/consent', c.req.url), {
         method: 'POST',
         headers,
-        body: JSON.stringify({ accept, oauth_query: oauthQuery }),
+        body: JSON.stringify({
+          accept,
+          oauth_query: oauthQuery,
+          authorization_details: workspaceIds.map((identifier) => ({
+            type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE,
+            identifier,
+          })),
+        }),
       }),
     )
     const body = await response.json().catch(() => null)
