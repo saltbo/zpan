@@ -1102,6 +1102,21 @@ func (e AuditEventActorType) Valid() bool {
 	}
 }
 
+// Defines values for AuthorizationDetailsCatalogItemsAuthorizationDetailType.
+const (
+	HttpszpanSpaceauthorizationDetailsworkspace AuthorizationDetailsCatalogItemsAuthorizationDetailType = "https://zpan.space/authorization-details/workspace"
+)
+
+// Valid indicates whether the value is a known member of the AuthorizationDetailsCatalogItemsAuthorizationDetailType enum.
+func (e AuthorizationDetailsCatalogItemsAuthorizationDetailType) Valid() bool {
+	switch e {
+	case HttpszpanSpaceauthorizationDetailsworkspace:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BrandingThemePreset.
 const (
 	Default BrandingThemePreset = "default"
@@ -3140,6 +3155,7 @@ const (
 	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsUpdate    GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:update"
 	GetOAuthConsentContext200JSONResponseBodyScopesUsersRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "users:read"
 	GetOAuthConsentContext200JSONResponseBodyScopesUsersUpdate               GetOAuthConsentContext200JSONResponseBodyScopes = "users:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesWorkspacesDiscover        GetOAuthConsentContext200JSONResponseBodyScopes = "workspaces:discover"
 )
 
 // Valid indicates whether the value is a known member of the GetOAuthConsentContext200JSONResponseBodyScopes enum.
@@ -3311,6 +3327,8 @@ func (e GetOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesUsersUpdate:
 		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesWorkspacesDiscover:
+		return true
 	default:
 		return false
 	}
@@ -3401,6 +3419,7 @@ const (
 	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsUpdate    ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:update"
 	ListOAuthGrants200JSONResponseBodyItemsScopesUsersRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "users:read"
 	ListOAuthGrants200JSONResponseBodyItemsScopesUsersUpdate               ListOAuthGrants200JSONResponseBodyItemsScopes = "users:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesWorkspacesDiscover        ListOAuthGrants200JSONResponseBodyItemsScopes = "workspaces:discover"
 )
 
 // Valid indicates whether the value is a known member of the ListOAuthGrants200JSONResponseBodyItemsScopes enum.
@@ -3571,6 +3590,8 @@ func (e ListOAuthGrants200JSONResponseBodyItemsScopes) Valid() bool {
 	case ListOAuthGrants200JSONResponseBodyItemsScopesUsersRead:
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesUsersUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesWorkspacesDiscover:
 		return true
 	default:
 		return false
@@ -5428,6 +5449,23 @@ type AuthProviderList struct {
 	} `json:"registeredApplications"`
 	Total int `json:"total"`
 }
+
+// AuthorizationDetailsCatalog defines model for AuthorizationDetailsCatalog.
+type AuthorizationDetailsCatalog struct {
+	Items []struct {
+		AuthorizationDetail struct {
+			Identifier string                                                  `json:"identifier"`
+			Type       AuthorizationDetailsCatalogItemsAuthorizationDetailType `json:"type"`
+		} `json:"authorizationDetail"`
+		Display struct {
+			Label    string            `json:"label"`
+			Metadata map[string]string `json:"metadata"`
+		} `json:"display"`
+	} `json:"items"`
+}
+
+// AuthorizationDetailsCatalogItemsAuthorizationDetailType defines model for AuthorizationDetailsCatalog.Items.AuthorizationDetail.Type.
+type AuthorizationDetailsCatalogItemsAuthorizationDetailType string
 
 // BackgroundJob defines model for BackgroundJob.
 type BackgroundJob struct {
@@ -11178,6 +11216,9 @@ type ClientInterface interface {
 	// ListUserSessions request
 	ListUserSessions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListAuthorizationDetailsCatalog request
+	ListAuthorizationDetailsCatalog(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetApiAuthOauth2Authorize request
 	GetApiAuthOauth2Authorize(ctx context.Context, params *GetApiAuthOauth2AuthorizeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -12844,6 +12885,18 @@ func (c *Client) ListUserAccounts(ctx context.Context, reqEditors ...RequestEdit
 
 func (c *Client) ListUserSessions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListUserSessionsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListAuthorizationDetailsCatalog(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAuthorizationDetailsCatalogRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -18404,6 +18457,33 @@ func NewListUserSessionsRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/api/auth/list-sessions")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListAuthorizationDetailsCatalogRequest generates requests for ListAuthorizationDetailsCatalog
+func NewListAuthorizationDetailsCatalogRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/oauth2/authorization-details/catalog")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -28414,6 +28494,9 @@ type ClientWithResponsesInterface interface {
 	// ListUserSessionsWithResponse request
 	ListUserSessionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListUserSessionsResponse, error)
 
+	// ListAuthorizationDetailsCatalogWithResponse request
+	ListAuthorizationDetailsCatalogWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAuthorizationDetailsCatalogResponse, error)
+
 	// GetApiAuthOauth2AuthorizeWithResponse request
 	GetApiAuthOauth2AuthorizeWithResponse(ctx context.Context, params *GetApiAuthOauth2AuthorizeParams, reqEditors ...RequestEditorFn) (*GetApiAuthOauth2AuthorizeResponse, error)
 
@@ -31668,6 +31751,38 @@ func (r ListUserSessionsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListUserSessionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListAuthorizationDetailsCatalogResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AuthorizationDetailsCatalog
+	JSON401      *Error
+	JSON403      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAuthorizationDetailsCatalogResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAuthorizationDetailsCatalogResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListAuthorizationDetailsCatalogResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -40940,6 +41055,15 @@ func (c *ClientWithResponses) ListUserSessionsWithResponse(ctx context.Context, 
 	return ParseListUserSessionsResponse(rsp)
 }
 
+// ListAuthorizationDetailsCatalogWithResponse request returning *ListAuthorizationDetailsCatalogResponse
+func (c *ClientWithResponses) ListAuthorizationDetailsCatalogWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAuthorizationDetailsCatalogResponse, error) {
+	rsp, err := c.ListAuthorizationDetailsCatalog(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAuthorizationDetailsCatalogResponse(rsp)
+}
+
 // GetApiAuthOauth2AuthorizeWithResponse request returning *GetApiAuthOauth2AuthorizeResponse
 func (c *ClientWithResponses) GetApiAuthOauth2AuthorizeWithResponse(ctx context.Context, params *GetApiAuthOauth2AuthorizeParams, reqEditors ...RequestEditorFn) (*GetApiAuthOauth2AuthorizeResponse, error) {
 	rsp, err := c.GetApiAuthOauth2Authorize(ctx, params, reqEditors...)
@@ -47383,6 +47507,46 @@ func ParseListUserSessionsResponse(rsp *http.Response) (*ListUserSessionsRespons
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListAuthorizationDetailsCatalogResponse parses an HTTP response from a ListAuthorizationDetailsCatalogWithResponse call
+func ParseListAuthorizationDetailsCatalogResponse(rsp *http.Response) (*ListAuthorizationDetailsCatalogResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAuthorizationDetailsCatalogResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuthorizationDetailsCatalog
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

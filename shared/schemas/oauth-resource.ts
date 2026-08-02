@@ -1,11 +1,14 @@
 import { z } from 'zod'
 import { AuthorizationScope } from '../authorization'
-import { OAUTH_RESOURCE_SCOPES } from '../oauth'
+import { OAUTH_GRANT_SCOPES, OAUTH_RESOURCE_SCOPES } from '../oauth'
 
 export const oauthResourceScopeSchema = z.enum(OAUTH_RESOURCE_SCOPES)
 export type OAuthResourceScope = z.infer<typeof oauthResourceScopeSchema>
+export const oauthGrantScopeSchema = z.enum(OAUTH_GRANT_SCOPES)
+export type OAuthGrantScope = z.infer<typeof oauthGrantScopeSchema>
 
-const explicitOAuthResourceScopeLabels: Partial<Record<OAuthResourceScope, string>> = {
+const explicitOAuthResourceScopeLabels: Partial<Record<OAuthGrantScope, string>> = {
+  [AuthorizationScope.WORKSPACES_DISCOVER]: 'settings.oauthApps.scope.workspacesDiscover',
   [AuthorizationScope.OBJECTS_READ]: 'settings.oauthApps.scope.objectsRead',
   [AuthorizationScope.OBJECTS_CREATE]: 'settings.oauthApps.scope.objectsCreate',
   [AuthorizationScope.OBJECTS_UPDATE]: 'settings.oauthApps.scope.objectsUpdate',
@@ -19,5 +22,5 @@ const explicitOAuthResourceScopeLabels: Partial<Record<OAuthResourceScope, strin
 }
 
 export const oauthResourceScopeLabels = Object.fromEntries(
-  OAUTH_RESOURCE_SCOPES.map((scope) => [scope, explicitOAuthResourceScopeLabels[scope] ?? scope]),
-) as Record<OAuthResourceScope, string>
+  OAUTH_GRANT_SCOPES.map((scope) => [scope, explicitOAuthResourceScopeLabels[scope] ?? scope]),
+) as Record<OAuthGrantScope, string>

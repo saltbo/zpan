@@ -9,10 +9,12 @@ export const OAUTH_ACCESS_TOKEN_TYPE = 'urn:ietf:params:oauth:token-type:access_
 export const AGENT_ACTOR_RESOURCE = 'urn:zpan:oauth:agent-actor'
 export const WORKSPACE_AUTHORIZATION_DETAIL_TYPE = 'https://zpan.space/authorization-details/workspace'
 export const OAUTH_STANDARD_SCOPES = ['openid', 'profile', 'email', 'offline_access'] as const
+export const OAUTH_ACCOUNT_SCOPES = [AuthorizationScope.WORKSPACES_DISCOVER] as const
 export const OAUTH_RESOURCE_SCOPES = CANONICAL_AUTHORIZATION_SCOPES.filter(
-  (scope) => scope !== AuthorizationScope.OBJECTS_PURGE,
+  (scope) => scope !== AuthorizationScope.OBJECTS_PURGE && !(OAUTH_ACCOUNT_SCOPES as readonly string[]).includes(scope),
 )
-export const OAUTH_SCOPES = [...OAUTH_STANDARD_SCOPES, ...OAUTH_RESOURCE_SCOPES] as const
+export const OAUTH_GRANT_SCOPES = [...OAUTH_ACCOUNT_SCOPES, ...OAUTH_RESOURCE_SCOPES] as const
+export const OAUTH_SCOPES = [...OAUTH_STANDARD_SCOPES, ...OAUTH_GRANT_SCOPES] as const
 const EXPLICIT_SCOPE_DESCRIPTIONS: Partial<Record<AuthorizationScope, string>> = {
   [AuthorizationScope.OBJECTS_READ]: 'List, inspect, and download objects',
   [AuthorizationScope.OBJECTS_CREATE]: 'Create folders and upload objects',

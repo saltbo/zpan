@@ -1,7 +1,8 @@
 import { release as osRelease } from 'node:os'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
-import { OAUTH_RESOURCE_SCOPES, OAUTH_SCOPE_DESCRIPTIONS, OAUTH_SCOPES } from '@shared/oauth'
+import { AuthorizationScope } from '@shared/authorization'
+import { OAUTH_RESOURCE_SCOPES, OAUTH_SCOPE_DESCRIPTIONS } from '@shared/oauth'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
@@ -21,6 +22,7 @@ import ihostConfig from './http/image-hosting/config'
 import ihost from './http/image-hosting/images'
 import internal from './http/internal'
 import { notifications } from './http/notifications'
+import { oauthAuthorizationDetails } from './http/oauth-authorization-details'
 import { oauthGrants } from './http/oauth-grants'
 import objects from './http/objects'
 import { adminQuotas, userQuotas } from './http/quotas'
@@ -133,6 +135,8 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     }),
   )
 
+  app.route('/api/auth/oauth2/authorization-details/catalog', oauthAuthorizationDetails)
+
   app.on(['POST', 'GET', 'HEAD'], '/api/auth/*', async (c) => {
     const a = c.get('auth')
     const revokeRequest = c.req.path === '/api/auth/oauth2/revoke' ? c.req.raw.clone() : null
@@ -157,7 +161,14 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   })
 
   app.on(['GET', 'HEAD'], '/.well-known/oauth-authorization-server/api/auth', async (c) => {
-    return c.get('auth').handler(c.req.raw)
+    const response = await c.get('auth').handler(c.req.raw)
+    if (c.req.method === 'HEAD' || !response.ok) return response
+    const metadata = (await response.json()) as Record<string, unknown>
+    return c.json({
+      ...metadata,
+      authorization_details_catalog_endpoint: `${new URL(c.req.url).origin}/api/auth/oauth2/authorization-details/catalog`,
+      authorization_details_catalog_scope: AuthorizationScope.WORKSPACES_DISCOVER,
+    })
   })
 
   app.on(['GET', 'HEAD'], '/.well-known/openid-configuration/api/auth', async (c) => {
@@ -171,7 +182,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       resource: `${origin}/api`,
       authorization_servers: [authorizationServer],
       bearer_methods_supported: ['header'],
-      scopes_supported: OAUTH_SCOPES.filter((scope) => scope.includes(':')),
+      scopes_supported: OAUTH_RESOURCE_SCOPES,
       dpop_signing_alg_values_supported: ['ES256', 'EdDSA'],
       resource_name: 'ZPan API',
     })

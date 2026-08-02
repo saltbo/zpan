@@ -7,6 +7,7 @@ const db = {} as never
 function gateway(overrides: Partial<OAuthGateway> = {}): OAuthGateway {
   return {
     findClient: vi.fn(),
+    resolveAccountAccessToken: vi.fn(),
     listRegisteredApplications: vi.fn(),
     revokeJwtAccessToken: vi.fn(),
     isJwtAccessTokenRevoked: vi.fn(),
@@ -19,6 +20,7 @@ function gateway(overrides: Partial<OAuthGateway> = {}): OAuthGateway {
 function org(overrides: Partial<OrgRepo> = {}): OrgRepo {
   return {
     listUserOrgs: vi.fn(async () => []),
+    listUserWorkspaceCatalog: vi.fn(async () => []),
     findPersonalOrg: vi.fn(),
     getMemberRole: vi.fn(),
     getOrgNames: vi.fn(async () => new Map([['org-1', 'Personal']])),

@@ -1,4 +1,5 @@
 export const AuthorizationScope = {
+  WORKSPACES_DISCOVER: 'workspaces:discover',
   OBJECTS_READ: 'objects:read',
   OBJECTS_CREATE: 'objects:create',
   OBJECTS_UPDATE: 'objects:update',

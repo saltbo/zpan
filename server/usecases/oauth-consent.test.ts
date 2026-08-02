@@ -11,6 +11,7 @@ const CLIENT_NAME = 'FlareAuth'
 function org(overrides: Partial<OrgRepo> = {}): OrgRepo {
   return {
     listUserOrgs: vi.fn(async () => [{ id: 'org-1', name: 'Personal' }]),
+    listUserWorkspaceCatalog: vi.fn(async () => []),
     findPersonalOrg: vi.fn(),
     getMemberRole: vi.fn(),
     getOrgNames: vi.fn(async () => new Map([['org-1', 'Personal']])),
@@ -107,6 +108,19 @@ describe('OAuth consent usecase', () => {
         accessTokenSeconds: 900,
         refreshTokenSeconds: 2_592_000,
       },
+    })
+  })
+
+  it('accepts account-level workspace discovery as a consented scope', async () => {
+    const scope = `${AuthorizationScope.WORKSPACES_DISCOVER} ${AuthorizationScope.OBJECTS_READ}`
+    await expect(
+      getOAuthConsentContext(deps(org(), { scopes: scope.split(' ') }), {
+        db,
+        userId: 'user-1',
+        oauthQuery: oauthQuery({ scope }),
+      }),
+    ).resolves.toMatchObject({
+      scopes: [AuthorizationScope.WORKSPACES_DISCOVER, AuthorizationScope.OBJECTS_READ],
     })
   })
 

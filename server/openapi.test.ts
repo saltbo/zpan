@@ -31,6 +31,7 @@ describe('global OpenAPI document', () => {
         '/api/downloads/downloaders',
         '/api/downloads/downloaders/{id}',
         '/api/events',
+        '/api/auth/oauth2/authorization-details/catalog',
         '/api/objects',
         '/api/objects/{id}',
         '/api/objects/{id}/uploads/{uploadSessionId}/parts',
@@ -41,6 +42,10 @@ describe('global OpenAPI document', () => {
         '/api/trash/objects/{id}/restorations',
       ]),
     )
+    expect(doc.paths['/api/auth/oauth2/authorization-details/catalog']?.get).toMatchObject({
+      operationId: 'listAuthorizationDetailsCatalog',
+      security: [{ oauth2: [AuthorizationScope.WORKSPACES_DISCOVER] }],
+    })
   })
 
   it('serves the Scalar reference UI at /api/docs pointing at the spec', async () => {

@@ -2,8 +2,8 @@ import { isAuthorizationScope } from '@shared/authorization'
 import { OAUTH_ACCESS_TOKEN_SECONDS, OAUTH_REFRESH_TOKEN_SECONDS, OAUTH_STANDARD_SCOPES } from '@shared/oauth'
 import {
   type OAuthConsentContext,
-  type OAuthResourceScope,
-  oauthResourceScopeSchema,
+  type OAuthGrantScope,
+  oauthGrantScopeSchema,
   parseWorkspaceAuthorizationDetails,
 } from '@shared/schemas'
 import type { Database } from '../platform/interface'
@@ -36,7 +36,7 @@ export async function getOAuthConsentContext(
 
   const requestedScopes = scopeValue.split(/\s+/).filter(Boolean)
   const standardScopes = requestedScopes.filter((scope) => (OAUTH_STANDARD_SCOPES as readonly string[]).includes(scope))
-  const scopes = requestedScopes.filter(isOAuthResourceScope)
+  const scopes = requestedScopes.filter(isOAuthGrantScope)
   if (
     scopes.length === 0 ||
     requestedScopes.length !== standardScopes.length + scopes.length ||
@@ -75,6 +75,6 @@ export async function getOAuthConsentContext(
   }
 }
 
-function isOAuthResourceScope(scope: string): scope is OAuthResourceScope {
-  return isAuthorizationScope(scope) && oauthResourceScopeSchema.safeParse(scope).success
+function isOAuthGrantScope(scope: string): scope is OAuthGrantScope {
+  return isAuthorizationScope(scope) && oauthGrantScopeSchema.safeParse(scope).success
 }

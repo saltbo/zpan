@@ -15,6 +15,26 @@ export function createOrgRepo(db: Database): OrgRepo {
       .where(eq(member.userId, userId))
   }
 
+  async function listUserWorkspaceCatalog(userId: string) {
+    const rows = await db
+      .select({
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug,
+        metadata: organization.metadata,
+        role: member.role,
+      })
+      .from(member)
+      .innerJoin(organization, eq(organization.id, member.organizationId))
+      .where(eq(member.userId, userId))
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      type: isPersonalOrgLike(row) ? ('personal' as const) : ('organization' as const),
+      role: row.role,
+    }))
+  }
+
   // Find the user's personal org, if they still belong to it. New personal orgs
   // are identified by metadata.type; legacy rows keep the `personal-*` slug.
   // The member row remains load-bearing because admins can revoke access without
@@ -73,5 +93,14 @@ export function createOrgRepo(db: Database): OrgRepo {
     return orgId === (await findPersonalOrg(userId))
   }
 
-  return { listUserOrgs, findPersonalOrg, getMemberRole, getOrgNames, canReadOrg, canWriteToOrg, isPersonalOrg }
+  return {
+    listUserOrgs,
+    listUserWorkspaceCatalog,
+    findPersonalOrg,
+    getMemberRole,
+    getOrgNames,
+    canReadOrg,
+    canWriteToOrg,
+    isPersonalOrg,
+  }
 }

@@ -1,8 +1,8 @@
 import {
   type OAuthGrant as OAuthGrantDTO,
-  type OAuthResourceScope,
+  type OAuthGrantScope,
   oauthGrantDTO,
-  oauthResourceScopeSchema,
+  oauthGrantScopeSchema,
 } from '@shared/schemas'
 import type { Database } from '../platform/interface'
 import type { Deps } from './deps'
@@ -21,15 +21,15 @@ export async function listOAuthGrants(
       const { workspaceIds: itemWorkspaceIds, ...grant } = item
       return oauthGrantDTO({
         ...grant,
-        scopes: item.scopes.filter(isOAuthResourceScope),
+        scopes: item.scopes.filter(isOAuthGrantScope),
         workspaces: itemWorkspaceIds.map((id) => ({ id, name: orgNames.get(id) ?? null })),
       })
     }),
   }
 }
 
-function isOAuthResourceScope(scope: string): scope is OAuthResourceScope {
-  return oauthResourceScopeSchema.safeParse(scope).success
+function isOAuthGrantScope(scope: string): scope is OAuthGrantScope {
+  return oauthGrantScopeSchema.safeParse(scope).success
 }
 
 export async function revokeOAuthGrant(

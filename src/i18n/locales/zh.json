@@ -1209,6 +1209,7 @@
   "settings.apiKeys.manage": "管理 API Key",
   "settings.oauthApps.workspaceLabel": "工作空间",
   "settings.oauthApps.scope.objectsRead": "文件：读取对象",
+  "settings.oauthApps.scope.workspacesDiscover": "工作空间：发现可访问的工作空间",
   "settings.oauthApps.scope.objectsCreate": "文件：创建对象",
   "settings.oauthApps.scope.objectsUpdate": "文件：更新对象",
   "settings.oauthApps.scope.objectsDelete": "文件：删除对象",

@@ -231,4 +231,26 @@ describe('createOAuthProviderOptions', () => {
 
     expect(grants).toEqual(expect.arrayContaining([JWT_BEARER_GRANT_TYPE, TOKEN_EXCHANGE_GRANT_TYPE]))
   })
+
+  it('does not exchange the account discovery scope into an Agent target token', async () => {
+    const resourceAudience = 'https://files.example/api'
+    const options = createOptions({ resourceAudience })
+    const grant = options.extensions?.find((candidate) => candidate.grants?.[TOKEN_EXCHANGE_GRANT_TYPE])?.grants?.[
+      TOKEN_EXCHANGE_GRANT_TYPE
+    ]
+    if (!grant) throw new Error('token exchange grant is not configured')
+    const authenticateClient = vi.fn()
+
+    await expect(
+      grant({
+        ctx: {
+          body: { scope: AuthorizationScope.WORKSPACES_DISCOVER },
+          headers: new Headers({ DPoP: 'proof' }),
+        },
+        opts: {},
+        provider: { authenticateClient },
+      } as never),
+    ).rejects.toMatchObject({ body: expect.objectContaining({ error: 'invalid_scope' }) })
+    expect(authenticateClient).not.toHaveBeenCalled()
+  })
 })
