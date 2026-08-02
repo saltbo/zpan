@@ -17,12 +17,33 @@ import { redirectExternal } from '@/lib/browser-navigation'
 
 export const Route = createFileRoute('/oauth/consent')({ component: OAuthConsentPage })
 
+const oauthStandardScopeLabels = {
+  openid: 'settings.oauthApps.oauthStandardScopeOpenid',
+  profile: 'settings.oauthApps.oauthStandardScopeProfile',
+  email: 'settings.oauthApps.oauthStandardScopeEmail',
+  offline_access: 'settings.oauthApps.oauthStandardScopeOfflineAccess',
+} as const
+
+type ConsentScopeLabelKey =
+  | (typeof oauthStandardScopeLabels)[keyof typeof oauthStandardScopeLabels]
+  | (typeof oauthResourceScopeLabels)[keyof typeof oauthResourceScopeLabels]
+
 function oauthQueryFromLocation(): string {
   return typeof window === 'undefined' ? '' : window.location.search.slice(1)
 }
 
 export function requestedConsentScopes(context: Pick<OAuthConsentContext, 'standardScopes' | 'scopes'>): string[] {
   return [...context.standardScopes, ...context.scopes]
+}
+
+export function consentScopeLabel(scope: string, translate: (key: ConsentScopeLabelKey) => string): string {
+  if (scope in oauthStandardScopeLabels) {
+    return translate(oauthStandardScopeLabels[scope as keyof typeof oauthStandardScopeLabels])
+  }
+  if (scope in oauthResourceScopeLabels) {
+    return translate(oauthResourceScopeLabels[scope as keyof typeof oauthResourceScopeLabels])
+  }
+  return scope
 }
 
 function OAuthConsentPage() {
@@ -141,9 +162,7 @@ function OAuthConsentPage() {
           <div className="flex flex-wrap gap-2">
             {requestedScopes.map((scope) => (
               <Badge key={scope} variant="secondary">
-                {scope in oauthResourceScopeLabels
-                  ? t(oauthResourceScopeLabels[scope as keyof typeof oauthResourceScopeLabels])
-                  : scope}
+                {consentScopeLabel(scope, (key) => t(key))}
               </Badge>
             ))}
           </div>
