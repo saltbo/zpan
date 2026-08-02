@@ -530,7 +530,7 @@ export async function purchaseCapacity(
     })
   }
 
-  if (!params.paymentSignature || quoteWasReplaced) {
+  if (quoteWasReplaced || (!params.paymentSignature && attempt.status !== 'paid_pending_fulfillment')) {
     if (attempt.status !== 'quoted') {
       return terminalCapacityPurchaseOutcome(attempt)
     }
@@ -582,6 +582,7 @@ export async function purchaseCapacity(
           storeId,
           orderId: cloudOrderId,
           attemptId: attempt.id,
+          deliveryCallbackUrl: `${params.origin}/api/store/webhook`,
         }),
         x402PaymentAttemptSchema,
       ),

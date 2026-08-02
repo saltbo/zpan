@@ -801,6 +801,7 @@ describe('cloud-store usecase', () => {
       expect(requests[11]).toMatchObject({
         method: 'POST',
         path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/fulfillment-attempts',
+        input: { json: { deliveryCallbackUrl: `${params.origin}/api/store/webhook` } },
       })
     })
 
@@ -835,7 +836,7 @@ describe('cloud-store usecase', () => {
       ).toHaveLength(1)
     })
 
-    it('retries paid-pending fulfillment after quote expiry without creating a replacement quote', async () => {
+    it('retries paid-pending fulfillment with the current callback and no payment replay', async () => {
       const quoted = attempt()
       const paidPending = { ...attempt('paid_pending_fulfillment'), expiresAt: '2026-07-30T00:00:00.000Z' }
       const delivered = { ...attempt('delivered'), expiresAt: '2026-07-30T00:00:00.000Z' }
@@ -855,7 +856,7 @@ describe('cloud-store usecase', () => {
       })
       await purchaseCapacity(deps, CLOUD, params)
 
-      const out = await purchaseCapacity(deps, CLOUD, { ...params, paymentSignature: 'signature' })
+      const out = await purchaseCapacity(deps, CLOUD, { ...params, idempotencyKey: 'fresh-caller-key' })
 
       expect(out).toMatchObject({
         ok: true,
@@ -869,7 +870,13 @@ describe('cloud-store usecase', () => {
       expect(requests.at(-1)).toMatchObject({
         method: 'POST',
         path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/fulfillment-attempts',
+        input: { json: { deliveryCallbackUrl: `${params.origin}/api/store/webhook` } },
       })
+      expect(requests).not.toContainEqual(
+        expect.objectContaining({
+          path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/settlements',
+        }),
+      )
     })
 
     it('returns a client error when Cloud rejects the payment signature', async () => {
