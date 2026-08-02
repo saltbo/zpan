@@ -530,7 +530,10 @@ export async function purchaseCapacity(
     })
   }
 
-  if (quoteWasReplaced || (!params.paymentSignature && attempt.status !== 'paid_pending_fulfillment')) {
+  if (
+    quoteWasReplaced ||
+    (!params.paymentSignature && attempt.status !== 'verified' && attempt.status !== 'paid_pending_fulfillment')
+  ) {
     if (attempt.status !== 'quoted') {
       return terminalCapacityPurchaseOutcome(attempt)
     }

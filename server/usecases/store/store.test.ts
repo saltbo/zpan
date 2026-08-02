@@ -879,6 +879,46 @@ describe('cloud-store usecase', () => {
       )
     })
 
+    it('continues a verified attempt through settlement without replaying the payment signature', async () => {
+      const quoted = attempt()
+      const verified = { ...attempt('verified'), expiresAt: '2026-07-30T00:00:00.000Z' }
+      const paidPending = { ...attempt('paid_pending_fulfillment'), expiresAt: '2026-07-30T00:00:00.000Z' }
+      const delivered = { ...attempt('delivered'), expiresAt: '2026-07-30T00:00:00.000Z' }
+      const { deps, requests } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...quoted, reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(verified),
+          ok(paidPending),
+          ok(delivered),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, { ...params, idempotencyKey: 'fresh-caller-key' })
+
+      expect(out).toMatchObject({ ok: true, kind: 'delivered', attempt: { status: 'delivered' } })
+      expect(requests).not.toContainEqual(
+        expect.objectContaining({
+          path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/verifications',
+        }),
+      )
+      expect(requests.at(-2)).toMatchObject({
+        method: 'POST',
+        path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/settlements',
+      })
+      expect(requests.at(-1)).toMatchObject({
+        method: 'POST',
+        path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/fulfillment-attempts',
+      })
+    })
+
     it('returns a client error when Cloud rejects the payment signature', async () => {
       const quoted = attempt()
       const { deps } = makeDeps({
