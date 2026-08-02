@@ -7,6 +7,7 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     corepack enable \
  && pnpm install --frozen-lockfile
