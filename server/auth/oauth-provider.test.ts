@@ -119,7 +119,7 @@ describe('createOAuthProviderOptions', () => {
     })
   })
 
-  it('requires exactly one workspace detail in the authorization request', async () => {
+  it('accepts multiple unique workspace details in the authorization request', async () => {
     const options = createOptions()
     await expect(
       options.authorizationDetails?.validate?.({
@@ -130,9 +130,10 @@ describe('createOAuthProviderOptions', () => {
           { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'org-2' },
         ],
       } as never),
-    ).rejects.toMatchObject({
-      body: expect.objectContaining({ error_description: 'Exactly one workspace request is required' }),
-    })
+    ).resolves.toEqual([
+      { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'org-1' },
+      { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'org-2' },
+    ])
   })
 
   it('resolves a workspace chooser from the existing grant without widening explicit requests', async () => {

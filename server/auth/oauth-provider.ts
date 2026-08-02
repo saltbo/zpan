@@ -77,8 +77,8 @@ export function createOAuthProviderOptions(input: {
       validate: async ({ details, phase, requested, user }) => {
         const workspaces = details.map(parseWorkspaceAuthorizationDetail)
         if (phase === 'request') {
-          if (workspaces.length !== 1)
-            throw oauthError('invalid_authorization_details', 'Exactly one workspace request is required')
+          if (workspaces.length === 0)
+            throw oauthError('invalid_authorization_details', 'At least one workspace request is required')
           assertUniqueWorkspaceIdentifiers(workspaces)
           return workspaces
         }
@@ -89,8 +89,13 @@ export function createOAuthProviderOptions(input: {
             throw oauthError('invalid_authorization_details', 'At least one workspace is required')
           }
           assertUniqueWorkspaceIdentifiers(workspaces)
-          const fixedWorkspaceId = original[0].identifier
-          if (fixedWorkspaceId && workspaces.some((detail) => detail.identifier !== fixedWorkspaceId)) {
+          const fixedWorkspaceIds = new Set(
+            original.flatMap((detail) => (detail.identifier ? [detail.identifier] : [])),
+          )
+          if (
+            fixedWorkspaceIds.size > 0 &&
+            workspaces.some((detail) => !detail.identifier || !fixedWorkspaceIds.has(detail.identifier))
+          ) {
             throw oauthError('access_denied', 'Workspace selection exceeds the authorization request')
           }
           for (const detail of workspaces) {
