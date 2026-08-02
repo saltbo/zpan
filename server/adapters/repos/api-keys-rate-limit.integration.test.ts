@@ -52,9 +52,10 @@ async function getApiKeyRow(db: TestApp['db'], id: string) {
     rate_limit_time_window: number | null
     rate_limit_max: number | null
     request_count: number
+    permissions: string | null
   }>(sql`
     SELECT config_id, reference_id, metadata, enabled,
-           rate_limit_enabled, rate_limit_time_window, rate_limit_max, request_count
+           rate_limit_enabled, rate_limit_time_window, rate_limit_max, request_count, permissions
     FROM apikey
     WHERE id = ${id}
   `)
@@ -197,7 +198,7 @@ describe('API keys', () => {
     })
   })
 
-  it('rejects legacy API keys instead of upgrading them during verification', async () => {
+  it('upgrades legacy Better Auth API keys on first use and account listing', async () => {
     const { app, db, auth } = await createTestApp()
     const headers = await authedHeaders(app)
     const { orgId, userId } = await getUserAndOrg(db)
@@ -206,26 +207,56 @@ describe('API keys', () => {
     // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
     const webdav = (await (auth.api as any).createApiKey({
       body: { configId: 'webdav', userId },
-    })) as { id: string }
+    })) as { id: string; key: string }
     await db.run(sql`
       UPDATE apikey
-      SET reference_id = ${orgId}, metadata = '{}'
+      SET reference_id = ${orgId}, metadata = NULL,
+          permissions = CASE id
+            WHEN ${remoteDownload.id} THEN '{"remoteDownload":["read","create","cancel"]}'
+            ELSE '{"ihost":["upload"]}'
+          END
       WHERE id IN (${remoteDownload.id}, ${ihost.id})
     `)
-    await db.run(sql`UPDATE apikey SET metadata = '{}' WHERE id = ${webdav.id}`)
+    await db.run(
+      sql`UPDATE apikey SET metadata = NULL, permissions = '{"webdav":["read","write"]}' WHERE id = ${webdav.id}`,
+    )
 
-    await expect(apiKeys.verifyApiKey(auth, db, remoteDownload.key, 'remote-download')).resolves.toBeNull()
-    const row = await getApiKeyRow(db, remoteDownload.id)
-    expect(row.reference_id).toBe(orgId)
-    expect(JSON.parse(row.metadata as string)).toEqual({})
+    const legacyRouteResponse = await app.request('/api/downloads/tasks', {
+      headers: { Authorization: `Bearer ${remoteDownload.key}` },
+    })
+    expect(legacyRouteResponse.status).toBe(200)
+    await expect(
+      apiKeys.verifyApiKeyForPermission(auth, db, remoteDownload.key, 'download-tasks', 'create', 'remote-download'),
+    ).resolves.toMatchObject({ referenceId: userId, scope: { mode: 'workspace', orgId } })
+    await expect(
+      apiKeys.verifyApiKeyForPermission(auth, db, webdav.key, 'objects', 'update', 'webdav'),
+    ).resolves.toMatchObject({ referenceId: userId, scope: { mode: 'user-workspaces' } })
 
     const listResponse = await app.request('/api/auth/api-key/list', { headers })
     expect(listResponse.status).toBe(200)
     const listed = (await listResponse.json()) as {
       apiKeys: Array<{ id: string; metadata: { scope: { mode: string; orgId?: string } } }>
     }
-    expect(listed.apiKeys).toEqual([expect.objectContaining({ id: webdav.id, metadata: {} })])
-    expect(await getApiKeyRow(db, ihost.id)).toMatchObject({ reference_id: orgId })
+    expect(listed.apiKeys.map((key) => key.id).sort()).toEqual([ihost.id, remoteDownload.id, webdav.id].sort())
+    await expect(
+      apiKeys.verifyApiKeyForPermission(auth, db, ihost.key, 'images', 'upload', 'ihost'),
+    ).resolves.toMatchObject({ referenceId: userId, scope: { mode: 'workspace', orgId } })
+
+    expect(await getApiKeyRow(db, remoteDownload.id)).toMatchObject({
+      reference_id: userId,
+      metadata: JSON.stringify({ scope: { mode: 'workspace', orgId } }),
+      permissions: JSON.stringify({ 'download-tasks': ['cancel', 'create', 'read'] }),
+    })
+    expect(await getApiKeyRow(db, webdav.id)).toMatchObject({
+      reference_id: userId,
+      metadata: JSON.stringify({ scope: { mode: 'user-workspaces' } }),
+      permissions: JSON.stringify({ objects: ['create', 'delete', 'read', 'update'] }),
+    })
+    expect(await getApiKeyRow(db, ihost.id)).toMatchObject({
+      reference_id: userId,
+      metadata: JSON.stringify({ scope: { mode: 'workspace', orgId } }),
+      permissions: JSON.stringify({ images: ['upload'] }),
+    })
   })
 
   it('deletes workspace-scoped keys with their organization but preserves WebDAV keys', async () => {

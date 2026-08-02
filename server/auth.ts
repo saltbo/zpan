@@ -41,7 +41,7 @@ import {
 } from '../shared/oauth-providers'
 import { generateUserOrgSlug, isPersonalOrgLike } from '../shared/org-slugs'
 import { createEmailGateway } from './adapters/gateways/email'
-import { deleteApiKeysScopedToOrganization } from './adapters/repos/api-key-scopes'
+import { deleteApiKeysScopedToOrganization, normalizeLegacyApiKeysForUser } from './adapters/repos/api-key-scopes'
 import { createAuditRepo } from './adapters/repos/audit'
 import { createDownloadTokenGateway } from './adapters/repos/download-tokens'
 import { createDownloaderBootstrapCredentialRepo } from './adapters/repos/downloader-bootstrap'
@@ -503,6 +503,11 @@ export async function createAuth(
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path === '/delete-user') {
           throw new APIError('FORBIDDEN', { message: 'Self-service account deletion is not available' })
+        }
+        if (ctx.path === '/api-key/list') {
+          const session = await getSessionFromCtx(ctx)
+          if (session?.user.id) await normalizeLegacyApiKeysForUser(db, session.user.id)
+          return
         }
         if (ctx.path === '/device/code') {
           const body = ctx.body as Record<string, unknown> | undefined

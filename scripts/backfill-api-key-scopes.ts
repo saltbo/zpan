@@ -2,7 +2,11 @@
 
 import { execFileSync } from 'node:child_process'
 import Database from 'better-sqlite3'
-import type { ApiKeyPermissions } from '../shared/authorization'
+import {
+  type ApiKeyPermissions,
+  canonicalizeApiKeyPermissions,
+  serializeApiKeyPermissions,
+} from '../shared/api-key-templates'
 
 export type ApiKeyScopeBackfillTarget =
   | { kind: 'sqlite'; path: string }
@@ -24,55 +28,15 @@ export interface ApiKeyScopeBackfillResult {
   after: string
 }
 
-const LEGACY_SCOPE_MAP: Record<string, Record<string, string[]>> = {
-  ihost: {
-    upload: ['images:upload'],
-  },
-  webdav: {
-    read: ['objects:read'],
-    write: ['objects:create', 'objects:update', 'objects:delete'],
-  },
-  remoteDownload: {
-    read: ['download-tasks:read'],
-    create: ['download-tasks:create'],
-    cancel: ['download-tasks:cancel'],
-  },
-}
-
 export function backfillApiKeyScopePermissionsRows(rows: PermissionRow[]): ApiKeyScopeBackfillResult[] {
   return rows.flatMap((row) => {
     const before = parsePermissions(row.permissions)
     if (!before) return []
-    const after = canonicalizePermissions(before)
-    const beforeJson = stableJson(before)
-    const afterJson = stableJson(after)
+    const after = canonicalizeApiKeyPermissions(before)
+    const beforeJson = serializeApiKeyPermissions(before)
+    const afterJson = serializeApiKeyPermissions(after)
     return beforeJson === afterJson ? [] : [{ id: row.id, before: row.permissions, after: afterJson }]
   })
-}
-
-function canonicalizePermissions(input: ApiKeyPermissions): ApiKeyPermissions {
-  const scopes = new Set<string>()
-  for (const [resource, actions] of Object.entries(input)) {
-    if (!Array.isArray(actions)) continue
-    for (const action of actions) {
-      if (typeof action !== 'string') continue
-      const legacyScopes = LEGACY_SCOPE_MAP[resource]?.[action]
-      if (legacyScopes) {
-        for (const scope of legacyScopes) scopes.add(scope)
-        continue
-      }
-      scopes.add(`${resource}:${action}`)
-    }
-  }
-  const output: ApiKeyPermissions = {}
-  for (const scope of [...scopes].sort()) {
-    const separator = scope.indexOf(':')
-    if (separator <= 0) continue
-    const resource = scope.slice(0, separator)
-    const action = scope.slice(separator + 1)
-    output[resource] = [...(output[resource] ?? []), action]
-  }
-  return output
 }
 
 function parsePermissions(value: string | null): ApiKeyPermissions | null {
@@ -83,14 +47,6 @@ function parsePermissions(value: string | null): ApiKeyPermissions | null {
   } catch {
     return null
   }
-}
-
-function stableJson(permissions: ApiKeyPermissions): string {
-  const sorted: ApiKeyPermissions = {}
-  for (const resource of Object.keys(permissions).sort()) {
-    sorted[resource] = [...new Set(permissions[resource])].sort()
-  }
-  return JSON.stringify(sorted)
 }
 
 export function parseApiKeyScopeBackfillOptions(argv: string[]): ApiKeyScopeBackfillOptions {
