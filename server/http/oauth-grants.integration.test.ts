@@ -5,7 +5,7 @@ import {
   WORKSPACE_AUTHORIZATION_DETAIL_TYPE,
 } from '@shared/oauth'
 import { sql } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as authSchema from '../db/auth-schema.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
 
@@ -147,6 +147,48 @@ describe('OAuth grants API integration', () => {
 
     expect(res.status).toBe(400)
     await expect(res.json()).resolves.toMatchObject({ error: { message: 'Invalid OAuth request' } })
+  })
+
+  it('rejects workspace selections outside the server-owned consent context', async () => {
+    const { app, db } = await createTestApp()
+    await insertClient(db)
+    const headers = await authedHeaders(app, 'agent-invalid-workspace@example.com')
+
+    const res = await app.request('/api/oauth-consent', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accept: true,
+        oauthQuery: oauthQuery(),
+        workspaceIds: ['org-not-owned'],
+      }),
+    })
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({ error: { message: 'Invalid workspace selection' } })
+  })
+
+  it('forwards validated workspace authorization details to Better Auth', async () => {
+    const { app, auth, db } = await createTestApp()
+    await insertClient(db)
+    const headers = await authedHeaders(app, 'agent-valid-workspace@example.com')
+    const { orgId } = await getUserAndPersonalOrg(db, 'agent-valid-workspace@example.com')
+    const handler = vi
+      .spyOn(auth, 'handler')
+      .mockResolvedValue(Response.json({ url: 'https://flareauth.example/callback?code=issued' }))
+
+    const res = await app.request('/api/oauth-consent', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accept: true, oauthQuery: oauthQuery(), workspaceIds: [orgId] }),
+    })
+
+    expect(res.status).toBe(200)
+    const forwarded = handler.mock.calls[0]?.[0]
+    await expect(forwarded?.json()).resolves.toMatchObject({
+      accept: true,
+      authorization_details: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: orgId }],
+    })
   })
 
   it('lists and revokes the current user dynamic-client grant family', async () => {

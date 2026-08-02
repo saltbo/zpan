@@ -162,4 +162,14 @@ describe('OAuth consent usecase', () => {
       }),
     ).rejects.toMatchObject({ httpStatus: 403 })
   })
+
+  it('rejects malformed authorization details', async () => {
+    await expect(
+      getOAuthConsentContext(deps(org()), {
+        db,
+        userId: 'user-1',
+        oauthQuery: oauthQuery({ authorization_details: 'not-json' }),
+      }),
+    ).rejects.toMatchObject({ httpStatus: 400, message: 'Invalid OAuth authorization details' })
+  })
 })

@@ -836,6 +836,32 @@ describe('cloud-store usecase', () => {
       ).toHaveLength(1)
     })
 
+    it('rejects a terminal Cloud attempt without its resource identity', async () => {
+      const quoted = attempt()
+      const delivered = { ...attempt('delivered'), resourceId: null, expiresAt: '2026-07-30T00:00:00.000Z' }
+      const { deps } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...quoted, reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(delivered),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, {
+        httpStatus: 502,
+        message: 'Cloud capacity purchase response is missing its resource identity',
+      })
+    })
+
     it('retries paid-pending fulfillment with the current callback and no payment replay', async () => {
       const quoted = attempt()
       const paidPending = { ...attempt('paid_pending_fulfillment'), expiresAt: '2026-07-30T00:00:00.000Z' }

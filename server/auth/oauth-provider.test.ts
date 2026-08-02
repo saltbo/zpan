@@ -1,12 +1,24 @@
-import { OAUTH_ACCESS_TOKEN_SECONDS, OAUTH_SCOPES, WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
+import { AuthorizationScope } from '@shared/authorization'
+import {
+  JWT_BEARER_GRANT_TYPE,
+  OAUTH_ACCESS_TOKEN_SECONDS,
+  OAUTH_ACCESS_TOKEN_TYPE,
+  OAUTH_SCOPES,
+  TOKEN_EXCHANGE_GRANT_TYPE,
+  WORKSPACE_AUTHORIZATION_DETAIL_TYPE,
+} from '@shared/oauth'
 import { describe, expect, it, vi } from 'vitest'
 import { createOAuthProviderOptions } from './oauth-provider'
 
 const db = {} as never
 
-function createOptions(input?: { canReadOrg?: (userId: string, orgId: string) => Promise<boolean> }) {
+function createOptions(input?: {
+  canReadOrg?: (userId: string, orgId: string) => Promise<boolean>
+  resourceAudience?: string
+}) {
   return createOAuthProviderOptions({
     db,
+    resourceAudience: input?.resourceAudience,
     orgs: {
       canReadOrg: input?.canReadOrg ?? vi.fn(async () => true),
     },
@@ -76,6 +88,37 @@ describe('createOAuthProviderOptions', () => {
     })
   })
 
+  it('requires both requested and selected workspaces during consent', async () => {
+    const options = createOptions()
+    await expect(
+      options.authorizationDetails?.validate?.({
+        ctx: {} as never,
+        phase: 'consent',
+        details: [],
+        requested: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE }],
+        user: { id: 'user-1' },
+      } as never),
+    ).rejects.toMatchObject({
+      body: expect.objectContaining({ error_description: 'At least one workspace is required' }),
+    })
+  })
+
+  it('rejects duplicate workspace selections during consent', async () => {
+    const options = createOptions()
+    const detail = { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'org-1' }
+    await expect(
+      options.authorizationDetails?.validate?.({
+        ctx: {} as never,
+        phase: 'consent',
+        details: [detail, detail],
+        requested: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE }],
+        user: { id: 'user-1' },
+      } as never),
+    ).rejects.toMatchObject({
+      body: expect.objectContaining({ error_description: 'Workspace authorization details must be unique' }),
+    })
+  })
+
   it('requires exactly one workspace detail in the authorization request', async () => {
     const options = createOptions()
     await expect(
@@ -129,5 +172,62 @@ describe('createOAuthProviderOptions', () => {
         scopes: [],
       } as never),
     ).resolves.toEqual({ zpan_actor: 'oauth' })
+  })
+
+  it.each([
+    ['not-json', 'authorization_details must be valid JSON'],
+    ['[]', 'Token exchange requires exactly one workspace'],
+    [
+      JSON.stringify([{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'org-2' }]),
+      'Requested workspace is not authorized',
+    ],
+  ])('rejects invalid token-exchange authorization details %#', async (authorizationDetails, message) => {
+    const resourceAudience = 'https://files.example/api'
+    const options = createOptions({ resourceAudience })
+    const extension = options.extensions?.find((candidate) => candidate.grants?.[TOKEN_EXCHANGE_GRANT_TYPE])
+    const grant = extension?.grants?.[TOKEN_EXCHANGE_GRANT_TYPE]
+    if (!grant) throw new Error('token exchange grant is not configured')
+    const client = { clientId: 'client-1' }
+    const provider = {
+      authenticateClient: vi.fn(async () => ({ client })),
+      requireActiveAccessToken: vi
+        .fn()
+        .mockResolvedValueOnce({
+          sub: 'user-1',
+          scope: AuthorizationScope.OBJECTS_READ,
+          authorization_details: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'org-1' }],
+        })
+        .mockResolvedValueOnce({ sub: 'agent-1', zpan_actor_token: true }),
+      issueTokens: vi.fn(),
+    }
+    const body = {
+      scope: AuthorizationScope.OBJECTS_READ,
+      subject_token: 'subject-token',
+      subject_token_type: OAUTH_ACCESS_TOKEN_TYPE,
+      actor_token: 'actor-token',
+      actor_token_type: OAUTH_ACCESS_TOKEN_TYPE,
+      requested_token_type: OAUTH_ACCESS_TOKEN_TYPE,
+      resource: resourceAudience,
+      authorization_details: authorizationDetails,
+    }
+
+    await expect(
+      grant({
+        ctx: {
+          body,
+          headers: new Headers({ DPoP: 'proof' }),
+          context: { internalAdapter: { findUserById: vi.fn(async () => ({ id: 'user-1' })) } },
+        },
+        opts: {},
+        provider,
+      } as never),
+    ).rejects.toMatchObject({ body: expect.objectContaining({ error_description: message }) })
+  })
+
+  it('advertises the JWT bearer grant alongside token exchange', () => {
+    const options = createOptions({ resourceAudience: 'https://files.example/api' })
+    const grants = options.extensions?.flatMap((extension) => Object.keys(extension.grants ?? {})) ?? []
+
+    expect(grants).toEqual(expect.arrayContaining([JWT_BEARER_GRANT_TYPE, TOKEN_EXCHANGE_GRANT_TYPE]))
   })
 })

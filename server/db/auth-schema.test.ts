@@ -5,6 +5,7 @@ import {
   oauthAccessToken,
   oauthClient,
   oauthConsent,
+  oauthPushedAuthorizationRequest,
   oauthRefreshToken,
   user,
 } from './auth-schema.js'
@@ -162,6 +163,18 @@ describe('OAuth tables', () => {
     expect(indexes.map((index) => index.config.name).sort()).toEqual([
       'oauthConsent_client_id_idx',
       'oauthConsent_user_id_idx',
+    ])
+  })
+
+  it('declares pushed authorization request relationships and lookup indexes', () => {
+    const { foreignKeys, indexes } = getTableConfig(oauthPushedAuthorizationRequest)
+
+    expect(oauthPushedAuthorizationRequest.requestUri.isUnique).toBe(true)
+    expect(oauthPushedAuthorizationRequest.parameters.notNull).toBe(true)
+    expect(foreignKeys.map((foreignKey) => foreignKey.reference().foreignColumns[0].name)).toEqual(['client_id'])
+    expect(indexes.map((index) => index.config.name).sort()).toEqual([
+      'oauthPushedAuthorizationRequest_client_id_idx',
+      'oauthPushedAuthorizationRequest_expires_at_idx',
     ])
   })
 })
