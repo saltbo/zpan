@@ -495,6 +495,32 @@ describe('evaluateAuthorization', () => {
     ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'missing_scope' })
   })
 
+  it('enforces OAuth credential exclusions independently from scopes', async () => {
+    const oauthContext = {
+      credential: 'oauth' as const,
+      userId: 'user-1',
+      workspace: { mode: 'bound' as const, orgId: 'org-1' },
+      grantedScopes: new Set([AuthorizationScope.OBJECTS_PURGE]),
+      actor: { type: 'oauth' as const, ref: 'grant-1', issuer: 'https://realmroot.example' },
+      state: { clientId: 'agent-client' },
+    }
+
+    await expect(
+      evaluateAuthorization({
+        context: oauthContext,
+        declaration: { scopes: [AuthorizationScope.OBJECTS_PURGE], oauth: false },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'actor_not_allowed' })
+    await expect(
+      evaluateAuthorization({
+        context: sessionContext,
+        declaration: { scopes: [AuthorizationScope.OBJECTS_PURGE], oauth: false },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: true })
+  })
+
   it('uses task-upload token scopes', async () => {
     const taskUploadContext = {
       credential: 'download-task-upload' as const,

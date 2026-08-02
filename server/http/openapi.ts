@@ -52,9 +52,11 @@ export function findOperationsMissingAuthContract(paths: Record<string, Record<s
 }
 
 function openApiAuthorizationConstraints(auth: RouteAuthorizationDeclaration): Record<string, unknown> {
-  if ('public' in auth || (!auth.minTeamRole && !auth.siteRole)) return {}
+  if ('public' in auth) return {}
   return {
     'x-zpan-authorization-constraints': {
+      requiredScopes: [...auth.scopes],
+      ...(auth.oauth === false ? { oauth: false } : {}),
       ...(auth.minTeamRole ? { minTeamRole: auth.minTeamRole } : {}),
       ...(auth.siteRole ? { siteRole: auth.siteRole } : {}),
     },
@@ -64,11 +66,10 @@ function openApiAuthorizationConstraints(auth: RouteAuthorizationDeclaration): R
 function hasValidAuthContract(operation: object): boolean {
   if (!('security' in operation) || !Array.isArray(operation.security)) return false
   if (operation.security.length === 0) return true
-  return operation.security.some((requirement) => {
-    if (!requirement || typeof requirement !== 'object') return false
-    const oauthScopes = (requirement as Record<string, unknown>).oauth2
-    return Array.isArray(oauthScopes) && oauthScopes.length > 0
-  })
+  const constraints =
+    'x-zpan-authorization-constraints' in operation ? operation['x-zpan-authorization-constraints'] : null
+  if (!constraints || typeof constraints !== 'object' || !('requiredScopes' in constraints)) return false
+  return Array.isArray(constraints.requiredScopes) && constraints.requiredScopes.length > 0
 }
 
 function openApiSecurity(auth: RouteAuthorizationDeclaration): { security?: Record<string, string[]>[] } {
@@ -77,5 +78,5 @@ function openApiSecurity(auth: RouteAuthorizationDeclaration): { security?: Reco
 }
 
 function openApiPolicySecurity(policy: ScopedAuthorizationPolicy): Record<string, string[]>[] {
-  return [{ oauth2: [...policy.scopes] }, { bearerAuth: [] }, { cookieAuth: [] }]
+  return [...(policy.oauth === false ? [] : [{ oauth2: [...policy.scopes] }]), { bearerAuth: [] }, { cookieAuth: [] }]
 }

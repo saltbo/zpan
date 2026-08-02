@@ -395,14 +395,22 @@ describe('global OpenAPI document', () => {
       { bearerAuth: [] },
       { cookieAuth: [] },
     ])
-    expect(adminRoute['x-zpan-authorization-constraints']).toEqual({ siteRole: 'admin' })
+    expect(adminRoute['x-zpan-authorization-constraints']).toEqual({
+      requiredScopes: [AuthorizationScope.SITE_ANALYTICS_READ],
+      siteRole: 'admin',
+    })
   })
 
   it('detects OpenAPI operations missing explicit authorization declarations without an allowlist', () => {
     expect(
       findOperationsMissingAuthContract({
         '/public': { get: { security: [] } },
-        '/protected': { post: { security: [{ oauth2: ['objects:read'] }] } },
+        '/protected': {
+          post: {
+            security: [{ oauth2: ['objects:read'] }],
+            'x-zpan-authorization-constraints': { requiredScopes: ['objects:read'] },
+          },
+        },
         '/missing': { delete: { responses: { 204: { description: 'Deleted' } } } },
       }),
     ).toEqual(['DELETE /missing'])
@@ -429,7 +437,26 @@ describe('global OpenAPI document', () => {
       { bearerAuth: [] },
       { cookieAuth: [] },
     ])
-    expect(operation?.['x-zpan-authorization-constraints']).toEqual({ siteRole: 'admin' })
+    expect(operation?.['x-zpan-authorization-constraints']).toEqual({
+      requiredScopes: [AuthorizationScope.DOWNLOADERS_CREATE],
+      siteRole: 'admin',
+    })
+  })
+
+  it('keeps purge scope separate from its non-OAuth credential policy', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      paths: Record<string, Record<string, { security?: unknown; 'x-zpan-authorization-constraints'?: unknown }>>
+    }
+
+    const operation = doc.paths['/api/trash/objects/{id}']?.delete
+    expect(operation?.security).toEqual([{ bearerAuth: [] }, { cookieAuth: [] }])
+    expect(operation?.['x-zpan-authorization-constraints']).toEqual({
+      requiredScopes: [AuthorizationScope.OBJECTS_PURGE],
+      oauth: false,
+      minTeamRole: 'editor',
+    })
   })
 
   it('publishes stable upload operations for Restish plugin discovery', async () => {
@@ -676,11 +703,31 @@ describe('global OpenAPI document', () => {
   it("merges better-auth's auto-generated schema (incl. the device flow) into the same doc", async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
-    const doc = (await res.json()) as { paths: Record<string, unknown> }
+    const doc = (await res.json()) as {
+      paths: Record<
+        string,
+        {
+          post?: {
+            responses?: Record<
+              string,
+              { content?: { 'application/json'?: { schema?: { properties?: Record<string, unknown> } } } }
+            >
+          }
+        }
+      >
+    }
     // better-auth's device-authorization endpoints come from its openAPI plugin,
     // not hand-written stubs — prefixed under /api/auth.
     const authPaths = Object.keys(doc.paths).filter((p) => p.startsWith('/api/auth/'))
     expect(authPaths.length).toBeGreaterThan(0)
     expect(authPaths.some((p) => p.includes('/device/'))).toBe(true)
+    expect(
+      doc.paths['/api/auth/device/token']?.post?.responses?.['200']?.content?.['application/json']?.schema?.properties,
+    ).toMatchObject({
+      access_token: { type: 'string' },
+      token_type: { type: 'string' },
+      expires_in: { type: 'integer' },
+      scope: { type: 'string' },
+    })
   })
 })

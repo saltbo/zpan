@@ -31104,8 +31104,10 @@ type PostApiAuthDeviceTokenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Session *Session `json:"session,omitempty"`
-		User    *User    `json:"user,omitempty"`
+		AccessToken string  `json:"access_token"`
+		ExpiresIn   int     `json:"expires_in"`
+		Scope       *string `json:"scope,omitempty"`
+		TokenType   string  `json:"token_type"`
 	}
 	JSON400 *struct {
 		Error            *PostApiAuthDeviceToken400JSONResponseBodyError `json:"error,omitempty"`
@@ -46493,8 +46495,10 @@ func ParsePostApiAuthDeviceTokenResponse(rsp *http.Response) (*PostApiAuthDevice
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Session *Session `json:"session,omitempty"`
-			User    *User    `json:"user,omitempty"`
+			AccessToken string  `json:"access_token"`
+			ExpiresIn   int     `json:"expires_in"`
+			Scope       *string `json:"scope,omitempty"`
+			TokenType   string  `json:"token_type"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

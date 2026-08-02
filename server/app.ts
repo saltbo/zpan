@@ -231,6 +231,26 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     for (const [path, item] of Object.entries(authDoc.paths ?? {})) {
       doc.paths[`/api/auth${path}`] = item as (typeof doc.paths)[string]
     }
+    // better-auth 1.7.0-rc.2 documents POST /device/token with its session
+    // response even though the handler returns an OAuth device token. Keep the
+    // generated contract aligned with the wire response until upstream fixes it.
+    const deviceTokenJson = (
+      doc.paths['/api/auth/device/token'] as
+        | { post?: { responses?: Record<string, { content?: Record<string, { schema?: unknown }> }> } }
+        | undefined
+    )?.post?.responses?.['200']?.content?.['application/json']
+    if (deviceTokenJson) {
+      deviceTokenJson.schema = {
+        type: 'object',
+        properties: {
+          access_token: { type: 'string' },
+          token_type: { type: 'string' },
+          expires_in: { type: 'integer' },
+          scope: { type: 'string' },
+        },
+        required: ['access_token', 'token_type', 'expires_in'],
+      }
+    }
     doc.components ??= {}
     doc.components.securitySchemes = {
       ...(doc.components.securitySchemes ?? {}),

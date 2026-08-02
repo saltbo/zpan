@@ -1,5 +1,5 @@
 import { DEFAULT_SITE_NAME } from '@shared/constants'
-import { oauthResourceScopeLabels } from '@shared/schemas'
+import { type OAuthConsentContext, oauthResourceScopeLabels } from '@shared/schemas'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Check, ExternalLink, LockKeyhole, ShieldAlert, X } from 'lucide-react'
@@ -19,6 +19,10 @@ export const Route = createFileRoute('/oauth/consent')({ component: OAuthConsent
 
 function oauthQueryFromLocation(): string {
   return typeof window === 'undefined' ? '' : window.location.search.slice(1)
+}
+
+export function requestedConsentScopes(context: Pick<OAuthConsentContext, 'standardScopes' | 'scopes'>): string[] {
+  return [...context.standardScopes, ...context.scopes]
 }
 
 function OAuthConsentPage() {
@@ -69,6 +73,7 @@ function OAuthConsentPage() {
   }
 
   const context = consentQuery.data
+  const requestedScopes = requestedConsentScopes(context)
   const lifetimeDays = Math.round(context.grantLifetime.refreshTokenSeconds / 86400)
   const selectionLocked = context.requestedWorkspaceIds.length > 0
 
@@ -134,9 +139,11 @@ function OAuthConsentPage() {
         <section className="space-y-3">
           <h2 className="font-medium">{t('settings.oauthApps.oauthPermissions')}</h2>
           <div className="flex flex-wrap gap-2">
-            {context.scopes.map((scope) => (
+            {requestedScopes.map((scope) => (
               <Badge key={scope} variant="secondary">
-                {t(oauthResourceScopeLabels[scope])}
+                {scope in oauthResourceScopeLabels
+                  ? t(oauthResourceScopeLabels[scope as keyof typeof oauthResourceScopeLabels])
+                  : scope}
               </Badge>
             ))}
           </div>
