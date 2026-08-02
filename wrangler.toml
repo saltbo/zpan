@@ -27,6 +27,7 @@ limit = 3600
 period = 60
 
 [vars]
+ZPAN_CLOUD_URL = "https://cloud.zpan.space"
 ZPAN_CACHE_MODE = "distributed"
 
 [[send_email]]
