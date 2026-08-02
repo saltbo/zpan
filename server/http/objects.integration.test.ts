@@ -2362,7 +2362,7 @@ describe('Objects API — quota enforcement', () => {
       expect(quotaRows[0]).toEqual({ used: 140, quota: 100 })
     })
 
-    it('rejects upload preparation when storage entitlements are exhausted', async () => {
+    it('rejects upload preparation when no capacity offer can satisfy the request', async () => {
       const { app, db } = await createTestApp()
       await seedProLicense(db)
       const headers = await authedHeaders(app)
@@ -2390,15 +2390,13 @@ describe('Objects API — quota enforcement', () => {
       expect(storageRows[0].used).toBe(500)
     })
 
-    it('returns 422 before upload when the file would exceed quota', async () => {
+    it('returns 422 before upload when no capacity store is bound', async () => {
       const { app, db } = await createTestApp()
-      await seedProLicense(db)
       const headers = await authedHeaders(app)
       await insertStorage(db)
       const orgId = await getOrgId(db)
       // quota = 100, used = 90, file size = 50 → exceeds
       await setOrgQuota(db, orgId, 100, 90)
-      stubCapacityStoreWithoutOffers()
       const res = await createDraftResponse(app, headers, { name: 'toobig.txt', size: 50 })
       expect(res.status).toBe(422)
       const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }

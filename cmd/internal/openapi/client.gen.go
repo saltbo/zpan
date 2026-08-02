@@ -36633,6 +36633,7 @@ type CreateObjectResponse struct {
 	JSON402 *CapacityRequired
 	JSON403 *Error
 	JSON409 *Error
+	JSON422 *Error
 	JSON503 *Error
 }
 
@@ -54669,6 +54670,13 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest Error

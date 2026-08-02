@@ -244,6 +244,7 @@ const createObjectRoute = authRoute(
       400: errorResponse('No active organization or file too large'),
       403: errorResponse('Forbidden'),
       409: errorResponse('Name conflict'),
+      422: errorResponse('Quota exceeded without an eligible capacity offer'),
       503: errorResponse('No storage configured'),
     },
   },

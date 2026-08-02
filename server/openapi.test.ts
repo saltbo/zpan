@@ -524,6 +524,10 @@ describe('global OpenAPI document', () => {
       { cookieAuth: [] },
     ])
     expect(doc.paths['/api/objects']?.post?.responses?.['201']).toBeDefined()
+    expect(doc.paths['/api/objects']?.post?.responses?.['402']?.content?.['application/json']?.schema).toEqual({
+      $ref: '#/components/schemas/CapacityRequired',
+    })
+    expect(doc.paths['/api/objects']?.post?.responses?.['422']).toBeDefined()
     expect(doc.paths['/api/objects']?.post?.requestBody).toBeDefined()
     expect(doc.paths['/api/objects']?.post?.requestBody?.content?.['application/json']?.schema).toMatchObject({
       required: ['name'],
