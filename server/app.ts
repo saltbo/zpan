@@ -1,7 +1,7 @@
 import { release as osRelease } from 'node:os'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
-import { OAUTH_SCOPE_DESCRIPTIONS, OAUTH_SCOPES } from '@shared/oauth'
+import { OAUTH_RESOURCE_SCOPES, OAUTH_SCOPE_DESCRIPTIONS, OAUTH_SCOPES } from '@shared/oauth'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
@@ -258,6 +258,27 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       'x-zpan-discovery': {
         oauthAuthorizationServer: '/.well-known/oauth-authorization-server/api/auth',
         oauthProtectedResource: '/.well-known/oauth-protected-resource/api',
+      },
+      'x-cli-config': {
+        profiles: {
+          default: {
+            credentials: {
+              oauth2: {
+                auth: {
+                  type: 'api-key',
+                  params: {
+                    in: 'header',
+                    name: 'Authorization',
+                    value: 'DPoP',
+                    provider: 'realmroot-target',
+                    scopes: OAUTH_RESOURCE_SCOPES.join(' '),
+                  },
+                },
+                params: { provider: 'realmroot-target' },
+              },
+            },
+          },
+        },
       },
     })
 

@@ -131,7 +131,7 @@ describe('global OpenAPI document', () => {
     expect(await headResponse.text()).toBe('')
   })
 
-  it('publishes the external OAuth scope catalog without Restish profiles', async () => {
+  it('publishes the external OAuth scope catalog with delegated CLI authentication', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
@@ -141,7 +141,16 @@ describe('global OpenAPI document', () => {
           { type?: string; scheme?: string; flows?: { authorizationCode?: { scopes?: Record<string, string> } } }
         >
       }
-      'x-cli-config'?: unknown
+      'x-cli-config'?: {
+        profiles?: {
+          default?: {
+            credentials?: Record<
+              string,
+              { auth?: { params?: Record<string, unknown> }; params?: Record<string, unknown> }
+            >
+          }
+        }
+      }
     }
 
     expect(doc.components?.securitySchemes?.oauth2).toMatchObject({
@@ -161,7 +170,22 @@ describe('global OpenAPI document', () => {
       },
     })
     expect(doc.components?.securitySchemes?.agentApiKey).toBeUndefined()
-    expect(doc['x-cli-config']).toBeUndefined()
+    expect(doc['x-cli-config']?.profiles?.default?.credentials?.oauth2).toEqual({
+      auth: {
+        type: 'api-key',
+        params: {
+          in: 'header',
+          name: 'Authorization',
+          value: 'DPoP',
+          provider: 'realmroot-target',
+          scopes: expect.stringContaining(AuthorizationScope.OBJECTS_CREATE),
+        },
+      },
+      params: { provider: 'realmroot-target' },
+    })
+    expect(doc['x-cli-config']?.profiles?.default?.credentials?.oauth2.auth?.params?.scopes).not.toContain(
+      AuthorizationScope.OBJECTS_PURGE,
+    )
   })
 
   it('publishes scopes through authorization-server metadata without a duplicate catalog endpoint', async () => {
