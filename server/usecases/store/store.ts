@@ -396,12 +396,11 @@ export async function purchaseCapacity(
     ) {
       throw new Error('capacity_offer_not_found')
     }
-    const receiver = await unwrapCloudResponse(
-      await bound.client.stores[':storeId']['payment-methods'].x402.receiver.$get({
-        param: { storeId: bound.storeId },
-      }),
-      x402ReceiverSchema,
-    )
+    const receiverResponse = await bound.client.stores[':storeId']['payment-methods'].x402.receiver.$get({
+      param: { storeId: bound.storeId },
+    })
+    if (receiverResponse.status === 404) throw new Error('x402_receiver_not_found')
+    const receiver = await unwrapCloudResponse(receiverResponse, x402ReceiverSchema)
     if (receiver.status !== 'active') throw new Error('x402_receiver_not_active')
     return { ...bound, productId, priceId, product, price, receiver }
   })
