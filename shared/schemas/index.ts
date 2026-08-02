@@ -40,6 +40,7 @@ export {
   listBackgroundJobsQuerySchema,
 } from './background-jobs'
 export type {
+  CapacityPurchaseResult,
   CheckoutInput,
   CloudCreditBalanceResponse,
   CloudCreditBucket,
@@ -59,8 +60,12 @@ export type {
   GiftCardStatus,
   RedeemGiftCardInput,
   RedeemGiftCardResponse,
+  X402PaymentRequired,
 } from './cloud-store'
 export {
+  capacityPurchaseDeliveredResultSchema,
+  capacityPurchasePendingResultSchema,
+  capacityPurchaseResultSchema,
   checkoutInputSchema,
   cloudCreditBalanceResponseSchema,
   cloudCreditBucketSchema,
@@ -81,6 +86,7 @@ export {
   giftCardStatusSchema,
   redeemGiftCardInputSchema,
   redeemGiftCardResponseSchema,
+  x402PaymentRequiredSchema,
 } from './cloud-store'
 export type {
   CompleteObjectUploadInput,

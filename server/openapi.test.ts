@@ -497,6 +497,27 @@ describe('global OpenAPI document', () => {
       description: expect.stringContaining('same requestHash with a fresh idempotencyKey'),
       responses: { 429: expect.any(Object) },
     })
+    for (const [status, resultStatus] of [
+      ['200', 'delivered'],
+      ['202', 'pending'],
+    ]) {
+      expect(
+        doc.paths['/api/store/capacity-purchases/{resourceId}']?.post?.responses?.[status]?.content?.[
+          'application/json'
+        ]?.schema,
+      ).toMatchObject({
+        type: 'object',
+        required: ['attemptId', 'orderId', 'resourceId', 'requestHash', 'status'],
+        properties: { status: { type: 'string', enum: [resultStatus] } },
+      })
+    }
+    expect(
+      doc.paths['/api/store/capacity-purchases/{resourceId}']?.post?.responses?.['402']?.content?.['application/json']
+        ?.schema,
+    ).toMatchObject({
+      type: 'object',
+      required: ['x402Version', 'resource', 'accepts'],
+    })
     expect(doc.paths['/api/objects']?.post?.security).toEqual([
       { oauth2: [AuthorizationScope.OBJECTS_CREATE] },
       { bearerAuth: [] },

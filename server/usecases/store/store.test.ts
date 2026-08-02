@@ -779,7 +779,7 @@ describe('cloud-store usecase', () => {
         ok: true,
         kind: 'delivered',
         paymentResponseHeader: 'response-header',
-        attempt: { id: 'attempt-1', status: 'delivered' },
+        purchase: { attemptId: 'attempt-1', status: 'delivered' },
       })
       expect(requests[8]).toMatchObject({
         method: 'GET',
@@ -829,7 +829,7 @@ describe('cloud-store usecase', () => {
         ok: true,
         kind: 'delivered',
         paymentResponseHeader: 'response-header',
-        attempt: { id: 'attempt-1', status: 'delivered' },
+        purchase: { attemptId: 'attempt-1', status: 'delivered' },
       })
       expect(
         requests.filter((request) => request.path === 'stores/:storeId/orders/:orderId/x402/payment-attempts'),
@@ -862,7 +862,7 @@ describe('cloud-store usecase', () => {
         ok: true,
         kind: 'delivered',
         paymentResponseHeader: 'response-header',
-        attempt: { id: 'attempt-1', status: 'delivered' },
+        purchase: { attemptId: 'attempt-1', status: 'delivered' },
       })
       expect(
         requests.filter((request) => request.path === 'stores/:storeId/orders/:orderId/x402/payment-attempts'),
@@ -903,7 +903,7 @@ describe('cloud-store usecase', () => {
 
       const out = await purchaseCapacity(deps, CLOUD, { ...params, idempotencyKey: 'fresh-caller-key' })
 
-      expect(out).toMatchObject({ ok: true, kind: 'delivered', attempt: { status: 'delivered' } })
+      expect(out).toMatchObject({ ok: true, kind: 'delivered', purchase: { status: 'delivered' } })
       expect(requests).not.toContainEqual(
         expect.objectContaining({
           path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/verifications',

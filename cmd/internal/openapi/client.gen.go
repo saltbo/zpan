@@ -2199,19 +2199,19 @@ func (e GetApiAuthDeleteUserCallback200JSONResponseBodyMessage) Valid() bool {
 
 // Defines values for GetApiAuthDevice200JSONResponseBodyStatus.
 const (
-	Approved GetApiAuthDevice200JSONResponseBodyStatus = "approved"
-	Denied   GetApiAuthDevice200JSONResponseBodyStatus = "denied"
-	Pending  GetApiAuthDevice200JSONResponseBodyStatus = "pending"
+	GetApiAuthDevice200JSONResponseBodyStatusApproved GetApiAuthDevice200JSONResponseBodyStatus = "approved"
+	GetApiAuthDevice200JSONResponseBodyStatusDenied   GetApiAuthDevice200JSONResponseBodyStatus = "denied"
+	GetApiAuthDevice200JSONResponseBodyStatusPending  GetApiAuthDevice200JSONResponseBodyStatus = "pending"
 )
 
 // Valid indicates whether the value is a known member of the GetApiAuthDevice200JSONResponseBodyStatus enum.
 func (e GetApiAuthDevice200JSONResponseBodyStatus) Valid() bool {
 	switch e {
-	case Approved:
+	case GetApiAuthDevice200JSONResponseBodyStatusApproved:
 		return true
-	case Denied:
+	case GetApiAuthDevice200JSONResponseBodyStatusDenied:
 		return true
-	case Pending:
+	case GetApiAuthDevice200JSONResponseBodyStatusPending:
 		return true
 	default:
 		return false
@@ -4399,6 +4399,36 @@ func (e ListStorageUsageItems200JSONResponseBodyItemsSource) Valid() bool {
 	case ListStorageUsageItems200JSONResponseBodyItemsSourceImageHosting:
 		return true
 	case ListStorageUsageItems200JSONResponseBodyItemsSourceTrash:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PurchaseStorageCapacity200JSONResponseBodyStatus.
+const (
+	Delivered PurchaseStorageCapacity200JSONResponseBodyStatus = "delivered"
+)
+
+// Valid indicates whether the value is a known member of the PurchaseStorageCapacity200JSONResponseBodyStatus enum.
+func (e PurchaseStorageCapacity200JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case Delivered:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PurchaseStorageCapacity202JSONResponseBodyStatus.
+const (
+	PurchaseStorageCapacity202JSONResponseBodyStatusPending PurchaseStorageCapacity202JSONResponseBodyStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the PurchaseStorageCapacity202JSONResponseBodyStatus enum.
+func (e PurchaseStorageCapacity202JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case PurchaseStorageCapacity202JSONResponseBodyStatusPending:
 		return true
 	default:
 		return false
@@ -8822,6 +8852,12 @@ type PurchaseStorageCapacityJSONBody struct {
 type PurchaseStorageCapacityParams struct {
 	PaymentSignature *string `json:"payment-signature,omitempty"`
 }
+
+// PurchaseStorageCapacity200JSONResponseBodyStatus defines parameters for PurchaseStorageCapacity.
+type PurchaseStorageCapacity200JSONResponseBodyStatus string
+
+// PurchaseStorageCapacity202JSONResponseBodyStatus defines parameters for PurchaseStorageCapacity.
+type PurchaseStorageCapacity202JSONResponseBodyStatus string
 
 // CreateCheckoutJSONBody defines parameters for CreateCheckout.
 type CreateCheckoutJSONBody struct {
@@ -39095,14 +39131,47 @@ func (r CreateBillingPortalSessionResponse) ContentType() string {
 type PurchaseStorageCapacityResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *CloudStoreValue
-	JSON202      *CloudStoreValue
-	JSON400      *Error
-	JSON402      *CloudStoreValue
-	JSON403      *Error
-	JSON409      *Error
-	JSON429      *Error
-	JSON502      *Error
+	JSON200      *struct {
+		AttemptId   string                                           `json:"attemptId"`
+		OrderId     string                                           `json:"orderId"`
+		RequestHash string                                           `json:"requestHash"`
+		ResourceId  string                                           `json:"resourceId"`
+		Status      PurchaseStorageCapacity200JSONResponseBodyStatus `json:"status"`
+	}
+	JSON202 *struct {
+		AttemptId   string                                           `json:"attemptId"`
+		OrderId     string                                           `json:"orderId"`
+		RequestHash string                                           `json:"requestHash"`
+		ResourceId  string                                           `json:"resourceId"`
+		Status      PurchaseStorageCapacity202JSONResponseBodyStatus `json:"status"`
+	}
+	JSON400 *Error
+	JSON402 *struct {
+		Accepts []struct {
+			Amount            string                  `json:"amount"`
+			Asset             string                  `json:"asset"`
+			Extra             map[string]*interface{} `json:"extra"`
+			MaxTimeoutSeconds int                     `json:"maxTimeoutSeconds"`
+			Network           string                  `json:"network"`
+			PayTo             string                  `json:"payTo"`
+			Scheme            string                  `json:"scheme"`
+		} `json:"accepts"`
+		Error      *string                  `json:"error,omitempty"`
+		Extensions *map[string]*interface{} `json:"extensions,omitempty"`
+		Resource   struct {
+			Description *string   `json:"description,omitempty"`
+			IconUrl     *string   `json:"iconUrl,omitempty"`
+			MimeType    *string   `json:"mimeType,omitempty"`
+			ServiceName *string   `json:"serviceName,omitempty"`
+			Tags        *[]string `json:"tags,omitempty"`
+			Url         string    `json:"url"`
+		} `json:"resource"`
+		X402Version int `json:"x402Version"`
+	}
+	JSON403 *Error
+	JSON409 *Error
+	JSON429 *Error
+	JSON502 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -57346,14 +57415,26 @@ func ParsePurchaseStorageCapacityResponse(rsp *http.Response) (*PurchaseStorageC
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest CloudStoreValue
+		var dest struct {
+			AttemptId   string                                           `json:"attemptId"`
+			OrderId     string                                           `json:"orderId"`
+			RequestHash string                                           `json:"requestHash"`
+			ResourceId  string                                           `json:"resourceId"`
+			Status      PurchaseStorageCapacity200JSONResponseBodyStatus `json:"status"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
-		var dest CloudStoreValue
+		var dest struct {
+			AttemptId   string                                           `json:"attemptId"`
+			OrderId     string                                           `json:"orderId"`
+			RequestHash string                                           `json:"requestHash"`
+			ResourceId  string                                           `json:"resourceId"`
+			Status      PurchaseStorageCapacity202JSONResponseBodyStatus `json:"status"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -57367,7 +57448,28 @@ func ParsePurchaseStorageCapacityResponse(rsp *http.Response) (*PurchaseStorageC
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest CloudStoreValue
+		var dest struct {
+			Accepts []struct {
+				Amount            string                  `json:"amount"`
+				Asset             string                  `json:"asset"`
+				Extra             map[string]*interface{} `json:"extra"`
+				MaxTimeoutSeconds int                     `json:"maxTimeoutSeconds"`
+				Network           string                  `json:"network"`
+				PayTo             string                  `json:"payTo"`
+				Scheme            string                  `json:"scheme"`
+			} `json:"accepts"`
+			Error      *string                  `json:"error,omitempty"`
+			Extensions *map[string]*interface{} `json:"extensions,omitempty"`
+			Resource   struct {
+				Description *string   `json:"description,omitempty"`
+				IconUrl     *string   `json:"iconUrl,omitempty"`
+				MimeType    *string   `json:"mimeType,omitempty"`
+				ServiceName *string   `json:"serviceName,omitempty"`
+				Tags        *[]string `json:"tags,omitempty"`
+				Url         string    `json:"url"`
+			} `json:"resource"`
+			X402Version int `json:"x402Version"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
