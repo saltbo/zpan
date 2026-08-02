@@ -869,6 +869,12 @@ describe('Quota Store API', () => {
     })
     const response = (body: unknown) => ({ ok: true, status: 200, json: async () => body }) as Response
     const verified = { ...capacityAttempt(), status: 'verified', verifiedAt: '2026-07-30T00:01:00.000Z' }
+    const paidPending = {
+      ...capacityAttempt(),
+      status: 'paid_pending_fulfillment',
+      settlementResponseHeader: 'receipt-header',
+      settledAt: '2026-07-30T00:02:00.000Z',
+    }
     const delivered = {
       ...capacityAttempt(),
       status: 'delivered',
@@ -881,6 +887,8 @@ describe('Quota Store API', () => {
       .mockResolvedValueOnce(response(cloudProduct()))
       .mockResolvedValueOnce(response(capacityReceiver()))
       .mockResolvedValueOnce(response(verified))
+      .mockResolvedValueOnce(response(paidPending))
+      .mockResolvedValueOnce(response(paidPending))
       .mockResolvedValueOnce(response(capacityPublication()))
       .mockResolvedValueOnce(response(cloudProduct()))
       .mockResolvedValueOnce(response(capacityReceiver()))
