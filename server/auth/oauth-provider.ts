@@ -256,7 +256,11 @@ async function verifyAgentAssertion(
   let verified: Awaited<ReturnType<typeof jwtVerify>>
   try {
     verified = await jwtVerify(assertion, jwks, { audience: endpoint, maxTokenAge: '5m' })
-  } catch {
+  } catch (error) {
+    console.warn('Agent assertion verification failed', {
+      code: error instanceof Error && 'code' in error ? error.code : undefined,
+      message: error instanceof Error ? error.message : String(error),
+    })
     throw oauthError('invalid_grant', 'Agent assertion is invalid')
   }
   const issuer = requiredClaim(verified.payload.iss, 'assertion iss')
