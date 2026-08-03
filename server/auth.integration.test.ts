@@ -1,6 +1,6 @@
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations.js'
 import { createApp } from './app.js'
