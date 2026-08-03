@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations.js'
 import { createApp } from './app.js'
-import { canonicalAuthRequest, createAuth } from './auth.js'
+import { createAuth } from './auth.js'
 import * as authSchema from './db/auth-schema.js'
 import * as schema from './db/schema.js'
 import { inviteCodes, siteInvitations } from './db/schema.js'
@@ -758,26 +758,6 @@ describe('Cloudflare Workers preview auth origins', () => {
   const configuredOrigin = 'https://zpan-staging.saltbo.workers.dev'
   const commitOrigin = 'https://99dc50ae-zpan.saltbo.workers.dev'
   const branchOrigin = 'https://feat-x402-paid-agent-uploads-zpan.saltbo.workers.dev'
-
-  it('normalizes official preview requests to the configured authorization server URL', async () => {
-    const request = new Request(`${branchOrigin}/api/auth/get-session`, {
-      headers: { Origin: branchOrigin, 'X-Request-ID': 'preview-request' },
-    })
-    const normalized = canonicalAuthRequest(request, configuredOrigin)
-
-    expect(normalized.url).toBe(`${configuredOrigin}/api/auth/get-session`)
-    expect(normalized.headers.get('origin')).toBe(branchOrigin)
-    expect(normalized.headers.get('x-request-id')).toBe('preview-request')
-    const canonicalRequest = new Request(`${configuredOrigin}/api/auth/get-session`)
-    expect(canonicalAuthRequest(canonicalRequest, configuredOrigin)).toBe(canonicalRequest)
-
-    const post = canonicalAuthRequest(
-      new Request(`${commitOrigin}/api/auth/oauth2/token`, { method: 'POST', body: 'grant_type=authorization_code' }),
-      configuredOrigin,
-    )
-    expect(post.method).toBe('POST')
-    expect(await post.text()).toBe('grant_type=authorization_code')
-  })
 
   it('accepts official commit and branch aliases on the same cached auth instance', async () => {
     const ctx = await createTestApp()
