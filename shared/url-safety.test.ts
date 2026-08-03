@@ -31,6 +31,22 @@ describe('isBlockedUrlHost', () => {
     expect(isBlockedUrlHost('[::ffff:127.0.0.1]')).toBe(true)
   })
 
+  it('blocks IPv6 transition addresses that embed private IPv4 destinations', () => {
+    expect(isBlockedUrlHost('2002:7f00:1::')).toBe(true)
+    expect(isBlockedUrlHost('2002:a9fe:a9fe::')).toBe(true)
+    expect(isBlockedUrlHost('64:ff9b::c0a8:101')).toBe(true)
+    expect(isBlockedUrlHost('2001:0:4136:e378:8000:63bf:5601:5601')).toBe(true)
+    expect(isBlockedUrlHost('::ffff:0:a9fe:a9fe')).toBe(true)
+    expect(isBlockedUrlHost('::a9fe:a9fe')).toBe(true)
+  })
+
+  it('allows transition addresses that embed public IPv4 destinations', () => {
+    expect(isBlockedUrlHost('2002:808:808::')).toBe(false)
+    expect(isBlockedUrlHost('64:ff9b::808:808')).toBe(false)
+    expect(isBlockedUrlHost('2001:0:4136:e378:8000:63bf:f7f7:f7f7')).toBe(false)
+    expect(isBlockedUrlHost('::ffff:808:808')).toBe(false)
+  })
+
   it('allows public hosts', () => {
     expect(isBlockedUrlHost('example.com')).toBe(false)
     expect(isBlockedUrlHost('8.8.8.8')).toBe(false)
@@ -63,6 +79,8 @@ describe('isSafeHttpUrl', () => {
     expect(isSafeHttpUrl('http://localhost:8080/admin')).toBe(false)
     expect(isSafeHttpUrl('http://10.0.0.5/')).toBe(false)
     expect(isSafeHttpUrl('http://[::1]/')).toBe(false)
+    expect(isSafeHttpUrl('http://[2002:a9fe:a9fe::]/latest/meta-data/')).toBe(false)
+    expect(isSafeHttpUrl('http://[64:ff9b::a9fe:a9fe]/latest/meta-data/')).toBe(false)
   })
 
   it('rejects malformed URLs', () => {

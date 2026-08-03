@@ -29,16 +29,72 @@ function isBlockedIpv4(host: string): boolean {
   return false
 }
 
-function isBlockedIpv6(host: string): boolean {
-  const h = host.toLowerCase()
-  if (h === '::' || h === '::1') return true // unspecified / loopback
-  if (h.startsWith('fe8') || h.startsWith('fe9') || h.startsWith('fea') || h.startsWith('feb')) {
-    return true // fe80::/10 link-local
+function ipv6Groups(host: string): number[] | null {
+  let normalized = host.toLowerCase()
+  if (normalized.includes('.')) {
+    const separator = normalized.lastIndexOf(':')
+    const octets = ipv4Octets(normalized.slice(separator + 1))
+    if (separator < 0 || !octets) return null
+    normalized = `${normalized.slice(0, separator + 1)}${((octets[0] << 8) | octets[1]).toString(16)}:${(
+      (octets[2] << 8) | octets[3]
+    ).toString(16)}`
   }
-  if (h.startsWith('fc') || h.startsWith('fd')) return true // fc00::/7 unique local
-  const mapped = h.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/)
-  if (mapped) return isBlockedIpv4(mapped[1])
-  return false
+
+  const halves = normalized.split('::')
+  if (halves.length > 2) return null
+  const parseHalf = (half: string) => {
+    if (!half) return []
+    const groups = half.split(':')
+    if (groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return null
+    return groups.map((group) => Number.parseInt(group, 16))
+  }
+  const left = parseHalf(halves[0])
+  const right = parseHalf(halves[1] ?? '')
+  if (!left || !right) return null
+
+  const missing = 8 - left.length - right.length
+  if (halves.length === 1) return missing === 0 ? left : null
+  if (missing < 1) return null
+  return [...left, ...Array.from({ length: missing }, () => 0), ...right]
+}
+
+function embeddedIpv4(groups: number[]): string | null {
+  let high: number
+  let low: number
+
+  if (groups[0] === 0x2002) {
+    high = groups[1]
+    low = groups[2] // 6to4
+  } else if (groups[0] === 0x64 && groups[1] === 0xff9b && groups.slice(2, 6).every((group) => group === 0)) {
+    high = groups[6]
+    low = groups[7] // NAT64 well-known prefix
+  } else if (groups[0] === 0x2001 && groups[1] === 0) {
+    high = groups[6] ^ 0xffff
+    low = groups[7] ^ 0xffff // Teredo obscures the client IPv4 address
+  } else if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+    high = groups[6]
+    low = groups[7] // IPv4-mapped
+  } else if (groups.slice(0, 4).every((group) => group === 0) && groups[4] === 0xffff && groups[5] === 0) {
+    high = groups[6]
+    low = groups[7] // IPv4-translated
+  } else if (groups.slice(0, 6).every((group) => group === 0) && (groups[6] !== 0 || groups[7] > 1)) {
+    high = groups[6]
+    low = groups[7] // deprecated IPv4-compatible
+  } else {
+    return null
+  }
+
+  return `${high >>> 8}.${high & 0xff}.${low >>> 8}.${low & 0xff}`
+}
+
+function isBlockedIpv6(host: string): boolean {
+  const groups = ipv6Groups(host)
+  if (!groups) return false
+  if (groups.slice(0, 7).every((group) => group === 0) && groups[7] <= 1) return true
+  if ((groups[0] & 0xffc0) === 0xfe80) return true // link-local
+  if ((groups[0] & 0xfe00) === 0xfc00) return true // unique local
+  const embedded = embeddedIpv4(groups)
+  return embedded ? isBlockedIpv4(embedded) : false
 }
 
 /** True when `hostname` resolves to a non-routable / internal address we must not fetch. */
