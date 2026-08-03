@@ -55,6 +55,7 @@ import { CAPTCHA_AUTH_ENDPOINTS, type CaptchaConfig } from './domain/captcha'
 import { EMAIL_VERIFICATION_REQUIRED_OPTION_KEY, isEmailVerificationRequired } from './domain/email-verification'
 import { currentTrafficPeriod } from './domain/quota'
 import { recordAuditEffect } from './lib/audit'
+import { escapeHtml } from './lib/html'
 import { isLocalNetworkOrigin } from './lib/local-origin'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import { createDbProxy, createPlatformProxy } from './platform/context'
@@ -270,12 +271,13 @@ function buildInvitationEmailHtml(data: {
   inviter: { user: { name: string; email: string } }
   id: string
 }): string {
-  const orgName = data.organization.name
-  const inviterName = data.inviter.user.name || data.inviter.user.email
-  const acceptUrl = `/api/auth/organization/accept-invitation/${data.id}`
+  const orgName = escapeHtml(data.organization.name)
+  const inviterName = escapeHtml(data.inviter.user.name || data.inviter.user.email)
+  const role = escapeHtml(data.role)
+  const acceptUrl = escapeHtml(`/api/auth/organization/accept-invitation/${data.id}`)
   return `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
 <h2 style="margin:0 0 16px">You've been invited to join ${orgName}</h2>
-<p style="color:#555;line-height:1.5">${inviterName} has invited you to join <strong>${orgName}</strong> as <strong>${data.role}</strong>.</p>
+<p style="color:#555;line-height:1.5">${inviterName} has invited you to join <strong>${orgName}</strong> as <strong>${role}</strong>.</p>
 <a href="${acceptUrl}" style="display:inline-block;margin:24px 0;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px;font-weight:600">Accept Invitation</a>
 <p style="color:#999;font-size:13px">If you did not expect this invitation, you can safely ignore this email.</p>
 </div>`
@@ -483,7 +485,7 @@ export async function createAuth(
           if (!(await email.isConfigured(authPlatform))) return
           await email.send(authPlatform, {
             to: data.email,
-            subject: `You've been invited to join ${data.organization.name} - ZPan`,
+            subject: "You've been invited to join a ZPan organization",
             html: buildInvitationEmailHtml(data),
           })
         },
