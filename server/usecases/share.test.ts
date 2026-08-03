@@ -7,6 +7,7 @@ import {
   AppError,
   type AuditRepo,
   CreateShareError,
+  type EmailMessage,
   type Matter,
   type MatterListResult,
   type MatterRepo,
@@ -176,7 +177,7 @@ function makeDeps(
   // at the module boundary; instead its collaborator ports are spies and the
   // createShare tests assert the observable fan-out (notification + email).
   const createNotification = vi.fn(async () => ({}) as never)
-  const sendEmail = vi.fn(async () => {})
+  const sendEmail = vi.fn(async (_platform: Platform, _message: EmailMessage) => {})
   const isEmailConfigured = vi.fn(async () => true)
 
   const deps = {
@@ -944,8 +945,30 @@ describe('createShare', () => {
     )
     expect(sendEmail).toHaveBeenCalledWith(
       platform,
-      expect.objectContaining({ to: 'b@example.com', subject: 'Alice shared "doc.pdf" with you' }),
+      expect.objectContaining({ to: 'b@example.com', subject: 'A ZPan item was shared with you' }),
     )
+  })
+
+  it('escapes user-controlled names in share notification email HTML', async () => {
+    const { deps, sendEmail } = makeDeps({
+      share: {
+        getCreatorIdentity: async () => ({ name: '<img src=x onerror="alert(1)">', username: 'alice' }),
+        getMatterName: async () => '<a href="https://evil.example">Open</a>',
+      },
+    })
+    await createShare(deps, platform, {
+      orgId: 'o-1',
+      userId: 'creator-1',
+      input: { ...baseInput, recipients: [{ recipientEmail: 'b@example.com' }] },
+    })
+    await flushDispatch()
+
+    const message = sendEmail.mock.calls[0][1]
+    expect(message.subject).toBe('A ZPan item was shared with you')
+    expect(message.html).not.toContain('<img')
+    expect(message.html).not.toContain('<a href="https://evil.example">')
+    expect(message.html).toContain('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;')
+    expect(message.html).toContain('&lt;a href=&quot;https://evil.example&quot;&gt;Open&lt;/a&gt;')
   })
 
   it('falls back to Unknown creator / empty matter name', async () => {
@@ -960,7 +983,7 @@ describe('createShare', () => {
     await flushDispatch()
     expect(sendEmail).toHaveBeenCalledWith(
       platform,
-      expect.objectContaining({ to: 'b@example.com', subject: 'Unknown shared "" with you' }),
+      expect.objectContaining({ to: 'b@example.com', subject: 'A ZPan item was shared with you' }),
     )
   })
 

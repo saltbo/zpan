@@ -1664,8 +1664,8 @@ describe('sendInvitationEmail — buildInvitationEmailHtml via invite-member wit
     { key: 'email_http_api_key', value: 'my-api-key' },
   ]
 
-  async function setupOwnerAndOrg(ctx: TestCtx, email: string) {
-    const signUpRes = await signUp(ctx, email)
+  async function setupOwnerAndOrg(ctx: TestCtx, email: string, extra?: Record<string, unknown>) {
+    const signUpRes = await signUp(ctx, email, extra)
     const cookie = signUpRes.headers.getSetCookie().join('; ')
     const body = (await signUpRes.json()) as { user: { id: string } }
     const orgId = await personalOrgForUser(ctx, body.user.id)
@@ -1717,6 +1717,37 @@ describe('sendInvitationEmail — buildInvitationEmailHtml via invite-member wit
     expect(capturedHtml).toContain('member')
 
     vi.unstubAllGlobals()
+  })
+
+  it('escapes organization names in invitation email HTML and keeps them out of the subject', async () => {
+    const orgPayload = '<img src=x onerror="alert(1)">Evil & Co'
+    const inviterPayload = '<a href="https://evil.example">Fake Admin</a>'
+    let capturedMessage = { subject: '', html: '' }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        capturedMessage = JSON.parse(init?.body as string) as typeof capturedMessage
+        return { ok: true }
+      }),
+    )
+
+    const ctx = await createTestApp()
+    await ctx.db.insert(schema.systemOptions).values(emailProviderOptions)
+    const { cookie, orgId } = await setupOwnerAndOrg(ctx, 'html-inviter@example.com', { name: inviterPayload })
+    await ctx.db.update(authSchema.organization).set({ name: orgPayload }).where(eq(authSchema.organization.id, orgId))
+
+    const response = await ctx.app.request('/api/auth/organization/invite-member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: 'http://localhost:3000' },
+      body: JSON.stringify({ email: 'html-invitee@example.com', role: 'member', organizationId: orgId }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(capturedMessage.subject).toBe("You've been invited to join a ZPan organization")
+    expect(capturedMessage.html).not.toContain('<img')
+    expect(capturedMessage.html).not.toContain('<a href="https://evil.example">')
+    expect(capturedMessage.html).toContain('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;Evil &amp; Co')
+    expect(capturedMessage.html).toContain('&lt;a href=&quot;https://evil.example&quot;&gt;Fake Admin&lt;/a&gt;')
   })
 })
 

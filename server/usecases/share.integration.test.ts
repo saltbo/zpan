@@ -108,8 +108,9 @@ describe('dispatchShareCreated', () => {
     const callArgs = sendSpy.mock.calls[0]
     // send(platform, message) — second arg is the message
     expect(callArgs[1].to).toBe('dave@example.com')
-    expect(callArgs[1].subject).toContain('Eve')
-    expect(callArgs[1].subject).toContain('photo.jpg')
+    expect(callArgs[1].subject).toBe('A ZPan item was shared with you')
+    expect(callArgs[1].html).toContain('Eve')
+    expect(callArgs[1].html).toContain('photo.jpg')
   })
 
   it('looks up email from user table when recipient has only recipientUserId and email is configured', async () => {
