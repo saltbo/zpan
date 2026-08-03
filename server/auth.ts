@@ -173,6 +173,16 @@ export function officialWorkersPreviewOrigin(
   }
 }
 
+export function canonicalAuthRequest(request: Request, baseURL: string | undefined): Request {
+  const requestUrl = new URL(request.url)
+  if (!officialWorkersPreviewOrigin(baseURL, requestUrl.origin)) return request
+
+  const canonicalUrl = new URL(baseURL!)
+  requestUrl.protocol = canonicalUrl.protocol
+  requestUrl.host = canonicalUrl.host
+  return new Request(requestUrl, request)
+}
+
 // One query loads every oauth_provider_* row. Configs are snapshotted at auth
 // instance creation: better-auth resolves social providers eagerly during its
 // context init, so per-request dynamic loading is not possible anyway. Admin
@@ -951,15 +961,16 @@ export async function createAuth(
   const defaultAuth = await createAuthInstance(false)
   let verificationAuth: typeof defaultAuth | null = null
   const dynamicHandler = async (request: Request): Promise<Response> => {
-    if (!usesEmailVerificationPolicy(request)) return defaultAuth.handler(request)
+    const authRequest = canonicalAuthRequest(request, baseURL)
+    if (!usesEmailVerificationPolicy(authRequest)) return defaultAuth.handler(authRequest)
 
     const required = isEmailVerificationRequired(
       await systemOptionsRepo.getValue(EMAIL_VERIFICATION_REQUIRED_OPTION_KEY),
     )
-    if (!required) return defaultAuth.handler(request)
+    if (!required) return defaultAuth.handler(authRequest)
 
     verificationAuth ??= await createAuthInstance(true)
-    return verificationAuth.handler(request)
+    return verificationAuth.handler(authRequest)
   }
 
   return new Proxy(defaultAuth, {
