@@ -54,6 +54,7 @@ import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { initialStorageUsageProjectionQueries } from './adapters/repos/storage-usage-breakdown'
 import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import { recordUserActivity } from './adapters/repos/user-activity'
+import { handleOAuthClientRegistrationManagement } from './auth/oauth-client-registration-management'
 import { oauthPushedAuthorizationRequests } from './auth/oauth-par'
 import { createOAuthProviderOptions } from './auth/oauth-provider'
 import * as authSchema from './db/auth-schema'
@@ -951,15 +952,17 @@ export async function createAuth(
   const defaultAuth = await createAuthInstance(false)
   let verificationAuth: typeof defaultAuth | null = null
   const dynamicHandler = async (request: Request): Promise<Response> => {
-    if (!usesEmailVerificationPolicy(request)) return defaultAuth.handler(request)
+    const handle = (auth: typeof defaultAuth) =>
+      handleOAuthClientRegistrationManagement(request, db, (managedRequest) => auth.handler(managedRequest), baseURL)
+    if (!usesEmailVerificationPolicy(request)) return handle(defaultAuth)
 
     const required = isEmailVerificationRequired(
       await systemOptionsRepo.getValue(EMAIL_VERIFICATION_REQUIRED_OPTION_KEY),
     )
-    if (!required) return defaultAuth.handler(request)
+    if (!required) return handle(defaultAuth)
 
     verificationAuth ??= await createAuthInstance(true)
-    return verificationAuth.handler(request)
+    return handle(verificationAuth)
   }
 
   return new Proxy(defaultAuth, {

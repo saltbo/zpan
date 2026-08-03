@@ -164,6 +164,13 @@ const AUTH_SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS oauthClient_client_id_idx ON oauthClient(client_id);
   CREATE INDEX IF NOT EXISTS oauthClient_user_id_idx ON oauthClient(user_id);
+  CREATE TABLE IF NOT EXISTS oauthClientRegistration (
+    client_id TEXT PRIMARY KEY REFERENCES oauthClient(client_id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
+    updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
+  );
+  CREATE INDEX IF NOT EXISTS oauthClientRegistration_token_hash_idx ON oauthClientRegistration(token_hash);
   CREATE TABLE IF NOT EXISTS oauthResource (
     id TEXT PRIMARY KEY,
     identifier TEXT NOT NULL UNIQUE,

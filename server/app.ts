@@ -6,6 +6,7 @@ import { OAUTH_RESOURCE_SCOPES, OAUTH_SCOPE_DESCRIPTIONS } from '@shared/oauth'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
+import { addOAuthClientRegistrationManagementOpenApi } from './auth/oauth-client-registration-management'
 import { cacheServerTiming, runWithCacheEvents } from './cache/context'
 import { createDeps } from './composition'
 import { isPotentialWebDavPublicRequest, isWebDavPublicRequest } from './domain/webdav-public-url'
@@ -137,7 +138,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
 
   app.route('/api/auth/oauth2/authorization-details/catalog', oauthAuthorizationDetails)
 
-  app.on(['POST', 'GET', 'HEAD'], '/api/auth/*', async (c) => {
+  app.on(['POST', 'GET', 'HEAD', 'PUT', 'DELETE'], '/api/auth/*', async (c) => {
     const a = c.get('auth')
     const revokeRequest = c.req.path === '/api/auth/oauth2/revoke' ? c.req.raw.clone() : null
     const response = await a.handler(c.req.raw)
@@ -281,6 +282,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
         },
       },
     }
+    addOAuthClientRegistrationManagementOpenApi(doc)
     doc.components.schemas = {
       ...(authDoc.components?.schemas as typeof doc.components.schemas),
       ...doc.components.schemas,

@@ -11,7 +11,7 @@ describe('global OpenAPI document', () => {
     expect(res.status).toBe(200)
     const doc = (await res.json()) as {
       openapi: string
-      paths: Record<string, { get?: { tags?: string[] } }>
+      paths: Record<string, { get?: { tags?: string[] }; post?: Record<string, unknown> }>
       tags?: { name: string }[]
     }
     expect(doc.openapi).toBe('3.1.0')
@@ -32,6 +32,7 @@ describe('global OpenAPI document', () => {
         '/api/downloads/downloaders/{id}',
         '/api/events',
         '/api/auth/oauth2/authorization-details/catalog',
+        '/api/auth/oauth2/register/{clientId}',
         '/api/objects',
         '/api/objects/{id}',
         '/api/objects/{id}/uploads/{uploadSessionId}/parts',
@@ -45,6 +46,28 @@ describe('global OpenAPI document', () => {
     expect(doc.paths['/api/auth/oauth2/authorization-details/catalog']?.get).toMatchObject({
       operationId: 'listAuthorizationDetailsCatalog',
       security: [{ oauth2: [AuthorizationScope.WORKSPACES_DISCOVER] }],
+    })
+    expect(doc.paths['/api/auth/oauth2/register/{clientId}']).toMatchObject({
+      get: { operationId: 'getDynamicOAuthClientRegistration', security: [{ bearerAuth: [] }] },
+      put: { operationId: 'updateDynamicOAuthClientRegistration', security: [{ bearerAuth: [] }] },
+      delete: { operationId: 'deleteDynamicOAuthClientRegistration', security: [{ bearerAuth: [] }] },
+    })
+    expect(doc.paths['/api/auth/oauth2/register']?.post).toMatchObject({
+      responses: {
+        '201': {
+          content: {
+            'application/json': {
+              schema: {
+                properties: {
+                  registration_client_uri: { type: 'string', format: 'uri' },
+                  registration_access_token: { type: 'string' },
+                },
+                required: expect.arrayContaining(['registration_client_uri', 'registration_access_token']),
+              },
+            },
+          },
+        },
+      },
     })
   })
 

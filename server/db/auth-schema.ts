@@ -280,6 +280,24 @@ export const oauthClient = sqliteTable(
   (table) => [index('oauthClient_client_id_idx').on(table.clientId), index('oauthClient_user_id_idx').on(table.userId)],
 )
 
+export const oauthClientRegistration = sqliteTable(
+  'oauthClientRegistration',
+  {
+    clientId: text('client_id')
+      .primaryKey()
+      .references(() => oauthClient.clientId, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [index('oauthClientRegistration_token_hash_idx').on(table.tokenHash)],
+)
+
 export const oauthResource = sqliteTable(
   'oauthResource',
   {

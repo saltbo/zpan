@@ -7631,6 +7631,27 @@ type PostApiAuthOauth2Register201JSONResponseBodyResponseTypes string
 // PostApiAuthOauth2Register201JSONResponseBodyType defines parameters for PostApiAuthOauth2Register.
 type PostApiAuthOauth2Register201JSONResponseBodyType string
 
+// GetDynamicOAuthClientRegistration200JSONResponseBody defines parameters for GetDynamicOAuthClientRegistration.
+type GetDynamicOAuthClientRegistration200JSONResponseBody struct {
+	ClientId                string                 `json:"client_id"`
+	RegistrationAccessToken string                 `json:"registration_access_token"`
+	RegistrationClientUri   string                 `json:"registration_client_uri"`
+	Scope                   *string                `json:"scope,omitempty"`
+	AdditionalProperties    map[string]interface{} `json:"-"`
+}
+
+// UpdateDynamicOAuthClientRegistrationJSONBody defines parameters for UpdateDynamicOAuthClientRegistration.
+type UpdateDynamicOAuthClientRegistrationJSONBody map[string]interface{}
+
+// UpdateDynamicOAuthClientRegistration200JSONResponseBody defines parameters for UpdateDynamicOAuthClientRegistration.
+type UpdateDynamicOAuthClientRegistration200JSONResponseBody struct {
+	ClientId                string                 `json:"client_id"`
+	RegistrationAccessToken string                 `json:"registration_access_token"`
+	RegistrationClientUri   string                 `json:"registration_client_uri"`
+	Scope                   *string                `json:"scope,omitempty"`
+	AdditionalProperties    map[string]interface{} `json:"-"`
+}
+
 // PostApiAuthOauth2RevokeJSONBody defines parameters for PostApiAuthOauth2Revoke.
 type PostApiAuthOauth2RevokeJSONBody struct {
 	// ClientId OAuth2 client ID
@@ -9114,6 +9135,9 @@ type PostApiAuthOauth2PublicClientPreloginJSONRequestBody PostApiAuthOauth2Publi
 // PostApiAuthOauth2RegisterJSONRequestBody defines body for PostApiAuthOauth2Register for application/json ContentType.
 type PostApiAuthOauth2RegisterJSONRequestBody PostApiAuthOauth2RegisterJSONBody
 
+// UpdateDynamicOAuthClientRegistrationJSONRequestBody defines body for UpdateDynamicOAuthClientRegistration for application/json ContentType.
+type UpdateDynamicOAuthClientRegistrationJSONRequestBody UpdateDynamicOAuthClientRegistrationJSONBody
+
 // PostApiAuthOauth2RevokeJSONRequestBody defines body for PostApiAuthOauth2Revoke for application/json ContentType.
 type PostApiAuthOauth2RevokeJSONRequestBody PostApiAuthOauth2RevokeJSONBody
 
@@ -9377,6 +9401,220 @@ type GrantUserEntitlementJSONRequestBody GrantUserEntitlementJSONBody
 
 // UpdateUserEntitlementJSONRequestBody defines body for UpdateUserEntitlement for application/json ContentType.
 type UpdateUserEntitlementJSONRequestBody UpdateUserEntitlementJSONBody
+
+// Getter for additional properties for GetDynamicOAuthClientRegistration200JSONResponseBody. Returns the specified
+// element and whether it was found
+func (a GetDynamicOAuthClientRegistration200JSONResponseBody) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for GetDynamicOAuthClientRegistration200JSONResponseBody
+func (a *GetDynamicOAuthClientRegistration200JSONResponseBody) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for GetDynamicOAuthClientRegistration200JSONResponseBody to handle AdditionalProperties
+func (a *GetDynamicOAuthClientRegistration200JSONResponseBody) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["client_id"]; found {
+		err = json.Unmarshal(raw, &a.ClientId)
+		if err != nil {
+			return fmt.Errorf("error reading 'client_id': %w", err)
+		}
+		delete(object, "client_id")
+	}
+
+	if raw, found := object["registration_access_token"]; found {
+		err = json.Unmarshal(raw, &a.RegistrationAccessToken)
+		if err != nil {
+			return fmt.Errorf("error reading 'registration_access_token': %w", err)
+		}
+		delete(object, "registration_access_token")
+	}
+
+	if raw, found := object["registration_client_uri"]; found {
+		err = json.Unmarshal(raw, &a.RegistrationClientUri)
+		if err != nil {
+			return fmt.Errorf("error reading 'registration_client_uri': %w", err)
+		}
+		delete(object, "registration_client_uri")
+	}
+
+	if raw, found := object["scope"]; found {
+		err = json.Unmarshal(raw, &a.Scope)
+		if err != nil {
+			return fmt.Errorf("error reading 'scope': %w", err)
+		}
+		delete(object, "scope")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for GetDynamicOAuthClientRegistration200JSONResponseBody to handle AdditionalProperties
+func (a GetDynamicOAuthClientRegistration200JSONResponseBody) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	object["client_id"], err = json.Marshal(a.ClientId)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'client_id': %w", err)
+	}
+
+	object["registration_access_token"], err = json.Marshal(a.RegistrationAccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'registration_access_token': %w", err)
+	}
+
+	object["registration_client_uri"], err = json.Marshal(a.RegistrationClientUri)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'registration_client_uri': %w", err)
+	}
+
+	if a.Scope != nil {
+		object["scope"], err = json.Marshal(a.Scope)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'scope': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for UpdateDynamicOAuthClientRegistration200JSONResponseBody. Returns the specified
+// element and whether it was found
+func (a UpdateDynamicOAuthClientRegistration200JSONResponseBody) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for UpdateDynamicOAuthClientRegistration200JSONResponseBody
+func (a *UpdateDynamicOAuthClientRegistration200JSONResponseBody) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for UpdateDynamicOAuthClientRegistration200JSONResponseBody to handle AdditionalProperties
+func (a *UpdateDynamicOAuthClientRegistration200JSONResponseBody) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["client_id"]; found {
+		err = json.Unmarshal(raw, &a.ClientId)
+		if err != nil {
+			return fmt.Errorf("error reading 'client_id': %w", err)
+		}
+		delete(object, "client_id")
+	}
+
+	if raw, found := object["registration_access_token"]; found {
+		err = json.Unmarshal(raw, &a.RegistrationAccessToken)
+		if err != nil {
+			return fmt.Errorf("error reading 'registration_access_token': %w", err)
+		}
+		delete(object, "registration_access_token")
+	}
+
+	if raw, found := object["registration_client_uri"]; found {
+		err = json.Unmarshal(raw, &a.RegistrationClientUri)
+		if err != nil {
+			return fmt.Errorf("error reading 'registration_client_uri': %w", err)
+		}
+		delete(object, "registration_client_uri")
+	}
+
+	if raw, found := object["scope"]; found {
+		err = json.Unmarshal(raw, &a.Scope)
+		if err != nil {
+			return fmt.Errorf("error reading 'scope': %w", err)
+		}
+		delete(object, "scope")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for UpdateDynamicOAuthClientRegistration200JSONResponseBody to handle AdditionalProperties
+func (a UpdateDynamicOAuthClientRegistration200JSONResponseBody) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	object["client_id"], err = json.Marshal(a.ClientId)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'client_id': %w", err)
+	}
+
+	object["registration_access_token"], err = json.Marshal(a.RegistrationAccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'registration_access_token': %w", err)
+	}
+
+	object["registration_client_uri"], err = json.Marshal(a.RegistrationClientUri)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'registration_client_uri': %w", err)
+	}
+
+	if a.Scope != nil {
+		object["scope"], err = json.Marshal(a.Scope)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'scope': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
 
 // AsCloudflareSaasImageDomainSettingsCloudflare0 returns the union data inside the CloudflareSaasImageDomainSettings_Cloudflare as a CloudflareSaasImageDomainSettingsCloudflare0
 func (t CloudflareSaasImageDomainSettings_Cloudflare) AsCloudflareSaasImageDomainSettingsCloudflare0() (CloudflareSaasImageDomainSettingsCloudflare0, error) {
@@ -11292,6 +11530,17 @@ type ClientInterface interface {
 	PostApiAuthOauth2RegisterWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostApiAuthOauth2Register(ctx context.Context, body PostApiAuthOauth2RegisterJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteDynamicOAuthClientRegistration request
+	DeleteDynamicOAuthClientRegistration(ctx context.Context, clientId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetDynamicOAuthClientRegistration request
+	GetDynamicOAuthClientRegistration(ctx context.Context, clientId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateDynamicOAuthClientRegistrationWithBody request with any body
+	UpdateDynamicOAuthClientRegistrationWithBody(ctx context.Context, clientId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateDynamicOAuthClientRegistration(ctx context.Context, clientId string, body UpdateDynamicOAuthClientRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiAuthOauth2RevokeWithBody request with any body
 	PostApiAuthOauth2RevokeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -13233,6 +13482,54 @@ func (c *Client) PostApiAuthOauth2RegisterWithBody(ctx context.Context, contentT
 
 func (c *Client) PostApiAuthOauth2Register(ctx context.Context, body PostApiAuthOauth2RegisterJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiAuthOauth2RegisterRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteDynamicOAuthClientRegistration(ctx context.Context, clientId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteDynamicOAuthClientRegistrationRequest(c.Server, clientId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetDynamicOAuthClientRegistration(ctx context.Context, clientId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetDynamicOAuthClientRegistrationRequest(c.Server, clientId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateDynamicOAuthClientRegistrationWithBody(ctx context.Context, clientId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDynamicOAuthClientRegistrationRequestWithBody(c.Server, clientId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateDynamicOAuthClientRegistration(ctx context.Context, clientId string, body UpdateDynamicOAuthClientRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDynamicOAuthClientRegistrationRequest(c.Server, clientId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -19562,6 +19859,121 @@ func NewPostApiAuthOauth2RegisterRequestWithBody(server string, contentType stri
 	}
 
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteDynamicOAuthClientRegistrationRequest generates requests for DeleteDynamicOAuthClientRegistration
+func NewDeleteDynamicOAuthClientRegistrationRequest(server string, clientId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "clientId", clientId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/oauth2/register/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetDynamicOAuthClientRegistrationRequest generates requests for GetDynamicOAuthClientRegistration
+func NewGetDynamicOAuthClientRegistrationRequest(server string, clientId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "clientId", clientId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/oauth2/register/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateDynamicOAuthClientRegistrationRequest calls the generic UpdateDynamicOAuthClientRegistration builder with application/json body
+func NewUpdateDynamicOAuthClientRegistrationRequest(server string, clientId string, body UpdateDynamicOAuthClientRegistrationJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateDynamicOAuthClientRegistrationRequestWithBody(server, clientId, "application/json", bodyReader)
+}
+
+// NewUpdateDynamicOAuthClientRegistrationRequestWithBody generates requests for UpdateDynamicOAuthClientRegistration with any type of body
+func NewUpdateDynamicOAuthClientRegistrationRequestWithBody(server string, clientId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "clientId", clientId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/auth/oauth2/register/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -28571,6 +28983,17 @@ type ClientWithResponsesInterface interface {
 
 	PostApiAuthOauth2RegisterWithResponse(ctx context.Context, body PostApiAuthOauth2RegisterJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2RegisterResponse, error)
 
+	// DeleteDynamicOAuthClientRegistrationWithResponse request
+	DeleteDynamicOAuthClientRegistrationWithResponse(ctx context.Context, clientId string, reqEditors ...RequestEditorFn) (*DeleteDynamicOAuthClientRegistrationResponse, error)
+
+	// GetDynamicOAuthClientRegistrationWithResponse request
+	GetDynamicOAuthClientRegistrationWithResponse(ctx context.Context, clientId string, reqEditors ...RequestEditorFn) (*GetDynamicOAuthClientRegistrationResponse, error)
+
+	// UpdateDynamicOAuthClientRegistrationWithBodyWithResponse request with any body
+	UpdateDynamicOAuthClientRegistrationWithBodyWithResponse(ctx context.Context, clientId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDynamicOAuthClientRegistrationResponse, error)
+
+	UpdateDynamicOAuthClientRegistrationWithResponse(ctx context.Context, clientId string, body UpdateDynamicOAuthClientRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDynamicOAuthClientRegistrationResponse, error)
+
 	// PostApiAuthOauth2RevokeWithBodyWithResponse request with any body
 	PostApiAuthOauth2RevokeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2RevokeResponse, error)
 
@@ -32766,7 +33189,9 @@ type PostApiAuthOauth2RegisterResponse struct {
 		Public *bool `json:"public,omitempty"`
 
 		// RedirectUris List of allowed redirect uris
-		RedirectUris *[]string `json:"redirect_uris,omitempty"`
+		RedirectUris            *[]string `json:"redirect_uris,omitempty"`
+		RegistrationAccessToken string    `json:"registration_access_token"`
+		RegistrationClientUri   string    `json:"registration_client_uri"`
 
 		// ResponseTypes Response types the client may use at the authorization endpoint
 		ResponseTypes *[]PostApiAuthOauth2Register201JSONResponseBodyResponseTypes `json:"response_types,omitempty"`
@@ -32833,6 +33258,95 @@ func (r PostApiAuthOauth2RegisterResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PostApiAuthOauth2RegisterResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteDynamicOAuthClientRegistrationResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteDynamicOAuthClientRegistrationResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteDynamicOAuthClientRegistrationResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteDynamicOAuthClientRegistrationResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetDynamicOAuthClientRegistrationResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GetDynamicOAuthClientRegistration200JSONResponseBody
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDynamicOAuthClientRegistrationResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDynamicOAuthClientRegistrationResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetDynamicOAuthClientRegistrationResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateDynamicOAuthClientRegistrationResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *UpdateDynamicOAuthClientRegistration200JSONResponseBody
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateDynamicOAuthClientRegistrationResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateDynamicOAuthClientRegistrationResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateDynamicOAuthClientRegistrationResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -41306,6 +41820,41 @@ func (c *ClientWithResponses) PostApiAuthOauth2RegisterWithResponse(ctx context.
 	return ParsePostApiAuthOauth2RegisterResponse(rsp)
 }
 
+// DeleteDynamicOAuthClientRegistrationWithResponse request returning *DeleteDynamicOAuthClientRegistrationResponse
+func (c *ClientWithResponses) DeleteDynamicOAuthClientRegistrationWithResponse(ctx context.Context, clientId string, reqEditors ...RequestEditorFn) (*DeleteDynamicOAuthClientRegistrationResponse, error) {
+	rsp, err := c.DeleteDynamicOAuthClientRegistration(ctx, clientId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteDynamicOAuthClientRegistrationResponse(rsp)
+}
+
+// GetDynamicOAuthClientRegistrationWithResponse request returning *GetDynamicOAuthClientRegistrationResponse
+func (c *ClientWithResponses) GetDynamicOAuthClientRegistrationWithResponse(ctx context.Context, clientId string, reqEditors ...RequestEditorFn) (*GetDynamicOAuthClientRegistrationResponse, error) {
+	rsp, err := c.GetDynamicOAuthClientRegistration(ctx, clientId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetDynamicOAuthClientRegistrationResponse(rsp)
+}
+
+// UpdateDynamicOAuthClientRegistrationWithBodyWithResponse request with arbitrary body returning *UpdateDynamicOAuthClientRegistrationResponse
+func (c *ClientWithResponses) UpdateDynamicOAuthClientRegistrationWithBodyWithResponse(ctx context.Context, clientId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDynamicOAuthClientRegistrationResponse, error) {
+	rsp, err := c.UpdateDynamicOAuthClientRegistrationWithBody(ctx, clientId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDynamicOAuthClientRegistrationResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateDynamicOAuthClientRegistrationWithResponse(ctx context.Context, clientId string, body UpdateDynamicOAuthClientRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDynamicOAuthClientRegistrationResponse, error) {
+	rsp, err := c.UpdateDynamicOAuthClientRegistration(ctx, clientId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDynamicOAuthClientRegistrationResponse(rsp)
+}
+
 // PostApiAuthOauth2RevokeWithBodyWithResponse request with arbitrary body returning *PostApiAuthOauth2RevokeResponse
 func (c *ClientWithResponses) PostApiAuthOauth2RevokeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiAuthOauth2RevokeResponse, error) {
 	rsp, err := c.PostApiAuthOauth2RevokeWithBody(ctx, contentType, body, reqEditors...)
@@ -49014,7 +49563,9 @@ func ParsePostApiAuthOauth2RegisterResponse(rsp *http.Response) (*PostApiAuthOau
 			Public *bool `json:"public,omitempty"`
 
 			// RedirectUris List of allowed redirect uris
-			RedirectUris *[]string `json:"redirect_uris,omitempty"`
+			RedirectUris            *[]string `json:"redirect_uris,omitempty"`
+			RegistrationAccessToken string    `json:"registration_access_token"`
+			RegistrationClientUri   string    `json:"registration_client_uri"`
 
 			// ResponseTypes Response types the client may use at the authorization endpoint
 			ResponseTypes *[]PostApiAuthOauth2Register201JSONResponseBodyResponseTypes `json:"response_types,omitempty"`
@@ -49101,6 +49652,74 @@ func ParsePostApiAuthOauth2RegisterResponse(rsp *http.Response) (*PostApiAuthOau
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteDynamicOAuthClientRegistrationResponse parses an HTTP response from a DeleteDynamicOAuthClientRegistrationWithResponse call
+func ParseDeleteDynamicOAuthClientRegistrationResponse(rsp *http.Response) (*DeleteDynamicOAuthClientRegistrationResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteDynamicOAuthClientRegistrationResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetDynamicOAuthClientRegistrationResponse parses an HTTP response from a GetDynamicOAuthClientRegistrationWithResponse call
+func ParseGetDynamicOAuthClientRegistrationResponse(rsp *http.Response) (*GetDynamicOAuthClientRegistrationResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDynamicOAuthClientRegistrationResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GetDynamicOAuthClientRegistration200JSONResponseBody
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateDynamicOAuthClientRegistrationResponse parses an HTTP response from a UpdateDynamicOAuthClientRegistrationWithResponse call
+func ParseUpdateDynamicOAuthClientRegistrationResponse(rsp *http.Response) (*UpdateDynamicOAuthClientRegistrationResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateDynamicOAuthClientRegistrationResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest UpdateDynamicOAuthClientRegistration200JSONResponseBody
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	}
 

@@ -874,9 +874,12 @@ describe('OAuth consent guards', () => {
     expect(body).toMatchObject({
       client_id: expect.any(String),
       client_secret: expect.any(String),
+      registration_access_token: expect.stringMatching(/^zpr_/),
+      registration_client_uri: expect.stringMatching(/^http:\/\/localhost:3000\/api\/auth\/oauth2\/register\//),
       token_endpoint_auth_method: 'client_secret_basic',
       authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
     })
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
     expect(String(body.scope).split(' ')).toEqual(
       expect.arrayContaining(['openid', 'offline_access', 'workspaces:discover', 'objects:read']),
     )
@@ -896,6 +899,106 @@ describe('OAuth consent guards', () => {
         }),
       ]),
     )
+  })
+
+  it('reads, replaces, and deletes a dynamic client through its RFC 7592 configuration endpoint', async () => {
+    const ctx = await createTestApp()
+    const registration = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Managed Broker',
+        redirect_uris: ['https://broker.example.com/oauth/callback'],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_basic',
+        scope: 'openid offline_access',
+      }),
+    })
+    const registered = (await registration.json()) as {
+      client_id: string
+      client_secret: string
+      registration_access_token: string
+      registration_client_uri: string
+    }
+    const authorization = { Authorization: `Bearer ${registered.registration_access_token}` }
+    const [storedManagementCredential] = await ctx.db.select().from(authSchema.oauthClientRegistration)
+    expect(storedManagementCredential).toMatchObject({ clientId: registered.client_id })
+    expect(storedManagementCredential?.tokenHash).not.toBe(registered.registration_access_token)
+
+    const unauthenticated = await ctx.app.request(registered.registration_client_uri)
+    expect(unauthenticated.status).toBe(401)
+    expect(unauthenticated.headers.get('WWW-Authenticate')).toContain('invalid_token')
+
+    const read = await ctx.app.request(registered.registration_client_uri, { headers: authorization })
+    expect(read.status).toBe(200)
+    const current = (await read.json()) as Record<string, unknown>
+    expect(current).toMatchObject({
+      client_id: registered.client_id,
+      client_name: 'Managed Broker',
+      registration_access_token: registered.registration_access_token,
+      registration_client_uri: registered.registration_client_uri,
+    })
+    expect(current).not.toHaveProperty('client_secret')
+
+    const update = await ctx.app.request(registered.registration_client_uri, {
+      method: 'PUT',
+      headers: { ...authorization, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: registered.client_id,
+        client_secret: registered.client_secret,
+        client_name: 'Managed Broker v2',
+        redirect_uris: ['https://broker.example.com/oauth/callback-v2'],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_basic',
+        scope: 'openid offline_access workspaces:discover',
+        authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
+      }),
+    })
+    const updated = (await update.json()) as Record<string, unknown>
+    expect(update.status, JSON.stringify(updated)).toBe(200)
+    expect(updated).toMatchObject({
+      client_id: registered.client_id,
+      client_name: 'Managed Broker v2',
+      redirect_uris: ['https://broker.example.com/oauth/callback-v2'],
+      scope: 'openid offline_access workspaces:discover',
+      authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
+    })
+    expect(updated).not.toHaveProperty('client_secret')
+
+    const forbiddenServerMetadata = await ctx.app.request(registered.registration_client_uri, {
+      method: 'PUT',
+      headers: { ...authorization, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: registered.client_id, registration_access_token: 'replacement' }),
+    })
+    expect(forbiddenServerMetadata.status).toBe(400)
+    await expect(forbiddenServerMetadata.json()).resolves.toMatchObject({ error: 'invalid_client_metadata' })
+
+    const wrongSecret = await ctx.app.request(registered.registration_client_uri, {
+      method: 'PUT',
+      headers: { ...authorization, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: registered.client_id,
+        client_secret: 'not-the-issued-secret',
+        redirect_uris: ['https://broker.example.com/oauth/callback-v2'],
+        grant_types: ['authorization_code'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_basic',
+      }),
+    })
+    expect(wrongSecret.status).toBe(400)
+
+    const deleted = await ctx.app.request(registered.registration_client_uri, {
+      method: 'DELETE',
+      headers: authorization,
+    })
+    expect(deleted.status).toBe(204)
+    expect(deleted.headers.get('Cache-Control')).toBe('no-store')
+
+    const readDeleted = await ctx.app.request(registered.registration_client_uri, { headers: authorization })
+    expect(readDeleted.status).toBe(401)
+    expect(await ctx.db.select().from(authSchema.oauthClientRegistration)).toEqual([])
   })
 
   it('rejects unsupported authorization detail types during dynamic client registration', async () => {

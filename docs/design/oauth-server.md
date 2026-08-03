@@ -32,6 +32,7 @@ Starting from `https://zpan.example/api`, clients discover:
 | Protected resource metadata | `/.well-known/oauth-protected-resource/api` |
 | Authorization server metadata | `/.well-known/oauth-authorization-server/api/auth` |
 | Dynamic client registration | `/api/auth/oauth2/register` |
+| Dynamic client registration management (RFC 7592) | URI returned as `registration_client_uri` |
 | Pushed authorization requests | `/api/auth/oauth2/par` |
 
 Authorization-server metadata advertises `scopes_supported`,
@@ -41,12 +42,23 @@ catalog endpoint. RFC 7591 clients can register `authorization_details_types`;
 ZPan persists and echoes supported values and rejects unknown types as invalid
 client metadata.
 
+New dynamic registrations also receive an opaque `registration_access_token`
+and a client-specific `registration_client_uri`. The token is stored only as a
+hash and authenticates RFC 7592 `GET`, full-replacement `PUT`, and `DELETE`
+operations. Configuration reads and updates never return the OAuth
+`client_secret`; the secret is returned only when initially issued. Clients
+registered before RFC 7592 support remain valid but do not gain a management
+credential retroactively. A controller that needs to change such a registration
+creates a new registration generation and leaves existing connections pinned to
+their original client identity until they are reconnected.
+
 OpenAPI uses standard `security` declarations. Every protected ZPan operation
 declares its OAuth scopes, plus cookie and bearer alternatives. Role constraints
 that OpenAPI cannot express use the narrow
 `x-zpan-authorization-constraints` extension. Better Auth operations and their
-generated OpenAPI definitions remain owned by Better Auth and are not rewritten
-by ZPan.
+generated OpenAPI definitions remain owned by Better Auth. ZPan augments the
+dynamic-registration response and adds the RFC 7592 configuration endpoint that
+is implemented at its auth boundary.
 
 ## Workspace Authorization Details
 

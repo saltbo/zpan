@@ -4,6 +4,7 @@ import {
   downloaderBootstrapCredential,
   oauthAccessToken,
   oauthClient,
+  oauthClientRegistration,
   oauthConsent,
   oauthPushedAuthorizationRequest,
   oauthRefreshToken,
@@ -108,6 +109,17 @@ describe('OAuth tables', () => {
       'oauthClient_client_id_idx',
       'oauthClient_user_id_idx',
     ])
+  })
+
+  it('stores hashed dynamic registration management credentials', () => {
+    const { foreignKeys, indexes } = getTableConfig(oauthClientRegistration)
+
+    expect(oauthClientRegistration.clientId.name).toBe('client_id')
+    expect(oauthClientRegistration.tokenHash.name).toBe('token_hash')
+    expect(oauthClientRegistration.tokenHash.notNull).toBe(true)
+    expect(oauthClientRegistration.tokenHash.isUnique).toBe(true)
+    expect(foreignKeys[0]?.reference().foreignColumns[0].name).toBe('client_id')
+    expect(indexes.map((index) => index.config.name)).toEqual(['oauthClientRegistration_token_hash_idx'])
   })
 
   it('declares refresh-token relationships and lookup indexes', () => {
