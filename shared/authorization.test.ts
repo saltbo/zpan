@@ -6,7 +6,7 @@ import {
   CANONICAL_AUTHORIZATION_SCOPES,
   scopePermissions,
 } from './authorization'
-import { OAUTH_RESOURCE_SCOPES } from './oauth'
+import { OAUTH_ACCOUNT_SCOPES, OAUTH_RESOURCE_SCOPES } from './oauth'
 
 describe('authorization scope registry', () => {
   it('uses lowercase resource:action scopes without wildcard semantics', () => {
@@ -24,6 +24,11 @@ describe('authorization scope registry', () => {
     expect(CANONICAL_AUTHORIZATION_SCOPES).toContain(AuthorizationScope.OBJECTS_PURGE)
     expect(OAUTH_RESOURCE_SCOPES).not.toContain(AuthorizationScope.OBJECTS_PURGE)
     expect(scopePermissions([AuthorizationScope.OBJECTS_DELETE])).toEqual({ objects: ['delete'] })
+  })
+
+  it('keeps account workspace discovery out of Agent target scopes', () => {
+    expect(OAUTH_ACCOUNT_SCOPES).toEqual([AuthorizationScope.WORKSPACES_DISCOVER])
+    expect(OAUTH_RESOURCE_SCOPES).not.toContain(AuthorizationScope.WORKSPACES_DISCOVER)
   })
 
   it('does not grant share mutation scopes to user-wide WebDAV app passwords', () => {

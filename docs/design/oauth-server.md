@@ -70,6 +70,16 @@ token, and refresh-token family. It is returned in token responses and appears
 as the top-level `authorization_details` claim in JWT access tokens. Refresh
 rotation preserves it.
 
+Connected-account clients may request the account-only `workspaces:discover`
+scope. Authorization-server metadata advertises both
+`authorization_details_catalog_endpoint` and
+`authorization_details_catalog_scope`, allowing a generic broker to discover
+the required scope and catalog URL without knowing ZPan routes. The catalog
+accepts only the connected account's subject Bearer token and returns the
+workspace authorization detail plus a safe display label and metadata for the
+workspace `type` and current membership `role`. It does not accept Agent target
+tokens and grants no access to workspace files or data.
+
 One connected-account subject token may contain multiple approved workspaces.
 Each RFC 8693 token-exchange request must select exactly one approved workspace;
 the resulting Agent token therefore always has exactly one workspace detail.

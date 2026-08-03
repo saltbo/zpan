@@ -39,6 +39,29 @@ export function createOAuthGateway(): OAuthGateway {
       } satisfies OAuthClient
     },
 
+    async resolveAccountAccessToken(db, token, now = new Date()) {
+      const storedToken = await hashOAuthToken(token)
+      const [row] = await db
+        .select({
+          clientId: oauthAccessToken.clientId,
+          userId: oauthAccessToken.userId,
+          scopes: oauthAccessToken.scopes,
+          clientDisabled: oauthClient.disabled,
+        })
+        .from(oauthAccessToken)
+        .innerJoin(oauthClient, eq(oauthClient.clientId, oauthAccessToken.clientId))
+        .where(
+          and(
+            eq(oauthAccessToken.token, storedToken),
+            isNull(oauthAccessToken.revoked),
+            gt(oauthAccessToken.expiresAt, now),
+          ),
+        )
+        .limit(1)
+      if (!row?.userId || row.clientDisabled === true) return null
+      return { clientId: row.clientId, userId: row.userId, scopes: parseScopes(row.scopes) }
+    },
+
     async listRegisteredApplications(db) {
       const rows = await db
         .select({
@@ -187,4 +210,10 @@ function toIso(value: Date | number | string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) throw new Error('invalid_oauth_date')
   return date.toISOString()
+}
+
+async function hashOAuthToken(token: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)))
+  const base64 = btoa(String.fromCharCode(...digest))
+  return base64.replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
 }

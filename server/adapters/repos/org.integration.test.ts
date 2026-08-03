@@ -102,3 +102,19 @@ describe('findPersonalOrg', () => {
     expect(result).toBeNull()
   })
 })
+
+describe('listUserWorkspaceCatalog', () => {
+  it('returns current memberships with safe type and role metadata', async () => {
+    const { db } = await createTestApp()
+    const userId = await insertUser(db)
+    const personalId = await insertOrg(db, { metadata: '{"type":"personal"}' })
+    const teamId = await insertOrg(db, { slug: 'team-workspace' })
+    await insertMember(db, personalId, userId)
+    await insertMember(db, teamId, userId)
+
+    await expect(createOrgRepo(db).listUserWorkspaceCatalog(userId)).resolves.toEqual([
+      { id: personalId, name: 'Test Org', type: 'personal', role: 'owner' },
+      { id: teamId, name: 'Test Org', type: 'organization', role: 'owner' },
+    ])
+  })
+})

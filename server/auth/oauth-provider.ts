@@ -16,6 +16,7 @@ import {
   OAUTH_ACCESS_TOKEN_TYPE,
   OAUTH_ACTOR_TOKEN_SECONDS,
   OAUTH_REFRESH_TOKEN_SECONDS,
+  OAUTH_RESOURCE_SCOPES,
   OAUTH_SCOPES,
   OAUTH_STANDARD_SCOPES,
   TOKEN_EXCHANGE_GRANT_TYPE,
@@ -61,6 +62,7 @@ export function createOAuthProviderOptions(input: {
     grantTypes: ['authorization_code', 'refresh_token'],
     scopes: [...OAUTH_SCOPES],
     resources,
+    resourceSeedMode: 'merge',
     enforcePerClientResources: false,
     allowDynamicClientRegistration: true,
     allowUnauthenticatedClientRegistration: true,
@@ -154,7 +156,12 @@ function externalResourceGrantExtension(resourceAudience: string): OAuthProvider
       [TOKEN_EXCHANGE_GRANT_TYPE]: async ({ ctx, provider }) => {
         if (!ctx.headers?.get('dpop')) throw oauthError('invalid_dpop_proof', 'DPoP proof header is required')
         const requestedScopes = uniqueScopes(bodyString(ctx.body, 'scope'))
-        if (requestedScopes.length === 0 || requestedScopes.some((scope) => !isAuthorizationScope(scope))) {
+        if (
+          requestedScopes.length === 0 ||
+          requestedScopes.some(
+            (scope) => !isAuthorizationScope(scope) || !(OAUTH_RESOURCE_SCOPES as readonly string[]).includes(scope),
+          )
+        ) {
           throw oauthError('invalid_scope', 'Token exchange requires ZPan API scopes')
         }
         requireTokenType(ctx.body, 'subject_token_type')

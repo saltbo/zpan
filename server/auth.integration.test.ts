@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { AuthorizationScope } from '@shared/authorization'
 import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import { deriveDpopAth } from 'better-auth/oauth2'
@@ -739,6 +740,24 @@ describe('loadProviderConfigs — builtin social provider resolution', () => {
     expect(selectCalls).toBe(3)
   })
 
+  it('refreshes configured OAuth resource scopes on an existing database', async () => {
+    const ctx = await createTestApp()
+    const identifier = 'http://localhost:3000/api'
+    await ctx.db
+      .update(authSchema.oauthResource)
+      .set({ allowedScopes: JSON.stringify(['openid', 'offline_access']) })
+      .where(eq(authSchema.oauthResource.identifier, identifier))
+
+    await createAuth(ctx.platform, 'test-secret', 'http://localhost:3000')
+
+    const [resource] = await ctx.db
+      .select({ allowedScopes: authSchema.oauthResource.allowedScopes })
+      .from(authSchema.oauthResource)
+      .where(eq(authSchema.oauthResource.identifier, identifier))
+      .limit(1)
+    expect(JSON.parse(resource?.allowedScopes ?? '[]')).toContain(AuthorizationScope.WORKSPACES_DISCOVER)
+  })
+
   it('createAuth resolves better-auth $context before returning', async () => {
     // A cached auth instance must never carry a pending init promise: on
     // Cloudflare Workers a promise created in one request never settles when
@@ -818,6 +837,8 @@ describe('OAuth consent guards', () => {
     })
     await expect(authorizationServer.json()).resolves.toMatchObject({
       registration_endpoint: 'http://localhost:3000/api/auth/oauth2/register',
+      authorization_details_catalog_endpoint: 'http://localhost:3000/api/auth/oauth2/authorization-details/catalog',
+      authorization_details_catalog_scope: AuthorizationScope.WORKSPACES_DISCOVER,
       grant_types_supported: expect.arrayContaining([
         'urn:ietf:params:oauth:grant-type:jwt-bearer',
         'urn:ietf:params:oauth:grant-type:token-exchange',
@@ -856,7 +877,9 @@ describe('OAuth consent guards', () => {
       token_endpoint_auth_method: 'client_secret_basic',
       authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
     })
-    expect(String(body.scope).split(' ')).toEqual(expect.arrayContaining(['openid', 'offline_access', 'objects:read']))
+    expect(String(body.scope).split(' ')).toEqual(
+      expect.arrayContaining(['openid', 'offline_access', 'workspaces:discover', 'objects:read']),
+    )
 
     const applicationsResponse = await ctx.app.request('/api/site/auth-providers', {
       headers: await adminHeaders(ctx.app),
@@ -1010,7 +1033,7 @@ describe('OAuth consent guards', () => {
     const verifier = 'external-resource-verifier-with-sufficient-entropy-1234567890'
     const challenge = createHash('sha256').update(verifier).digest('base64url')
     const redirectUri = 'https://broker.example.com/api/account-connections/oauth/callback'
-    const scope = 'openid offline_access objects:read quota:read'
+    const scope = 'openid offline_access workspaces:discover objects:read quota:read'
     const authorizeParams = new URLSearchParams({
       client_id: registered.client_id,
       redirect_uri: redirectUri,
@@ -1065,6 +1088,24 @@ describe('OAuth consent guards', () => {
     expect(subject.authorization_details).toEqual([
       { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: workspaceId },
     ])
+    const catalogResponse = await ctx.app.request(
+      'http://localhost:3000/api/auth/oauth2/authorization-details/catalog',
+      {
+        headers: { Authorization: `Bearer ${subject.access_token}` },
+      },
+    )
+    expect(catalogResponse.status).toBe(200)
+    await expect(catalogResponse.json()).resolves.toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          authorizationDetail: { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: workspaceId },
+          display: expect.objectContaining({
+            label: expect.any(String),
+            metadata: { type: 'personal', role: 'owner' },
+          }),
+        }),
+      ]),
+    })
 
     const reusedVerifier = 'reused-consent-verifier-with-sufficient-entropy-1234567890'
     const reusedParams = new URLSearchParams(authorizeParams)

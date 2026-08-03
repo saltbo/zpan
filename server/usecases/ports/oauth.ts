@@ -21,6 +21,12 @@ export interface OAuthClient {
   scopes: string[]
 }
 
+export interface OAuthAccountAccessToken {
+  clientId: string
+  userId: string
+  scopes: AuthorizationScope[]
+}
+
 export interface RegisteredOAuthApplication {
   clientId: string
   name: string
@@ -34,6 +40,7 @@ export interface RegisteredOAuthApplication {
 
 export interface OAuthGateway {
   findClient(db: Database, clientId: string): Promise<OAuthClient | null>
+  resolveAccountAccessToken(db: Database, token: string, now?: Date): Promise<OAuthAccountAccessToken | null>
   listRegisteredApplications(db: Database): Promise<RegisteredOAuthApplication[]>
   revokeJwtAccessToken(db: Database, token: string): Promise<void>
   isJwtAccessTokenRevoked(db: Database, tokenId: string): Promise<boolean>

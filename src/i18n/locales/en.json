@@ -1209,6 +1209,7 @@
   "settings.apiKeys.manage": "Manage API Keys",
   "settings.oauthApps.workspaceLabel": "Workspace",
   "settings.oauthApps.scope.objectsRead": "Files: read objects",
+  "settings.oauthApps.scope.workspacesDiscover": "Workspaces: discover accessible workspaces",
   "settings.oauthApps.scope.objectsCreate": "Files: create objects",
   "settings.oauthApps.scope.objectsUpdate": "Files: update objects",
   "settings.oauthApps.scope.objectsDelete": "Files: delete objects",

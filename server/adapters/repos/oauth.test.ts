@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto'
 import { AuthorizationScope } from '@shared/authorization'
 import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
-import { isNull } from 'drizzle-orm'
+import { eq, isNull } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import * as authSchema from '../../db/auth-schema'
 import { createTestApp } from '../../test/setup'
@@ -67,6 +68,50 @@ describe('OAuth gateway', () => {
         lastUsedAt: '2026-07-29T12:20:00.000Z',
       },
     ])
+  })
+
+  it('resolves only live account access tokens from enabled clients', async () => {
+    const { db } = await createTestApp()
+    await insertClient(db, CLIENT_ID, 'FlareAuth')
+    await insertUserAndOrg(db, 'oauth-user', 'oauth-org')
+    await db.insert(authSchema.oauthAccessToken).values([
+      {
+        id: 'live',
+        token: createHash('sha256').update('live-token').digest('base64url'),
+        clientId: CLIENT_ID,
+        userId: 'oauth-user',
+        expiresAt: new Date('2026-08-03T00:00:00.000Z'),
+        scopes: JSON.stringify([AuthorizationScope.WORKSPACES_DISCOVER]),
+      },
+      {
+        id: 'expired',
+        token: createHash('sha256').update('expired-token').digest('base64url'),
+        clientId: CLIENT_ID,
+        userId: 'oauth-user',
+        expiresAt: new Date('2026-08-01T00:00:00.000Z'),
+        scopes: JSON.stringify([AuthorizationScope.WORKSPACES_DISCOVER]),
+      },
+    ])
+    const gateway = createOAuthGateway()
+
+    await expect(
+      gateway.resolveAccountAccessToken(db, 'live-token', new Date('2026-08-02T00:00:00.000Z')),
+    ).resolves.toEqual({
+      clientId: CLIENT_ID,
+      userId: 'oauth-user',
+      scopes: [AuthorizationScope.WORKSPACES_DISCOVER],
+    })
+    await expect(
+      gateway.resolveAccountAccessToken(db, 'expired-token', new Date('2026-08-02T00:00:00.000Z')),
+    ).resolves.toBeNull()
+    await expect(gateway.resolveAccountAccessToken(db, 'unknown')).resolves.toBeNull()
+    await db
+      .update(authSchema.oauthClient)
+      .set({ disabled: true })
+      .where(eq(authSchema.oauthClient.clientId, CLIENT_ID))
+    await expect(
+      gateway.resolveAccountAccessToken(db, 'live-token', new Date('2026-08-02T00:00:00.000Z')),
+    ).resolves.toBeNull()
   })
 
   it('revokes the selected dynamic-client grant family only', async () => {
