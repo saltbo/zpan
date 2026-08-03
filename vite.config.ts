@@ -68,7 +68,11 @@ export default defineConfig(({ mode }) => ({
           proxy: {
             '/api': {
               target: `http://localhost:${apiPort}`,
-              changeOrigin: true,
+              changeOrigin: false,
+            },
+            '/.well-known': {
+              target: `http://localhost:${apiPort}`,
+              changeOrigin: false,
             },
           },
         }

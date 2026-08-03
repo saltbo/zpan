@@ -139,6 +139,49 @@ describe('OAuth consent usecase', () => {
     })
   })
 
+  it('honors multiple workspace identifiers fixed by the client', async () => {
+    const orgRepo = org({
+      listUserOrgs: vi.fn(async () => [
+        { id: 'org-1', name: 'Personal' },
+        { id: 'org-2', name: 'Team' },
+      ]),
+    })
+
+    await expect(
+      getOAuthConsentContext(deps(orgRepo), {
+        db,
+        userId: 'user-1',
+        oauthQuery: oauthQuery({
+          authorization_details: JSON.stringify([
+            { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'org-1' },
+            { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'org-2' },
+          ]),
+        }),
+      }),
+    ).resolves.toMatchObject({
+      workspaces: [
+        { id: 'org-1', name: 'Personal' },
+        { id: 'org-2', name: 'Team' },
+      ],
+      requestedWorkspaceIds: ['org-1', 'org-2'],
+    })
+  })
+
+  it('rejects a fixed workspace set the user cannot fully access', async () => {
+    await expect(
+      getOAuthConsentContext(deps(org()), {
+        db,
+        userId: 'user-1',
+        oauthQuery: oauthQuery({
+          authorization_details: JSON.stringify([
+            { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'org-1' },
+            { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'org-2' },
+          ]),
+        }),
+      }),
+    ).rejects.toMatchObject({ httpStatus: 403 })
+  })
+
   it('rejects requests that are not the managed authorization-code client flow', async () => {
     await expect(
       getOAuthConsentContext(deps(org()), {
@@ -162,7 +205,7 @@ describe('OAuth consent usecase', () => {
       getOAuthConsentContext(deps(org()), {
         db,
         userId: 'user-1',
-        oauthQuery: oauthQuery({ scope: 'objects:purge' }),
+        oauthQuery: oauthQuery({ scope: 'objects:unknown' }),
       }),
     ).rejects.toMatchObject({ httpStatus: 400 })
   })

@@ -12,6 +12,8 @@ export async function listOAuthAuthorizationDetailsCatalog(
   input: {
     db: Database
     token: string
+    limit: number
+    offset: number
     verifyJwtToken: () => Promise<JWTPayload>
   },
 ) {
@@ -22,7 +24,7 @@ export async function listOAuthAuthorizationDetailsCatalog(
   if (!account.scopes.includes(AuthorizationScope.WORKSPACES_DISCOVER)) throw forbidden('Forbidden')
 
   const workspaces = await deps.org.listUserWorkspaceCatalog(account.userId)
-  return workspaces.map((workspace) => ({
+  const items = workspaces.slice(input.offset, input.offset + input.limit).map((workspace) => ({
     authorizationDetail: {
       type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE as typeof WORKSPACE_AUTHORIZATION_DETAIL_TYPE,
       identifier: workspace.id,
@@ -32,6 +34,17 @@ export async function listOAuthAuthorizationDetailsCatalog(
       metadata: { type: workspace.type, role: workspace.role },
     },
   }))
+  const nextOffset = input.offset + input.limit < workspaces.length ? input.offset + input.limit : null
+  return {
+    items,
+    pagination: {
+      limit: input.limit,
+      offset: input.offset,
+      total: workspaces.length,
+      hasMore: nextOffset !== null,
+      nextOffset,
+    },
+  }
 }
 
 async function resolveJwtAccountToken(deps: CatalogDeps, db: Database, verifyJwtToken: () => Promise<JWTPayload>) {

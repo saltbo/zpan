@@ -1,3 +1,30 @@
+diff --git a/dist/client-assertion-C-Cg0dCs.mjs b/dist/client-assertion-C-Cg0dCs.mjs
+index 9fb95331b3ef55daa5dd7cf9718ec803f3d6e852..160bfb1dab65809b6c3b50dd75eec9c065740a38 100644
+--- a/dist/client-assertion-C-Cg0dCs.mjs
++++ b/dist/client-assertion-C-Cg0dCs.mjs
+@@ -1,5 +1,5 @@
+ import { o as getClient } from "./resource-challenge-2qgK1B-a.mjs";
+-import { isPublicRoutableHost } from "@better-auth/core/utils/host";
++import { isLoopbackHost, isPublicRoutableHost } from "@better-auth/core/utils/host";
+ import { APIError } from "better-call";
+ import { CLIENT_ASSERTION_TYPE, PRIVATE_KEY_JWT_SIGNING_ALGORITHMS } from "@better-auth/core/oauth2";
+ import { base64Url } from "@better-auth/utils/base64";
+@@ -56,11 +56,13 @@ function isPrivateHostname(hostname) {
+ }
+ function validateJwksUri(ctx, jwksUri, clientIdUrlOrigin) {
+ 	const parsed = new URL(jwksUri);
+-	if (parsed.protocol !== "https:") throw new APIError("BAD_REQUEST", {
++	const loopback = isLoopbackHost(parsed.hostname);
++	const localDevelopmentServer = isLoopbackHost(new URL(ctx.context.baseURL).hostname);
++	if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback && localDevelopmentServer)) throw new APIError("BAD_REQUEST", {
+ 		error_description: "jwks_uri must use HTTPS",
+ 		error: "invalid_client"
+ 	});
+-	if (isPrivateHostname(parsed.hostname)) throw new APIError("BAD_REQUEST", {
++	if (isPrivateHostname(parsed.hostname) && !(loopback && localDevelopmentServer)) throw new APIError("BAD_REQUEST", {
+ 		error_description: "jwks_uri must not point to a private or reserved address",
+ 		error: "invalid_client"
+ 	});
 diff --git a/dist/index.d.mts b/dist/index.d.mts
 index 74c48338addc218100218739af9f51bbf59db2f2..2d9c07f812efc04019f5512bb0feaf6d006fa495 100644
 --- a/dist/index.d.mts
@@ -16,7 +43,7 @@ index 74c48338addc218100218739af9f51bbf59db2f2..2d9c07f812efc04019f5512bb0feaf6d
 \ No newline at end of file
 +export { type ActiveAccessTokenPayload, type AuthMethod, type AuthServerMetadata, type AuthorizationDetail, type AuthorizePrompt, type BearerMethodsSupported, type ClientDiscovery, type ClientRegistrationRequest, type Confirmation, DEFAULT_OAUTH_SCOPES, type GrantType, type InitialAccessTokenAuthorization, type OAuthAuthenticatedClient, type OAuthAuthorizationQuery, type OAuthClaimExtensionInput, type OAuthClient, type OAuthClientAuthenticationInput, type OAuthClientAuthenticationRequest, type OAuthClientAuthenticationResult, type OAuthClientAuthenticationStrategy, type OAuthClientResource, type OAuthConsent, type OAuthEndpointErrorResult, type OAuthEndpointRedirectContext, type OAuthErrorCode, type OAuthExtensionGrantHandler, type OAuthExtensionGrantHandlerInput, type OAuthFieldErrorCode, type OAuthFieldErrorCodeMap, type OAuthMetadataExtensionInput, type OAuthOpaqueAccessToken, type OAuthOptions, type OAuthProviderApi, type OAuthProviderExtension, type OAuthRedirectOnError, type OAuthRefreshToken, type OAuthResource, type OAuthResourceInput, type OAuthTokenIssueParams, type OAuthTokenResponse, type OAuthUserInfoExtensionInput, type OIDCMetadata, type Prompt, type ResourceServerMetadata, ResourceUriSchema, type SchemaClient, type Scope, type StoreTokenType, type StoredAuthorizationQuery, type TokenEndpointAuthMethod, type TokenType, type VerificationValue, authServerMetadata, checkOAuthClient, consumeClientAssertion, extendOAuthProvider, getIssuer, getOAuthProviderApi, getOAuthProviderState, metadataResponse, oauthAuthorizationServerMetadata, oauthProvider, oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata, oauthToSchema, oidcServerMetadata, raiseResourceServerChallenge };
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3896e50f99997176d2f99c934d52701cf076d11b..e26efc84ae50f385d3bb7de89d5b5b059d9f21e8 100644
+index 3896e50f99997176d2f99c934d52701cf076d11b..c3668c63eaf7dadd4f901bef218b90e59192cd03 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -166,6 +166,44 @@ const STANDARD_CLAIM_NAMES = Object.keys(STANDARD_CLAIMS);
@@ -285,7 +312,23 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..e26efc84ae50f385d3bb7de89d5b5b05
  	if (clientWithDefaults.type) {
  		if (isPublic && !(clientWithDefaults.type === "native" || clientWithDefaults.type === "user-agent-based")) throw new APIError("BAD_REQUEST", {
  			error: "invalid_client_metadata",
-@@ -5379,6 +5451,10 @@ const schema = {
+@@ -3473,11 +3545,13 @@ async function checkOAuthClient(client, opts, settings) {
+ 		});
+ 		if (clientWithDefaults.jwks_uri) try {
+ 			const uri = new URL(clientWithDefaults.jwks_uri);
+-			if (uri.protocol !== "https:") throw new APIError("BAD_REQUEST", {
++			const loopback = isLoopbackHost(uri.hostname);
++			const localDevelopmentServer = settings?.ctx ? isLoopbackHost(new URL(settings.ctx.context.baseURL).hostname) : false;
++			if (uri.protocol !== "https:" && !(uri.protocol === "http:" && loopback && localDevelopmentServer)) throw new APIError("BAD_REQUEST", {
+ 				error: "invalid_client_metadata",
+ 				error_description: "jwks_uri must use HTTPS"
+ 			});
+-			if (isPrivateHostname(uri.hostname)) throw new APIError("BAD_REQUEST", {
++			if (isPrivateHostname(uri.hostname) && !(loopback && localDevelopmentServer)) throw new APIError("BAD_REQUEST", {
+ 				error: "invalid_client_metadata",
+ 				error_description: "jwks_uri must not point to a private or reserved address"
+ 			});
+@@ -5379,6 +5453,10 @@ const schema = {
  			type: "string[]",
  			required: false
  		},
@@ -296,7 +339,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..e26efc84ae50f385d3bb7de89d5b5b05
  		expiresAt: { type: "date" },
  		createdAt: { type: "date" },
  		revoked: {
-@@ -5474,6 +5550,10 @@ const schema = {
+@@ -5474,6 +5552,10 @@ const schema = {
  				type: "string[]",
  				required: false
  			},
@@ -307,7 +350,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..e26efc84ae50f385d3bb7de89d5b5b05
  			refreshId: {
  				type: "string",
  				required: false,
-@@ -5532,6 +5612,10 @@ const schema = {
+@@ -5532,6 +5614,10 @@ const schema = {
  				type: "string[]",
  				required: false
  			},
@@ -318,7 +361,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..e26efc84ae50f385d3bb7de89d5b5b05
  			scopes: {
  				type: "string[]",
  				required: true
-@@ -5949,6 +6033,7 @@ const oauthProvider = (options) => {
+@@ -5949,6 +6035,7 @@ const oauthProvider = (options) => {
  					accept: z.boolean().meta({ description: "Accept or deny user consent for a set of scopes" }),
  					scope: z.string().optional().meta({ description: "List of accept of accepted space-separated scopes. If none is provided, then all originally requested scopes are accepted." }),
  					claims: claimsRequestParameterSchema.optional().meta({ description: "Accepted OIDC claims request object. If none is provided, then all originally requested claims are accepted." }),
@@ -326,7 +369,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..e26efc84ae50f385d3bb7de89d5b5b05
  					oauth_query: z.string().optional().meta({ description: "The redirected page's query parameters" })
  				}),
  				use: [sessionMiddleware],
-@@ -6916,6 +7001,14 @@ async function authorizeEndpoint(ctx, opts, settings) {
+@@ -6916,6 +7003,14 @@ async function authorizeEndpoint(ctx, opts, settings) {
  	if (client.disabled) return handleRedirect(ctx, getErrorURL(ctx, "client_disabled", "client is disabled"));
  	if (!clientAllowsGrant(client, "authorization_code")) return handleRedirect(ctx, getErrorURL(ctx, "unauthorized_client", "client is not authorized to use the authorization_code grant"));
  	if (!findRegisteredRedirectUri(client.redirectUris, query.redirect_uri) || !query.redirect_uri) return handleRedirect(ctx, getErrorURL(ctx, "invalid_redirect", "invalid redirect uri"));
@@ -341,7 +384,7 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..e26efc84ae50f385d3bb7de89d5b5b05
  	let requestedScopes = query.scope?.split(" ").filter((s) => s);
  	if (requestedScopes) {
  		const validScopes = new Set(client.scopes ?? opts.scopes);
-@@ -7042,6 +7135,18 @@ async function authorizeEndpoint(ctx, opts, settings) {
+@@ -7042,6 +7137,18 @@ async function authorizeEndpoint(ctx, opts, settings) {
  		if (promptNone) return redirectWithPromptNoneError(ctx, opts, query, "consent_required", "End-User consent is required");
  		return redirectWithPromptCode(ctx, opts, "consent", { sessionId: session.session.id });
  	}

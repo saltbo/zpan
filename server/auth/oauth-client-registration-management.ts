@@ -281,7 +281,7 @@ async function updateClient(
   if (metadata.token_endpoint_auth_method !== current.tokenEndpointAuthMethod) {
     return invalidClientMetadata('token_endpoint_auth_method cannot be changed without rotating client credentials')
   }
-  const validationError = validateMetadata(metadata)
+  const validationError = validateMetadata(metadata, url)
   if (validationError) return invalidClientMetadata(validationError)
   for (const resourceId of metadata.resources ?? []) {
     if (!(await isOAuthResourceAvailable(db, resourceId))) {
@@ -334,7 +334,7 @@ async function updateClient(
   return oauthJson(200, await clientInformation(db, updated, url, registrationToken))
 }
 
-function validateMetadata(metadata: z.infer<typeof updateSchema>): string | null {
+function validateMetadata(metadata: z.infer<typeof updateSchema>, serverUrl: URL): string | null {
   if (metadata.grant_types.some((grant) => !SUPPORTED_GRANTS.has(grant)))
     return 'grant_types contains an unsupported grant type'
   if (metadata.grant_types.includes('authorization_code')) {
@@ -351,8 +351,23 @@ function validateMetadata(metadata: z.infer<typeof updateSchema>): string | null
     return 'authorization_details_types contains an unsupported type'
   }
   if (metadata.jwks && metadata.jwks_uri) return 'jwks and jwks_uri are mutually exclusive'
-  if (metadata.jwks_uri && new URL(metadata.jwks_uri).protocol !== 'https:') return 'jwks_uri must use HTTPS'
+  if (metadata.jwks_uri && !isSecureOrLocalDevelopmentUrl(metadata.jwks_uri, serverUrl)) {
+    return 'jwks_uri must use HTTPS'
+  }
   return null
+}
+
+function isSecureOrLocalDevelopmentUrl(value: string, serverUrl: URL): boolean {
+  const url = new URL(value)
+  if (url.protocol === 'https:') return true
+  if (url.protocol !== 'http:') return false
+  return isLoopbackHostname(serverUrl.hostname) && isLoopbackHostname(url.hostname)
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return (
+    hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '[::1]' || hostname.startsWith('127.')
+  )
 }
 
 async function clientInformation(

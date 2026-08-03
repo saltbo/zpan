@@ -839,6 +839,7 @@ describe('OAuth consent guards', () => {
       registration_endpoint: 'http://localhost:3000/api/auth/oauth2/register',
       authorization_details_catalog_endpoint: 'http://localhost:3000/api/auth/oauth2/authorization-details/catalog',
       authorization_details_catalog_scope: AuthorizationScope.WORKSPACES_DISCOVER,
+      authorization_details_catalog_version: 1,
       grant_types_supported: expect.arrayContaining([
         'urn:ietf:params:oauth:grant-type:jwt-bearer',
         'urn:ietf:params:oauth:grant-type:token-exchange',
@@ -899,6 +900,63 @@ describe('OAuth consent guards', () => {
         }),
       ]),
     )
+  })
+
+  it('allows loopback HTTP JWKS metadata for local dynamic registration', async () => {
+    const ctx = await createTestApp()
+    const res = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Local External Resource Broker',
+        redirect_uris: ['http://localhost:4179/api/account-connections/oauth/callback'],
+        grant_types: [
+          'authorization_code',
+          'refresh_token',
+          'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          'urn:ietf:params:oauth:grant-type:token-exchange',
+        ],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_basic',
+        scope: 'openid offline_access',
+        jwks_uri: 'http://localhost:4179/api/auth/jwks',
+        authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
+      }),
+    })
+
+    expect(res.status, await res.clone().text()).toBe(201)
+  })
+
+  it('rejects loopback HTTP JWKS metadata on a non-loopback server', async () => {
+    const ctx = await createTestApp()
+    const origin = 'https://drive.example.com'
+    const auth = await createAuth(ctx.platform, 'test-secret', origin, [origin])
+    const app = createApp(ctx.platform, auth)
+    const res = await app.request(`${origin}/api/auth/oauth2/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Unsafe Loopback Broker',
+        redirect_uris: ['https://broker.example.com/api/account-connections/oauth/callback'],
+        grant_types: [
+          'authorization_code',
+          'refresh_token',
+          'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          'urn:ietf:params:oauth:grant-type:token-exchange',
+        ],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_basic',
+        scope: 'openid offline_access',
+        jwks_uri: 'http://localhost:4179/api/auth/jwks',
+        authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
+      }),
+    })
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({
+      error: 'invalid_client_metadata',
+      error_description: 'jwks_uri must use HTTPS',
+    })
   })
 
   it('reads, replaces, and deletes a dynamic client through its RFC 7592 configuration endpoint', async () => {

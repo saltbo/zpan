@@ -1213,6 +1213,7 @@
   "settings.oauthApps.scope.objectsCreate": "文件：创建对象",
   "settings.oauthApps.scope.objectsUpdate": "文件：更新对象",
   "settings.oauthApps.scope.objectsDelete": "文件：删除对象",
+  "settings.oauthApps.scope.objectsPurge": "文件：永久删除回收站对象",
   "settings.oauthApps.scope.sharesRead": "分享：读取分享",
   "settings.oauthApps.scope.sharesCreate": "分享：创建分享",
   "settings.oauthApps.scope.sharesDelete": "分享：撤销分享",

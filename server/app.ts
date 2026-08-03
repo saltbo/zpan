@@ -165,15 +165,28 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     const response = await c.get('auth').handler(c.req.raw)
     if (c.req.method === 'HEAD' || !response.ok) return response
     const metadata = (await response.json()) as Record<string, unknown>
+    const authOrigin = new URL((await c.get('auth').$context).baseURL).origin
     return c.json({
       ...metadata,
-      authorization_details_catalog_endpoint: `${new URL(c.req.url).origin}/api/auth/oauth2/authorization-details/catalog`,
+      authorization_details_catalog_endpoint: `${authOrigin}/api/auth/oauth2/authorization-details/catalog`,
       authorization_details_catalog_scope: AuthorizationScope.WORKSPACES_DISCOVER,
+      authorization_details_catalog_version: 1,
     })
   })
 
   app.on(['GET', 'HEAD'], '/.well-known/openid-configuration/api/auth', async (c) => {
-    return c.get('auth').handler(c.req.raw)
+    const url = new URL(c.req.url)
+    url.pathname = '/api/auth/.well-known/openid-configuration'
+    const response = await c.get('auth').handler(new Request(url, c.req.raw))
+    if (c.req.method === 'HEAD' || !response.ok) return response
+    const metadata = (await response.json()) as Record<string, unknown>
+    const authOrigin = new URL((await c.get('auth').$context).baseURL).origin
+    return c.json({
+      ...metadata,
+      authorization_details_catalog_endpoint: `${authOrigin}/api/auth/oauth2/authorization-details/catalog`,
+      authorization_details_catalog_scope: AuthorizationScope.WORKSPACES_DISCOVER,
+      authorization_details_catalog_version: 1,
+    })
   })
 
   app.on(['GET', 'HEAD'], '/.well-known/oauth-protected-resource/api', async (c) => {
@@ -307,7 +320,6 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
                     scopes: OAUTH_RESOURCE_SCOPES.join(' '),
                   },
                 },
-                params: { provider: 'realmroot-target' },
               },
             },
           },

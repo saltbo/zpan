@@ -52,7 +52,9 @@ const matterSchema = z
     type: z.string(),
     size: z.number().int().nullable(),
     dirtype: z.number().int().nullable(),
-    parent: z.string(),
+    parent: z
+      .string()
+      .describe('Slash-delimited parent folder path relative to the workspace root; empty for root objects.'),
     object: z.string(),
     storageId: z.string(),
     status: z.string(),
@@ -93,7 +95,9 @@ export async function createCapacityRequestHash(orgId: string, input: unknown): 
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
-const objectListItemSchema = matterSchema.extend({ hasChildren: z.boolean() }).openapi('ObjectListItem')
+const objectListItemSchema = matterSchema
+  .extend({ hasChildren: z.boolean().describe('Whether this folder contains at least one child folder.') })
+  .openapi('ObjectListItem')
 type ObjectListItemDTO = z.infer<typeof objectListItemSchema>
 
 function toObjectListItemDTO(item: MatterListItem): ObjectListItemDTO {
@@ -142,8 +146,14 @@ const objectWithDownloadSchema = matterSchema.extend({ downloadUrl: z.string().o
 // overrides the shared pageSize cap of 100 with a higher ceiling — the rest of the
 // API keeps the 100 default. Live objects only — the recycle bin is GET /trash/objects.
 const listObjectsQuerySchema = cursorPageQuerySchema.extend({
-  parent: z.string().optional(),
-  path: z.string().optional(),
+  parent: z
+    .string()
+    .describe('Slash-delimited parent folder path relative to the workspace root; empty for the root.')
+    .optional(),
+  path: z
+    .string()
+    .describe('Alias for parent: the slash-delimited parent folder path relative to the workspace root.')
+    .optional(),
   type: z.string().optional(),
   search: z.string().optional(),
   orgId: z.string().optional(),

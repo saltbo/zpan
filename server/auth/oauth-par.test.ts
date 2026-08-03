@@ -58,11 +58,24 @@ describe('OAuth pushed authorization requests', () => {
     [{ response_type: 'token' }, 'Only the authorization code response type is supported'],
     [{ code_challenge: 'short' }, 'A valid S256 PKCE challenge is required'],
     [{ authorization_details: 'not-json' }, 'Invalid workspace authorization details'],
-    [{ authorization_details: '[]' }, 'Exactly one workspace authorization request is required'],
+    [{ authorization_details: '[]' }, 'At least one workspace authorization request is required'],
   ])('rejects invalid pushed request parameters %#', async (overrides, message) => {
     await expect(submit(pushedRequest(overrides))).rejects.toMatchObject({
       body: expect.objectContaining({ error_description: message }),
     })
+  })
+
+  it('accepts multiple fixed workspace authorization details', async () => {
+    const response = await submit(
+      pushedRequest({
+        authorization_details: JSON.stringify([
+          { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'workspace-1' },
+          { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'workspace-2' },
+        ]),
+      }),
+    )
+
+    expect(response.status).toBe(201)
   })
 
   it('rejects clients without the authorization code grant', async () => {

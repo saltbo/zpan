@@ -13,6 +13,7 @@ const explicitOAuthResourceScopeLabels: Partial<Record<OAuthGrantScope, string>>
   [AuthorizationScope.OBJECTS_CREATE]: 'settings.oauthApps.scope.objectsCreate',
   [AuthorizationScope.OBJECTS_UPDATE]: 'settings.oauthApps.scope.objectsUpdate',
   [AuthorizationScope.OBJECTS_DELETE]: 'settings.oauthApps.scope.objectsDelete',
+  [AuthorizationScope.OBJECTS_PURGE]: 'settings.oauthApps.scope.objectsPurge',
   [AuthorizationScope.SHARES_READ]: 'settings.oauthApps.scope.sharesRead',
   [AuthorizationScope.SHARES_CREATE]: 'settings.oauthApps.scope.sharesCreate',
   [AuthorizationScope.SHARES_DELETE]: 'settings.oauthApps.scope.sharesDelete',

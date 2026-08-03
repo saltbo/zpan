@@ -264,7 +264,7 @@ async function verifyAgentAssertion(
       ? createRemoteJWKSet(new URL(client.jwksUri))
       : null
   if (!jwks) throw oauthError('invalid_client', 'Registered client has no JWKS')
-  const endpoint = ctx.request?.url ?? `${ctx.context.baseURL}${ctx.path ?? '/oauth2/token'}`
+  const endpoint = `${ctx.context.baseURL}${ctx.path ?? '/oauth2/token'}`
   let verified: Awaited<ReturnType<typeof jwtVerify>>
   try {
     verified = await jwtVerify(assertion, jwks, { audience: endpoint, maxTokenAge: '5m' })

@@ -1213,6 +1213,7 @@
   "settings.oauthApps.scope.objectsCreate": "Files: create objects",
   "settings.oauthApps.scope.objectsUpdate": "Files: update objects",
   "settings.oauthApps.scope.objectsDelete": "Files: delete objects",
+  "settings.oauthApps.scope.objectsPurge": "Files: permanently delete trashed objects",
   "settings.oauthApps.scope.sharesRead": "Shares: read shares",
   "settings.oauthApps.scope.sharesCreate": "Shares: create shares",
   "settings.oauthApps.scope.sharesDelete": "Shares: revoke shares",

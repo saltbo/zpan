@@ -279,11 +279,15 @@ export const signUpSchema = z.object({
 export const conflictStrategySchema = z.enum(['fail', 'rename', 'replace'])
 export type ConflictStrategy = z.infer<typeof conflictStrategySchema>
 
+const matterParentPathSchema = z
+  .string()
+  .describe('Slash-delimited parent folder path relative to the workspace root; use an empty string for the root.')
+
 export const createMatterSchema = z.object({
   name: z.string().min(1),
   type: z.string().min(1).optional(),
   size: z.number().int().min(0).optional(),
-  parent: z.string().default(''),
+  parent: matterParentPathSchema.default(''),
   dirtype: z.number().int().default(0),
   onConflict: conflictStrategySchema.optional(),
   storageId: z
@@ -300,7 +304,7 @@ export type CreateMatterInput = z.infer<typeof createMatterSchema>
 export const updateMatterSchema = z.object({
   action: z.literal('update').optional().default('update'),
   name: z.string().min(1).optional(),
-  parent: z.string().optional(),
+  parent: matterParentPathSchema.optional(),
   onConflict: conflictStrategySchema.optional(),
 })
 

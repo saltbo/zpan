@@ -31,6 +31,15 @@ describe('OAuth authorization details catalog', () => {
           display: { label: 'Build Team', metadata: { type: 'organization', role: 'editor' } },
         },
       ],
+      pagination: { limit: 50, offset: 0, total: 2, hasMore: false, nextOffset: null },
+    })
+
+    const firstPage = await app.request('/api/auth/oauth2/authorization-details/catalog?limit=1&offset=0', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    await expect(firstPage.json()).resolves.toMatchObject({
+      items: [{ authorizationDetail: { identifier: 'personal-1' } }],
+      pagination: { limit: 1, offset: 0, total: 2, hasMore: true, nextOffset: 1 },
     })
 
     await db.delete(authSchema.member).where(eq(authSchema.member.organizationId, 'team-1'))

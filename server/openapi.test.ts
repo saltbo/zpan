@@ -170,14 +170,15 @@ describe('global OpenAPI document', () => {
         >
       }
       'x-cli-config'?: {
-        profiles?: {
-          default?: {
+        profiles?: Record<
+          string,
+          {
             credentials?: Record<
               string,
               { auth?: { params?: Record<string, unknown> }; params?: Record<string, unknown> }
             >
           }
-        }
+        >
       }
     }
 
@@ -209,11 +210,11 @@ describe('global OpenAPI document', () => {
           scopes: expect.stringContaining(AuthorizationScope.OBJECTS_CREATE),
         },
       },
-      params: { provider: 'realmroot-target' },
     })
-    expect(doc['x-cli-config']?.profiles?.default?.credentials?.oauth2.auth?.params?.scopes).not.toContain(
+    expect(doc['x-cli-config']?.profiles?.default?.credentials?.oauth2.auth?.params?.scopes).toContain(
       AuthorizationScope.OBJECTS_PURGE,
     )
+    expect(Object.keys(doc['x-cli-config']?.profiles ?? {})).toEqual(['default'])
   })
 
   it('publishes scopes through authorization-server metadata without a duplicate catalog endpoint', async () => {
@@ -270,16 +271,27 @@ describe('global OpenAPI document', () => {
     expect(protectedHead.status).toBe(200)
   })
 
-  it('serves HEAD for OAuth discovery and OpenID metadata endpoints', async () => {
+  it('serves RFC discovery paths for OAuth and OpenID metadata', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
-    const [authServer, openidConfig] = await Promise.all([
+    const [authServer, openidConfig, openidHead] = await Promise.all([
       app.request('/.well-known/oauth-authorization-server/api/auth', { method: 'HEAD' }),
+      app.request('/.well-known/openid-configuration/api/auth'),
       app.request('/.well-known/openid-configuration/api/auth', { method: 'HEAD' }),
     ])
 
     expect(authServer.status).toBe(200)
-    expect(openidConfig.status).toBe(404)
+    expect(openidConfig.status).toBe(200)
+    expect(await openidConfig.json()).toMatchObject({
+      issuer: 'http://localhost:3000/api/auth',
+      authorization_endpoint: 'http://localhost:3000/api/auth/oauth2/authorize',
+      token_endpoint: 'http://localhost:3000/api/auth/oauth2/token',
+      authorization_details_catalog_endpoint: 'http://localhost:3000/api/auth/oauth2/authorization-details/catalog',
+      authorization_details_catalog_scope: AuthorizationScope.WORKSPACES_DISCOVER,
+      authorization_details_catalog_version: 1,
+    })
+    expect(openidHead.status).toBe(200)
     expect(await authServer.text()).toBe('')
+    expect(await openidHead.text()).toBe('')
   })
 
   it('documents the workspace-scoped API-key event-stream authorization contract', async () => {
@@ -471,7 +483,7 @@ describe('global OpenAPI document', () => {
     })
   })
 
-  it('keeps purge scope separate from its non-OAuth credential policy', async () => {
+  it('authorizes permanent purge with its OAuth scope independently from the credential type', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
@@ -479,10 +491,13 @@ describe('global OpenAPI document', () => {
     }
 
     const operation = doc.paths['/api/trash/objects/{id}']?.delete
-    expect(operation?.security).toEqual([{ bearerAuth: [] }, { cookieAuth: [] }])
+    expect(operation?.security).toEqual([
+      { oauth2: [AuthorizationScope.OBJECTS_PURGE] },
+      { bearerAuth: [] },
+      { cookieAuth: [] },
+    ])
     expect(operation?.['x-zpan-authorization-constraints']).toEqual({
       requiredScopes: [AuthorizationScope.OBJECTS_PURGE],
-      oauth: false,
       minTeamRole: 'editor',
     })
   })
@@ -563,7 +578,12 @@ describe('global OpenAPI document', () => {
         name: expect.any(Object),
         type: expect.any(Object),
         size: expect.any(Object),
-        parent: expect.any(Object),
+        parent: {
+          description:
+            'Slash-delimited parent folder path relative to the workspace root; use an empty string for the root.',
+          default: '',
+          type: 'string',
+        },
         onConflict: expect.any(Object),
         storageId: {
           description:

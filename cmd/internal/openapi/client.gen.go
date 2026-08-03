@@ -3117,6 +3117,7 @@ const (
 	GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsRead           GetOAuthConsentContext200JSONResponseBodyScopes = "oauth-grants:read"
 	GetOAuthConsentContext200JSONResponseBodyScopesObjectsCreate             GetOAuthConsentContext200JSONResponseBodyScopes = "objects:create"
 	GetOAuthConsentContext200JSONResponseBodyScopesObjectsDelete             GetOAuthConsentContext200JSONResponseBodyScopes = "objects:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesObjectsPurge              GetOAuthConsentContext200JSONResponseBodyScopes = "objects:purge"
 	GetOAuthConsentContext200JSONResponseBodyScopesObjectsRead               GetOAuthConsentContext200JSONResponseBodyScopes = "objects:read"
 	GetOAuthConsentContext200JSONResponseBodyScopesObjectsUpdate             GetOAuthConsentContext200JSONResponseBodyScopes = "objects:update"
 	GetOAuthConsentContext200JSONResponseBodyScopesQuotaPurchase             GetOAuthConsentContext200JSONResponseBodyScopes = "quota:purchase"
@@ -3251,6 +3252,8 @@ func (e GetOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesObjectsDelete:
 		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesObjectsPurge:
+		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesObjectsRead:
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesObjectsUpdate:
@@ -3381,6 +3384,7 @@ const (
 	ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "oauth-grants:read"
 	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsCreate             ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:create"
 	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsDelete             ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsPurge              ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:purge"
 	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsRead               ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:read"
 	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsUpdate             ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:update"
 	ListOAuthGrants200JSONResponseBodyItemsScopesQuotaPurchase             ListOAuthGrants200JSONResponseBodyItemsScopes = "quota:purchase"
@@ -3514,6 +3518,8 @@ func (e ListOAuthGrants200JSONResponseBodyItemsScopes) Valid() bool {
 	case ListOAuthGrants200JSONResponseBodyItemsScopesObjectsCreate:
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesObjectsDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesObjectsPurge:
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesObjectsRead:
 		return true
@@ -5462,6 +5468,13 @@ type AuthorizationDetailsCatalog struct {
 			Metadata map[string]string `json:"metadata"`
 		} `json:"display"`
 	} `json:"items"`
+	Pagination struct {
+		HasMore    bool `json:"hasMore"`
+		Limit      int  `json:"limit"`
+		NextOffset *int `json:"nextOffset"`
+		Offset     int  `json:"offset"`
+		Total      int  `json:"total"`
+	} `json:"pagination"`
 }
 
 // AuthorizationDetailsCatalogItemsAuthorizationDetailType defines model for AuthorizationDetailsCatalog.Items.AuthorizationDetail.Type.
@@ -6250,6 +6263,8 @@ type Matter struct {
 	Name      string `json:"name"`
 	Object    string `json:"object"`
 	OrgId     string `json:"orgId"`
+
+	// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 	Parent    string `json:"parent"`
 	Size      *int   `json:"size"`
 	Status    string `json:"status"`
@@ -6281,21 +6296,25 @@ type NotificationPage struct {
 
 // ObjectListItem defines model for ObjectListItem.
 type ObjectListItem struct {
-	Alias       string `json:"alias"`
-	CreatedAt   string `json:"createdAt"`
-	Dirtype     *int   `json:"dirtype"`
+	Alias     string `json:"alias"`
+	CreatedAt string `json:"createdAt"`
+	Dirtype   *int   `json:"dirtype"`
+
+	// HasChildren Whether this folder contains at least one child folder.
 	HasChildren bool   `json:"hasChildren"`
 	Id          string `json:"id"`
 	Name        string `json:"name"`
 	Object      string `json:"object"`
 	OrgId       string `json:"orgId"`
-	Parent      string `json:"parent"`
-	Size        *int   `json:"size"`
-	Status      string `json:"status"`
-	StorageId   string `json:"storageId"`
-	TrashedAt   *int   `json:"trashedAt"`
-	Type        string `json:"type"`
-	UpdatedAt   string `json:"updatedAt"`
+
+	// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
+	Parent    string `json:"parent"`
+	Size      *int   `json:"size"`
+	Status    string `json:"status"`
+	StorageId string `json:"storageId"`
+	TrashedAt *int   `json:"trashedAt"`
+	Type      string `json:"type"`
+	UpdatedAt string `json:"updatedAt"`
 }
 
 // ObjectPage defines model for ObjectPage.
@@ -7353,6 +7372,12 @@ type LinkSocialAccountJSONBodyProvider1 = string
 // LinkSocialAccountJSONBody_Provider defines parameters for LinkSocialAccount.
 type LinkSocialAccountJSONBody_Provider struct {
 	union json.RawMessage
+}
+
+// ListAuthorizationDetailsCatalogParams defines parameters for ListAuthorizationDetailsCatalog.
+type ListAuthorizationDetailsCatalogParams struct {
+	Limit  *int `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // GetApiAuthOauth2AuthorizeParams defines parameters for GetApiAuthOauth2Authorize.
@@ -8473,11 +8498,15 @@ type ListOAuthGrants200JSONResponseBodyItemsStatus string
 type ListObjectsParams struct {
 	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
-	Parent    *string `form:"parent,omitempty" json:"parent,omitempty"`
-	Path      *string `form:"path,omitempty" json:"path,omitempty"`
-	Type      *string `form:"type,omitempty" json:"type,omitempty"`
-	Search    *string `form:"search,omitempty" json:"search,omitempty"`
-	OrgId     *string `form:"orgId,omitempty" json:"orgId,omitempty"`
+
+	// Parent Slash-delimited parent folder path relative to the workspace root; empty for the root.
+	Parent *string `form:"parent,omitempty" json:"parent,omitempty"`
+
+	// Path Alias for parent: the slash-delimited parent folder path relative to the workspace root.
+	Path   *string `form:"path,omitempty" json:"path,omitempty"`
+	Type   *string `form:"type,omitempty" json:"type,omitempty"`
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+	OrgId  *string `form:"orgId,omitempty" json:"orgId,omitempty"`
 }
 
 // CreateObjectJSONBody defines parameters for CreateObject.
@@ -8485,8 +8514,10 @@ type CreateObjectJSONBody struct {
 	Dirtype    *int                            `json:"dirtype,omitempty"`
 	Name       string                          `json:"name"`
 	OnConflict *CreateObjectJSONBodyOnConflict `json:"onConflict,omitempty"`
-	Parent     *string                         `json:"parent,omitempty"`
-	Size       *int                            `json:"size,omitempty"`
+
+	// Parent Slash-delimited parent folder path relative to the workspace root; use an empty string for the root.
+	Parent *string `json:"parent,omitempty"`
+	Size   *int    `json:"size,omitempty"`
 
 	// StorageId Only site administrators may set this field; omit it to let ZPan automatically select an available storage.
 	StorageId *string `json:"storageId,omitempty"`
@@ -11455,7 +11486,7 @@ type ClientInterface interface {
 	ListUserSessions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListAuthorizationDetailsCatalog request
-	ListAuthorizationDetailsCatalog(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ListAuthorizationDetailsCatalog(ctx context.Context, params *ListAuthorizationDetailsCatalogParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiAuthOauth2Authorize request
 	GetApiAuthOauth2Authorize(ctx context.Context, params *GetApiAuthOauth2AuthorizeParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -13144,8 +13175,8 @@ func (c *Client) ListUserSessions(ctx context.Context, reqEditors ...RequestEdit
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListAuthorizationDetailsCatalog(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListAuthorizationDetailsCatalogRequest(c.Server)
+func (c *Client) ListAuthorizationDetailsCatalog(ctx context.Context, params *ListAuthorizationDetailsCatalogParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAuthorizationDetailsCatalogRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -18772,7 +18803,7 @@ func NewListUserSessionsRequest(server string) (*http.Request, error) {
 }
 
 // NewListAuthorizationDetailsCatalogRequest generates requests for ListAuthorizationDetailsCatalog
-func NewListAuthorizationDetailsCatalogRequest(server string) (*http.Request, error) {
+func NewListAuthorizationDetailsCatalogRequest(server string, params *ListAuthorizationDetailsCatalogParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -18788,6 +18819,45 @@ func NewListAuthorizationDetailsCatalogRequest(server string) (*http.Request, er
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -28907,7 +28977,7 @@ type ClientWithResponsesInterface interface {
 	ListUserSessionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListUserSessionsResponse, error)
 
 	// ListAuthorizationDetailsCatalogWithResponse request
-	ListAuthorizationDetailsCatalogWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAuthorizationDetailsCatalogResponse, error)
+	ListAuthorizationDetailsCatalogWithResponse(ctx context.Context, params *ListAuthorizationDetailsCatalogParams, reqEditors ...RequestEditorFn) (*ListAuthorizationDetailsCatalogResponse, error)
 
 	// GetApiAuthOauth2AuthorizeWithResponse request
 	GetApiAuthOauth2AuthorizeWithResponse(ctx context.Context, params *GetApiAuthOauth2AuthorizeParams, reqEditors ...RequestEditorFn) (*GetApiAuthOauth2AuthorizeResponse, error)
@@ -37203,6 +37273,8 @@ type CreateObjectResponse struct {
 		Name      string `json:"name"`
 		Object    string `json:"object"`
 		OrgId     string `json:"orgId"`
+
+		// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 		Parent    string `json:"parent"`
 		Size      *int   `json:"size"`
 		Status    string `json:"status"`
@@ -37333,13 +37405,15 @@ type GetObjectResponse struct {
 		Name        string  `json:"name"`
 		Object      string  `json:"object"`
 		OrgId       string  `json:"orgId"`
-		Parent      string  `json:"parent"`
-		Size        *int    `json:"size"`
-		Status      string  `json:"status"`
-		StorageId   string  `json:"storageId"`
-		TrashedAt   *int    `json:"trashedAt"`
-		Type        string  `json:"type"`
-		UpdatedAt   string  `json:"updatedAt"`
+
+		// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
+		Parent    string `json:"parent"`
+		Size      *int   `json:"size"`
+		Status    string `json:"status"`
+		StorageId string `json:"storageId"`
+		TrashedAt *int   `json:"trashedAt"`
+		Type      string `json:"type"`
+		UpdatedAt string `json:"updatedAt"`
 	}
 	JSON400 *Error
 	JSON402 *Error
@@ -41570,8 +41644,8 @@ func (c *ClientWithResponses) ListUserSessionsWithResponse(ctx context.Context, 
 }
 
 // ListAuthorizationDetailsCatalogWithResponse request returning *ListAuthorizationDetailsCatalogResponse
-func (c *ClientWithResponses) ListAuthorizationDetailsCatalogWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAuthorizationDetailsCatalogResponse, error) {
-	rsp, err := c.ListAuthorizationDetailsCatalog(ctx, reqEditors...)
+func (c *ClientWithResponses) ListAuthorizationDetailsCatalogWithResponse(ctx context.Context, params *ListAuthorizationDetailsCatalogParams, reqEditors ...RequestEditorFn) (*ListAuthorizationDetailsCatalogResponse, error) {
+	rsp, err := c.ListAuthorizationDetailsCatalog(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -55366,6 +55440,8 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 			Name      string `json:"name"`
 			Object    string `json:"object"`
 			OrgId     string `json:"orgId"`
+
+			// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 			Parent    string `json:"parent"`
 			Size      *int   `json:"size"`
 			Status    string `json:"status"`
@@ -55530,13 +55606,15 @@ func ParseGetObjectResponse(rsp *http.Response) (*GetObjectResponse, error) {
 			Name        string  `json:"name"`
 			Object      string  `json:"object"`
 			OrgId       string  `json:"orgId"`
-			Parent      string  `json:"parent"`
-			Size        *int    `json:"size"`
-			Status      string  `json:"status"`
-			StorageId   string  `json:"storageId"`
-			TrashedAt   *int    `json:"trashedAt"`
-			Type        string  `json:"type"`
-			UpdatedAt   string  `json:"updatedAt"`
+
+			// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
+			Parent    string `json:"parent"`
+			Size      *int   `json:"size"`
+			Status    string `json:"status"`
+			StorageId string `json:"storageId"`
+			TrashedAt *int   `json:"trashedAt"`
+			Type      string `json:"type"`
+			UpdatedAt string `json:"updatedAt"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

@@ -18,7 +18,17 @@ const catalogEntrySchema = z.object({
   }),
 })
 
-const catalogSchema = z.object({ items: z.array(catalogEntrySchema) }).openapi('AuthorizationDetailsCatalog')
+const paginationSchema = z.object({
+  limit: z.number().int().positive(),
+  offset: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+  nextOffset: z.number().int().nonnegative().nullable(),
+})
+
+const catalogSchema = z
+  .object({ items: z.array(catalogEntrySchema), pagination: paginationSchema })
+  .openapi('AuthorizationDetailsCatalog')
 
 const catalogRoute = {
   operationId: 'listAuthorizationDetailsCatalog',
@@ -29,6 +39,12 @@ const catalogRoute = {
   method: 'get' as const,
   path: '/',
   security: [{ oauth2: [AuthorizationScope.WORKSPACES_DISCOVER] }],
+  request: {
+    query: z.object({
+      limit: z.coerce.number().int().min(1).max(100).default(50),
+      offset: z.coerce.number().int().min(0).default(0),
+    }),
+  },
   responses: {
     200: jsonContent(catalogSchema, 'Available workspace authorization details'),
     401: errorResponse('Invalid or expired account access token'),
@@ -43,9 +59,11 @@ export const oauthAuthorizationDetails = new OpenAPIHono<Env>().openapi(catalogR
 
   const auth = c.get('auth')
   const authContext = await auth.$context
-  const items = await listOAuthAuthorizationDetailsCatalog(c.get('deps'), {
+  const query = c.req.valid('query')
+  const catalog = await listOAuthAuthorizationDetailsCatalog(c.get('deps'), {
     db: c.get('platform').db,
     token,
+    ...query,
     verifyJwtToken: async () =>
       (
         await jwtVerify(token, createLocalJWKSet(await auth.api.getJwks()), {
@@ -55,5 +73,5 @@ export const oauthAuthorizationDetails = new OpenAPIHono<Env>().openapi(catalogR
       ).payload,
   })
   c.header('Cache-Control', 'no-store')
-  return c.json({ items }, 200)
+  return c.json(catalog, 200)
 })

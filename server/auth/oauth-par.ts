@@ -144,8 +144,8 @@ async function validatePushedAuthorizationRequest(
   } catch {
     throw oauthError('invalid_authorization_details', 'Invalid workspace authorization details')
   }
-  if (details.length !== 1) {
-    throw oauthError('invalid_authorization_details', 'Exactly one workspace authorization request is required')
+  if (details.length === 0) {
+    throw oauthError('invalid_authorization_details', 'At least one workspace authorization request is required')
   }
 }
 

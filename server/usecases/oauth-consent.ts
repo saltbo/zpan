@@ -51,20 +51,27 @@ export async function getOAuthConsentContext(
   } catch {
     throw badRequest('Invalid OAuth authorization details')
   }
-  if (authorizationDetails.length !== 1) throw badRequest('Exactly one workspace authorization request is required')
-  const requestedWorkspaceId = authorizationDetails[0].identifier
+  if (authorizationDetails.length === 0) throw badRequest('At least one workspace authorization request is required')
+  const requestedWorkspaceIds = authorizationDetails.flatMap((detail) => (detail.identifier ? [detail.identifier] : []))
+  const requestedWorkspaceIdSet = new Set(requestedWorkspaceIds)
   const availableWorkspaces = await deps.org.listUserOrgs(input.userId)
-  const workspaces = requestedWorkspaceId
-    ? availableWorkspaces.filter((workspace) => workspace.id === requestedWorkspaceId)
-    : availableWorkspaces
-  if (workspaces.length === 0) throw forbidden('Workspace access is required for OAuth')
+  const workspaces =
+    requestedWorkspaceIds.length > 0
+      ? availableWorkspaces.filter((workspace) => requestedWorkspaceIdSet.has(workspace.id))
+      : availableWorkspaces
+  if (
+    workspaces.length === 0 ||
+    (requestedWorkspaceIds.length > 0 && workspaces.length !== requestedWorkspaceIdSet.size)
+  ) {
+    throw forbidden('Workspace access is required for OAuth')
+  }
 
   return {
     clientId,
     clientName: client.clientName,
     clientOrigin: new URL(redirectUri).origin,
     workspaces: workspaces.map((workspace) => ({ id: workspace.id, name: workspace.name })),
-    requestedWorkspaceIds: requestedWorkspaceId ? [requestedWorkspaceId] : [],
+    requestedWorkspaceIds,
     scopes,
     standardScopes,
     redirectUri,
