@@ -34,6 +34,12 @@ This document records end-to-end regressions for Agent-driven ZPan file manageme
 | AFM-016 | ZPan Cloud setup | A bound Business instance had no capacity catalog or publication, so a quota-exhausted upload ended in `502 not_found` instead of a usable 402 offer. | The instance store must have an active capacity product, verified x402 receiver, and healthy listed publication before paid uploads are advertised. | Resolved in the local environment; publication health passed |
 | AFM-017 | ZPan Cloud UI | The first plan save displayed an old `unauthorized` result after the previous binding had been replaced, even though a fresh retry succeeded. | Store mutations must use the current active binding/session and surface current results. | Stale setup state cleared; current binding and retry passed; watch in staging |
 | AFM-018 | Local publication | Cloud rejects localhost/private provisioning and health URLs, so a local x402 round cannot be published directly from `localhost:5185`. | Local paid regression uses a public HTTPS tunnel and configures ZPan's public URL before refreshing the bound license. | Resolved by normal public-origin configuration and entitlement refresh |
+| AFM-019 | Realmroot account update | An explicit `access connect` returned immediately when any active connection already existed, so an unlinked discovered workspace could never be added and access requests stayed in an `invalid_authorization_details` loop. | A connection-update command must wait until the provider authorization revision actually changes; the Agent then re-reads the catalog and requests the newly authorized workspace. | Fixed, deployed, and verified in staging with a two-workspace expansion |
+| AFM-020 | Restish target profiles | The staging target profile contained only `base_url`; target-token issuance succeeded, but Restish reported that the profile had no `oauth2` credential binding and refused every secured target operation. | Every non-default target profile must bind its declared security scheme to `realmroot-target` with the exact selected scopes. | Fixed in local configuration and Realmroot skill guidance; staging operations passed |
+| AFM-019 | ZPan Cloud publication UI | A product that became inactive remained selectable from stale query state; saving the resource then returned only `invalid_product_price`. | Refresh or invalidate the product query before editing, exclude inactive products, and identify whether the product or price is invalid. | Fixed in Cloud UI/API; targeted tests and local active-only selector regression passed |
+| AFM-020 | Local profile isolation | Omitting `REALMROOT_PLUGIN_STATE_DIR` on one target command silently selected the default Agent's Admin workspace credential instead of the cleanroom Agent's Regression credential. | Every Realmroot and target command in an isolated run must inherit the same plugin state directory; the skill should establish it once for the shell/session. | Fixed in Realmroot skill guidance; the unintended Admin draft was aborted and the isolated paid round passed |
+| AFM-021 | Agent Wallet local profile | The local Restish profile declared only `wallet:x402:pay`, so valid `wallet:read` and `wallet:budget:request` grants were hidden from generated operations. | Local/staging Wallet profiles must declare the complete supported scope set advertised by the resource. | External profile repaired; Wallet contract regression now asserts all three scopes |
+| AFM-022 | Agent Wallet OpenAPI | A sandbox profile reused Restish's one cached production contract, so generated validation omitted Base Sepolia (`eip155:84532`) even though sandbox runtime returned and accepted it. | One semantic Wallet API with environment profiles needs a profile-stable supported-network schema; endpoint-specific enablement remains in `x-wallet-environment` and runtime policy. | Fixed, tested, deployed, and synced; sandbox help now includes production and sandbox CAIP-2 identifiers |
 
 ## Regression rounds
 
@@ -156,11 +162,33 @@ Future rounds must record the exact scenario, workspace count, connection state,
 ### Paid Round 1 — quota exhaustion, x402 settlement, upload continuation
 
 - Environment: local ZPan, Realmroot, ZPan Cloud, Agent Wallet Sandbox, MinIO, and a public HTTPS tunnel for the local ZPan callback.
-- Store readiness: one active 1 GiB capacity tier, an active verified Base Sepolia USDC receiver, and a healthy listed `storage.capacity.purchase` resource.
-- Quota boundary: creating a 20 MiB draft in the 10 MiB Admin workspace returned `CAPACITY_REQUIRED`, the current quota/usage/request size, a stable request hash, and one selectable standard capacity offer.
+- Store readiness: one active 1 GiB capacity tier, an active verified Base Sepolia USDC receiver, and a listed `storage.capacity.purchase` resource bound to the instance's registered public origin.
+- Quota boundary: creating a 20 MiB draft in the 10 MiB Agent Regression workspace returned `CAPACITY_REQUIRED`, the current quota/usage/request size, a stable request hash, and one selectable standard capacity offer.
 - Purchase: called the advertised ZPan capacity operation without a signature, received an x402 v2 `PAYMENT-REQUIRED` object, and passed that object unmodified to the local Agent Wallet resource.
-- Wallet: the delegated budget authorized the 10,000-atomic-USDC payment without a new controller prompt and returned `PAYMENT-SIGNATURE`.
+- Wallet: requested a delegated sandbox budget, limited it to the exact merchant origin and payout address through the controller page, then authorized the 10,000-atomic-USDC payment and returned `PAYMENT-SIGNATURE`.
 - Settlement and fulfillment: retried the same purchase with the same request hash/idempotency key and signature; ZPan returned `status: delivered`. Agent Wallet subsequently verified the `PAYMENT-RESPONSE` and recorded the payment as settled.
 - Upload continuation: retried the exact original create-object body, received a direct-upload workflow, uploaded 20 MiB to storage, completed the upload using the returned ETag, and fetched the object download URL.
 - Integrity: source and downloaded SHA-256 were both `cd52d81e25f372e6fa4db2c0dfceb59862c1969cab17096da352b34950c973cc`.
-- Result: passed. After the store was configured, the Agent-side payment and file flow used only Realmroot/Restish and the local Agent Wallet API; no source, database, logs, or browser diagnostics were needed.
+- Isolation: the retried object and quota both reported `3aDEJGbtmnIhVTy1gFYsj3Zpyr81AZMh`; no workspace-selection header was used. The uploaded fixture was deleted after verification.
+- Result: passed. After store readiness and controller budget approval, the counted Agent-side payment and file flow used only Realmroot/Restish and the local Agent Wallet API; no source, database, logs, or browser diagnostics were needed.
+
+### Staging Round 1 — account expansion and two-workspace file management
+
+- Environment: production Realmroot identity plane, ZPan staging, ZPan Cloud staging, staging object storage, and the online Agent Wallet Sandbox resource.
+- Discovery: Realmroot listed both real ZPan workspaces, including labels, identifiers, types, roles, existing grant state, and `connectionAuthorized` state.
+- Account expansion: the second workspace was discoverable but not yet connected. After fixing the connection revision wait, `access connect` stayed in the foreground while the controller updated the existing provider account and selected both workspaces; the selected item then reported `connectionAuthorized: true`.
+- Authorization: approved one persistent exact-scope grant for each workspace. Target-token commands produced zero output and no custom workspace header was used.
+- Profile boundary: the first target call exposed a missing staging security-scheme binding. After adding the required `oauth2`/`realmroot-target` binding and documenting it in the skill, target auth inspection and all intended operations became callable.
+- Workspace switching: switched Preview Reviewer → Agent Staging Regression → Preview Reviewer → Agent Staging Regression by issuing one workspace token at a time.
+- Operations: list, quota read, direct upload, upload completion, object read, download, rename, direct-share creation/revocation, and deletion.
+- Integrity: the 4 KiB and 8 KiB files both downloaded with SHA-256 equal to their sources.
+- Isolation: the new workspace initially listed zero objects; neither workspace could list the other workspace's test object after switching.
+- Result: passed after the two discovered defects were fixed. The counted rerun used only Realmroot/Restish plus browser actions for controller consent.
+
+### Staging Paid Round 1 — sandbox x402 and upload continuation
+
+- Quota boundary: a 20 MiB draft in the 11 MiB Agent Staging Regression workspace returned `CAPACITY_REQUIRED` with the healthy staged 10 GiB plan and stable request hash.
+- Purchase: the advertised operation returned x402 v2 for 1,000,000 atomic USDC on Base Sepolia. The online Agent Wallet Sandbox authorized it within the existing delegated budget.
+- Settlement and fulfillment: ZPan returned `status: delivered`; the wallet verified `PAYMENT-RESPONSE` and recorded transaction `0x16fa720d74baab46adaf8ca3cddeb4b857e7bb35c7b21b5b8fc29074a81d681f` as settled.
+- Upload continuation: the unchanged original create body succeeded after delivery, 20 MiB uploaded directly, completion activated the object, and the download URL returned the same SHA-256 as the source.
+- Result: passed entirely through public staging APIs and the sandbox wallet. No staging database, source, logs, or non-approval browser investigation was used during the successful payment round.
