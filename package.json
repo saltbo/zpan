@@ -61,7 +61,7 @@
     "@better-auth/oauth-provider": "1.7.0-rc.2",
     "@better-captcha/react": "^0.7.0",
     "@dnd-kit/core": "^6.3.1",
-    "@hono/node-server": "^2.0.10",
+    "@hono/node-server": "^2.0.12",
     "@hono/zod-openapi": "^1.4.0",
     "@hono/zod-validator": "^0.7.6",
     "@hookform/resolvers": "^5.2.2",
@@ -183,7 +183,13 @@
       "@vitest/snapshot": "4.1.4",
       "@vitest/spy": "4.1.4",
       "@vitest/utils": "4.1.4",
+      "@hono/vite-dev-server>@hono/node-server": "2.0.12",
+      "brace-expansion": "2.1.3",
+      "esbuild": "0.28.1",
+      "postcss": "8.5.25",
+      "sharp": "0.35.3",
       "undici": "7.28.0",
+      "ws": "8.21.0",
       "@esbuild-kit/core-utils>esbuild": "0.25.12"
     },
     "onlyBuiltDependencies": [
