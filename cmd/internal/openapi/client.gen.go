@@ -612,6 +612,108 @@ func (e WebDavVerificationStatus) Valid() bool {
 	}
 }
 
+// Defines values for ListUsersParamsSearchField.
+const (
+	ListUsersParamsSearchFieldEmail ListUsersParamsSearchField = "email"
+	ListUsersParamsSearchFieldName  ListUsersParamsSearchField = "name"
+)
+
+// Valid indicates whether the value is a known member of the ListUsersParamsSearchField enum.
+func (e ListUsersParamsSearchField) Valid() bool {
+	switch e {
+	case ListUsersParamsSearchFieldEmail:
+		return true
+	case ListUsersParamsSearchFieldName:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListUsersParamsSearchOperator.
+const (
+	ListUsersParamsSearchOperatorContains   ListUsersParamsSearchOperator = "contains"
+	ListUsersParamsSearchOperatorEndsWith   ListUsersParamsSearchOperator = "ends_with"
+	ListUsersParamsSearchOperatorStartsWith ListUsersParamsSearchOperator = "starts_with"
+)
+
+// Valid indicates whether the value is a known member of the ListUsersParamsSearchOperator enum.
+func (e ListUsersParamsSearchOperator) Valid() bool {
+	switch e {
+	case ListUsersParamsSearchOperatorContains:
+		return true
+	case ListUsersParamsSearchOperatorEndsWith:
+		return true
+	case ListUsersParamsSearchOperatorStartsWith:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListUsersParamsSortDirection.
+const (
+	ListUsersParamsSortDirectionAsc  ListUsersParamsSortDirection = "asc"
+	ListUsersParamsSortDirectionDesc ListUsersParamsSortDirection = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListUsersParamsSortDirection enum.
+func (e ListUsersParamsSortDirection) Valid() bool {
+	switch e {
+	case ListUsersParamsSortDirectionAsc:
+		return true
+	case ListUsersParamsSortDirectionDesc:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListUsersParamsFilterOperator.
+const (
+	ListUsersParamsFilterOperatorContains   ListUsersParamsFilterOperator = "contains"
+	ListUsersParamsFilterOperatorEndsWith   ListUsersParamsFilterOperator = "ends_with"
+	ListUsersParamsFilterOperatorEq         ListUsersParamsFilterOperator = "eq"
+	ListUsersParamsFilterOperatorGt         ListUsersParamsFilterOperator = "gt"
+	ListUsersParamsFilterOperatorGte        ListUsersParamsFilterOperator = "gte"
+	ListUsersParamsFilterOperatorIn         ListUsersParamsFilterOperator = "in"
+	ListUsersParamsFilterOperatorLt         ListUsersParamsFilterOperator = "lt"
+	ListUsersParamsFilterOperatorLte        ListUsersParamsFilterOperator = "lte"
+	ListUsersParamsFilterOperatorNe         ListUsersParamsFilterOperator = "ne"
+	ListUsersParamsFilterOperatorNotIn      ListUsersParamsFilterOperator = "not_in"
+	ListUsersParamsFilterOperatorStartsWith ListUsersParamsFilterOperator = "starts_with"
+)
+
+// Valid indicates whether the value is a known member of the ListUsersParamsFilterOperator enum.
+func (e ListUsersParamsFilterOperator) Valid() bool {
+	switch e {
+	case ListUsersParamsFilterOperatorContains:
+		return true
+	case ListUsersParamsFilterOperatorEndsWith:
+		return true
+	case ListUsersParamsFilterOperatorEq:
+		return true
+	case ListUsersParamsFilterOperatorGt:
+		return true
+	case ListUsersParamsFilterOperatorGte:
+		return true
+	case ListUsersParamsFilterOperatorIn:
+		return true
+	case ListUsersParamsFilterOperatorLt:
+		return true
+	case ListUsersParamsFilterOperatorLte:
+		return true
+	case ListUsersParamsFilterOperatorNe:
+		return true
+	case ListUsersParamsFilterOperatorNotIn:
+		return true
+	case ListUsersParamsFilterOperatorStartsWith:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ChangeEmail200JSONResponseBodyMessage.
 const (
 	ChangeEmail200JSONResponseBodyMessageEmailUpdated          ChangeEmail200JSONResponseBodyMessage = "Email updated"
@@ -732,6 +834,123 @@ func (e PostApiAuthDeviceToken400JSONResponseBodyError) Valid() bool {
 	}
 }
 
+// Defines values for LinkSocialAccountJSONBodyProvider0.
+const (
+	LinkSocialAccountJSONBodyProvider0Apple       LinkSocialAccountJSONBodyProvider0 = "apple"
+	LinkSocialAccountJSONBodyProvider0Atlassian   LinkSocialAccountJSONBodyProvider0 = "atlassian"
+	LinkSocialAccountJSONBodyProvider0Cognito     LinkSocialAccountJSONBodyProvider0 = "cognito"
+	LinkSocialAccountJSONBodyProvider0Discord     LinkSocialAccountJSONBodyProvider0 = "discord"
+	LinkSocialAccountJSONBodyProvider0Dropbox     LinkSocialAccountJSONBodyProvider0 = "dropbox"
+	LinkSocialAccountJSONBodyProvider0Facebook    LinkSocialAccountJSONBodyProvider0 = "facebook"
+	LinkSocialAccountJSONBodyProvider0Figma       LinkSocialAccountJSONBodyProvider0 = "figma"
+	LinkSocialAccountJSONBodyProvider0Github      LinkSocialAccountJSONBodyProvider0 = "github"
+	LinkSocialAccountJSONBodyProvider0Gitlab      LinkSocialAccountJSONBodyProvider0 = "gitlab"
+	LinkSocialAccountJSONBodyProvider0Google      LinkSocialAccountJSONBodyProvider0 = "google"
+	LinkSocialAccountJSONBodyProvider0Huggingface LinkSocialAccountJSONBodyProvider0 = "huggingface"
+	LinkSocialAccountJSONBodyProvider0Kakao       LinkSocialAccountJSONBodyProvider0 = "kakao"
+	LinkSocialAccountJSONBodyProvider0Kick        LinkSocialAccountJSONBodyProvider0 = "kick"
+	LinkSocialAccountJSONBodyProvider0Line        LinkSocialAccountJSONBodyProvider0 = "line"
+	LinkSocialAccountJSONBodyProvider0Linear      LinkSocialAccountJSONBodyProvider0 = "linear"
+	LinkSocialAccountJSONBodyProvider0Linkedin    LinkSocialAccountJSONBodyProvider0 = "linkedin"
+	LinkSocialAccountJSONBodyProvider0Microsoft   LinkSocialAccountJSONBodyProvider0 = "microsoft"
+	LinkSocialAccountJSONBodyProvider0Naver       LinkSocialAccountJSONBodyProvider0 = "naver"
+	LinkSocialAccountJSONBodyProvider0Notion      LinkSocialAccountJSONBodyProvider0 = "notion"
+	LinkSocialAccountJSONBodyProvider0Paybin      LinkSocialAccountJSONBodyProvider0 = "paybin"
+	LinkSocialAccountJSONBodyProvider0Paypal      LinkSocialAccountJSONBodyProvider0 = "paypal"
+	LinkSocialAccountJSONBodyProvider0Polar       LinkSocialAccountJSONBodyProvider0 = "polar"
+	LinkSocialAccountJSONBodyProvider0Railway     LinkSocialAccountJSONBodyProvider0 = "railway"
+	LinkSocialAccountJSONBodyProvider0Reddit      LinkSocialAccountJSONBodyProvider0 = "reddit"
+	LinkSocialAccountJSONBodyProvider0Roblox      LinkSocialAccountJSONBodyProvider0 = "roblox"
+	LinkSocialAccountJSONBodyProvider0Salesforce  LinkSocialAccountJSONBodyProvider0 = "salesforce"
+	LinkSocialAccountJSONBodyProvider0Slack       LinkSocialAccountJSONBodyProvider0 = "slack"
+	LinkSocialAccountJSONBodyProvider0Spotify     LinkSocialAccountJSONBodyProvider0 = "spotify"
+	LinkSocialAccountJSONBodyProvider0Tiktok      LinkSocialAccountJSONBodyProvider0 = "tiktok"
+	LinkSocialAccountJSONBodyProvider0Twitch      LinkSocialAccountJSONBodyProvider0 = "twitch"
+	LinkSocialAccountJSONBodyProvider0Twitter     LinkSocialAccountJSONBodyProvider0 = "twitter"
+	LinkSocialAccountJSONBodyProvider0Vercel      LinkSocialAccountJSONBodyProvider0 = "vercel"
+	LinkSocialAccountJSONBodyProvider0Vk          LinkSocialAccountJSONBodyProvider0 = "vk"
+	LinkSocialAccountJSONBodyProvider0Wechat      LinkSocialAccountJSONBodyProvider0 = "wechat"
+	LinkSocialAccountJSONBodyProvider0Zoom        LinkSocialAccountJSONBodyProvider0 = "zoom"
+)
+
+// Valid indicates whether the value is a known member of the LinkSocialAccountJSONBodyProvider0 enum.
+func (e LinkSocialAccountJSONBodyProvider0) Valid() bool {
+	switch e {
+	case LinkSocialAccountJSONBodyProvider0Apple:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Atlassian:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Cognito:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Discord:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Dropbox:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Facebook:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Figma:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Github:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Gitlab:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Google:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Huggingface:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Kakao:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Kick:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Line:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Linear:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Linkedin:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Microsoft:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Naver:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Notion:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Paybin:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Paypal:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Polar:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Railway:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Reddit:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Roblox:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Salesforce:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Slack:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Spotify:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Tiktok:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Twitch:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Twitter:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Vercel:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Vk:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Wechat:
+		return true
+	case LinkSocialAccountJSONBodyProvider0Zoom:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PostApiAuthOauth2Link200JSONResponseBodyRedirect.
 const (
 	PostApiAuthOauth2Link200JSONResponseBodyRedirectTrue PostApiAuthOauth2Link200JSONResponseBodyRedirect = true
@@ -756,6 +975,123 @@ const (
 func (e SignInEmail200JSONResponseBodyRedirect) Valid() bool {
 	switch e {
 	case SignInEmail200JSONResponseBodyRedirectFalse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SocialSignInJSONBodyProvider0.
+const (
+	SocialSignInJSONBodyProvider0Apple       SocialSignInJSONBodyProvider0 = "apple"
+	SocialSignInJSONBodyProvider0Atlassian   SocialSignInJSONBodyProvider0 = "atlassian"
+	SocialSignInJSONBodyProvider0Cognito     SocialSignInJSONBodyProvider0 = "cognito"
+	SocialSignInJSONBodyProvider0Discord     SocialSignInJSONBodyProvider0 = "discord"
+	SocialSignInJSONBodyProvider0Dropbox     SocialSignInJSONBodyProvider0 = "dropbox"
+	SocialSignInJSONBodyProvider0Facebook    SocialSignInJSONBodyProvider0 = "facebook"
+	SocialSignInJSONBodyProvider0Figma       SocialSignInJSONBodyProvider0 = "figma"
+	SocialSignInJSONBodyProvider0Github      SocialSignInJSONBodyProvider0 = "github"
+	SocialSignInJSONBodyProvider0Gitlab      SocialSignInJSONBodyProvider0 = "gitlab"
+	SocialSignInJSONBodyProvider0Google      SocialSignInJSONBodyProvider0 = "google"
+	SocialSignInJSONBodyProvider0Huggingface SocialSignInJSONBodyProvider0 = "huggingface"
+	SocialSignInJSONBodyProvider0Kakao       SocialSignInJSONBodyProvider0 = "kakao"
+	SocialSignInJSONBodyProvider0Kick        SocialSignInJSONBodyProvider0 = "kick"
+	SocialSignInJSONBodyProvider0Line        SocialSignInJSONBodyProvider0 = "line"
+	SocialSignInJSONBodyProvider0Linear      SocialSignInJSONBodyProvider0 = "linear"
+	SocialSignInJSONBodyProvider0Linkedin    SocialSignInJSONBodyProvider0 = "linkedin"
+	SocialSignInJSONBodyProvider0Microsoft   SocialSignInJSONBodyProvider0 = "microsoft"
+	SocialSignInJSONBodyProvider0Naver       SocialSignInJSONBodyProvider0 = "naver"
+	SocialSignInJSONBodyProvider0Notion      SocialSignInJSONBodyProvider0 = "notion"
+	SocialSignInJSONBodyProvider0Paybin      SocialSignInJSONBodyProvider0 = "paybin"
+	SocialSignInJSONBodyProvider0Paypal      SocialSignInJSONBodyProvider0 = "paypal"
+	SocialSignInJSONBodyProvider0Polar       SocialSignInJSONBodyProvider0 = "polar"
+	SocialSignInJSONBodyProvider0Railway     SocialSignInJSONBodyProvider0 = "railway"
+	SocialSignInJSONBodyProvider0Reddit      SocialSignInJSONBodyProvider0 = "reddit"
+	SocialSignInJSONBodyProvider0Roblox      SocialSignInJSONBodyProvider0 = "roblox"
+	SocialSignInJSONBodyProvider0Salesforce  SocialSignInJSONBodyProvider0 = "salesforce"
+	SocialSignInJSONBodyProvider0Slack       SocialSignInJSONBodyProvider0 = "slack"
+	SocialSignInJSONBodyProvider0Spotify     SocialSignInJSONBodyProvider0 = "spotify"
+	SocialSignInJSONBodyProvider0Tiktok      SocialSignInJSONBodyProvider0 = "tiktok"
+	SocialSignInJSONBodyProvider0Twitch      SocialSignInJSONBodyProvider0 = "twitch"
+	SocialSignInJSONBodyProvider0Twitter     SocialSignInJSONBodyProvider0 = "twitter"
+	SocialSignInJSONBodyProvider0Vercel      SocialSignInJSONBodyProvider0 = "vercel"
+	SocialSignInJSONBodyProvider0Vk          SocialSignInJSONBodyProvider0 = "vk"
+	SocialSignInJSONBodyProvider0Wechat      SocialSignInJSONBodyProvider0 = "wechat"
+	SocialSignInJSONBodyProvider0Zoom        SocialSignInJSONBodyProvider0 = "zoom"
+)
+
+// Valid indicates whether the value is a known member of the SocialSignInJSONBodyProvider0 enum.
+func (e SocialSignInJSONBodyProvider0) Valid() bool {
+	switch e {
+	case SocialSignInJSONBodyProvider0Apple:
+		return true
+	case SocialSignInJSONBodyProvider0Atlassian:
+		return true
+	case SocialSignInJSONBodyProvider0Cognito:
+		return true
+	case SocialSignInJSONBodyProvider0Discord:
+		return true
+	case SocialSignInJSONBodyProvider0Dropbox:
+		return true
+	case SocialSignInJSONBodyProvider0Facebook:
+		return true
+	case SocialSignInJSONBodyProvider0Figma:
+		return true
+	case SocialSignInJSONBodyProvider0Github:
+		return true
+	case SocialSignInJSONBodyProvider0Gitlab:
+		return true
+	case SocialSignInJSONBodyProvider0Google:
+		return true
+	case SocialSignInJSONBodyProvider0Huggingface:
+		return true
+	case SocialSignInJSONBodyProvider0Kakao:
+		return true
+	case SocialSignInJSONBodyProvider0Kick:
+		return true
+	case SocialSignInJSONBodyProvider0Line:
+		return true
+	case SocialSignInJSONBodyProvider0Linear:
+		return true
+	case SocialSignInJSONBodyProvider0Linkedin:
+		return true
+	case SocialSignInJSONBodyProvider0Microsoft:
+		return true
+	case SocialSignInJSONBodyProvider0Naver:
+		return true
+	case SocialSignInJSONBodyProvider0Notion:
+		return true
+	case SocialSignInJSONBodyProvider0Paybin:
+		return true
+	case SocialSignInJSONBodyProvider0Paypal:
+		return true
+	case SocialSignInJSONBodyProvider0Polar:
+		return true
+	case SocialSignInJSONBodyProvider0Railway:
+		return true
+	case SocialSignInJSONBodyProvider0Reddit:
+		return true
+	case SocialSignInJSONBodyProvider0Roblox:
+		return true
+	case SocialSignInJSONBodyProvider0Salesforce:
+		return true
+	case SocialSignInJSONBodyProvider0Slack:
+		return true
+	case SocialSignInJSONBodyProvider0Spotify:
+		return true
+	case SocialSignInJSONBodyProvider0Tiktok:
+		return true
+	case SocialSignInJSONBodyProvider0Twitch:
+		return true
+	case SocialSignInJSONBodyProvider0Twitter:
+		return true
+	case SocialSignInJSONBodyProvider0Vercel:
+		return true
+	case SocialSignInJSONBodyProvider0Vk:
+		return true
+	case SocialSignInJSONBodyProvider0Wechat:
+		return true
+	case SocialSignInJSONBodyProvider0Zoom:
 		return true
 	default:
 		return false
@@ -1556,19 +1892,19 @@ func (e ListStorageUsageItemsParamsCategory) Valid() bool {
 
 // Defines values for ListStorageUsageItemsParamsSortBy.
 const (
-	Name      ListStorageUsageItemsParamsSortBy = "name"
-	Size      ListStorageUsageItemsParamsSortBy = "size"
-	UpdatedAt ListStorageUsageItemsParamsSortBy = "updatedAt"
+	ListStorageUsageItemsParamsSortByName      ListStorageUsageItemsParamsSortBy = "name"
+	ListStorageUsageItemsParamsSortBySize      ListStorageUsageItemsParamsSortBy = "size"
+	ListStorageUsageItemsParamsSortByUpdatedAt ListStorageUsageItemsParamsSortBy = "updatedAt"
 )
 
 // Valid indicates whether the value is a known member of the ListStorageUsageItemsParamsSortBy enum.
 func (e ListStorageUsageItemsParamsSortBy) Valid() bool {
 	switch e {
-	case Name:
+	case ListStorageUsageItemsParamsSortByName:
 		return true
-	case Size:
+	case ListStorageUsageItemsParamsSortBySize:
 		return true
-	case UpdatedAt:
+	case ListStorageUsageItemsParamsSortByUpdatedAt:
 		return true
 	default:
 		return false
@@ -1577,16 +1913,16 @@ func (e ListStorageUsageItemsParamsSortBy) Valid() bool {
 
 // Defines values for ListStorageUsageItemsParamsSortDir.
 const (
-	ListStorageUsageItemsParamsSortDirAsc  ListStorageUsageItemsParamsSortDir = "asc"
-	ListStorageUsageItemsParamsSortDirDesc ListStorageUsageItemsParamsSortDir = "desc"
+	Asc  ListStorageUsageItemsParamsSortDir = "asc"
+	Desc ListStorageUsageItemsParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListStorageUsageItemsParamsSortDir enum.
 func (e ListStorageUsageItemsParamsSortDir) Valid() bool {
 	switch e {
-	case ListStorageUsageItemsParamsSortDirAsc:
+	case Asc:
 		return true
-	case ListStorageUsageItemsParamsSortDirDesc:
+	case Desc:
 		return true
 	default:
 		return false
@@ -2958,15 +3294,26 @@ type BanUserJSONBody struct {
 
 // CreateUserJSONBody defines parameters for CreateUser.
 type CreateUserJSONBody struct {
-	Data *string `json:"data,omitempty"`
+	Data *map[string]interface{} `json:"data,omitempty"`
 
 	// Email The email of the user
 	Email string `json:"email"`
 
 	// Name The name of the user
-	Name     string  `json:"name"`
-	Password *string `json:"password,omitempty"`
-	Role     *string `json:"role,omitempty"`
+	Name     string                   `json:"name"`
+	Password *string                  `json:"password,omitempty"`
+	Role     *CreateUserJSONBody_Role `json:"role,omitempty"`
+}
+
+// CreateUserJSONBodyRole0 defines parameters for CreateUser.
+type CreateUserJSONBodyRole0 = string
+
+// CreateUserJSONBodyRole1 defines parameters for CreateUser.
+type CreateUserJSONBodyRole1 = []string
+
+// CreateUserJSONBody_Role defines parameters for CreateUser.
+type CreateUserJSONBody_Role struct {
+	union json.RawMessage
 }
 
 // GetUserParams defines parameters for GetUser.
@@ -2994,17 +3341,77 @@ type AdminListUserSessionsJSONBody struct {
 
 // ListUsersParams defines parameters for ListUsers.
 type ListUsersParams struct {
-	SearchValue    *string `form:"searchValue,omitempty" json:"searchValue,omitempty"`
-	SearchField    *string `form:"searchField,omitempty" json:"searchField,omitempty"`
-	SearchOperator *string `form:"searchOperator,omitempty" json:"searchOperator,omitempty"`
-	Limit          *string `form:"limit,omitempty" json:"limit,omitempty"`
-	Offset         *string `form:"offset,omitempty" json:"offset,omitempty"`
-	SortBy         *string `form:"sortBy,omitempty" json:"sortBy,omitempty"`
-	SortDirection  *string `form:"sortDirection,omitempty" json:"sortDirection,omitempty"`
-	FilterField    *string `form:"filterField,omitempty" json:"filterField,omitempty"`
-	FilterValue    *string `form:"filterValue,omitempty" json:"filterValue,omitempty"`
-	FilterOperator *string `form:"filterOperator,omitempty" json:"filterOperator,omitempty"`
+	SearchValue    *string                        `form:"searchValue,omitempty" json:"searchValue,omitempty"`
+	SearchField    *ListUsersParamsSearchField    `form:"searchField,omitempty" json:"searchField,omitempty"`
+	SearchOperator *ListUsersParamsSearchOperator `form:"searchOperator,omitempty" json:"searchOperator,omitempty"`
+	Limit          *struct {
+		union json.RawMessage
+	} `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *struct {
+		union json.RawMessage
+	} `form:"offset,omitempty" json:"offset,omitempty"`
+	SortBy        *string                       `form:"sortBy,omitempty" json:"sortBy,omitempty"`
+	SortDirection *ListUsersParamsSortDirection `form:"sortDirection,omitempty" json:"sortDirection,omitempty"`
+	FilterField   *string                       `form:"filterField,omitempty" json:"filterField,omitempty"`
+	FilterValue   *struct {
+		union json.RawMessage
+	} `form:"filterValue,omitempty" json:"filterValue,omitempty"`
+	FilterOperator *ListUsersParamsFilterOperator `form:"filterOperator,omitempty" json:"filterOperator,omitempty"`
 }
+
+// ListUsersParamsSearchField defines parameters for ListUsers.
+type ListUsersParamsSearchField string
+
+// ListUsersParamsSearchOperator defines parameters for ListUsers.
+type ListUsersParamsSearchOperator string
+
+// ListUsersParamsLimit0 defines parameters for ListUsers.
+type ListUsersParamsLimit0 = string
+
+// ListUsersParamsLimit1 defines parameters for ListUsers.
+type ListUsersParamsLimit1 = float32
+
+// ListUsersParamsOffset0 defines parameters for ListUsers.
+type ListUsersParamsOffset0 = string
+
+// ListUsersParamsOffset1 defines parameters for ListUsers.
+type ListUsersParamsOffset1 = float32
+
+// ListUsersParamsSortDirection defines parameters for ListUsers.
+type ListUsersParamsSortDirection string
+
+// ListUsersParamsFilterValue0 defines parameters for ListUsers.
+type ListUsersParamsFilterValue0 struct {
+	union json.RawMessage
+}
+
+// ListUsersParamsFilterValue00 defines parameters for ListUsers.
+type ListUsersParamsFilterValue00 struct {
+	union json.RawMessage
+}
+
+// ListUsersParamsFilterValue000 defines parameters for ListUsers.
+type ListUsersParamsFilterValue000 struct {
+	union json.RawMessage
+}
+
+// ListUsersParamsFilterValue0000 defines parameters for ListUsers.
+type ListUsersParamsFilterValue0000 = string
+
+// ListUsersParamsFilterValue0001 defines parameters for ListUsers.
+type ListUsersParamsFilterValue0001 = float32
+
+// ListUsersParamsFilterValue001 defines parameters for ListUsers.
+type ListUsersParamsFilterValue001 = bool
+
+// ListUsersParamsFilterValue01 defines parameters for ListUsers.
+type ListUsersParamsFilterValue01 = []string
+
+// ListUsersParamsFilterValue1 defines parameters for ListUsers.
+type ListUsersParamsFilterValue1 = []float32
+
+// ListUsersParamsFilterOperator defines parameters for ListUsers.
+type ListUsersParamsFilterOperator string
 
 // RemoveUserJSONBody defines parameters for RemoveUser.
 type RemoveUserJSONBody struct {
@@ -3027,10 +3434,21 @@ type RevokeUserSessionsJSONBody struct {
 // SetUserRoleJSONBody defines parameters for SetUserRole.
 type SetUserRoleJSONBody struct {
 	// Role The role to set, this can be a string or an array of strings. Eg: `admin` or `[admin, user]`
-	Role string `json:"role"`
+	Role SetUserRoleJSONBody_Role `json:"role"`
 
 	// UserId The user id
 	UserId string `json:"userId"`
+}
+
+// SetUserRoleJSONBodyRole0 defines parameters for SetUserRole.
+type SetUserRoleJSONBodyRole0 = string
+
+// SetUserRoleJSONBodyRole1 defines parameters for SetUserRole.
+type SetUserRoleJSONBodyRole1 = []string
+
+// SetUserRoleJSONBody_Role defines parameters for SetUserRole.
+type SetUserRoleJSONBody_Role struct {
+	union json.RawMessage
 }
 
 // SetUserPasswordJSONBody defines parameters for SetUserPassword.
@@ -3051,7 +3469,7 @@ type UnbanUserJSONBody struct {
 // AdminUpdateUserJSONBody defines parameters for AdminUpdateUser.
 type AdminUpdateUserJSONBody struct {
 	// Data The user data to update
-	Data string `json:"data"`
+	Data map[string]interface{} `json:"data"`
 
 	// UserId The user id
 	UserId string `json:"userId"`
@@ -3060,9 +3478,11 @@ type AdminUpdateUserJSONBody struct {
 // PostApiAuthApiKeyCreateJSONBody defines parameters for PostApiAuthApiKeyCreate.
 type PostApiAuthApiKeyCreateJSONBody struct {
 	// ConfigId The configuration ID to use for the API key. If not provided, the default configuration will be used.
-	ConfigId  *string `json:"configId,omitempty"`
-	ExpiresIn string  `json:"expiresIn"`
-	Metadata  *string `json:"metadata,omitempty"`
+	ConfigId *string `json:"configId,omitempty"`
+
+	// ExpiresIn Expiration time of the Api Key in seconds
+	ExpiresIn *float32    `json:"expiresIn,omitempty"`
+	Metadata  interface{} `json:"metadata,omitempty"`
 
 	// Name Name of the Api Key
 	Name *string `json:"name,omitempty"`
@@ -3071,7 +3491,7 @@ type PostApiAuthApiKeyCreateJSONBody struct {
 	OrganizationId *string `json:"organizationId,omitempty"`
 
 	// Permissions Permissions of the Api Key.
-	Permissions *string `json:"permissions,omitempty"`
+	Permissions *map[string][]string `json:"permissions,omitempty"`
 
 	// Prefix Prefix of the Api Key
 	Prefix *string `json:"prefix,omitempty"`
@@ -3090,7 +3510,9 @@ type PostApiAuthApiKeyCreateJSONBody struct {
 
 	// RefillInterval Interval to refill the Api Key in milliseconds. server-only. Eg: 1000
 	RefillInterval *float32 `json:"refillInterval,omitempty"`
-	Remaining      string   `json:"remaining"`
+
+	// Remaining Remaining number of requests. Server side only
+	Remaining *float32 `json:"remaining,omitempty"`
 
 	// UserId User Id of the user that the Api Key belongs to. server-only. Eg: "user-id"
 	UserId *string `json:"userId,omitempty"`
@@ -3114,16 +3536,20 @@ type PostApiAuthApiKeyUpdateJSONBody struct {
 	ConfigId *string `json:"configId,omitempty"`
 
 	// Enabled Whether the Api Key is enabled or not
-	Enabled   *bool  `json:"enabled,omitempty"`
-	ExpiresIn string `json:"expiresIn"`
+	Enabled *bool `json:"enabled,omitempty"`
+
+	// ExpiresIn Expiration time of the Api Key in seconds
+	ExpiresIn *float32 `json:"expiresIn,omitempty"`
 
 	// KeyId The id of the Api Key
-	KeyId    string  `json:"keyId"`
-	Metadata *string `json:"metadata,omitempty"`
+	KeyId    string      `json:"keyId"`
+	Metadata interface{} `json:"metadata,omitempty"`
 
 	// Name The name of the key
-	Name        *string `json:"name,omitempty"`
-	Permissions string  `json:"permissions"`
+	Name *string `json:"name,omitempty"`
+
+	// Permissions Update the permissions on the API Key. server-only.
+	Permissions *map[string][]string `json:"permissions,omitempty"`
 
 	// RateLimitEnabled Whether the key has rate limiting enabled.
 	RateLimitEnabled *bool `json:"rateLimitEnabled,omitempty"`
@@ -3148,7 +3574,14 @@ type PostApiAuthApiKeyUpdateJSONBody struct {
 }
 
 // PostApiAuthCallbackIdJSONBody defines parameters for PostApiAuthCallbackId.
-type PostApiAuthCallbackIdJSONBody = map[string]interface{}
+type PostApiAuthCallbackIdJSONBody struct {
+	Code             *string `json:"code,omitempty"`
+	DeviceId         *string `json:"device_id,omitempty"`
+	Error            *string `json:"error,omitempty"`
+	ErrorDescription *string `json:"error_description,omitempty"`
+	State            *string `json:"state,omitempty"`
+	User             *string `json:"user,omitempty"`
+}
 
 // ChangeEmailJSONBody defines parameters for ChangeEmail.
 type ChangeEmailJSONBody struct {
@@ -3219,6 +3652,9 @@ type PostApiAuthDeviceCodeJSONBody struct {
 
 	// Scope Space-separated list of scopes
 	Scope *string `json:"scope,omitempty"`
+
+	// UserId The user ID to which the device code should be pre-bound.
+	UserId *string `json:"user_id,omitempty"`
 }
 
 // PostApiAuthDeviceCode400JSONResponseBodyError defines parameters for PostApiAuthDeviceCode.
@@ -3239,7 +3675,7 @@ type PostApiAuthDeviceTokenJSONBody struct {
 	DeviceCode string `json:"device_code"`
 
 	// GrantType The grant type for device flow
-	GrantType string `json:"grant_type"`
+	GrantType interface{} `json:"grant_type"`
 }
 
 // PostApiAuthDeviceToken400JSONResponseBodyError defines parameters for PostApiAuthDeviceToken.
@@ -3268,7 +3704,7 @@ type PostApiAuthIsUsernameAvailableJSONBody struct {
 
 // LinkSocialAccountJSONBody defines parameters for LinkSocialAccount.
 type LinkSocialAccountJSONBody struct {
-	AdditionalData *string `json:"additionalData,omitempty"`
+	AdditionalData *map[string]interface{} `json:"additionalData,omitempty"`
 
 	// CallbackURL The URL to redirect to after the user has signed in
 	CallbackURL *string `json:"callbackURL,omitempty"`
@@ -3279,17 +3715,28 @@ type LinkSocialAccountJSONBody struct {
 	// ErrorCallbackURL The URL to redirect to if there is an error during the link process
 	ErrorCallbackURL *string `json:"errorCallbackURL,omitempty"`
 	IdToken          *struct {
-		AccessToken  *string        `json:"accessToken,omitempty"`
-		Nonce        *string        `json:"nonce,omitempty"`
-		RefreshToken *string        `json:"refreshToken,omitempty"`
-		Scopes       *[]interface{} `json:"scopes,omitempty"`
-		Token        string         `json:"token"`
+		AccessToken  *string   `json:"accessToken,omitempty"`
+		Nonce        *string   `json:"nonce,omitempty"`
+		RefreshToken *string   `json:"refreshToken,omitempty"`
+		Scopes       *[]string `json:"scopes,omitempty"`
+		Token        string    `json:"token"`
 	} `json:"idToken,omitempty"`
-	Provider      string `json:"provider"`
-	RequestSignUp *bool  `json:"requestSignUp,omitempty"`
+	Provider      LinkSocialAccountJSONBody_Provider `json:"provider"`
+	RequestSignUp *bool                              `json:"requestSignUp,omitempty"`
 
 	// Scopes Additional scopes to request from the provider
-	Scopes *[]interface{} `json:"scopes,omitempty"`
+	Scopes *[]string `json:"scopes,omitempty"`
+}
+
+// LinkSocialAccountJSONBodyProvider0 defines parameters for LinkSocialAccount.
+type LinkSocialAccountJSONBodyProvider0 string
+
+// LinkSocialAccountJSONBodyProvider1 defines parameters for LinkSocialAccount.
+type LinkSocialAccountJSONBodyProvider1 = string
+
+// LinkSocialAccountJSONBody_Provider defines parameters for LinkSocialAccount.
+type LinkSocialAccountJSONBody_Provider struct {
+	union json.RawMessage
 }
 
 // GetApiAuthOauth2CallbackProviderIdParams defines parameters for GetApiAuthOauth2CallbackProviderId.
@@ -3310,7 +3757,7 @@ type PostApiAuthOauth2LinkJSONBody struct {
 	ProviderId       string  `json:"providerId"`
 
 	// Scopes Additional scopes to request when linking the account
-	Scopes *[]interface{} `json:"scopes,omitempty"`
+	Scopes *[]string `json:"scopes,omitempty"`
 }
 
 // PostApiAuthOauth2Link200JSONResponseBodyRedirect defines parameters for PostApiAuthOauth2Link.
@@ -3337,11 +3784,13 @@ type PostApiAuthOrganizationCheckSlugJSONBody struct {
 // PostApiAuthOrganizationCreateJSONBody defines parameters for PostApiAuthOrganizationCreate.
 type PostApiAuthOrganizationCreateJSONBody struct {
 	// KeepCurrentActiveOrganization Whether to keep the current active organization active after creating a new one. Eg: true
-	KeepCurrentActiveOrganization *bool   `json:"keepCurrentActiveOrganization,omitempty"`
-	Logo                          *string `json:"logo,omitempty"`
+	KeepCurrentActiveOrganization *bool `json:"keepCurrentActiveOrganization,omitempty"`
+
+	// Logo The logo of the organization
+	Logo *string `json:"logo,omitempty"`
 
 	// Metadata The metadata of the organization
-	Metadata *string `json:"metadata,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
 
 	// Name The name of the organization
 	Name string `json:"name"`
@@ -3386,8 +3835,30 @@ type CreateOrganizationInvitationJSONBody struct {
 	Resend *bool `json:"resend,omitempty"`
 
 	// Role The role(s) to assign to the user. It can be `admin`, `member`, owner. Eg: "member"
-	Role   string `json:"role"`
-	TeamId string `json:"teamId"`
+	Role   CreateOrganizationInvitationJSONBody_Role    `json:"role"`
+	TeamId *CreateOrganizationInvitationJSONBody_TeamId `json:"teamId,omitempty"`
+}
+
+// CreateOrganizationInvitationJSONBodyRole0 defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBodyRole0 = string
+
+// CreateOrganizationInvitationJSONBodyRole1 defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBodyRole1 = []string
+
+// CreateOrganizationInvitationJSONBody_Role defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBody_Role struct {
+	union json.RawMessage
+}
+
+// CreateOrganizationInvitationJSONBodyTeamId0 defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBodyTeamId0 = string
+
+// CreateOrganizationInvitationJSONBodyTeamId1 defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBodyTeamId1 = []string
+
+// CreateOrganizationInvitationJSONBody_TeamId defines parameters for CreateOrganizationInvitation.
+type CreateOrganizationInvitationJSONBody_TeamId struct {
+	union json.RawMessage
 }
 
 // PostApiAuthOrganizationLeaveJSONBody defines parameters for PostApiAuthOrganizationLeave.
@@ -3413,6 +3884,7 @@ type PostApiAuthOrganizationRemoveMemberJSONBody struct {
 
 // SetActiveOrganizationJSONBody defines parameters for SetActiveOrganization.
 type SetActiveOrganizationJSONBody struct {
+	// OrganizationId The organization id to set as active. It can be null to unset the active organization. Eg: "org-id"
 	OrganizationId *string `json:"organizationId,omitempty"`
 
 	// OrganizationSlug The organization slug to set as active. It can be null to unset the active organization if organizationId is not provided. Eg: "org-slug"
@@ -3422,10 +3894,11 @@ type SetActiveOrganizationJSONBody struct {
 // PostApiAuthOrganizationUpdateJSONBody defines parameters for PostApiAuthOrganizationUpdate.
 type PostApiAuthOrganizationUpdateJSONBody struct {
 	Data struct {
+		// Logo The logo of the organization
 		Logo *string `json:"logo,omitempty"`
 
 		// Metadata The metadata of the organization
-		Metadata *string `json:"metadata,omitempty"`
+		Metadata *map[string]interface{} `json:"metadata,omitempty"`
 
 		// Name The name of the organization
 		Name *string `json:"name,omitempty"`
@@ -3447,7 +3920,18 @@ type UpdateOrganizationMemberRoleJSONBody struct {
 	OrganizationId *string `json:"organizationId,omitempty"`
 
 	// Role The new role to be applied. This can be a string or array of strings representing the roles. Eg: ["admin", "sale"]
-	Role string `json:"role"`
+	Role UpdateOrganizationMemberRoleJSONBody_Role `json:"role"`
+}
+
+// UpdateOrganizationMemberRoleJSONBodyRole0 defines parameters for UpdateOrganizationMemberRole.
+type UpdateOrganizationMemberRoleJSONBodyRole0 = string
+
+// UpdateOrganizationMemberRoleJSONBodyRole1 defines parameters for UpdateOrganizationMemberRole.
+type UpdateOrganizationMemberRoleJSONBodyRole1 = []string
+
+// UpdateOrganizationMemberRoleJSONBody_Role defines parameters for UpdateOrganizationMemberRole.
+type UpdateOrganizationMemberRoleJSONBody_Role struct {
+	union json.RawMessage
 }
 
 // PostApiAuthRefreshTokenJSONBody defines parameters for PostApiAuthRefreshToken.
@@ -3527,7 +4011,7 @@ type SignInEmail200JSONResponseBodyRedirect bool
 
 // PostApiAuthSignInOauth2JSONBody defines parameters for PostApiAuthSignInOauth2.
 type PostApiAuthSignInOauth2JSONBody struct {
-	AdditionalData *string `json:"additionalData,omitempty"`
+	AdditionalData *map[string]interface{} `json:"additionalData,omitempty"`
 
 	// CallbackURL The URL to redirect to after sign in
 	CallbackURL *string `json:"callbackURL,omitempty"`
@@ -3548,12 +4032,12 @@ type PostApiAuthSignInOauth2JSONBody struct {
 	RequestSignUp *bool `json:"requestSignUp,omitempty"`
 
 	// Scopes Scopes to be passed to the provider authorization request.
-	Scopes *[]interface{} `json:"scopes,omitempty"`
+	Scopes *[]string `json:"scopes,omitempty"`
 }
 
 // SocialSignInJSONBody defines parameters for SocialSignIn.
 type SocialSignInJSONBody struct {
-	AdditionalData *string `json:"additionalData,omitempty"`
+	AdditionalData *map[string]interface{} `json:"additionalData,omitempty"`
 
 	// CallbackURL Callback URL to redirect to after the user has signed in
 	CallbackURL *string `json:"callbackURL,omitempty"`
@@ -3590,15 +4074,26 @@ type SocialSignInJSONBody struct {
 	} `json:"idToken,omitempty"`
 
 	// LoginHint The login hint to use for the authorization code request
-	LoginHint          *string `json:"loginHint,omitempty"`
-	NewUserCallbackURL *string `json:"newUserCallbackURL,omitempty"`
-	Provider           string  `json:"provider"`
+	LoginHint          *string                       `json:"loginHint,omitempty"`
+	NewUserCallbackURL *string                       `json:"newUserCallbackURL,omitempty"`
+	Provider           SocialSignInJSONBody_Provider `json:"provider"`
 
 	// RequestSignUp Explicitly request sign-up. Useful when disableImplicitSignUp is true for this provider
 	RequestSignUp *bool `json:"requestSignUp,omitempty"`
 
 	// Scopes Array of scopes to request from the provider. This will override the default scopes passed.
-	Scopes *[]interface{} `json:"scopes,omitempty"`
+	Scopes *[]string `json:"scopes,omitempty"`
+}
+
+// SocialSignInJSONBodyProvider0 defines parameters for SocialSignIn.
+type SocialSignInJSONBodyProvider0 string
+
+// SocialSignInJSONBodyProvider1 defines parameters for SocialSignIn.
+type SocialSignInJSONBodyProvider1 = string
+
+// SocialSignInJSONBody_Provider defines parameters for SocialSignIn.
+type SocialSignInJSONBody_Provider struct {
+	union json.RawMessage
 }
 
 // PostApiAuthSignInUsernameJSONBody defines parameters for PostApiAuthSignInUsername.
@@ -3622,7 +4117,8 @@ type SignOutJSONBody = map[string]interface{}
 // SignUpWithEmailAndPasswordJSONBody defines parameters for SignUpWithEmailAndPassword.
 type SignUpWithEmailAndPasswordJSONBody struct {
 	// CallbackURL The URL to use for email verification callback
-	CallbackURL *string `json:"callbackURL,omitempty"`
+	CallbackURL     *string `json:"callbackURL,omitempty"`
+	DisplayUsername *string `json:"displayUsername,omitempty"`
 
 	// Email The email of the user
 	Email string `json:"email"`
@@ -3637,7 +4133,8 @@ type SignUpWithEmailAndPasswordJSONBody struct {
 	Password string `json:"password"`
 
 	// RememberMe If this is false, the session will not be remembered. Default is `true`.
-	RememberMe *bool `json:"rememberMe,omitempty"`
+	RememberMe *bool   `json:"rememberMe,omitempty"`
+	Username   *string `json:"username,omitempty"`
 }
 
 // PostApiAuthUnlinkAccountJSONBody defines parameters for PostApiAuthUnlinkAccount.
@@ -3647,15 +4144,18 @@ type PostApiAuthUnlinkAccountJSONBody struct {
 }
 
 // UpdateSessionJSONBody defines parameters for UpdateSession.
-type UpdateSessionJSONBody = map[string]interface{}
+type UpdateSessionJSONBody map[string]interface{}
 
 // UpdateUserJSONBody defines parameters for UpdateUser.
 type UpdateUserJSONBody struct {
+	DisplayUsername *string `json:"displayUsername,omitempty"`
+
 	// Image The image of the user
 	Image *string `json:"image,omitempty"`
 
 	// Name The name of the user
-	Name *string `json:"name,omitempty"`
+	Name     *string `json:"name,omitempty"`
+	Username *string `json:"username,omitempty"`
 }
 
 // GetApiAuthVerifyEmailParams defines parameters for GetApiAuthVerifyEmail.
@@ -4485,7 +4985,7 @@ type PostApiAuthApiKeyDeleteJSONRequestBody PostApiAuthApiKeyDeleteJSONBody
 type PostApiAuthApiKeyUpdateJSONRequestBody PostApiAuthApiKeyUpdateJSONBody
 
 // PostApiAuthCallbackIdJSONRequestBody defines body for PostApiAuthCallbackId for application/json ContentType.
-type PostApiAuthCallbackIdJSONRequestBody = PostApiAuthCallbackIdJSONBody
+type PostApiAuthCallbackIdJSONRequestBody PostApiAuthCallbackIdJSONBody
 
 // ChangeEmailJSONRequestBody defines body for ChangeEmail for application/json ContentType.
 type ChangeEmailJSONRequestBody ChangeEmailJSONBody
@@ -4605,7 +5105,7 @@ type SignUpWithEmailAndPasswordJSONRequestBody SignUpWithEmailAndPasswordJSONBod
 type PostApiAuthUnlinkAccountJSONRequestBody PostApiAuthUnlinkAccountJSONBody
 
 // UpdateSessionJSONRequestBody defines body for UpdateSession for application/json ContentType.
-type UpdateSessionJSONRequestBody = UpdateSessionJSONBody
+type UpdateSessionJSONRequestBody UpdateSessionJSONBody
 
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody UpdateUserJSONBody
@@ -4824,6 +5324,626 @@ func (t PublicCaptcha) MarshalJSON() ([]byte, error) {
 }
 
 func (t *PublicCaptcha) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCreateUserJSONBodyRole0 returns the union data inside the CreateUserJSONBody_Role as a CreateUserJSONBodyRole0
+func (t CreateUserJSONBody_Role) AsCreateUserJSONBodyRole0() (CreateUserJSONBodyRole0, error) {
+	var body CreateUserJSONBodyRole0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateUserJSONBodyRole0 overwrites any union data inside the CreateUserJSONBody_Role as the provided CreateUserJSONBodyRole0
+func (t *CreateUserJSONBody_Role) FromCreateUserJSONBodyRole0(v CreateUserJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateUserJSONBodyRole0 performs a merge with any union data inside the CreateUserJSONBody_Role, using the provided CreateUserJSONBodyRole0
+func (t *CreateUserJSONBody_Role) MergeCreateUserJSONBodyRole0(v CreateUserJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateUserJSONBodyRole1 returns the union data inside the CreateUserJSONBody_Role as a CreateUserJSONBodyRole1
+func (t CreateUserJSONBody_Role) AsCreateUserJSONBodyRole1() (CreateUserJSONBodyRole1, error) {
+	var body CreateUserJSONBodyRole1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateUserJSONBodyRole1 overwrites any union data inside the CreateUserJSONBody_Role as the provided CreateUserJSONBodyRole1
+func (t *CreateUserJSONBody_Role) FromCreateUserJSONBodyRole1(v CreateUserJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateUserJSONBodyRole1 performs a merge with any union data inside the CreateUserJSONBody_Role, using the provided CreateUserJSONBodyRole1
+func (t *CreateUserJSONBody_Role) MergeCreateUserJSONBodyRole1(v CreateUserJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CreateUserJSONBody_Role) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CreateUserJSONBody_Role) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsListUsersParamsFilterValue00 returns the union data inside the ListUsersParamsFilterValue0 as a ListUsersParamsFilterValue00
+func (t ListUsersParamsFilterValue0) AsListUsersParamsFilterValue00() (ListUsersParamsFilterValue00, error) {
+	var body ListUsersParamsFilterValue00
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue00 overwrites any union data inside the ListUsersParamsFilterValue0 as the provided ListUsersParamsFilterValue00
+func (t *ListUsersParamsFilterValue0) FromListUsersParamsFilterValue00(v ListUsersParamsFilterValue00) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue00 performs a merge with any union data inside the ListUsersParamsFilterValue0, using the provided ListUsersParamsFilterValue00
+func (t *ListUsersParamsFilterValue0) MergeListUsersParamsFilterValue00(v ListUsersParamsFilterValue00) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsListUsersParamsFilterValue01 returns the union data inside the ListUsersParamsFilterValue0 as a ListUsersParamsFilterValue01
+func (t ListUsersParamsFilterValue0) AsListUsersParamsFilterValue01() (ListUsersParamsFilterValue01, error) {
+	var body ListUsersParamsFilterValue01
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue01 overwrites any union data inside the ListUsersParamsFilterValue0 as the provided ListUsersParamsFilterValue01
+func (t *ListUsersParamsFilterValue0) FromListUsersParamsFilterValue01(v ListUsersParamsFilterValue01) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue01 performs a merge with any union data inside the ListUsersParamsFilterValue0, using the provided ListUsersParamsFilterValue01
+func (t *ListUsersParamsFilterValue0) MergeListUsersParamsFilterValue01(v ListUsersParamsFilterValue01) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ListUsersParamsFilterValue0) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ListUsersParamsFilterValue0) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsListUsersParamsFilterValue000 returns the union data inside the ListUsersParamsFilterValue00 as a ListUsersParamsFilterValue000
+func (t ListUsersParamsFilterValue00) AsListUsersParamsFilterValue000() (ListUsersParamsFilterValue000, error) {
+	var body ListUsersParamsFilterValue000
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue000 overwrites any union data inside the ListUsersParamsFilterValue00 as the provided ListUsersParamsFilterValue000
+func (t *ListUsersParamsFilterValue00) FromListUsersParamsFilterValue000(v ListUsersParamsFilterValue000) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue000 performs a merge with any union data inside the ListUsersParamsFilterValue00, using the provided ListUsersParamsFilterValue000
+func (t *ListUsersParamsFilterValue00) MergeListUsersParamsFilterValue000(v ListUsersParamsFilterValue000) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsListUsersParamsFilterValue001 returns the union data inside the ListUsersParamsFilterValue00 as a ListUsersParamsFilterValue001
+func (t ListUsersParamsFilterValue00) AsListUsersParamsFilterValue001() (ListUsersParamsFilterValue001, error) {
+	var body ListUsersParamsFilterValue001
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue001 overwrites any union data inside the ListUsersParamsFilterValue00 as the provided ListUsersParamsFilterValue001
+func (t *ListUsersParamsFilterValue00) FromListUsersParamsFilterValue001(v ListUsersParamsFilterValue001) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue001 performs a merge with any union data inside the ListUsersParamsFilterValue00, using the provided ListUsersParamsFilterValue001
+func (t *ListUsersParamsFilterValue00) MergeListUsersParamsFilterValue001(v ListUsersParamsFilterValue001) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ListUsersParamsFilterValue00) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ListUsersParamsFilterValue00) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsListUsersParamsFilterValue0000 returns the union data inside the ListUsersParamsFilterValue000 as a ListUsersParamsFilterValue0000
+func (t ListUsersParamsFilterValue000) AsListUsersParamsFilterValue0000() (ListUsersParamsFilterValue0000, error) {
+	var body ListUsersParamsFilterValue0000
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue0000 overwrites any union data inside the ListUsersParamsFilterValue000 as the provided ListUsersParamsFilterValue0000
+func (t *ListUsersParamsFilterValue000) FromListUsersParamsFilterValue0000(v ListUsersParamsFilterValue0000) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue0000 performs a merge with any union data inside the ListUsersParamsFilterValue000, using the provided ListUsersParamsFilterValue0000
+func (t *ListUsersParamsFilterValue000) MergeListUsersParamsFilterValue0000(v ListUsersParamsFilterValue0000) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsListUsersParamsFilterValue0001 returns the union data inside the ListUsersParamsFilterValue000 as a ListUsersParamsFilterValue0001
+func (t ListUsersParamsFilterValue000) AsListUsersParamsFilterValue0001() (ListUsersParamsFilterValue0001, error) {
+	var body ListUsersParamsFilterValue0001
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromListUsersParamsFilterValue0001 overwrites any union data inside the ListUsersParamsFilterValue000 as the provided ListUsersParamsFilterValue0001
+func (t *ListUsersParamsFilterValue000) FromListUsersParamsFilterValue0001(v ListUsersParamsFilterValue0001) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeListUsersParamsFilterValue0001 performs a merge with any union data inside the ListUsersParamsFilterValue000, using the provided ListUsersParamsFilterValue0001
+func (t *ListUsersParamsFilterValue000) MergeListUsersParamsFilterValue0001(v ListUsersParamsFilterValue0001) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ListUsersParamsFilterValue000) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ListUsersParamsFilterValue000) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsSetUserRoleJSONBodyRole0 returns the union data inside the SetUserRoleJSONBody_Role as a SetUserRoleJSONBodyRole0
+func (t SetUserRoleJSONBody_Role) AsSetUserRoleJSONBodyRole0() (SetUserRoleJSONBodyRole0, error) {
+	var body SetUserRoleJSONBodyRole0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSetUserRoleJSONBodyRole0 overwrites any union data inside the SetUserRoleJSONBody_Role as the provided SetUserRoleJSONBodyRole0
+func (t *SetUserRoleJSONBody_Role) FromSetUserRoleJSONBodyRole0(v SetUserRoleJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSetUserRoleJSONBodyRole0 performs a merge with any union data inside the SetUserRoleJSONBody_Role, using the provided SetUserRoleJSONBodyRole0
+func (t *SetUserRoleJSONBody_Role) MergeSetUserRoleJSONBodyRole0(v SetUserRoleJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSetUserRoleJSONBodyRole1 returns the union data inside the SetUserRoleJSONBody_Role as a SetUserRoleJSONBodyRole1
+func (t SetUserRoleJSONBody_Role) AsSetUserRoleJSONBodyRole1() (SetUserRoleJSONBodyRole1, error) {
+	var body SetUserRoleJSONBodyRole1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSetUserRoleJSONBodyRole1 overwrites any union data inside the SetUserRoleJSONBody_Role as the provided SetUserRoleJSONBodyRole1
+func (t *SetUserRoleJSONBody_Role) FromSetUserRoleJSONBodyRole1(v SetUserRoleJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSetUserRoleJSONBodyRole1 performs a merge with any union data inside the SetUserRoleJSONBody_Role, using the provided SetUserRoleJSONBodyRole1
+func (t *SetUserRoleJSONBody_Role) MergeSetUserRoleJSONBodyRole1(v SetUserRoleJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t SetUserRoleJSONBody_Role) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *SetUserRoleJSONBody_Role) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsLinkSocialAccountJSONBodyProvider0 returns the union data inside the LinkSocialAccountJSONBody_Provider as a LinkSocialAccountJSONBodyProvider0
+func (t LinkSocialAccountJSONBody_Provider) AsLinkSocialAccountJSONBodyProvider0() (LinkSocialAccountJSONBodyProvider0, error) {
+	var body LinkSocialAccountJSONBodyProvider0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLinkSocialAccountJSONBodyProvider0 overwrites any union data inside the LinkSocialAccountJSONBody_Provider as the provided LinkSocialAccountJSONBodyProvider0
+func (t *LinkSocialAccountJSONBody_Provider) FromLinkSocialAccountJSONBodyProvider0(v LinkSocialAccountJSONBodyProvider0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeLinkSocialAccountJSONBodyProvider0 performs a merge with any union data inside the LinkSocialAccountJSONBody_Provider, using the provided LinkSocialAccountJSONBodyProvider0
+func (t *LinkSocialAccountJSONBody_Provider) MergeLinkSocialAccountJSONBodyProvider0(v LinkSocialAccountJSONBodyProvider0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsLinkSocialAccountJSONBodyProvider1 returns the union data inside the LinkSocialAccountJSONBody_Provider as a LinkSocialAccountJSONBodyProvider1
+func (t LinkSocialAccountJSONBody_Provider) AsLinkSocialAccountJSONBodyProvider1() (LinkSocialAccountJSONBodyProvider1, error) {
+	var body LinkSocialAccountJSONBodyProvider1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLinkSocialAccountJSONBodyProvider1 overwrites any union data inside the LinkSocialAccountJSONBody_Provider as the provided LinkSocialAccountJSONBodyProvider1
+func (t *LinkSocialAccountJSONBody_Provider) FromLinkSocialAccountJSONBodyProvider1(v LinkSocialAccountJSONBodyProvider1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeLinkSocialAccountJSONBodyProvider1 performs a merge with any union data inside the LinkSocialAccountJSONBody_Provider, using the provided LinkSocialAccountJSONBodyProvider1
+func (t *LinkSocialAccountJSONBody_Provider) MergeLinkSocialAccountJSONBodyProvider1(v LinkSocialAccountJSONBodyProvider1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t LinkSocialAccountJSONBody_Provider) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *LinkSocialAccountJSONBody_Provider) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCreateOrganizationInvitationJSONBodyRole0 returns the union data inside the CreateOrganizationInvitationJSONBody_Role as a CreateOrganizationInvitationJSONBodyRole0
+func (t CreateOrganizationInvitationJSONBody_Role) AsCreateOrganizationInvitationJSONBodyRole0() (CreateOrganizationInvitationJSONBodyRole0, error) {
+	var body CreateOrganizationInvitationJSONBodyRole0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateOrganizationInvitationJSONBodyRole0 overwrites any union data inside the CreateOrganizationInvitationJSONBody_Role as the provided CreateOrganizationInvitationJSONBodyRole0
+func (t *CreateOrganizationInvitationJSONBody_Role) FromCreateOrganizationInvitationJSONBodyRole0(v CreateOrganizationInvitationJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateOrganizationInvitationJSONBodyRole0 performs a merge with any union data inside the CreateOrganizationInvitationJSONBody_Role, using the provided CreateOrganizationInvitationJSONBodyRole0
+func (t *CreateOrganizationInvitationJSONBody_Role) MergeCreateOrganizationInvitationJSONBodyRole0(v CreateOrganizationInvitationJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateOrganizationInvitationJSONBodyRole1 returns the union data inside the CreateOrganizationInvitationJSONBody_Role as a CreateOrganizationInvitationJSONBodyRole1
+func (t CreateOrganizationInvitationJSONBody_Role) AsCreateOrganizationInvitationJSONBodyRole1() (CreateOrganizationInvitationJSONBodyRole1, error) {
+	var body CreateOrganizationInvitationJSONBodyRole1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateOrganizationInvitationJSONBodyRole1 overwrites any union data inside the CreateOrganizationInvitationJSONBody_Role as the provided CreateOrganizationInvitationJSONBodyRole1
+func (t *CreateOrganizationInvitationJSONBody_Role) FromCreateOrganizationInvitationJSONBodyRole1(v CreateOrganizationInvitationJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateOrganizationInvitationJSONBodyRole1 performs a merge with any union data inside the CreateOrganizationInvitationJSONBody_Role, using the provided CreateOrganizationInvitationJSONBodyRole1
+func (t *CreateOrganizationInvitationJSONBody_Role) MergeCreateOrganizationInvitationJSONBodyRole1(v CreateOrganizationInvitationJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CreateOrganizationInvitationJSONBody_Role) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CreateOrganizationInvitationJSONBody_Role) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCreateOrganizationInvitationJSONBodyTeamId0 returns the union data inside the CreateOrganizationInvitationJSONBody_TeamId as a CreateOrganizationInvitationJSONBodyTeamId0
+func (t CreateOrganizationInvitationJSONBody_TeamId) AsCreateOrganizationInvitationJSONBodyTeamId0() (CreateOrganizationInvitationJSONBodyTeamId0, error) {
+	var body CreateOrganizationInvitationJSONBodyTeamId0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateOrganizationInvitationJSONBodyTeamId0 overwrites any union data inside the CreateOrganizationInvitationJSONBody_TeamId as the provided CreateOrganizationInvitationJSONBodyTeamId0
+func (t *CreateOrganizationInvitationJSONBody_TeamId) FromCreateOrganizationInvitationJSONBodyTeamId0(v CreateOrganizationInvitationJSONBodyTeamId0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateOrganizationInvitationJSONBodyTeamId0 performs a merge with any union data inside the CreateOrganizationInvitationJSONBody_TeamId, using the provided CreateOrganizationInvitationJSONBodyTeamId0
+func (t *CreateOrganizationInvitationJSONBody_TeamId) MergeCreateOrganizationInvitationJSONBodyTeamId0(v CreateOrganizationInvitationJSONBodyTeamId0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateOrganizationInvitationJSONBodyTeamId1 returns the union data inside the CreateOrganizationInvitationJSONBody_TeamId as a CreateOrganizationInvitationJSONBodyTeamId1
+func (t CreateOrganizationInvitationJSONBody_TeamId) AsCreateOrganizationInvitationJSONBodyTeamId1() (CreateOrganizationInvitationJSONBodyTeamId1, error) {
+	var body CreateOrganizationInvitationJSONBodyTeamId1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateOrganizationInvitationJSONBodyTeamId1 overwrites any union data inside the CreateOrganizationInvitationJSONBody_TeamId as the provided CreateOrganizationInvitationJSONBodyTeamId1
+func (t *CreateOrganizationInvitationJSONBody_TeamId) FromCreateOrganizationInvitationJSONBodyTeamId1(v CreateOrganizationInvitationJSONBodyTeamId1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateOrganizationInvitationJSONBodyTeamId1 performs a merge with any union data inside the CreateOrganizationInvitationJSONBody_TeamId, using the provided CreateOrganizationInvitationJSONBodyTeamId1
+func (t *CreateOrganizationInvitationJSONBody_TeamId) MergeCreateOrganizationInvitationJSONBodyTeamId1(v CreateOrganizationInvitationJSONBodyTeamId1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CreateOrganizationInvitationJSONBody_TeamId) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CreateOrganizationInvitationJSONBody_TeamId) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsUpdateOrganizationMemberRoleJSONBodyRole0 returns the union data inside the UpdateOrganizationMemberRoleJSONBody_Role as a UpdateOrganizationMemberRoleJSONBodyRole0
+func (t UpdateOrganizationMemberRoleJSONBody_Role) AsUpdateOrganizationMemberRoleJSONBodyRole0() (UpdateOrganizationMemberRoleJSONBodyRole0, error) {
+	var body UpdateOrganizationMemberRoleJSONBodyRole0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromUpdateOrganizationMemberRoleJSONBodyRole0 overwrites any union data inside the UpdateOrganizationMemberRoleJSONBody_Role as the provided UpdateOrganizationMemberRoleJSONBodyRole0
+func (t *UpdateOrganizationMemberRoleJSONBody_Role) FromUpdateOrganizationMemberRoleJSONBodyRole0(v UpdateOrganizationMemberRoleJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeUpdateOrganizationMemberRoleJSONBodyRole0 performs a merge with any union data inside the UpdateOrganizationMemberRoleJSONBody_Role, using the provided UpdateOrganizationMemberRoleJSONBodyRole0
+func (t *UpdateOrganizationMemberRoleJSONBody_Role) MergeUpdateOrganizationMemberRoleJSONBodyRole0(v UpdateOrganizationMemberRoleJSONBodyRole0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsUpdateOrganizationMemberRoleJSONBodyRole1 returns the union data inside the UpdateOrganizationMemberRoleJSONBody_Role as a UpdateOrganizationMemberRoleJSONBodyRole1
+func (t UpdateOrganizationMemberRoleJSONBody_Role) AsUpdateOrganizationMemberRoleJSONBodyRole1() (UpdateOrganizationMemberRoleJSONBodyRole1, error) {
+	var body UpdateOrganizationMemberRoleJSONBodyRole1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromUpdateOrganizationMemberRoleJSONBodyRole1 overwrites any union data inside the UpdateOrganizationMemberRoleJSONBody_Role as the provided UpdateOrganizationMemberRoleJSONBodyRole1
+func (t *UpdateOrganizationMemberRoleJSONBody_Role) FromUpdateOrganizationMemberRoleJSONBodyRole1(v UpdateOrganizationMemberRoleJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeUpdateOrganizationMemberRoleJSONBodyRole1 performs a merge with any union data inside the UpdateOrganizationMemberRoleJSONBody_Role, using the provided UpdateOrganizationMemberRoleJSONBodyRole1
+func (t *UpdateOrganizationMemberRoleJSONBody_Role) MergeUpdateOrganizationMemberRoleJSONBodyRole1(v UpdateOrganizationMemberRoleJSONBodyRole1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t UpdateOrganizationMemberRoleJSONBody_Role) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *UpdateOrganizationMemberRoleJSONBody_Role) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsSocialSignInJSONBodyProvider0 returns the union data inside the SocialSignInJSONBody_Provider as a SocialSignInJSONBodyProvider0
+func (t SocialSignInJSONBody_Provider) AsSocialSignInJSONBodyProvider0() (SocialSignInJSONBodyProvider0, error) {
+	var body SocialSignInJSONBodyProvider0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSocialSignInJSONBodyProvider0 overwrites any union data inside the SocialSignInJSONBody_Provider as the provided SocialSignInJSONBodyProvider0
+func (t *SocialSignInJSONBody_Provider) FromSocialSignInJSONBodyProvider0(v SocialSignInJSONBodyProvider0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSocialSignInJSONBodyProvider0 performs a merge with any union data inside the SocialSignInJSONBody_Provider, using the provided SocialSignInJSONBodyProvider0
+func (t *SocialSignInJSONBody_Provider) MergeSocialSignInJSONBodyProvider0(v SocialSignInJSONBodyProvider0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSocialSignInJSONBodyProvider1 returns the union data inside the SocialSignInJSONBody_Provider as a SocialSignInJSONBodyProvider1
+func (t SocialSignInJSONBody_Provider) AsSocialSignInJSONBodyProvider1() (SocialSignInJSONBodyProvider1, error) {
+	var body SocialSignInJSONBodyProvider1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSocialSignInJSONBodyProvider1 overwrites any union data inside the SocialSignInJSONBody_Provider as the provided SocialSignInJSONBodyProvider1
+func (t *SocialSignInJSONBody_Provider) FromSocialSignInJSONBodyProvider1(v SocialSignInJSONBodyProvider1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSocialSignInJSONBodyProvider1 performs a merge with any union data inside the SocialSignInJSONBody_Provider, using the provided SocialSignInJSONBodyProvider1
+func (t *SocialSignInJSONBody_Provider) MergeSocialSignInJSONBodyProvider1(v SocialSignInJSONBodyProvider1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t SocialSignInJSONBody_Provider) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *SocialSignInJSONBody_Provider) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -10225,7 +11345,7 @@ func NewListUsersRequest(server string, params *ListUsersParams) (*http.Request,
 
 		if params.Limit != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -10237,7 +11357,7 @@ func NewListUsersRequest(server string, params *ListUsersParams) (*http.Request,
 
 		if params.Offset != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -10285,7 +11405,7 @@ func NewListUsersRequest(server string, params *ListUsersParams) (*http.Request,
 
 		if params.FilterValue != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "filterValue", *params.FilterValue, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "filterValue", *params.FilterValue, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
