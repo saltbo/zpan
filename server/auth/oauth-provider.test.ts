@@ -34,6 +34,7 @@ describe('createOAuthProviderOptions', () => {
       consentPage: '/oauth/consent',
       accessTokenExpiresIn: OAUTH_ACCESS_TOKEN_SECONDS,
       grantTypes: ['authorization_code', 'refresh_token'],
+      resourceSeedMode: 'merge',
       authorizationDetails: { typesSupported: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE] },
     })
     expect(options.scopes).toEqual([...OAUTH_SCOPES])

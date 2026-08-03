@@ -62,6 +62,7 @@ export function createOAuthProviderOptions(input: {
     grantTypes: ['authorization_code', 'refresh_token'],
     scopes: [...OAUTH_SCOPES],
     resources,
+    resourceSeedMode: 'merge',
     enforcePerClientResources: false,
     allowDynamicClientRegistration: true,
     allowUnauthenticatedClientRegistration: true,

@@ -740,6 +740,24 @@ describe('loadProviderConfigs — builtin social provider resolution', () => {
     expect(selectCalls).toBe(3)
   })
 
+  it('refreshes configured OAuth resource scopes on an existing database', async () => {
+    const ctx = await createTestApp()
+    const identifier = 'http://localhost:3000/api'
+    await ctx.db
+      .update(authSchema.oauthResource)
+      .set({ allowedScopes: JSON.stringify(['openid', 'offline_access']) })
+      .where(eq(authSchema.oauthResource.identifier, identifier))
+
+    await createAuth(ctx.platform, 'test-secret', 'http://localhost:3000')
+
+    const [resource] = await ctx.db
+      .select({ allowedScopes: authSchema.oauthResource.allowedScopes })
+      .from(authSchema.oauthResource)
+      .where(eq(authSchema.oauthResource.identifier, identifier))
+      .limit(1)
+    expect(JSON.parse(resource?.allowedScopes ?? '[]')).toContain(AuthorizationScope.WORKSPACES_DISCOVER)
+  })
+
   it('createAuth resolves better-auth $context before returning', async () => {
     // A cached auth instance must never carry a pending init promise: on
     // Cloudflare Workers a promise created in one request never settles when
