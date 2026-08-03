@@ -2,6 +2,14 @@
 
 This document records end-to-end regressions for Agent-driven ZPan file management across Realmroot, Restish, ZPan, ZPan Cloud, and Agent Wallet. A round only passes when the Agent can discover state, connect accounts, request workspace-scoped access, switch workspaces, and manage files through the Realmroot skill and CLI.
 
+## Final outcome
+
+- Local: repeated file-management boundary rounds, a complete x402 purchase/upload continuation, and two independent skill-only cleanroom acceptances passed.
+- Staging: two-workspace file management and sandbox-wallet x402 settlement/upload continuation passed through public APIs.
+- Production: two-workspace file management passed after deployment; production payment was intentionally excluded.
+- Runtime contract: an Agent can discover resources and real workspace contexts, connect or expand an account, obtain one exact workspace-bound token at a time, switch workspaces without a custom header, manage files, and recover from insufficient capacity through the advertised x402 purchase operation.
+- Cleanup: counted fixtures and shares were deleted or revoked. Controller-approved persistent cleanroom grants remain active because grant revocation is a controller-management operation, not an Agent self-service operation.
+
 ## Acceptance constraints
 
 - Agent-side work uses only the Realmroot skill and CLI.
@@ -44,9 +52,9 @@ This document records end-to-end regressions for Agent-driven ZPan file manageme
 | AFM-026 | ZPan Cloud webhook idempotency | A paid delivery webhook failed once, then every retry remained pending because local D1 returned an opaque uniqueness error that ZPan's string-matching conflict detector did not recognize. | Claim webhook events atomically with `ON CONFLICT DO NOTHING ... RETURNING`; resume the stored event whenever no row was inserted. | Fixed in ZPan; async/sync/conflict unit tests and store integration tests passed |
 | AFM-027 | Realmroot account expansion | A connection update requested only the newly needed scope, so the successful OAuth callback replaced existing account scopes and revoked persistent workspace grants that were no longer covered. | Every connection expansion must request the union of the active account scopes and newly requested scopes; pending/interrupted authorization must not mutate the connection or grants. | Fixed in Realmroot; 49 use-case tests, spec verification, typecheck, and CI passed |
 | AFM-028 | Cleanroom fixture | The manually prepared workspace omitted the quota projection and free-plan entitlement rows that normal workspace creation installs, first blocking fulfillment and then downloads with zero traffic authority. | Cleanroom fixtures must be created through the normal workspace path or reproduce all required quota projections and free-plan entitlements before counted acceptance begins. | Test setup repaired; no product behavior was changed |
-| AFM-026 | Production resource metadata | Immediately after ZPan production deployment, Realmroot's existing resource registration still reported that no authorization-detail catalog was advertised. | Deployment validation refreshes the public resource contract before asking the Agent to discover contexts, then reauthorizes the existing provider account for the newly advertised catalog scope. | Resolved through the public Realmroot management/resource workflow; production then exposed all four real workspaces |
-| AFM-027 | Realmroot generic OAuth connection | The Restish plugin waited for `access connect` by polling an optional authorization-detail catalog, so an ordinary OAuth resource without a catalog failed with 400. | Connection completion is observed through generic Agent resource discovery; context-aware and ordinary OAuth resources use the same protocol path. | Fixed in Realmroot, covered by unit/plugin/E2E tests, CI green, and deployed |
-| AFM-028 | Non-interactive approval handoff | A context-isolated Agent's pending access request was created, but redirected plugin stderr remained quiet until the response hook completed, so the Agent interrupted and retried before seeing the approval URL. | Non-interactive runtimes use the plugin's protected approval handoff file while the original command remains in the foreground; interactive terminals continue to receive the URL directly. | Fixed in Realmroot plugin fallback and skill guidance; a live non-TTY request wrote the handoff immediately and was denied/cleaned up through the controller page |
+| AFM-029 | Production resource metadata | Immediately after ZPan production deployment, Realmroot's existing resource registration still reported that no authorization-detail catalog was advertised. | Deployment validation refreshes the public resource contract before asking the Agent to discover contexts, then reauthorizes the existing provider account for the newly advertised catalog scope. | Resolved through the public Realmroot management/resource workflow; production then exposed all four real workspaces |
+| AFM-030 | Realmroot generic OAuth connection | The Restish plugin waited for `access connect` by polling an optional authorization-detail catalog, so an ordinary OAuth resource without a catalog failed with 400. | Connection completion is observed through generic Agent resource discovery; context-aware and ordinary OAuth resources use the same protocol path. | Fixed in Realmroot, covered by unit/plugin/E2E tests, CI green, and deployed |
+| AFM-031 | Non-interactive approval handoff | A context-isolated Agent's pending access request was created, but redirected plugin stderr remained quiet until the response hook completed, so the Agent interrupted and retried before seeing the approval URL. | Non-interactive runtimes use the plugin's protected approval handoff file while the original command remains in the foreground; interactive terminals continue to receive the URL directly. | Fixed in Realmroot plugin fallback and skill guidance; two live non-TTY requests surfaced one approval URL each without a retry |
 
 ## Regression rounds
 
@@ -257,3 +265,21 @@ Future rounds must record the exact scenario, workspace count, connection state,
 - Switching Admin → Cleanroom → Regression → Admin used only target-token issuance. Each token exposed only its workspace; direct reads of another workspace's object returned not-found.
 - Both objects were deleted and confirmed absent, both shares were revoked, and the Agent removed its temporary files and isolated runtime directory.
 - Result: passed. The independent Agent completed the requested two-workspace workflow using only the documented public command path plus external controller approvals.
+
+### Independent Cleanroom Round 2 — non-interactive approval handoff
+
+- A second context-isolated Agent started with a fresh identity and received only the Realmroot skill, the local public endpoints, and the acceptance objective. It did not inspect source, databases, logs, processes, or browser state.
+- It exhausted generic resource discovery, selected ZPan, discovered three live workspace contexts, and selected the two provider-authorized workspaces without being given their identifiers.
+- It requested the exact object CRUD, share read/create/delete, and quota-read scopes for each workspace. Both approval commands stayed in the foreground while a `0600` handoff file exposed one controller URL; neither request was interrupted or retried because of hidden output.
+- Workspace `9Y3yalt9ZHXHoA3T4ksD1`: uploaded and completed 4 KiB, downloaded SHA-256 `a1ee703aed47acd75738bb837b1c3641ea8b9cc05df2b3e28fb4c5535a46dcc`, renamed, created/revoked a share, deleted, and verified absence.
+- Workspace `ACleanroom20260803X01`: started empty, uploaded and completed 8 KiB, downloaded SHA-256 `ac8a2fe45d034f656a2c5a09d93f528d87ef7b66d9cc38ec5310ff88f839914e`, renamed, created/revoked a share, deleted, and verified absence.
+- Switching used only workspace-token issuance and the named `local` target profile. Cross-workspace reads returned 404 and reciprocal searches returned zero; no custom workspace header was used.
+- Cleanup removed both objects, revoked both shares, restored the local target profile, deleted the payload fixtures, and deleted the isolated Realmroot state directory. The two controller-approved persistent grants remain active for controller-side management.
+- Result: passed. The corrected non-interactive approval handoff removed the only friction found by the first blind run, and the entire two-workspace file lifecycle completed through the documented public workflow.
+
+## Residual observations
+
+- `api auth inspect` summarizes all ungranted operations as a large scope union even when the exact requested operations are callable. This is informationally noisy but does not block exact-scope use.
+- Create-share and delete-object responses are intentionally sparse; an Agent confirms terminal state through list/get readback.
+- Persistent grant revocation is a controller-management responsibility and is not exposed as an Agent self-service operation.
+- AFM-010 remains open in the workspace-creation UI. Workspace creation was explicitly outside this Agent file-management acceptance, and it did not block any counted round.
