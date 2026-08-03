@@ -50,7 +50,7 @@ export const oauthAuthorizationDetails = new OpenAPIHono<Env>().openapi(catalogR
       (
         await jwtVerify(token, createLocalJWKSet(await auth.api.getJwks()), {
           issuer: authContext.baseURL,
-          audience: `${new URL(c.req.url).origin}/api`,
+          audience: `${new URL(authContext.baseURL).origin}/api`,
         })
       ).payload,
   })
