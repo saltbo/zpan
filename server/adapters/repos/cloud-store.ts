@@ -273,22 +273,24 @@ async function beginWebhookEvent(
   payloadHash: string,
 ): Promise<{ id: string; duplicate: boolean }> {
   const id = nanoid()
-  try {
-    await db.insert(webhookEvents).values({
-      id,
-      source: 'cloud',
-      eventId: event.eventId,
-      eventType: event.eventType,
-      payloadHash,
-      rawPayload,
-      status: 'processing',
-      createdAt: new Date(),
-    })
-    return { id, duplicate: false }
-  } catch (error) {
-    if (isUniqueConflict(error)) return resumeWebhookEvent(db, event, rawPayload, payloadHash)
-    throw error
-  }
+  const inserted = await executeRows(
+    db
+      .insert(webhookEvents)
+      .values({
+        id,
+        source: 'cloud',
+        eventId: event.eventId,
+        eventType: event.eventType,
+        payloadHash,
+        rawPayload,
+        status: 'processing',
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing({ target: [webhookEvents.source, webhookEvents.eventId] })
+      .returning({ id: webhookEvents.id }),
+  )
+  if (inserted[0]) return { id: inserted[0].id, duplicate: false }
+  return resumeWebhookEvent(db, event, rawPayload, payloadHash)
 }
 
 async function resumeWebhookEvent(
@@ -331,12 +333,6 @@ async function markWebhookEvent(db: Database, id: string, status: string, error:
 function parseOrgType(metadata: string | null): string {
   if (!metadata) return 'unknown'
   return (JSON.parse(metadata) as { type?: string }).type ?? 'unknown'
-}
-
-function isUniqueConflict(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
-  const message = error.message.toLowerCase()
-  return message.includes('unique') || message.includes('constraint failed')
 }
 
 export function createCloudStoreRepo(db: Database): CloudStoreRepo {

@@ -40,6 +40,16 @@ function createAsyncDb(
           if (table === orgQuotaEntitlements) state.entitlementInserts += Array.isArray(values) ? values.length : 1
         }
         if (table === orgQuotaEntitlements) return { onConflictDoUpdate: async () => apply() }
+        if (table === webhookEvents) {
+          return {
+            onConflictDoNothing: () => ({
+              returning: async () => {
+                apply()
+                return [{ id: values.id }]
+              },
+            }),
+          }
+        }
         return Promise.resolve(apply())
       },
     }),
@@ -75,9 +85,13 @@ function createAsyncDb(
 function createFailingBeginDb() {
   return {
     insert: () => ({
-      values: async () => {
-        throw new Error('insert failed')
-      },
+      values: () => ({
+        onConflictDoNothing: () => ({
+          returning: async () => {
+            throw new Error('insert failed')
+          },
+        }),
+      }),
     }),
   } as unknown as Database
 }
@@ -100,11 +114,13 @@ function createUniqueConflictDb(existing: { id: string; payloadHash: string; sta
       return Promise.all(queries)
     },
     insert: (table: unknown) => ({
-      values: async (values: Record<string, unknown>) => {
-        if (table === webhookEvents) throw new Error('UNIQUE constraint failed: webhook_events.source, event_id')
+      values: (values: Record<string, unknown>) => {
+        if (table === webhookEvents) {
+          return { onConflictDoNothing: () => ({ returning: async () => [] }) }
+        }
         if (table === auditEvents) state.audits += 1
         if (table === orgQuotaEntitlements) state.entitlementInserts += Array.isArray(values) ? values.length : 1
-        return values
+        return Promise.resolve(values)
       },
     }),
     select: () => ({
@@ -163,6 +179,14 @@ function createSyncDb(
           return {
             run: apply,
             onConflictDoUpdate: () => ({ run: apply }),
+            onConflictDoNothing: () => ({
+              returning: () => ({
+                all: () => {
+                  apply()
+                  return [{ id: values.id }]
+                },
+              }),
+            }),
           }
         },
       }
