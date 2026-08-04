@@ -500,6 +500,7 @@ const APP_SCHEMA_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS team_invite_links_token_unique ON team_invite_links(token);
 	  CREATE TABLE IF NOT EXISTS audit_events (
 		    id TEXT PRIMARY KEY,
+		    event_key TEXT UNIQUE,
 		    org_id TEXT NOT NULL,
 		    user_id TEXT,
 		    action TEXT NOT NULL,

@@ -1,14 +1,6 @@
-// The redirect resource usecase. Owns every business decision behind the
-// /r/:token short-link download routes — the two sub-resources served there:
-// `ds_` direct shares and `ih` image-hosting links. Each resolves a token,
-// runs its access/expiry/limit gates, meters the download (egress quota + cloud
-// report, with refund-on-presign-failure rollback), and presigns the object.
-//
-// The http handler only dispatches on the token prefix, extracts request-bound
-// inputs (cloud base URL, referer header, request origin), and renders the
-// route-specific Responses from the discriminated outcomes below.
-
-import { isImageHostingToken } from '../domain/image-hosting'
+// The redirect resource usecase owns every business decision behind the
+// /r/:token short-link download route. Tokens are opaque: resolution comes from
+// persisted resource kind, never token syntax.
 import {
   type AppError,
   expired as expiredError,
@@ -43,11 +35,29 @@ export type RedirectDeps = CloudTrafficMeteringDeps & {
   imageHosting: ImageHostingRepo
 }
 
+export type RedirectTargetKind = 'direct_share' | 'image_hosting' | 'not_found' | 'ambiguous'
+
+export async function resolveRedirectTargetKind(
+  deps: Pick<RedirectDeps, 'share' | 'imageHosting'>,
+  token: string,
+): Promise<RedirectTargetKind> {
+  const [share, image] = await Promise.all([
+    deps.share.resolveByToken(token),
+    deps.imageHosting.resolveActiveByToken(token),
+  ])
+  const isDirectShare = (share.status === 'ok' || share.status === 'matter_trashed') && share.share.kind === 'direct'
+  if (isDirectShare && image) return 'ambiguous'
+  if (isDirectShare) return 'direct_share'
+  if (image) return 'image_hosting'
+  return 'not_found'
+}
+
 export async function resolveRedirectDownloadAuditTarget(
   deps: Pick<RedirectDeps, 'share' | 'imageHosting'>,
   token: string,
 ): Promise<TransferAuditTarget | null> {
-  if (token.startsWith('ds_')) {
+  const kind = await resolveRedirectTargetKind(deps, token)
+  if (kind === 'direct_share') {
     const resolved = await deps.share.resolveByToken(token)
     if (resolved.status !== 'ok' || resolved.share.kind !== 'direct') return null
     return {
@@ -65,7 +75,7 @@ export async function resolveRedirectDownloadAuditTarget(
     }
   }
 
-  if (isImageHostingToken(token)) {
+  if (kind === 'image_hosting') {
     const resolved = await deps.imageHosting.resolveActiveByToken(token)
     if (!resolved) return null
     return {
@@ -82,7 +92,7 @@ export async function resolveRedirectDownloadAuditTarget(
   return null
 }
 
-// ─── Direct share (ds_) ──────────────────────────────────────────────────────
+// ─── Direct share ────────────────────────────────────────────────────────────
 
 export type DirectShareOutcome =
   | {
@@ -100,7 +110,7 @@ export type DirectShareOutcome =
     }
   | { ok: false; error: AppError }
 
-// Resolve a ds_ token to a presigned download URL, running the share gates,
+// Resolve a direct-share token to a presigned download URL, running the share gates,
 // atomically reserving a download, metering traffic, and presigning. On a
 // presign failure the traffic and the reserved download are both rolled back
 // before the error propagates (→ 500 at the http layer).

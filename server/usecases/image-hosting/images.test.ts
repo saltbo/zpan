@@ -48,7 +48,7 @@ function makeRow(over: Partial<ImageHostingRecord> = {}): ImageHostingRecord {
   return {
     id: 'ih-1',
     orgId: 'o1',
-    token: 'ih_abc',
+    token: 'ImageTokenABC',
     path: 'a.png',
     storageId: 'st-1',
     storageKey: 'ih/o1/ih-1.png',
@@ -226,7 +226,7 @@ describe('image-hosting usecase', () => {
 
   describe('presignImageHostingUpload', () => {
     it('creates a draft and returns the presigned upload descriptor', async () => {
-      const row = makeRow({ id: 'ih-9', token: 'ih_zzz', path: 'blog/x.png', storageKey: 'ih/o1/ih-9.png' })
+      const row = makeRow({ id: 'ih-9', token: 'ImageTokenZZZ', path: 'blog/x.png', storageKey: 'ih/o1/ih-9.png' })
       const presignUpload = vi.fn(async () => 'https://presigned.example/up')
       const deps = makeDeps({
         imageHosting: { create: async () => row },
@@ -242,7 +242,7 @@ describe('image-hosting usecase', () => {
         ok: true,
         result: {
           id: 'ih-9',
-          token: 'ih_zzz',
+          token: 'ImageTokenZZZ',
           path: 'blog/x.png',
           uploadUrl: 'https://presigned.example/up',
           storageKey: 'ih/o1/ih-9.png',

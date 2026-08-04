@@ -201,7 +201,7 @@ describe('Public Invite Codes API — POST /validate', () => {
     const res = await app.request('/api/site/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: 'NOSUCHCD' }),
+      body: JSON.stringify({ code: 'NOSUCHCOD1' }),
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { valid: boolean; error?: string }
@@ -259,17 +259,17 @@ describe('Public Invite Codes API — POST /validate', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when code contains lowercase letters', async () => {
+  it('returns 400 when code contains punctuation', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/site/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: 'abcd1234' }),
+      body: JSON.stringify({ code: 'ABCD_12345' }),
     })
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when code is fewer than 8 characters', async () => {
+  it('returns 400 when code is fewer than 10 characters', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/site/invite-codes/validations', {
       method: 'POST',
@@ -279,12 +279,12 @@ describe('Public Invite Codes API — POST /validate', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when code is more than 8 characters', async () => {
+  it('returns 400 when code is more than 10 characters', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/site/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: 'ABCD12345' }),
+      body: JSON.stringify({ code: 'ABCD1234567' }),
     })
     expect(res.status).toBe(400)
   })

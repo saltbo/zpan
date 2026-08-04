@@ -177,7 +177,7 @@ const HOURLY_SOURCES: readonly HourlySource[] = [
     where: `registered_user.action = 'user_register'
       AND registered_user.target_id IS NOT NULL
       AND registered_user.user_id = registered_user.target_id
-      AND registered_user.id = 'event:user_register:' || registered_user.target_id
+      AND registered_user.event_key = 'event:user_register:' || registered_user.target_id
       AND json_valid(registered_user.metadata) = 1
       AND json_type(registered_user.metadata, '$.provider') = 'text'
       AND length(json_extract(registered_user.metadata, '$.provider')) > 0`,

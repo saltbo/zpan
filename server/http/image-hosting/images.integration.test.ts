@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { generateId, generateToken } from '../../../shared/ids.js'
 import { S3Service } from '../../adapters/gateways/s3.js'
 import { authedHeaders, createTestApp } from '../../test/setup.js'
 import { confirmImageHosting, deleteImageHosting } from '../../usecases/image-hosting/images.js'
@@ -46,7 +47,7 @@ async function setStoragePlanEntitlement(db: TestDb, orgId: string, bytes: numbe
     INSERT INTO org_quota_entitlements
       (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
     VALUES
-      (${nanoid()}, ${orgId}, 'storage', 'plan', 'test', ${`test-storage-plan:${orgId}:${nanoid()}`}, ${bytes}, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
+      (${generateId()}, ${orgId}, 'storage', 'plan', 'test', ${`test-storage-plan:${orgId}:${nanoid()}`}, ${bytes}, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
   `)
 }
 
@@ -107,8 +108,8 @@ async function insertImageHosting(
     storageId?: string
   } = {},
 ) {
-  const id = opts.id ?? nanoid(12)
-  const token = `ih_${nanoid(10)}`
+  const id = opts.id ?? generateId(13)
+  const token = generateToken(12)
   const path = opts.path ?? `test/image-${nanoid(4)}.png`
   const status = opts.status ?? 'active'
   const size = opts.size ?? 1024
@@ -309,7 +310,7 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.uploadUrl).toBe('https://presigned-upload.example.com')
     expect(body.id).toBeTruthy()
-    expect(String(body.token)).toMatch(/^ih[A-Za-z0-9]{10}$/)
+    expect(String(body.token)).toMatch(/^[A-Za-z0-9]{12}$/)
     expect(body.path).toBe('blog/2026/shot.png')
     expect(String(body.storageKey)).toMatch(/^ih\//)
   })
@@ -589,7 +590,7 @@ describe('POST /api/image-hosting/images (multipart)', () => {
     const body = (await res.json()) as { data: Record<string, unknown> }
     expect(body.data).toBeDefined()
     expect(body.data.url).toBeTruthy()
-    expect(String(body.data.urlAlt)).toMatch(/\/r\/ih[A-Za-z0-9]{10}$/)
+    expect(String(body.data.urlAlt)).toMatch(/\/r\/[A-Za-z0-9]{12}$/)
     expect(String(body.data.markdown)).toContain('![](')
     expect(String(body.data.html)).toContain('<img src=')
     expect(String(body.data.bbcode)).toContain('[img]')
@@ -724,7 +725,7 @@ describe('POST /api/image-hosting/images (multipart)', () => {
     const body = (await res.json()) as { data: Record<string, unknown> }
     // url and urlAlt should both be the token URL when no custom domain
     expect(body.data.url).toBe(body.data.urlAlt)
-    expect(String(body.data.url)).toMatch(/\/r\/ih[A-Za-z0-9]{10}$/)
+    expect(String(body.data.url)).toMatch(/\/r\/[A-Za-z0-9]{12}$/)
   })
 
   it('cleans up DB row and refunds quota when S3 put fails', async () => {
@@ -1154,9 +1155,9 @@ describe('GET /api/image-hosting/images/:id', () => {
       INSERT INTO organization (id, name, slug, created_at)
       VALUES (${otherOrgId}, 'Other Org', ${`slug-${otherOrgId}`}, ${now})
     `)
-    await insertImageHosting(db, otherOrgId, { id: 'cross-org-img' })
+    await insertImageHosting(db, otherOrgId, { id: 'CrossOrgImg' })
 
-    const res = await app.request('/api/image-hosting/images/cross-org-img', { headers })
+    const res = await app.request('/api/image-hosting/images/CrossOrgImg', { headers })
     expect(res.status).toBe(404)
   })
 
@@ -1173,7 +1174,7 @@ describe('GET /api/image-hosting/images/:id', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
     expect(body.id).toBe(id)
-    expect(body.url).toMatch(/^http:\/\/localhost\/r\/ih_/)
+    expect(body.url).toMatch(/^http:\/\/localhost\/r\/[A-Za-z0-9]{12}\.png$/)
   })
 })
 
@@ -1186,7 +1187,7 @@ describe('DELETE /api/image-hosting/images/:id', () => {
     const headers = await authedHeaders(app)
     // Do NOT call insertImageHostingConfig — config row will be absent
 
-    const res = await app.request('/api/image-hosting/images/fake-id', {
+    const res = await app.request('/api/image-hosting/images/FakeId', {
       method: 'DELETE',
       headers,
     })
@@ -1363,14 +1364,14 @@ describe('image-hosting usecase — direct calls', () => {
 
   it('confirmImageHosting with size=0 skips quota and confirms successfully', async () => {
     const { db, deps } = await createTestApp()
-    const orgId = `org-sz0-${nanoid(6)}`
+    const orgId = `OrgSz0${generateToken(6)}`
     const now = Date.now()
     await db.run(
       sql`INSERT INTO organization (id, name, slug, created_at) VALUES (${orgId}, 'T', ${`slug-${orgId}`}, ${now})`,
     )
 
-    const id = nanoid(12)
-    const token = `ih_${nanoid(10)}`
+    const id = generateId(13)
+    const token = generateToken(12)
     await db.run(sql`
       INSERT INTO image_hostings (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
       VALUES (${id}, ${orgId}, ${token}, 'sz0.png', 'st1', 'ih/x/y.png', 0, 'image/png', 'draft', 0, ${now})

@@ -1,6 +1,7 @@
 import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
+import { BASE62_PATTERN } from '../../../shared/ids.js'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from '../../db/schema.js'
 import { adminHeaders, createTestApp } from '../../test/setup.js'
 import { createQuotaRepo } from './quota.js'
@@ -33,14 +34,19 @@ describe('effective quota', () => {
     await repo.reconcileFreePlanBaselines(new Date(now.getTime() + 1000))
 
     const inserted = await db
-      .select({ resourceType: orgQuotaEntitlements.resourceType, bytes: orgQuotaEntitlements.bytes })
+      .select({
+        id: orgQuotaEntitlements.id,
+        resourceType: orgQuotaEntitlements.resourceType,
+        bytes: orgQuotaEntitlements.bytes,
+      })
       .from(orgQuotaEntitlements)
       .where(eq(orgQuotaEntitlements.orgId, orgId))
       .orderBy(orgQuotaEntitlements.resourceType)
-    expect(inserted).toEqual([
+    expect(inserted.map(({ resourceType, bytes }) => ({ resourceType, bytes }))).toEqual([
       { resourceType: 'storage', bytes: 1234 },
       { resourceType: 'traffic', bytes: 5678 },
     ])
+    expect(inserted.every(({ id }) => BASE62_PATTERN.test(id))).toBe(true)
 
     await db
       .update(orgQuotaEntitlements)

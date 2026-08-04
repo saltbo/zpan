@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+import { generateToken } from '../../shared/ids'
 import { S3Service } from '../adapters/gateways/s3'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
@@ -42,7 +43,7 @@ async function insertImageHosting(db: TestDb, orgId: string, opts: { id: string;
   const now = Date.now()
   await db.run(sql`
     INSERT INTO image_hostings (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
-    VALUES (${opts.id}, ${orgId}, ${`ih_${opts.id}`}, ${opts.path}, ${STORAGE_ID}, ${`ih/${orgId}/${opts.id}.png`}, 512, 'image/png', 'active', 0, ${now})
+    VALUES (${opts.id}, ${orgId}, ${generateToken(12)}, ${opts.path}, ${STORAGE_ID}, ${`ih/${orgId}/${opts.id}.png`}, 512, 'image/png', 'active', 0, ${now})
   `)
 }
 

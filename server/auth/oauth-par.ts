@@ -2,8 +2,8 @@ import { getOAuthProviderApi, type oauthProvider } from '@better-auth/oauth-prov
 import { parseWorkspaceAuthorizationDetails } from '@shared/schemas'
 import { APIError, type BetterAuthPlugin } from 'better-auth'
 import { createAuthEndpoint } from 'better-auth/api'
-import { nanoid } from 'nanoid'
 import { z } from 'zod'
+import { generateToken } from '../../shared/ids'
 
 type OAuthProviderOptions = Parameters<typeof oauthProvider>[0]
 
@@ -44,7 +44,7 @@ export function oauthPushedAuthorizationRequests(options: OAuthProviderOptions):
           await validatePushedAuthorizationRequest(ctx.body, client, options)
 
           const parameters = stripClientCredentials(ctx.body)
-          const requestUri = `${PAR_REQUEST_URI_PREFIX}${nanoid(32)}`
+          const requestUri = `${PAR_REQUEST_URI_PREFIX}${generateToken(33)}`
           const now = new Date()
           await ctx.context.adapter.create({
             model: 'oauthPushedAuthorizationRequest',

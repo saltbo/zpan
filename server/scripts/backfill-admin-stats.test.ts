@@ -93,7 +93,7 @@ describe('admin stats backfill', () => {
         created_at INTEGER NOT NULL, creator_id TEXT
       );
       CREATE TABLE audit_events (
-        id TEXT PRIMARY KEY, org_id TEXT NOT NULL, user_id TEXT, actor_type TEXT, actor_ref TEXT,
+        id TEXT PRIMARY KEY, event_key TEXT UNIQUE, org_id TEXT NOT NULL, user_id TEXT, actor_type TEXT, actor_ref TEXT,
         action TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT, target_name TEXT NOT NULL,
         metadata TEXT, created_at INTEGER NOT NULL
       );
@@ -163,25 +163,25 @@ describe('admin stats backfill', () => {
       INSERT INTO matters VALUES ('f1', 512, 0);
       INSERT INTO shares VALUES ('s1', 'landing', 'f1', 'o1', 'active', NULL, 10, 0, 1, ${eventSec}, 'u1');
       INSERT INTO audit_events VALUES
-        ('audit:statistics_source_initialized:v3-authoritative-sources', '', NULL, 'system', 'statistics-integrity', 'statistics_source_initialized', 'statistics', 'v3-authoritative-sources', 'statistics source', '{"schemaVersion":3}', ${Math.floor(historyStartMs / 1000)}),
-        ('upload-1', 'o1', 'u1', NULL, NULL, 'upload_confirm', 'file', 'f1', 'file.bin',
+        ('audit:statistics_source_initialized:v3-authoritative-sources', 'audit:statistics_source_initialized:v3-authoritative-sources', '', NULL, 'system', 'statistics-integrity', 'statistics_source_initialized', 'statistics', 'v3-authoritative-sources', 'statistics source', '{"schemaVersion":3}', ${Math.floor(historyStartMs / 1000)}),
+        ('upload-1', NULL, 'o1', 'u1', NULL, NULL, 'upload_confirm', 'file', 'f1', 'file.bin',
           '{"bytes":512,"source":"upload","status":"success"}', ${eventSec}),
-        ('legacy-incomplete-upload', 'o1', 'u1', NULL, NULL, 'upload_confirm', 'file', 'f1', 'file.bin',
+        ('legacy-incomplete-upload', NULL, 'o1', 'u1', NULL, NULL, 'upload_confirm', 'file', 'f1', 'file.bin',
           NULL, ${Math.floor(historyStartMs / 1000) - 60}),
-        ('legacy-user-access', 'o1', 'u1', 'user', NULL, 'user_access', 'user', 'u1', 'u1',
+        ('legacy-user-access', NULL, 'o1', 'u1', 'user', NULL, 'user_access', 'user', 'u1', 'u1',
           '{"bucketStart":${eventHourMs}}', ${eventSec}),
-        ('open-upload', 'o1', 'u1', 'user', NULL, 'upload_confirm', 'file', 'f1', 'file.bin',
+        ('open-upload', NULL, 'o1', 'u1', 'user', NULL, 'upload_confirm', 'file', 'f1', 'file.bin',
           '{"bytes":512,"source":"upload","status":"success"}', ${currentEventSec}),
-        ('share-1', 'o1', NULL, NULL, NULL, 'share_download', 'share', 's1', 'file.bin',
+        ('share-1', NULL, 'o1', NULL, NULL, NULL, 'share_download', 'share', 's1', 'file.bin',
           '{"bytes":512,"shareId":"s1","source":"direct_share","trafficEventId":"traffic-1","anonymous":true}', ${eventSec}),
-        ('image-1', 'o1', NULL, NULL, NULL, 'image_hosting_download', 'image', 'img1', 'image.png', NULL, ${eventSec}),
-        ('blocked-download', 'o1', 'u1', 'user', NULL, 'download_failed', 'file', 'f1', 'file.bin',
+        ('image-1', NULL, 'o1', NULL, NULL, NULL, 'image_hosting_download', 'image', 'img1', 'image.png', NULL, ${eventSec}),
+        ('blocked-download', NULL, 'o1', 'u1', 'user', NULL, 'download_failed', 'file', 'f1', 'file.bin',
           '{"bytes":512,"source":"object_download","reason":"quota_exceeded","trafficEventId":"traffic-3"}', ${eventSec}),
-        ('legacy-downloader', 'o1', 'downloader:d1', 'user', NULL, 'create', 'file', 'f1', 'file.bin', NULL, ${eventSec}),
-        ('legacy-api-key', 'o1', 'api-key:k1', 'user', NULL, 'download_task_created', 'remote_download', 't1', 'task', NULL, ${eventSec}),
-        ('legacy-task-completed', 'o1', NULL, 'system', 'legacy-download-task-worker', 'download_task_completed', 'remote_download', 't1', 'task',
+        ('legacy-downloader', NULL, 'o1', 'downloader:d1', 'user', NULL, 'create', 'file', 'f1', 'file.bin', NULL, ${eventSec}),
+        ('legacy-api-key', NULL, 'o1', 'api-key:k1', 'user', NULL, 'download_task_created', 'remote_download', 't1', 'task', NULL, ${eventSec}),
+        ('legacy-task-completed', NULL, 'o1', NULL, 'system', 'legacy-download-task-worker', 'download_task_completed', 'remote_download', 't1', 'task',
           '{"category":"video","outcome":"completed","bytes":512}', ${eventSec}),
-        ('legacy-cloud-customer', 'o1', 'cloud-customer-1', 'user', NULL, 'quota_order_increase', 'quota', 'o1', 'o1', NULL, ${eventSec});
+        ('legacy-cloud-customer', NULL, 'o1', 'cloud-customer-1', 'user', NULL, 'quota_order_increase', 'quota', 'o1', 'o1', NULL, ${eventSec});
       INSERT INTO cloud_traffic_reports (
         id, org_id, period, source, source_id, event_id, bytes, storage_id, unit_bytes, credits_per_unit,
         status, error, attempt_count, next_retry_at, issued_at, created_at, updated_at
@@ -240,7 +240,8 @@ describe('admin stats backfill', () => {
           '{"version":3,"scope":"snapshots","quality":"exact","observedAt":"${snapshotObservedAt}"}', ${eventMs});
     `)
 
-    const sql = buildBackfillSql(now)
+    const sql = buildBackfillSql(now, ['u0', 'u3', 'u1', 'u2'])
+    expect(sql).toMatch(/VALUES \(\s*'[A-Za-z0-9]+', '', '2026-07', 'object_download'/)
     const validationSql = buildValidationSql(now)
     const readValidationSummary = () =>
       Object.assign(

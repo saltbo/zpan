@@ -218,10 +218,10 @@ describe('User entitlements API (admin)', () => {
       INSERT INTO org_quota_entitlements
         (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
       VALUES
-        ('ent-no-meta', ${orgId}, 'storage', 'grant', 'admin_grant', 'admin_grant:no-meta', 1000, ${now}, NULL, 'active', NULL, ${now}, ${now})
+        ('EntNoMetadata1', ${orgId}, 'storage', 'grant', 'admin_grant', 'admin_grant:no-meta', 1000, ${now}, NULL, 'active', NULL, ${now}, ${now})
     `)
 
-    const res = await app.request(`/api/users/${userId}/entitlements/ent-no-meta`, {
+    const res = await app.request(`/api/users/${userId}/entitlements/EntNoMetadata1`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ note: 'first note' }),
@@ -229,7 +229,7 @@ describe('User entitlements API (admin)', () => {
 
     expect(res.status).toBe(200)
     const rows = await db.all<{ metadata: string }>(
-      sql`SELECT metadata FROM org_quota_entitlements WHERE id = 'ent-no-meta'`,
+      sql`SELECT metadata FROM org_quota_entitlements WHERE id = 'EntNoMetadata1'`,
     )
     expect(JSON.parse(rows[0].metadata)).toMatchObject({ note: 'first note' })
   })
@@ -240,14 +240,14 @@ describe('User entitlements API (admin)', () => {
     const user = (await signUpUser(app, 'unknown-ent@example.com')) as { user: { id: string } }
     const userId = user.user.id
 
-    const patch = await app.request(`/api/users/${userId}/entitlements/does-not-exist`, {
+    const patch = await app.request(`/api/users/${userId}/entitlements/DoesNotExist1`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ bytes: 1 }),
     })
     expect(patch.status).toBe(404)
 
-    const del = await app.request(`/api/users/${userId}/entitlements/does-not-exist`, {
+    const del = await app.request(`/api/users/${userId}/entitlements/DoesNotExist1`, {
       method: 'DELETE',
       headers,
     })

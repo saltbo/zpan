@@ -303,9 +303,9 @@ describe('reserveStorageUsage', () => {
     await db.run(sql`
       INSERT INTO image_hostings (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
       VALUES
-        ('active-image', ${orgId}, 'ih_active', 'active.png', ${storageId}, 'ih/active.png', 50, 'image/png', 'active', 0, ${now}),
-        ('purged-image', ${orgId}, 'ih_purged', 'purged.png', ${storageId}, 'ih/purged.png', 888, 'image/png', 'active', 0, ${now}),
-        ('draft-image', ${orgId}, 'ih_draft', 'draft.png', ${storageId}, 'ih/draft.png', 70, 'image/png', 'draft', 0, ${now})
+        ('active-image', ${orgId}, 'ImageActive1', 'active.png', ${storageId}, 'ih/active.png', 50, 'image/png', 'active', 0, ${now}),
+        ('purged-image', ${orgId}, 'ImagePurged1', 'purged.png', ${storageId}, 'ih/purged.png', 888, 'image/png', 'active', 0, ${now}),
+        ('draft-image', ${orgId}, 'ImageDraft1', 'draft.png', ${storageId}, 'ih/draft.png', 70, 'image/png', 'draft', 0, ${now})
     `)
     await db.run(sql`UPDATE image_hostings SET purged_at = ${now} WHERE id = 'purged-image'`)
 

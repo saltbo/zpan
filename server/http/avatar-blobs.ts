@@ -1,4 +1,5 @@
 import type { Context } from 'hono'
+import { BASE62_PATTERN } from '../../shared/ids'
 import type { Env } from '../middleware/platform'
 import { PUBLIC_IMAGES_BINDING, type R2BucketLike } from '../platform/interface'
 
@@ -7,10 +8,14 @@ import { PUBLIC_IMAGES_BINDING, type R2BucketLike } from '../platform/interface'
 // miniflare, which gives R2 no public URL); with a custom domain set, or on Node/Docker
 // (Cloud avatar service), the stored URL is absolute and this route is never hit.
 export async function serveAvatarBlob(c: Context<Env>) {
+  const scope = c.req.param('scope')
+  const id = c.req.param('id')
+  if ((scope !== 'user' && scope !== 'team') || !id || !BASE62_PATTERN.test(id)) return c.body(null, 404)
+
   const bucket = c.get('platform').getBinding<R2BucketLike>(PUBLIC_IMAGES_BINDING)
   if (!bucket) return c.body(null, 404)
 
-  const obj = await bucket.get(`${c.req.param('scope')}/${c.req.param('id')}`)
+  const obj = await bucket.get(`${scope}/${id}`)
   if (!obj) return c.body(null, 404)
 
   return c.body(await obj.arrayBuffer(), 200, {

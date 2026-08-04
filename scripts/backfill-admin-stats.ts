@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
+import { generateId } from '../shared/ids'
 import {
   downloadTaskEventTimestampSql,
   downloadTaskTerminalEventPredicate,
@@ -19,13 +20,13 @@ import { ADMIN_STATS_METRICS as M } from '../server/domain/admin-stats-metrics'
 const MIN_VALID_TIMESTAMP_MS = Date.UTC(2000, 0, 1)
 const MAX_BACKFILL_HOURS = 100_000
 const STATISTICS_OPENING_SOURCE_ID = 'v3-authoritative-sources'
-const STATISTICS_OPENING_EVENT_ID = `audit:statistics_source_initialized:${STATISTICS_OPENING_SOURCE_ID}`
+const STATISTICS_OPENING_EVENT_KEY = `audit:statistics_source_initialized:${STATISTICS_OPENING_SOURCE_ID}`
 const STATISTICS_OPENING_OPTION_KEY = 'stats_integrity_exact_from_v3'
 const TRAFFIC_LEDGER_OPENING_EVENT_ID = 'traffic_ledger_opening_v1'
 
 const statisticsExactFromMsSql = `COALESCE(
   (SELECT unixepoch(value) * 1000 FROM system_options WHERE key = '${STATISTICS_OPENING_OPTION_KEY}'),
-  (SELECT created_at * 1000 FROM audit_events WHERE id = '${STATISTICS_OPENING_EVENT_ID}'),
+  (SELECT created_at * 1000 FROM audit_events WHERE event_key = '${STATISTICS_OPENING_EVENT_KEY}'),
   (unixepoch() + 1) * 1000
 )`
 const statisticsFirstFullHourMsSql = `CAST((${statisticsExactFromMsSql} + 3599999) / 3600000 AS INTEGER) * 3600000`
@@ -105,7 +106,11 @@ interface BackfillPlan {
   userRegistrationEventsToRecover: number
 }
 
-export function buildBackfillSql(now = new Date()): string {
+interface MissingRegistrationUsers {
+  ids: string[]
+}
+
+export function buildBackfillSql(now = new Date(), registrationUserIds: string[] = []): string {
   const trafficPeriod = now.toISOString().slice(0, 7)
   const openingAt = new Date((Math.floor(now.getTime() / 1000) + 1) * 1000).toISOString()
   return `
@@ -113,19 +118,19 @@ INSERT OR IGNORE INTO system_options (key, value)
 VALUES (
   '${STATISTICS_OPENING_OPTION_KEY}',
   COALESCE(
-    (SELECT strftime('%Y-%m-%dT%H:%M:%fZ', created_at, 'unixepoch') FROM audit_events WHERE id = '${STATISTICS_OPENING_EVENT_ID}'),
+    (SELECT strftime('%Y-%m-%dT%H:%M:%fZ', created_at, 'unixepoch') FROM audit_events WHERE event_key = '${STATISTICS_OPENING_EVENT_KEY}'),
     '${openingAt}'
   )
 );
 
-DELETE FROM audit_events WHERE id = '${STATISTICS_OPENING_EVENT_ID}';
+DELETE FROM audit_events WHERE event_key = '${STATISTICS_OPENING_EVENT_KEY}';
 
 INSERT OR IGNORE INTO cloud_traffic_reports (
   id, org_id, period, source, source_id, event_id, bytes, storage_id,
   unit_bytes, credits_per_unit, status, error, attempt_count, next_retry_at,
   issued_at, created_at, updated_at
 ) VALUES (
-  'traffic_ledger_opening_v1', '', '${trafficPeriod}', 'object_download',
+  '${generateId()}', '', '${trafficPeriod}', 'object_download',
   'traffic_ledger_opening_v1', 'traffic_ledger_opening_v1', 0, NULL,
   NULL, NULL, 'ledger_opening', NULL, 0, NULL, NULL, ${now.getTime()}, ${now.getTime()}
 );
@@ -134,35 +139,7 @@ UPDATE audit_events
 SET actor_type = CASE WHEN user_id IS NULL THEN 'anonymous' ELSE 'user' END
 WHERE actor_type IS NULL;
 
-INSERT OR IGNORE INTO audit_events (
-  id, org_id, user_id, actor_type, actor_ref, action, target_type,
-  target_id, target_name, metadata, created_at
-)
-SELECT
-  'event:user_register:' || registered_user.id,
-  '',
-  registered_user.id,
-  'user',
-  NULL,
-  'user_register',
-  'user',
-  registered_user.id,
-  registered_user.id,
-  json_object(
-    'provider',
-    COALESCE(
-      NULLIF((
-        SELECT account.provider_id
-        FROM account
-        WHERE account.user_id = registered_user.id
-        ORDER BY account.created_at, account.id
-        LIMIT 1
-      ), ''),
-      'unknown'
-    )
-  ),
-  CAST(registered_user.created_at / 1000 AS INTEGER)
-FROM user registered_user;
+${registrationAuditInsertSql(registrationUserIds)}
 
 WITH activity_facts AS (
   SELECT user_id, created_at * 1000 AS occurred_at
@@ -246,7 +223,7 @@ SET issued_at = (
   SELECT ae.created_at * 1000
   FROM audit_events ae
   WHERE ae.action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
-    AND ae.id NOT LIKE 'backfill_%'
+    AND COALESCE(ae.event_key, '') NOT LIKE 'backfill_%'
     AND json_valid(ae.metadata) = 1
     AND json_extract(ae.metadata, '$.trafficEventId') = ctr.event_id
   ORDER BY ae.created_at
@@ -257,7 +234,7 @@ WHERE ctr.issued_at IS NULL
   AND EXISTS (
     SELECT 1 FROM audit_events ae
     WHERE ae.action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
-      AND ae.id NOT LIKE 'backfill_%'
+      AND COALESCE(ae.event_key, '') NOT LIKE 'backfill_%'
       AND json_valid(ae.metadata) = 1
       AND json_extract(ae.metadata, '$.trafficEventId') = ctr.event_id
   );
@@ -271,6 +248,45 @@ ${purgeCounterRollupsSql()}
 
 ${buildHourlyBackfillSql(now)}
 `
+}
+
+function registrationAuditInsertSql(userIds: string[]): string {
+  if (userIds.length === 0) return ''
+  const values = userIds.map((userId) => `('${generateId()}', '${userId.replaceAll("'", "''")}')`).join(',\n  ')
+  return `WITH generated_registration_ids(id, user_id) AS (VALUES
+  ${values}
+)
+INSERT OR IGNORE INTO audit_events (
+  id, event_key, org_id, user_id, actor_type, actor_ref, action, target_type,
+  target_id, target_name, metadata, created_at
+)
+SELECT
+  generated_registration_ids.id,
+  'event:user_register:' || registered_user.id,
+  '',
+  registered_user.id,
+  'user',
+  NULL,
+  'user_register',
+  'user',
+  registered_user.id,
+  registered_user.id,
+  json_object(
+    'provider',
+    COALESCE(
+      NULLIF((
+        SELECT account.provider_id
+        FROM account
+        WHERE account.user_id = registered_user.id
+        ORDER BY account.created_at, account.id
+        LIMIT 1
+      ), ''),
+      'unknown'
+    )
+  ),
+  CAST(registered_user.created_at / 1000 AS INTEGER)
+FROM generated_registration_ids
+INNER JOIN user registered_user ON registered_user.id = generated_registration_ids.user_id;`
 }
 
 function buildHourlyBackfillSql(now: Date): string {
@@ -324,7 +340,7 @@ function userSignupHistoryStartSql(currentHour: number): string {
         WHERE action = 'user_register'
           AND target_id IS NOT NULL
           AND user_id = target_id
-          AND id = 'event:user_register:' || target_id
+          AND event_key = 'event:user_register:' || target_id
           AND json_valid(metadata) = 1
           AND json_type(metadata, '$.provider') = 'text'
           AND length(json_extract(metadata, '$.provider')) > 0
@@ -686,7 +702,7 @@ export function buildValidationSql(now = new Date()): string {
     WHERE action = 'user_register'
       AND target_id IS NOT NULL
       AND user_id = target_id
-      AND id = 'event:user_register:' || target_id
+      AND event_key = 'event:user_register:' || target_id
       AND json_valid(metadata) = 1
       AND json_type(metadata, '$.provider') = 'text'
       AND length(json_extract(metadata, '$.provider')) > 0
@@ -777,7 +793,7 @@ export function buildValidationSql(now = new Date()): string {
           json_valid(metadata) = 0
           OR target_id IS NULL
           OR user_id <> target_id
-          OR id <> 'event:user_register:' || target_id
+          OR event_key <> 'event:user_register:' || target_id
           OR COALESCE(json_type(metadata, '$.provider') = 'text', 0) = 0
           OR COALESCE(length(json_extract(metadata, '$.provider')), 0) = 0
         ))
@@ -807,7 +823,7 @@ export function buildValidationSql(now = new Date()): string {
         SELECT 1
         FROM audit_events registration_event
         WHERE registration_event.action = 'user_register'
-          AND registration_event.id = 'event:user_register:' || registered_user.id
+          AND registration_event.event_key = 'event:user_register:' || registered_user.id
           AND registration_event.user_id = registered_user.id
           AND registration_event.target_id = registered_user.id
           AND registration_event.created_at = CAST(registered_user.created_at / 1000 AS INTEGER)
@@ -932,7 +948,7 @@ authoritative_registration_sources AS MATERIALIZED (
   WHERE action = 'user_register'
     AND target_id IS NOT NULL
     AND user_id = target_id
-    AND id = 'event:user_register:' || target_id
+    AND event_key = 'event:user_register:' || target_id
     AND json_valid(metadata) = 1
     AND json_type(metadata, '$.provider') = 'text'
     AND length(json_extract(metadata, '$.provider')) > 0
@@ -1225,7 +1241,7 @@ SELECT json_object(
           AND (
             ae.target_id IS NULL
             OR ae.user_id <> ae.target_id
-            OR ae.id <> 'event:user_register:' || ae.target_id
+            OR ae.event_key <> 'event:user_register:' || ae.target_id
             OR
             COALESCE(json_type(ae.metadata, '$.provider') = 'text', 0) = 0
             OR COALESCE(length(json_extract(ae.metadata, '$.provider')), 0) = 0
@@ -1238,7 +1254,7 @@ SELECT json_object(
     WHERE NOT EXISTS (
       SELECT 1
       FROM audit_events registration_event
-      WHERE registration_event.id = 'event:user_register:' || registered_user.id
+      WHERE registration_event.event_key = 'event:user_register:' || registered_user.id
     )
   ),
   'issuedTrafficReportsToRecover', (
@@ -1248,12 +1264,23 @@ SELECT json_object(
       AND EXISTS (
         SELECT 1 FROM audit_events ae
         WHERE ae.action IN ('share_download', 'object_download', 'image_hosting_download', 'webdav_download')
-          AND ae.id NOT LIKE 'backfill_%'
+          AND COALESCE(ae.event_key, '') NOT LIKE 'backfill_%'
           AND json_valid(ae.metadata) = 1
           AND json_extract(ae.metadata, '$.trafficEventId') = ctr.event_id
       )
   )
 ) AS summary;
+`
+
+const MISSING_REGISTRATION_USERS_SQL = `
+SELECT json_object(
+  'ids', json_group_array(registered_user.id)
+) AS summary
+FROM user registered_user
+WHERE NOT EXISTS (
+  SELECT 1 FROM audit_events registration_event
+  WHERE registration_event.event_key = 'event:user_register:' || registered_user.id
+);
 `
 
 function parseOptions(argv: string[]): Options {
@@ -1453,7 +1480,11 @@ function main(): void {
   if (maxExpectedBuckets > MAX_BACKFILL_HOURS) {
     throw new Error(`admin_stats_backfill_range_too_large:${maxExpectedBuckets}`)
   }
-  apply(options.target, buildBackfillSql(now))
+  const registrationUserIds = querySummary<MissingRegistrationUsers>(options.target, MISSING_REGISTRATION_USERS_SQL).ids
+  if (registrationUserIds.length !== plan.userRegistrationEventsToRecover) {
+    throw new Error('admin_stats_backfill_plan_changed:registration_users')
+  }
+  apply(options.target, buildBackfillSql(now, registrationUserIds))
   const after = querySummary<ValidationSummary>(options.target, validationSql)
   assertBackfillValidation(after)
   console.log(

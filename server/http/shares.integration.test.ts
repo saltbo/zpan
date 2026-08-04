@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { generateId } from '../../shared/ids'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { createShareRepo } from '../adapters/repos/share'
 import { auditEvents, shareRecipients, shares } from '../db/schema.js'
@@ -14,7 +14,7 @@ type TestAuth = Awaited<ReturnType<typeof createTestApp>>['auth']
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const validStorage = {
-  id: 'st-share-test',
+  id: 'StShareTest',
   bucket: 'test-bucket',
   endpoint: 'https://s3.amazonaws.com',
   region: 'us-east-1',
@@ -44,7 +44,7 @@ async function setStoragePlanEntitlement(db: TestDb, orgId: string, bytes: numbe
     INSERT INTO org_quota_entitlements
       (id, org_id, resource_type, entitlement_type, source, source_id, bytes, starts_at, expires_at, status, metadata, created_at, updated_at)
     VALUES
-      (${nanoid()}, ${orgId}, 'storage', 'plan', 'test', ${`test-storage-plan:${orgId}:${nanoid()}`}, ${bytes}, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
+      (${generateId()}, ${orgId}, 'storage', 'plan', 'test', ${`test-storage-plan:${orgId}:${generateId()}`}, ${bytes}, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
   `)
 }
 
@@ -212,7 +212,7 @@ describe('POST /api/shares', () => {
 
     const body = (await res.json()) as Record<string, unknown>
     expect(body.kind).toBe('direct')
-    expect((body.urls as Record<string, string>).direct).toMatch(/^\/r\/ds_/)
+    expect((body.urls as Record<string, string>).direct).toMatch(/^\/r\/[A-Za-z0-9]+$/)
     expect((body.urls as Record<string, string>).landing).toBeUndefined()
   })
 
@@ -248,7 +248,7 @@ describe('POST /api/shares', () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
 
-    const res = await createShare(app, headers, { matterId: 'nonexistent-matter', kind: 'landing' })
+    const res = await createShare(app, headers, { matterId: 'NonexistentMatter', kind: 'landing' })
     expect(res.status).toBe(404)
 
     const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
@@ -297,10 +297,10 @@ describe('POST /api/shares', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'profile-create', name: 'homepage.txt' })
+    await insertFile(db, orgId, { id: 'Profilecreate', name: 'homepage.txt' })
 
     const res = await createShare(app, headers, {
-      matterId: 'profile-create',
+      matterId: 'Profilecreate',
       kind: 'landing',
     })
 
@@ -319,17 +319,17 @@ describe('POST /api/shares', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'profile-ineligible', name: 'private.txt' })
+    await insertFile(db, orgId, { id: 'Profileineligible', name: 'private.txt' })
 
     const direct = await createShare(app, headers, {
-      matterId: 'profile-ineligible',
+      matterId: 'Profileineligible',
       kind: 'direct',
       private: true,
     })
     expect(direct.status).toBe(201)
 
     const targeted = await createShare(app, headers, {
-      matterId: 'profile-ineligible',
+      matterId: 'Profileineligible',
       kind: 'landing',
       recipients: [{ recipientEmail: 'private@example.com' }],
       private: true,
@@ -341,7 +341,7 @@ describe('POST /api/shares', () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
-    const matterId = nanoid()
+    const matterId = generateId()
     await insertFile(db, orgId, { id: matterId, name: 'file.txt' })
 
     const res = await createShare(app, headers, {
@@ -358,7 +358,7 @@ describe('POST /api/shares', () => {
     const { app, db, deps } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
-    const matterId = nanoid()
+    const matterId = generateId()
     await insertFile(db, orgId, { id: matterId, name: 'file.txt' })
 
     vi.spyOn(deps.share, 'create').mockRejectedValueOnce(new Error('unexpected db error'))
@@ -371,7 +371,7 @@ describe('POST /api/shares', () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
-    const matterId = nanoid()
+    const matterId = generateId()
     await insertFile(db, orgId, { id: matterId, name: 'file.txt' })
 
     const notifService = await import('../usecases/share.js')
@@ -404,13 +404,13 @@ describe('share privacy mutation', () => {
 
   it('lets only the owner make a landing share private or public without revoking it [spec: shares/privacy-owner] [spec: shares/privacy-authorization] [spec: shares/privacy-preserves-access]', async () => {
     const { app, db } = await createTestApp()
-    const ownerHeaders = await authedHeaders(app, `profile-owner-${nanoid()}@example.com`)
+    const ownerHeaders = await authedHeaders(app, `Profileowner${generateId()}@example.com`)
     await insertStorage(db)
     const ownerOrgId = await getOrgId(db)
-    await insertFile(db, ownerOrgId, { id: 'profile-toggle', name: 'toggle.txt' })
-    const created = await createShare(app, ownerHeaders, { matterId: 'profile-toggle', kind: 'landing' })
+    await insertFile(db, ownerOrgId, { id: 'Profiletoggle', name: 'toggle.txt' })
+    const created = await createShare(app, ownerHeaders, { matterId: 'Profiletoggle', kind: 'landing' })
     const token = ((await created.json()) as { token: string }).token
-    const otherHeaders = await authedHeaders(app, `profile-other-${nanoid()}@example.com`)
+    const otherHeaders = await authedHeaders(app, `Profileother${generateId()}@example.com`)
 
     expect((await privacyRequest(app, token, true, otherHeaders)).status).toBe(403)
 
@@ -433,16 +433,16 @@ describe('share privacy mutation', () => {
 
   it('rejects privacy mutations for direct and recipient-targeted shares [spec: shares/privacy-ineligible]', async () => {
     const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app, `profile-ineligible-owner-${nanoid()}@example.com`)
+    const headers = await authedHeaders(app, `Profileineligibleowner${generateId()}@example.com`)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'profile-direct-toggle', name: 'direct.txt' })
-    await insertFile(db, orgId, { id: 'profile-targeted-toggle', name: 'targeted.txt' })
+    await insertFile(db, orgId, { id: 'Profiledirecttoggle', name: 'direct.txt' })
+    await insertFile(db, orgId, { id: 'Profiletargetedtoggle', name: 'targeted.txt' })
 
-    const directCreated = await createShare(app, headers, { matterId: 'profile-direct-toggle', kind: 'direct' })
+    const directCreated = await createShare(app, headers, { matterId: 'Profiledirecttoggle', kind: 'direct' })
     const directToken = ((await directCreated.json()) as { token: string }).token
     const targetedCreated = await createShare(app, headers, {
-      matterId: 'profile-targeted-toggle',
+      matterId: 'Profiletargetedtoggle',
       kind: 'landing',
       recipients: [{ recipientEmail: 'recipient@example.com' }],
     })
@@ -462,8 +462,8 @@ describe('share privacy mutation', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    await insertFile(db, orgId, { id: 'webdav-share-privacy', name: 'webdav-share-privacy.txt' })
-    const created = await createShare(app, ownerHeaders, { matterId: 'webdav-share-privacy', kind: 'landing' })
+    await insertFile(db, orgId, { id: 'WebdavShareprivacy', name: 'WebdavShareprivacy.txt' })
+    const created = await createShare(app, ownerHeaders, { matterId: 'WebdavShareprivacy', kind: 'landing' })
     const token = ((await created.json()) as { token: string }).token
     const key = await createWebDavApiKey(auth, userId)
 
@@ -534,13 +534,13 @@ describe('GET /api/shares', () => {
     await insertStorage(db)
 
     // User A creates a share
-    const headersA = await authedHeaders(app, `a-${nanoid()}@example.com`)
+    const headersA = await authedHeaders(app, `a-${generateId()}@example.com`)
     const orgIdA = await getOrgId(db)
     await insertFile(db, orgIdA, { id: 'oa1', name: 'only-a.txt' })
     await createShare(app, headersA, { matterId: 'oa1', kind: 'landing' })
 
     // User B lists their shares
-    const headersB = await authedHeaders(app, `b-${nanoid()}@example.com`)
+    const headersB = await authedHeaders(app, `b-${generateId()}@example.com`)
     const res = await app.request('/api/shares', { headers: headersB })
     expect(res.status).toBe(200)
 
@@ -605,19 +605,19 @@ describe('GET /api/shares', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    const teamOrgId = `team-share-list-${nanoid()}`
+    const teamOrgId = `team-share-list-${generateId()}`
     const now = Date.now()
     await db.run(sql`
       INSERT INTO organization (id, name, slug, metadata, created_at)
       VALUES (${teamOrgId}, 'Team Share List', ${teamOrgId}, '{"type":"team"}', ${now})
     `)
-    await insertFile(db, orgId, { id: 'api-share-personal', name: 'personal.txt' })
-    await insertFile(db, teamOrgId, { id: 'api-share-team', name: 'team.txt' })
+    await insertFile(db, orgId, { id: 'ApiSharepersonal', name: 'personal.txt' })
+    await insertFile(db, teamOrgId, { id: 'ApiShareteam', name: 'team.txt' })
     await db.run(sql`
       INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
       VALUES
-        ('api-share-personal-row', 'api-share-personal-token', 'landing', 'api-share-personal', ${orgId}, ${userId}, 0, 0, 'active', ${now}),
-        ('api-share-team-row', 'api-share-team-token', 'landing', 'api-share-team', ${teamOrgId}, ${userId}, 0, 0, 'active', ${now + 1})
+        ('ApiSharepersonalrow', 'ApiSharepersonaltoken', 'landing', 'ApiSharepersonal', ${orgId}, ${userId}, 0, 0, 'active', ${now}),
+        ('ApiShareteamrow', 'ApiShareteamtoken', 'landing', 'ApiShareteam', ${teamOrgId}, ${userId}, 0, 0, 'active', ${now + 1})
     `)
     const key = await createWorkspaceApiKey(auth, orgId, userId, { shares: ['read'] })
 
@@ -670,14 +670,14 @@ describe('GET /api/shares/:token', () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
 
-    const headersA = await authedHeaders(app, `ownerA-${nanoid()}@example.com`)
+    const headersA = await authedHeaders(app, `ownerA-${generateId()}@example.com`)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'ga1', name: 'owned-by-a.txt' })
 
     const createRes = await createShare(app, headersA, { matterId: 'ga1', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const headersB = await authedHeaders(app, `otherB-${nanoid()}@example.com`)
+    const headersB = await authedHeaders(app, `otherB-${generateId()}@example.com`)
     const res = await app.request(`/api/shares/${token}`, { headers: headersB })
     expect(res.status).toBe(200)
 
@@ -692,7 +692,7 @@ describe('GET /api/shares/:token', () => {
 
   it('returns 404 for a non-existent token [spec: shares/detail-not-found]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/shares/does-not-exist')
+    const res = await app.request('/api/shares/DoesNotExist1')
     expect(res.status).toBe(404)
   })
 
@@ -700,7 +700,7 @@ describe('GET /api/shares/:token', () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
 
-    const headersA = await authedHeaders(app, `downer-${nanoid()}@example.com`)
+    const headersA = await authedHeaders(app, `downer-${generateId()}@example.com`)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'dgd1', name: 'direct.bin' })
 
@@ -764,7 +764,7 @@ describe('POST /api/shares/:token/objects', () => {
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
 
-    const res = await app.request('/api/shares/nonexistent-token/objects', {
+    const res = await app.request('/api/shares/NonexistentToken1/objects', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
@@ -777,9 +777,9 @@ describe('POST /api/shares/:token/objects', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'sv-direct', name: 'direct-file.txt' })
+    await insertFile(db, orgId, { id: 'Svdirect', name: 'direct-file.txt' })
 
-    const createRes = await createShare(app, headers, { matterId: 'sv-direct', kind: 'direct' })
+    const createRes = await createShare(app, headers, { matterId: 'Svdirect', kind: 'direct' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
     const res = await app.request(`/api/shares/${token}/objects`, {
@@ -798,12 +798,12 @@ describe('POST /api/shares/:token/objects', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'sv-trashed', name: 'will-trash.txt' })
+    await insertFile(db, orgId, { id: 'Svtrashed', name: 'will-trash.txt' })
 
-    const createRes = await createShare(app, headers, { matterId: 'sv-trashed', kind: 'landing' })
+    const createRes = await createShare(app, headers, { matterId: 'Svtrashed', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    await db.run(sql`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = 'sv-trashed'`)
+    await db.run(sql`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = 'Svtrashed'`)
 
     const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
@@ -818,9 +818,9 @@ describe('POST /api/shares/:token/objects', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'sv-ok', name: 'shareable.txt' })
+    await insertFile(db, orgId, { id: 'Svok', name: 'shareable.txt' })
 
-    const createRes = await createShare(app, headers, { matterId: 'sv-ok', kind: 'landing' })
+    const createRes = await createShare(app, headers, { matterId: 'Svok', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
     const res = await app.request(`/api/shares/${token}/objects`, {
@@ -847,12 +847,12 @@ describe('POST /api/shares/:token/objects', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'sv-quota', name: 'big-file.txt' })
+    await insertFile(db, orgId, { id: 'Svquota', name: 'big-file.txt' })
 
     await db.run(sql`UPDATE org_quotas SET used = 1 WHERE org_id = ${orgId}`)
     await setStoragePlanEntitlement(db, orgId, 1)
 
-    const createRes = await createShare(app, headers, { matterId: 'sv-quota', kind: 'landing' })
+    const createRes = await createShare(app, headers, { matterId: 'Svquota', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
     const res = await app.request(`/api/shares/${token}/objects`, {
@@ -871,12 +871,12 @@ describe('POST /api/shares/:token/objects', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'sv-forbidden', name: 'forbidden.txt' })
+    await insertFile(db, orgId, { id: 'Svforbidden', name: 'forbidden.txt' })
 
-    const createRes = await createShare(app, headers, { matterId: 'sv-forbidden', kind: 'landing' })
+    const createRes = await createShare(app, headers, { matterId: 'Svforbidden', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const fakeTeamOrgId = `team-org-${nanoid()}`
+    const fakeTeamOrgId = generateId()
     await db.run(sql`
       INSERT INTO organization (id, name, slug, metadata, created_at)
       VALUES (${fakeTeamOrgId}, 'Team Org', ${fakeTeamOrgId}, '{"type":"team"}', ${Date.now()})
@@ -896,8 +896,8 @@ describe('POST /api/shares/:token/objects', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    await insertFile(db, orgId, { id: 'sv-api-fixed', name: 'fixed-key.txt' })
-    const teamOrgId = `team-save-api-${nanoid()}`
+    await insertFile(db, orgId, { id: 'Svapifixed', name: 'fixed-key.txt' })
+    const teamOrgId = generateId()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO organization (id, name, slug, metadata, created_at)
@@ -905,9 +905,9 @@ describe('POST /api/shares/:token/objects', () => {
     `)
     await db.run(sql`
       INSERT INTO member (id, organization_id, user_id, role, created_at)
-      VALUES (${nanoid()}, ${teamOrgId}, ${userId}, 'editor', ${now})
+      VALUES (${generateId()}, ${teamOrgId}, ${userId}, 'editor', ${now})
     `)
-    const createRes = await createShare(app, headers, { matterId: 'sv-api-fixed', kind: 'landing' })
+    const createRes = await createShare(app, headers, { matterId: 'Svapifixed', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
     const key = await createWorkspaceApiKey(auth, orgId, userId, { objects: ['create'] })
 
@@ -925,7 +925,7 @@ describe('POST /api/shares/:token/objects', () => {
     await authedHeaders(app, 'victim@example.com')
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'sv-victim', name: 'victim.txt' })
+    await insertFile(db, orgId, { id: 'Svvictim', name: 'victim.txt' })
 
     const victims = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'victim@example.com'`)
     const victimOrgs = await db.all<{ id: string }>(sql`
@@ -937,7 +937,7 @@ describe('POST /api/shares/:token/objects', () => {
       LIMIT 1
     `)
 
-    const createRes = await createShare(app, headers, { matterId: 'sv-victim', kind: 'landing' })
+    const createRes = await createShare(app, headers, { matterId: 'Svvictim', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
     const res = await app.request(`/api/shares/${token}/objects`, {
@@ -953,9 +953,9 @@ describe('POST /api/shares/:token/objects', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'sv-recip', name: 'recipient-file.txt' })
+    await insertFile(db, orgId, { id: 'Svrecip', name: 'recipient-file.txt' })
 
-    const emailB = `recip-user-b-${nanoid()}@example.com`
+    const emailB = `recip-user-b-${generateId()}@example.com`
     const signupRes = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -969,7 +969,7 @@ describe('POST /api/shares/:token/objects', () => {
     const orgIdB = await getOrgId(db)
 
     const createRes = await createShare(app, headers, {
-      matterId: 'sv-recip',
+      matterId: 'Svrecip',
       kind: 'landing',
       password: 'secretPass123',
       recipients: [{ recipientUserId: userBId }],
@@ -989,16 +989,16 @@ describe('POST /api/shares/:token/objects', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'sv-pw', name: 'protected.txt' })
+    await insertFile(db, orgId, { id: 'Svpw', name: 'protected.txt' })
 
     const createRes = await createShare(app, headers, {
-      matterId: 'sv-pw',
+      matterId: 'Svpw',
       kind: 'landing',
       password: 'topSecret123',
     })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const headersB = await authedHeaders(app, `pw-user-b-${nanoid()}@example.com`)
+    const headersB = await authedHeaders(app, `pw-user-b-${generateId()}@example.com`)
     const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
       headers: { ...headersB, 'Content-Type': 'application/json' },
@@ -1012,16 +1012,16 @@ describe('POST /api/shares/:token/objects', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'sv-cookie-auth', name: 'cookie-auth.txt' })
+    await insertFile(db, orgId, { id: 'Svcookieauth', name: 'cookie-auth.txt' })
 
     const createRes = await createShare(app, headers, {
-      matterId: 'sv-cookie-auth',
+      matterId: 'Svcookieauth',
       kind: 'landing',
       password: 'cookiePass123',
     })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const headersB = await authedHeaders(app, `cookie-norecip-${nanoid()}@example.com`)
+    const headersB = await authedHeaders(app, `cookie-norecip-${generateId()}@example.com`)
     const cookieHeader = `${headersB.Cookie}; sharetk_${token}=ok`
     const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
@@ -1036,16 +1036,16 @@ describe('POST /api/shares/:token/objects', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'sv-bad-cookie', name: 'bad-cookie.txt' })
+    await insertFile(db, orgId, { id: 'Svbadcookie', name: 'bad-cookie.txt' })
 
     const createRes = await createShare(app, headers, {
-      matterId: 'sv-bad-cookie',
+      matterId: 'Svbadcookie',
       kind: 'landing',
       password: 'cookiePass123',
     })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const headersB = await authedHeaders(app, `cookie-bad-${nanoid()}@example.com`)
+    const headersB = await authedHeaders(app, `cookie-bad-${generateId()}@example.com`)
     const cookieHeader = `${headersB.Cookie}; sharetk_${token}=anything-but-ok`
     const res = await app.request(`/api/shares/${token}/objects`, {
       method: 'POST',
@@ -1060,12 +1060,12 @@ describe('POST /api/shares/:token/objects', () => {
     const ownerHeaders = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'sv-viewer-role', name: 'viewer-role.txt' })
+    await insertFile(db, orgId, { id: 'Svviewerrole', name: 'viewer-role.txt' })
 
-    const createRes = await createShare(app, ownerHeaders, { matterId: 'sv-viewer-role', kind: 'landing' })
+    const createRes = await createShare(app, ownerHeaders, { matterId: 'Svviewerrole', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const viewerEmail = `viewer-user-${nanoid()}@example.com`
+    const viewerEmail = `viewer-user-${generateId()}@example.com`
     const signupRes = await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1075,14 +1075,14 @@ describe('POST /api/shares/:token/objects', () => {
     const viewerId = signupBody.user?.id ?? ''
     const viewerHeaders = { Cookie: signupRes.headers.getSetCookie().join('; ') }
 
-    const teamOrgId = `viewer-team-${nanoid()}`
+    const teamOrgId = generateId()
     await db.run(sql`
       INSERT INTO organization (id, name, slug, metadata, created_at)
       VALUES (${teamOrgId}, 'Viewer Team', ${teamOrgId}, '{"type":"team"}', ${Date.now()})
     `)
     await db.run(sql`
       INSERT INTO member (id, organization_id, user_id, role, created_at)
-      VALUES (${nanoid()}, ${teamOrgId}, ${viewerId}, 'viewer', ${Date.now()})
+      VALUES (${generateId()}, ${teamOrgId}, ${viewerId}, 'viewer', ${Date.now()})
     `)
 
     const res = await app.request(`/api/shares/${token}/objects`, {
@@ -1145,14 +1145,14 @@ describe('PUT /api/shares/:token/status', () => {
     const { app, db } = await createTestApp()
     await insertStorage(db)
 
-    const headersA = await authedHeaders(app, `del-owner-${nanoid()}@example.com`)
+    const headersA = await authedHeaders(app, `del-owner-${generateId()}@example.com`)
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'del2', name: 'other-share.txt' })
 
     const createRes = await createShare(app, headersA, { matterId: 'del2', kind: 'landing' })
     const token = ((await createRes.json()) as Record<string, unknown>).token as string
 
-    const headersB = await authedHeaders(app, `del-other-${nanoid()}@example.com`)
+    const headersB = await authedHeaders(app, `del-other-${generateId()}@example.com`)
     const res = await revokeRequest(app, token, headersB)
     expect(res.status).toBe(403)
   })
@@ -1161,7 +1161,7 @@ describe('PUT /api/shares/:token/status', () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
 
-    const res = await revokeRequest(app, 'does-not-exist', headers)
+    const res = await revokeRequest(app, 'DoesNotExist1', headers)
     expect(res.status).toBe(404)
   })
 
@@ -1208,8 +1208,8 @@ describe('PUT /api/shares/:token/status', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    await insertFile(db, orgId, { id: 'webdav-share-revoke', name: 'webdav-share-revoke.txt' })
-    const created = await createShare(app, ownerHeaders, { matterId: 'webdav-share-revoke', kind: 'landing' })
+    await insertFile(db, orgId, { id: 'WebdavSharerevoke', name: 'WebdavSharerevoke.txt' })
+    const created = await createShare(app, ownerHeaders, { matterId: 'WebdavSharerevoke', kind: 'landing' })
     const token = ((await created.json()) as { token: string }).token
     const key = await createWebDavApiKey(auth, userId)
 
@@ -1236,23 +1236,23 @@ describe('GET /api/shares?box=received', () => {
     const orgId = await getOrgId(db)
     const recipientId = await getUserId(db, 'recipient@example.com')
 
-    await insertFile(db, orgId, { id: 'rcv-1', name: 'for-user.txt' })
-    await insertFile(db, orgId, { id: 'rcv-2', name: 'for-email.txt' })
-    await insertFile(db, orgId, { id: 'rcv-3', name: 'for-nobody.txt' })
+    await insertFile(db, orgId, { id: 'Rcv1', name: 'for-user.txt' })
+    await insertFile(db, orgId, { id: 'Rcv2', name: 'for-email.txt' })
+    await insertFile(db, orgId, { id: 'Rcv3', name: 'for-nobody.txt' })
 
     const byUser = await createShare(app, creatorHeaders, {
-      matterId: 'rcv-1',
+      matterId: 'Rcv1',
       kind: 'landing',
       recipients: [{ recipientUserId: recipientId }],
     })
     expect(byUser.status).toBe(201)
     const byEmail = await createShare(app, creatorHeaders, {
-      matterId: 'rcv-2',
+      matterId: 'Rcv2',
       kind: 'landing',
       recipients: [{ recipientEmail: 'recipient@example.com' }],
     })
     expect(byEmail.status).toBe(201)
-    const unrelated = await createShare(app, creatorHeaders, { matterId: 'rcv-3', kind: 'landing' })
+    const unrelated = await createShare(app, creatorHeaders, { matterId: 'Rcv3', kind: 'landing' })
     expect(unrelated.status).toBe(201)
 
     const res = await app.request('/api/shares?box=received', { headers: recipientHeaders })
@@ -1276,10 +1276,10 @@ describe('GET /api/shares?box=received', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const recipientId = await getUserId(db, 'revoked-recipient@example.com')
-    await insertFile(db, orgId, { id: 'rcv-revoked', name: 'gone.txt' })
+    await insertFile(db, orgId, { id: 'Rcvrevoked', name: 'gone.txt' })
 
     const created = await createShare(app, creatorHeaders, {
-      matterId: 'rcv-revoked',
+      matterId: 'Rcvrevoked',
       kind: 'landing',
       recipients: [{ recipientUserId: recipientId }],
     })
@@ -1386,7 +1386,7 @@ describe('Public share routes', () => {
   describe('GET /api/shares/:token', () => {
     it('returns 404 for unknown token', async () => {
       const { app } = await createTestApp()
-      const res = await app.request('/api/shares/unknown-token')
+      const res = await app.request('/api/shares/UnknownToken')
       expect(res.status).toBe(404)
     })
 
@@ -1486,10 +1486,10 @@ describe('Public share routes', () => {
       const now = Date.now()
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
-        VALUES ('sh-trash', 'token-trash', 'landing', 'f3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
+        VALUES ('sh-trash', 'TokenTrash1', 'landing', 'f3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
       `)
 
-      const res = await app.request('/api/shares/token-trash')
+      const res = await app.request('/api/shares/TokenTrash1')
       expect(res.status).toBe(410)
     })
 
@@ -1614,7 +1614,7 @@ describe('Public share routes', () => {
 
     it('returns 404 when verifying a password for an unknown token', async () => {
       const { app } = await createTestApp()
-      const res = await app.request('/api/shares/no-such-token/sessions', {
+      const res = await app.request('/api/shares/NoSuchToken1/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: 'whatever' }),
@@ -1693,8 +1693,8 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFile(db, orgId, { id: 'dl-url1', name: 'report.docx' })
-      const share = await createShareRepo(db).create({ matterId: 'dl-url1', orgId, creatorId, kind: 'landing' })
+      await insertFile(db, orgId, { id: 'Dlurl1', name: 'report.docx' })
+      const share = await createShareRepo(db).create({ matterId: 'Dlurl1', orgId, creatorId, kind: 'landing' })
 
       const rootRef = await fetchRootRef(app, share.token)
       const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, {
@@ -1712,14 +1712,14 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFile(db, orgId, { id: 'dl-traffic-ok', name: 'traffic.txt' })
+      await insertFile(db, orgId, { id: 'Dltrafficok', name: 'traffic.txt' })
       const trafficPeriod = currentTrafficPeriod()
       await db.run(sql`
         UPDATE org_quotas
         SET traffic_quota = 2048, traffic_used = 256, traffic_period = ${trafficPeriod}
         WHERE org_id = ${orgId}
       `)
-      const share = await createShareRepo(db).create({ matterId: 'dl-traffic-ok', orgId, creatorId, kind: 'landing' })
+      const share = await createShareRepo(db).create({ matterId: 'Dltrafficok', orgId, creatorId, kind: 'landing' })
 
       const rootRef = await fetchRootRef(app, share.token)
       const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, {
@@ -1739,7 +1739,7 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFile(db, orgId, { id: 'dl-sign-fail', name: 'traffic.txt' })
+      await insertFile(db, orgId, { id: 'Dlsignfail', name: 'traffic.txt' })
       const trafficPeriod = currentTrafficPeriod()
       await db.run(sql`
         UPDATE org_quotas
@@ -1747,7 +1747,7 @@ describe('Public share routes', () => {
         WHERE org_id = ${orgId}
       `)
       vi.mocked(S3Service.prototype.presignDownload).mockRejectedValueOnce(new Error('sign failed'))
-      const share = await createShareRepo(db).create({ matterId: 'dl-sign-fail', orgId, creatorId, kind: 'landing' })
+      const share = await createShareRepo(db).create({ matterId: 'Dlsignfail', orgId, creatorId, kind: 'landing' })
 
       const rootRef = await fetchRootRef(app, share.token)
       const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}?downloadUrl=1`, {
@@ -1776,7 +1776,7 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFile(db, orgId, { id: 'dl-traffic', name: 'traffic.txt' })
+      await insertFile(db, orgId, { id: 'Dltraffic', name: 'traffic.txt' })
       const trafficPeriod = currentTrafficPeriod()
       await db.run(sql`
         UPDATE org_quotas
@@ -1785,7 +1785,7 @@ describe('Public share routes', () => {
       `)
       await setTrafficPlanEntitlement(db, orgId, 512)
       const share = await createShareRepo(db).create({
-        matterId: 'dl-traffic',
+        matterId: 'Dltraffic',
         orgId,
         creatorId,
         kind: 'landing',
@@ -1933,12 +1933,12 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFile(db, orgId, { id: 'dl-trash', name: 'gone.txt' })
+      await insertFile(db, orgId, { id: 'Dltrash', name: 'gone.txt' })
       // The matter is reachable (status active) when the share is created, then
       // gets trashed — resolveByToken returns matter_trashed for the download.
-      const share = await createShareRepo(db).create({ matterId: 'dl-trash', orgId, creatorId, kind: 'landing' })
+      const share = await createShareRepo(db).create({ matterId: 'Dltrash', orgId, creatorId, kind: 'landing' })
       const rootRef = await fetchRootRef(app, share.token)
-      await db.run(sql`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = 'dl-trash'`)
+      await db.run(sql`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = 'Dltrash'`)
 
       const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
       expect(res.status).toBe(410)
@@ -1954,8 +1954,8 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFolder(db, orgId, { id: 'dl-folder', name: 'A Folder' })
-      const share = await createShareRepo(db).create({ matterId: 'dl-folder', orgId, creatorId, kind: 'landing' })
+      await insertFolder(db, orgId, { id: 'Dlfolder', name: 'A Folder' })
+      const share = await createShareRepo(db).create({ matterId: 'Dlfolder', orgId, creatorId, kind: 'landing' })
 
       const rootRef = await fetchRootRef(app, share.token)
       const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
@@ -1975,9 +1975,9 @@ describe('Public share routes', () => {
       const now = Date.now()
       await db.run(sql`
         INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-        VALUES ('dl-no-storage', ${orgId}, 'dl-no-storage-alias', 'orphan.txt', 'text/plain', 1024, 0, '', 'some/key.txt', 'st-missing', 'active', ${now}, ${now})
+        VALUES ('Dlnostorage', ${orgId}, 'Dlnostoragealias', 'orphan.txt', 'text/plain', 1024, 0, '', 'some/key.txt', 'st-missing', 'active', ${now}, ${now})
       `)
-      const share = await createShareRepo(db).create({ matterId: 'dl-no-storage', orgId, creatorId, kind: 'landing' })
+      const share = await createShareRepo(db).create({ matterId: 'Dlnostorage', orgId, creatorId, kind: 'landing' })
 
       const rootRef = await fetchRootRef(app, share.token)
       const res = await app.request(`/api/shares/${share.token}/objects/${rootRef}`, { redirect: 'manual' })
@@ -1997,10 +1997,10 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFolder(db, orgId, { id: 'readme-root', name: 'Docs' })
-      await insertFile(db, orgId, { id: 'readme-file', name: 'README.md', parent: 'Docs' })
+      await insertFolder(db, orgId, { id: 'Readmeroot', name: 'Docs' })
+      await insertFile(db, orgId, { id: 'Readmefile', name: 'README.md', parent: 'Docs' })
       const share = await createShareRepo(db).create({
-        matterId: 'readme-root',
+        matterId: 'Readmeroot',
         orgId,
         creatorId,
         kind: 'landing',
@@ -2019,9 +2019,9 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFolder(db, orgId, { id: 'no-readme-root', name: 'Empty Docs' })
+      await insertFolder(db, orgId, { id: 'NoReadmeRoot', name: 'Empty Docs' })
       const share = await createShareRepo(db).create({
-        matterId: 'no-readme-root',
+        matterId: 'NoReadmeRoot',
         orgId,
         creatorId,
         kind: 'landing',
@@ -2038,7 +2038,7 @@ describe('Public share routes', () => {
   describe('GET /api/shares/:token/objects', () => {
     it('returns 404 for invalid token', async () => {
       const { app } = await createTestApp()
-      const res = await app.request('/api/shares/no-such-token/objects')
+      const res = await app.request('/api/shares/NoSuchToken1/objects')
       expect(res.status).toBe(404)
     })
 
@@ -2048,13 +2048,13 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFolder(db, orgId, { id: 'trashed-dir', name: 'Gone', trashedAt: Date.now() })
+      await insertFolder(db, orgId, { id: 'TrashedDir', name: 'Gone', trashedAt: Date.now() })
       const now = Date.now()
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
-        VALUES ('sh-trash-ch', 'token-trash-ch', 'landing', 'trashed-dir', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
+        VALUES ('sh-trash-ch', 'TokenTrashChild', 'landing', 'TrashedDir', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
       `)
-      const res = await app.request('/api/shares/token-trash-ch/objects')
+      const res = await app.request('/api/shares/TokenTrashChild/objects')
       expect(res.status).toBe(410)
     })
 
@@ -2079,9 +2079,9 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFolder(db, orgId, { id: 'ch-expired', name: 'Expired Folder' })
+      await insertFolder(db, orgId, { id: 'ChExpired', name: 'Expired Folder' })
       const share = await createShareRepo(db).create({
-        matterId: 'ch-expired',
+        matterId: 'ChExpired',
         orgId,
         creatorId,
         kind: 'landing',
@@ -2174,8 +2174,8 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFolder(db, orgId, { id: 'traversal-dir', name: 'Safe' })
-      const share = await createShareRepo(db).create({ matterId: 'traversal-dir', orgId, creatorId, kind: 'landing' })
+      await insertFolder(db, orgId, { id: 'TraversalDir', name: 'Safe' })
+      const share = await createShareRepo(db).create({ matterId: 'TraversalDir', orgId, creatorId, kind: 'landing' })
 
       const res = await app.request(`/api/shares/${share.token}/objects?parent=../etc`)
       expect(res.status).toBe(400)
@@ -2189,11 +2189,11 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFolder(db, orgId, { id: 'pg-dir', name: 'Paged' })
-      await insertFile(db, orgId, { id: 'pg-1', name: 'a.txt', parent: 'Paged' })
-      await insertFile(db, orgId, { id: 'pg-2', name: 'b.txt', parent: 'Paged' })
-      await insertFile(db, orgId, { id: 'pg-3', name: 'c.txt', parent: 'Paged' })
-      const share = await createShareRepo(db).create({ matterId: 'pg-dir', orgId, creatorId, kind: 'landing' })
+      await insertFolder(db, orgId, { id: 'Pgdir', name: 'Paged' })
+      await insertFile(db, orgId, { id: 'Pg1', name: 'a.txt', parent: 'Paged' })
+      await insertFile(db, orgId, { id: 'Pg2', name: 'b.txt', parent: 'Paged' })
+      await insertFile(db, orgId, { id: 'Pg3', name: 'c.txt', parent: 'Paged' })
+      const share = await createShareRepo(db).create({ matterId: 'Pgdir', orgId, creatorId, kind: 'landing' })
 
       const first = await app.request(`/api/shares/${share.token}/objects?pageSize=2`)
       expect(first.status).toBe(200)
@@ -2222,8 +2222,8 @@ describe('Public share routes', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       const creatorId = await getUserId(db)
-      await insertFolder(db, orgId, { id: 'nan-dir', name: 'NaN' })
-      const share = await createShareRepo(db).create({ matterId: 'nan-dir', orgId, creatorId, kind: 'landing' })
+      await insertFolder(db, orgId, { id: 'NanDir', name: 'NaN' })
+      const share = await createShareRepo(db).create({ matterId: 'NanDir', orgId, creatorId, kind: 'landing' })
 
       const res = await app.request(`/api/shares/${share.token}/objects?pageSize=xyz`)
       expect(res.status).toBe(400)
@@ -2285,9 +2285,9 @@ describe('Public share routes', () => {
     })
   })
 
-  // ─── GET /r/:token — unified redirect for direct shares (ds_) ────────────────
+  // ─── GET /r/:token — unified redirect for direct shares ────────────────────
 
-  describe('GET /r/:token (ds_ direct shares)', () => {
+  describe('GET /r/:token (direct shares)', () => {
     it('returns 302 redirect for valid direct share', async () => {
       const { app, db } = await createTestApp()
       await authedHeaders(app)
@@ -2316,7 +2316,7 @@ describe('Public share routes', () => {
       expect(res.status).toBe(404)
     })
 
-    it('returns 404 for unknown prefix token', async () => {
+    it('returns 404 for an unknown token', async () => {
       const { app } = await createTestApp()
       const res = await app.request('/r/nosuchthing', { redirect: 'manual' })
       expect(res.status).toBe(404)
@@ -2332,10 +2332,10 @@ describe('Public share routes', () => {
       const now = Date.now()
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
-        VALUES ('sh-dltrash', 'ds_token-dltrash', 'direct', 'dlx3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
+        VALUES ('shdltrash', 'DirectTrash1', 'direct', 'dlx3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
       `)
 
-      const res = await app.request('/r/ds_token-dltrash', { redirect: 'manual' })
+      const res = await app.request('/r/DirectTrash1', { redirect: 'manual' })
       expect(res.status).toBe(410)
     })
 

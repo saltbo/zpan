@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+import { generateToken } from '../../shared/ids'
 
 export interface TemplateVars {
   uid: string
@@ -18,5 +18,5 @@ export function buildObjectKey(vars: TemplateVars): string {
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
 
-  return `${vars.orgId}/${vars.uid}/${year}${month}${day}/${nanoid(16)}${vars.rawExt}`
+  return `${vars.orgId}/${vars.uid}/${year}${month}${day}/${generateToken(17)}${vars.rawExt}`
 }

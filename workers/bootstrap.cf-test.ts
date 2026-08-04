@@ -90,14 +90,14 @@ describe('[CF] SSR share OG meta injection', () => {
     const now = Date.now()
     await env.DB.prepare(
       `INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-       VALUES ('ssr-matter-1', 'org-1', 'ssr-alias-1', 'design-spec.pdf', 'application/pdf', 4096, 0, '', 'obj/key.pdf', 'st-1', 'active', ?, ?)`,
+       VALUES ('ssrmatter1', 'org1', 'ssralias1', 'design-spec.pdf', 'application/pdf', 4096, 0, '', 'obj/key.pdf', 'st1', 'active', ?, ?)`,
     )
       .bind(now, now)
       .run()
 
     await env.DB.prepare(
       `INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, password_hash, expires_at, download_limit, views, downloads, status, created_at)
-       VALUES ('ssr-share-1', 'ssrtoken01', 'landing', 'ssr-matter-1', 'org-1', 'user-1', NULL, NULL, NULL, 0, 0, 'active', ?)`,
+       VALUES ('ssrshare1', 'ssrtoken01', 'landing', 'ssrmatter1', 'org1', 'user1', NULL, NULL, NULL, 0, 0, 'active', ?)`,
     )
       .bind(now)
       .run()

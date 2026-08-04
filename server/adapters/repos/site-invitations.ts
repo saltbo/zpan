@@ -1,7 +1,7 @@
 import { DEFAULT_SITE_NAME } from '@shared/constants'
 import type { SiteInvitation } from '@shared/types'
 import { and, count, desc, eq, gt, isNull, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { generateId, generateToken } from '../../../shared/ids'
 import * as authSchema from '../../db/auth-schema'
 import { siteInvitations, systemOptions } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -108,9 +108,9 @@ async function createSiteInvitation(db: Database, adminUserId: string, rawEmail:
   if (pendingInvite) throw new Error('A pending invitation already exists for this email')
 
   const row: typeof siteInvitations.$inferInsert = {
-    id: nanoid(),
+    id: generateId(),
     email,
-    token: nanoid(32),
+    token: generateToken(33),
     invitedBy: adminUserId,
     acceptedBy: null,
     acceptedAt: null,
@@ -148,7 +148,7 @@ async function resendSiteInvitation(
   if (row.revokedAt) return 'already_revoked'
 
   const now = new Date()
-  const nextToken = nanoid(32)
+  const nextToken = generateToken(33)
   await db
     .update(siteInvitations)
     .set({

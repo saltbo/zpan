@@ -9,6 +9,7 @@ import {
   downloadTaskStatusUpdateSchema,
   downloadTaskTimelineSchema,
   listDownloadTasksQuerySchema,
+  opaqueIdSchema,
   updateDownloadTaskSchema,
 } from '@shared/schemas'
 import type { Env } from '../../middleware/platform'
@@ -162,7 +163,7 @@ const getRoute = authRoute(
     tags: ['Download Tasks'],
     method: 'get',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       200: jsonContent(downloadTaskSchema, 'Download task'),
       ...taskErrorResponses,
@@ -178,7 +179,7 @@ const eventsRoute = authRoute(
     tags: ['Download Tasks'],
     method: 'get',
     path: '/{id}/events',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       200: jsonContent(downloadTaskTimelineSchema, 'Download task timeline'),
       ...taskErrorResponses,
@@ -194,7 +195,7 @@ const updateRoute = authRoute(
     tags: ['Download Tasks'],
     method: 'patch',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloadTaskSchema) },
+    request: { params: z.object({ id: opaqueIdSchema }), ...jsonBody(updateDownloadTaskSchema) },
     responses: {
       200: jsonContent(downloadTaskSchema, 'Updated download task'),
       ...taskErrorResponses,
@@ -210,7 +211,7 @@ const statusRoute = authRoute(
     tags: ['Download Tasks'],
     method: 'put',
     path: '/{id}/status',
-    request: { params: z.object({ id: z.string() }), ...jsonBody(downloadTaskStatusUpdateSchema) },
+    request: { params: z.object({ id: opaqueIdSchema }), ...jsonBody(downloadTaskStatusUpdateSchema) },
     responses: {
       200: jsonContent(downloadTaskSchema, 'Updated download task'),
       ...taskErrorResponses,
@@ -226,7 +227,7 @@ const attemptRoute = authRoute(
     tags: ['Download Tasks'],
     method: 'post',
     path: '/{id}/attempts',
-    request: { params: z.object({ id: z.string() }), ...jsonBody(downloadTaskAttemptSchema) },
+    request: { params: z.object({ id: opaqueIdSchema }), ...jsonBody(downloadTaskAttemptSchema) },
     responses: {
       201: jsonContent(downloadTaskSchema, 'New download attempt'),
       ...taskErrorResponses,
@@ -242,7 +243,7 @@ const deleteRoute = authRoute(
     tags: ['Download Tasks'],
     method: 'delete',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       204: { description: 'Deleted download task' },
       ...taskErrorResponses,

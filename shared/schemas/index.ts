@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { opaqueIdSchema } from './id'
 
 export {
   adminAnalyticsGrowthSchema,
@@ -147,6 +148,7 @@ export {
   errorInfoSchema,
   errorResponseSchema,
 } from './errors'
+export { opaqueIdSchema, opaqueTokenSchema } from './id'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
 export type { WorkspaceAuthorizationDetail } from './oauth-authorization'
@@ -352,7 +354,7 @@ export const objectUploadWorkflowSchema = z.object({
 // still go directly to presigned S3 URLs; the server exposes stable part
 // identities so automation never infers part numbers from URL positions.
 export const objectUploadInstructionsSchema = z.object({
-  sessionId: z.string(),
+  sessionId: opaqueIdSchema,
   uploadId: z.string().nullable(),
   mode: z.enum(['single', 'multipart']),
   partSize: z.number().int(),

@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { pageQuerySchema, pageSchema } from '@shared/schemas'
+import { opaqueIdSchema, opaqueTokenSchema, pageQuerySchema, pageSchema } from '@shared/schemas'
 import type { Env } from '../../middleware/platform'
 import { type InviteCodeRecord, unauthorized } from '../../usecases/ports'
 import {
@@ -13,10 +13,10 @@ import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const inviteCodeSchema = z
   .object({
-    id: z.string(),
-    code: z.string(),
-    createdBy: z.string(),
-    usedBy: z.string().nullable(),
+    id: opaqueIdSchema,
+    code: opaqueTokenSchema,
+    createdBy: opaqueIdSchema,
+    usedBy: opaqueIdSchema.nullable(),
     usedAt: z.string().nullable(),
     expiresAt: z.string().nullable(),
     createdAt: z.string(),
@@ -44,8 +44,8 @@ const generateSchema = z.object({
 const validateSchema = z.object({
   code: z
     .string()
-    .length(8)
-    .regex(/^[0-9A-Z]{8}$/),
+    .length(10)
+    .regex(/^[A-Za-z0-9]{10}$/),
 })
 
 const listRoute = authRoute(
@@ -85,7 +85,7 @@ const deleteRoute = authRoute(
     tags: ['Invite Codes'],
     method: 'delete',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       204: { description: 'Deleted invite code' },
       409: errorResponse('Cannot delete a used invite code'),

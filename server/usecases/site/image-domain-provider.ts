@@ -1,5 +1,5 @@
 import type { ImageDomainProviderResponse, ImageDomainSettings, UpdateImageDomainSettingsInput } from '@shared/schemas'
-import { nanoid } from 'nanoid'
+import { generateToken } from '../../../shared/ids'
 import { cacheVerifiedImageDomain, invalidateImageDomain } from '../image-hosting/domain-cache'
 import type {
   ImageDomainProviderConfig,
@@ -172,7 +172,7 @@ async function provisionDomain(
     providerHostnameId: result.externalId,
     domainStatus: result.status,
     domainError: result.error,
-    verificationToken: config.settings.provider === 'manual' ? (row.verificationToken ?? nanoid(32)) : null,
+    verificationToken: config.settings.provider === 'manual' ? (row.verificationToken ?? generateToken(33)) : null,
     domainLastCheckedAt: new Date(),
     domainVerifiedAt: result.status === 'verified' ? new Date() : null,
   })

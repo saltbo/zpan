@@ -22,11 +22,11 @@ describe('generateInviteCodes', () => {
     expect(uniqueCodes.size).toBe(10)
   })
 
-  it('each code has an 8-character uppercase alphanumeric code field', async () => {
+  it('each code has a 10-character Base62 code field', async () => {
     const { db } = await createTestApp()
     const codes = await createInviteRepo(db).generate('admin-1', 3)
     for (const code of codes) {
-      expect(code.code).toMatch(/^[0-9A-Z]{8}$/)
+      expect(code.code).toMatch(/^[A-Za-z0-9]{10}$/)
     }
   })
 
@@ -84,7 +84,7 @@ describe('validateInviteCode', () => {
 
   it('returns valid:false with an error for a nonexistent code', async () => {
     const { db } = await createTestApp()
-    const result = await createInviteRepo(db).validate('NOSUCHCD')
+    const result = await createInviteRepo(db).validate('NOSUCHCODE1')
     expect(result.valid).toBe(false)
     expect(result.error).toBeTruthy()
   })
@@ -134,7 +134,7 @@ describe('redeemInviteCode', () => {
 
   it('returns not_found for a nonexistent code', async () => {
     const { db } = await createTestApp()
-    const result = await createInviteRepo(db).redeem('NOSUCHCD', 'user-55')
+    const result = await createInviteRepo(db).redeem('NOSUCHCODE1', 'user-55')
     expect(result).toBe('not_found')
   })
 

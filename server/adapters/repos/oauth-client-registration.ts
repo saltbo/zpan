@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm'
+import { generateId } from '../../../shared/ids'
 import { oauthClient, oauthClientRegistration, oauthClientResource, oauthResource } from '../../db/auth-schema'
 import { executeWriteTransaction } from '../../db/transaction'
 import type { Database } from '../../platform/interface'
@@ -50,7 +51,7 @@ export async function replaceManagedOAuthClient(
 ): Promise<void> {
   const resourceQueries = resourceIds.map((resourceId) =>
     db.insert(oauthClientResource).values({
-      id: `${clientId}::${resourceId}`,
+      id: generateId(),
       clientId,
       resourceId,
     }),

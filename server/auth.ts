@@ -18,7 +18,7 @@ import {
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
-import { customAlphabet, nanoid } from 'nanoid'
+import { customAlphabet } from 'nanoid'
 import {
   API_KEY_TEMPLATES,
   ApiKeyTemplate,
@@ -31,6 +31,7 @@ import {
   WEBDAV_RATE_LIMITER_BINDING,
 } from '../shared/api-key-templates'
 import { DEFAULT_ORG_QUOTA, DEFAULT_ORG_TRAFFIC_QUOTA, SignupMode } from '../shared/constants'
+import { BASE62_PATTERN, generateId, generateToken } from '../shared/ids'
 import { JWT_BEARER_GRANT_TYPE, OAUTH_SCOPES, TOKEN_EXCHANGE_GRANT_TYPE } from '../shared/oauth'
 import {
   BUILTIN_PROVIDER_IDS,
@@ -89,6 +90,13 @@ async function authHashPassword(password: string): Promise<string> {
 async function authVerifyPassword({ hash, password }: { hash: string; password: string }): Promise<boolean> {
   if (!hash.includes(':')) throw new Error('stored password hash is malformed: expected "<salt>:<key>"')
   return verifyPasswordHash(hash, password)
+}
+
+function generateApiKey({ length, prefix }: { length: number; prefix: string | undefined }): string {
+  if (prefix && !BASE62_PATTERN.test(prefix)) {
+    throw new APIError('BAD_REQUEST', { message: 'API key prefixes must contain only ASCII letters and digits' })
+  }
+  return `${prefix ?? ''}${generateToken(length)}`
 }
 
 interface ProviderConfigs {
@@ -456,6 +464,7 @@ export async function createAuth(
     },
     advanced: {
       cookiePrefix: 'zp',
+      database: { generateId: () => generateId() },
       // Explicitly enable the origin check (production default). Without this,
       // better-auth silently disables it under NODE_ENV=test, so tests would
       // never exercise the real CSRF/origin behavior.
@@ -670,7 +679,7 @@ export async function createAuth(
           })
         },
         organizationHooks: {
-          beforeCreateOrganization: async ({ user }) => {
+          beforeCreateOrganization: async ({ organization, user }) => {
             const {
               allowed,
               count: current_count,
@@ -689,7 +698,10 @@ export async function createAuth(
                 limit,
               })
             }
+            return { data: { ...organization, id: generateId() } }
           },
+          beforeAddMember: async ({ member }) => ({ data: { ...member, id: generateId() } }),
+          beforeCreateInvitation: async ({ invitation }) => ({ data: { ...invitation, id: generateId() } }),
           afterCreateOrganization: async ({ organization }) => {
             const isTeam = !isPersonalOrgLike(organization)
             await createOrgQuota(db, organization.id, new Date(), isTeam)
@@ -736,6 +748,7 @@ export async function createAuth(
       apiKey([
         {
           configId: ApiKeyTemplate.IHOST,
+          customKeyGenerator: generateApiKey,
           references: 'user',
           enableMetadata: true,
           rateLimit: {
@@ -749,6 +762,7 @@ export async function createAuth(
         },
         {
           configId: ApiKeyTemplate.WEBDAV,
+          customKeyGenerator: generateApiKey,
           references: 'user',
           enableMetadata: true,
           // Cloudflare's native limiter remains the authoritative synchronous
@@ -768,6 +782,7 @@ export async function createAuth(
         },
         {
           configId: ApiKeyTemplate.REMOTE_DOWNLOAD,
+          customKeyGenerator: generateApiKey,
           references: 'user',
           enableMetadata: true,
           rateLimit: {
@@ -1021,7 +1036,7 @@ async function createPersonalOrg(
   db: Database,
   user: { id: string; name: string; username?: string | null },
 ): Promise<string> {
-  const orgId = nanoid()
+  const orgId = generateId()
   const now = new Date()
   const displayName = user.name || user.username
   const orgName = displayName ? `${displayName}'s Space` : 'Personal Space'
@@ -1037,7 +1052,7 @@ async function createPersonalOrg(
       createdAt: now,
     }),
     db.insert(authSchema.member).values({
-      id: nanoid(),
+      id: generateId(),
       organizationId: orgId,
       userId: user.id,
       role: 'owner',
@@ -1067,7 +1082,7 @@ async function findPersonalOrgFromExistingSession(db: Database, userId: string):
 
 async function createOrgQuotaValues(_db: Database, orgId: string, now: Date): Promise<typeof orgQuotas.$inferInsert> {
   return {
-    id: nanoid(),
+    id: generateId(),
     orgId,
     quota: 0,
     used: 0,
@@ -1125,7 +1140,7 @@ function freePlanEntitlementValue(
   settingKey: string,
 ): typeof orgQuotaEntitlements.$inferInsert {
   return {
-    id: nanoid(),
+    id: generateId(),
     orgId,
     resourceType,
     entitlementType: 'plan',

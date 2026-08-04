@@ -1,4 +1,5 @@
 import { DEFAULT_ORG_QUOTA, DEFAULT_ORG_TRAFFIC_QUOTA } from '@shared/constants'
+import { generateId } from '@shared/ids'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { organization } from '../../db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, storages, systemOptions } from '../../db/schema'
@@ -191,49 +192,61 @@ async function reconcileFreePlanBaselines(db: Database, now = new Date()): Promi
       AND EXISTS (SELECT 1 FROM organization o WHERE o.id = org_quota_entitlements.org_id)
       AND (status <> 'active' OR expires_at IS NOT NULL)
   `)
-  await db.run(sql`
-    INSERT INTO org_quota_entitlements (
-      id, org_id, resource_type, entitlement_type, source, source_id, bytes,
-      starts_at, expires_at, status, metadata, created_at, updated_at
-    )
-    SELECT
-      lower(hex(randomblob(16))), o.id, 'storage', 'plan', 'free_plan', 'free_plan:' || o.id,
-      CASE WHEN json_valid(o.metadata) = 1 AND json_extract(o.metadata, '$.type') = 'team'
-        THEN ${teamQuota} ELSE ${orgQuota} END,
-      ${timestamp}, NULL, 'active',
-      json_object(
-        'packageName', 'Free', 'packageId', NULL, 'source', 'free_plan',
-        'settingKey', CASE WHEN json_valid(o.metadata) = 1 AND json_extract(o.metadata, '$.type') = 'team'
-          THEN 'default_team_quota' ELSE 'default_org_quota' END
-      ),
-      ${timestamp}, ${timestamp}
-    FROM organization o
-    WHERE NOT EXISTS (
-      SELECT 1 FROM org_quota_entitlements e
-      WHERE e.org_id = o.id AND e.resource_type = 'storage'
-        AND e.entitlement_type = 'plan' AND e.source = 'free_plan'
-    )
-  `)
-  await db.run(sql`
-    INSERT INTO org_quota_entitlements (
-      id, org_id, resource_type, entitlement_type, source, source_id, bytes,
-      starts_at, expires_at, status, metadata, created_at, updated_at
-    )
-    SELECT
-      lower(hex(randomblob(16))), o.id, 'traffic', 'plan', 'free_plan', 'free_plan:' || o.id,
-      ${trafficQuota}, ${timestamp}, NULL, 'active',
-      json_object(
-        'packageName', 'Free', 'packageId', NULL, 'source', 'free_plan',
-        'settingKey', 'default_org_monthly_traffic_quota'
-      ),
-      ${timestamp}, ${timestamp}
-    FROM organization o
-    WHERE NOT EXISTS (
-      SELECT 1 FROM org_quota_entitlements e
-      WHERE e.org_id = o.id AND e.resource_type = 'traffic'
-        AND e.entitlement_type = 'plan' AND e.source = 'free_plan'
-    )
-  `)
+  const [organizations, existing] = await Promise.all([
+    db.select({ id: organization.id, metadata: organization.metadata }).from(organization),
+    db
+      .select({ orgId: orgQuotaEntitlements.orgId, resourceType: orgQuotaEntitlements.resourceType })
+      .from(orgQuotaEntitlements)
+      .where(and(eq(orgQuotaEntitlements.source, 'free_plan'), eq(orgQuotaEntitlements.entitlementType, 'plan'))),
+  ])
+  const existingKeys = new Set(existing.map((row) => `${row.orgId}\u0000${row.resourceType}`))
+  const values = organizations.flatMap((org) => {
+    const team = organizationType(org.metadata) === 'team'
+    return (['storage', 'traffic'] as const).flatMap((resourceType) => {
+      if (existingKeys.has(`${org.id}\u0000${resourceType}`)) return []
+      const settingKey =
+        resourceType === 'traffic'
+          ? 'default_org_monthly_traffic_quota'
+          : team
+            ? 'default_team_quota'
+            : 'default_org_quota'
+      return [
+        {
+          id: generateId(),
+          orgId: org.id,
+          resourceType,
+          entitlementType: 'plan',
+          source: 'free_plan',
+          sourceId: `free_plan:${org.id}`,
+          bytes: resourceType === 'traffic' ? trafficQuota : team ? teamQuota : orgQuota,
+          startsAt: now,
+          expiresAt: null,
+          status: 'active',
+          metadata: JSON.stringify({ packageName: 'Free', packageId: null, source: 'free_plan', settingKey }),
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]
+    })
+  })
+  for (const batch of chunk(values, 50)) {
+    await db
+      .insert(orgQuotaEntitlements)
+      .values(batch)
+      .onConflictDoNothing({
+        target: [orgQuotaEntitlements.source, orgQuotaEntitlements.sourceId, orgQuotaEntitlements.resourceType],
+      })
+  }
+}
+
+function organizationType(metadata: string | null): string | null {
+  if (!metadata) return null
+  try {
+    const parsed = JSON.parse(metadata) as { type?: unknown }
+    return typeof parsed.type === 'string' ? parsed.type : null
+  } catch {
+    return null
+  }
 }
 
 function positiveOption(value: string | undefined, fallback: number): number {

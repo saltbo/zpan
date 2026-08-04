@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers'
-import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { DirType } from '../../../shared/constants'
+import { generateId } from '../../../shared/ids'
 import type { CreateShareInput } from '../../../shared/schemas/share'
 import { matters } from '../../db/schema'
 import { createCloudflarePlatform } from '../../platform/cloudflare'
@@ -23,15 +23,15 @@ function buildDb() {
 async function seedMatter(db: ReturnType<typeof buildDb>, orgId: string, dirtype = DirType.FILE) {
   const now = new Date()
   const matter = {
-    id: nanoid(),
+    id: generateId(),
     orgId,
-    alias: nanoid(10),
-    name: `cf-test-${nanoid(6)}`,
+    alias: generateId(10),
+    name: `cf-test-${generateId(6)}`,
     type: dirtype !== DirType.FILE ? 'folder' : 'application/pdf',
     size: 0,
     dirtype,
     parent: '',
-    object: dirtype !== DirType.FILE ? '' : `objects/${nanoid()}`,
+    object: dirtype !== DirType.FILE ? '' : `objects/${generateId()}`,
     storageId: 'storage-1',
     status: 'active',
     trashedAt: null,
@@ -47,7 +47,7 @@ async function seedMatter(db: ReturnType<typeof buildDb>, orgId: string, dirtype
 describe('[CF] incrementDownloadsAtomic — race conditions on D1', () => {
   it('enforces download limit under 50 concurrent calls (limit=10)', async () => {
     const db = buildDb()
-    const orgId = `org-${nanoid(6)}`
+    const orgId = generateId()
     const matter = await seedMatter(db, orgId)
 
     const share = await createShare(db, {
@@ -66,7 +66,7 @@ describe('[CF] incrementDownloadsAtomic — race conditions on D1', () => {
 
   it('returns ok=false for all calls when share is revoked', async () => {
     const db = buildDb()
-    const orgId = `org-${nanoid(6)}`
+    const orgId = generateId()
     const matter = await seedMatter(db, orgId)
 
     const share = await createShare(db, {
@@ -83,7 +83,7 @@ describe('[CF] incrementDownloadsAtomic — race conditions on D1', () => {
 
   it('returns ok=false for all calls when share is expired', async () => {
     const db = buildDb()
-    const orgId = `org-${nanoid(6)}`
+    const orgId = generateId()
     const matter = await seedMatter(db, orgId)
 
     const pastDate = new Date(Date.now() - 5000)
@@ -105,7 +105,7 @@ describe('[CF] incrementDownloadsAtomic — race conditions on D1', () => {
 describe('[CF] revokeByMatter on D1', () => {
   it('revokes shares without deleting their history', async () => {
     const db = buildDb()
-    const orgId = `org-${nanoid(6)}`
+    const orgId = generateId()
     const matter = await seedMatter(db, orgId)
 
     const share = await createShare(db, {

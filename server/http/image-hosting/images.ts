@@ -1,6 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { nanoid } from 'nanoid'
+import { opaqueIdSchema, opaqueTokenSchema } from '@shared/schemas'
+import { generateToken } from '../../../shared/ids'
 import {
   ALLOWED_IMAGE_MIMES,
   createIhostImageSchema,
@@ -42,12 +43,12 @@ import {
 // them as Date).
 const imageHostingSchema = z
   .object({
-    id: z.string(),
-    orgId: z.string(),
-    token: z.string(),
+    id: opaqueIdSchema,
+    orgId: opaqueIdSchema,
+    token: opaqueTokenSchema,
     path: z.string(),
     url: z.string(),
-    storageId: z.string(),
+    storageId: opaqueIdSchema,
     storageKey: z.string(),
     size: z.number().int(),
     mime: z.string(),
@@ -78,8 +79,8 @@ function toImageHostingDTO(
 
 const imageDraftSchema = z
   .object({
-    id: z.string(),
-    token: z.string(),
+    id: opaqueIdSchema,
+    token: opaqueTokenSchema,
     path: z.string(),
     uploadUrl: z.string(),
     storageKey: z.string(),
@@ -92,7 +93,7 @@ const imageListSchema = z
 
 // Derive a storage path from the upload's filename, falling back to a random name.
 function deriveDefaultPath(filename: string, mime: string): string {
-  if (!filename || filename === 'blob') return `image-${nanoid(8)}.${mimeToExt(mime)}`
+  if (!filename || filename === 'blob') return `image-${generateToken(9)}.${mimeToExt(mime)}`
   return filename.replace(/[/\\]/g, '_')
 }
 
@@ -161,7 +162,7 @@ const getRoute = authRoute(
     tags: ['Image Hosting'],
     method: 'get',
     path: '/images/{id}',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       200: jsonContent(imageHostingSchema, 'Hosted image'),
       400: errorResponse('No active organization'),
@@ -179,7 +180,7 @@ const confirmRoute = authRoute(
     tags: ['Image Hosting'],
     method: 'put',
     path: '/images/{id}/status',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       200: jsonContent(imageHostingSchema, 'Confirmed image'),
       400: errorResponse('No active organization'),
@@ -198,7 +199,7 @@ const deleteRoute = authRoute(
     tags: ['Image Hosting'],
     method: 'delete',
     path: '/images/{id}',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       204: { description: 'Deleted' },
       400: errorResponse('No active organization'),

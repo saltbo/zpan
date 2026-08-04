@@ -120,7 +120,7 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     await db.insert(auditEvents).values([
       {
         id: 'evt-1',
-        orgId: 'org-x',
+        orgId: 'OrgX',
         userId: 'u1',
         action: 'upload',
         targetType: 'file',
@@ -142,11 +142,11 @@ describe('GET /api/site/audit-events — licensed admin', () => {
       },
     ])
 
-    const res = await app.request('/api/site/audit-events?orgId=org-x', { headers })
+    const res = await app.request('/api/site/audit-events?orgId=OrgX', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ orgId: string }>; total: number }
     expect(body.total).toBe(1)
-    expect(body.items[0].orgId).toBe('org-x')
+    expect(body.items[0].orgId).toBe('OrgX')
   })
 
   it('filters by userId [spec: audit/filter-user]', async () => {
@@ -349,7 +349,7 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     await db.insert(auditEvents).values(
       [1, 2, 3].map((i) => ({
         id: `pg-evt-${i}`,
-        orgId: 'org-pg',
+        orgId: 'OrgPg',
         userId: 'u1',
         action: 'upload',
         targetType: 'file',
@@ -360,7 +360,7 @@ describe('GET /api/site/audit-events — licensed admin', () => {
       })),
     )
 
-    const res = await app.request('/api/site/audit-events?page=2&pageSize=2&orgId=org-pg', { headers })
+    const res = await app.request('/api/site/audit-events?page=2&pageSize=2&orgId=OrgPg', { headers })
     const body = (await res.json()) as {
       items: Array<{ id: string }>
       total: number

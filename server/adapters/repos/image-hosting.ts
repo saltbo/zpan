@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, isNotNull, isNull, like, or, sql } from 'drizzle-orm'
-import { customAlphabet, nanoid } from 'nanoid'
+import { generateId, generateToken } from '../../../shared/ids'
 import { imageHostingConfigs, imageHostings } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { mimeToExt } from '../../lib/mime-utils'
@@ -21,8 +21,6 @@ import { imageAddedProjectionQueries, imageRemovedProjectionQueries } from './st
 type ImageHostingRow = typeof imageHostings.$inferSelect
 
 const MAX_COLLISION_RETRIES = 5
-const imageTokenSuffix = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 10)
-
 function toRecord(row: ImageHostingRow): ImageHostingRecord {
   return row as unknown as ImageHostingRecord
 }
@@ -66,8 +64,7 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
       if (conflict.length === 0) return candidate
     }
 
-    // Exhausted retries — use nanoid suffix as fallback
-    return `${prefix}${stem}-${nanoid(4)}${ext}`
+    return `${prefix}${stem}-${generateToken(5)}${ext}`
   }
 
   return {
@@ -136,8 +133,8 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
     },
 
     async create(input: CreateImageHostingInput) {
-      const id = nanoid(12)
-      const token = `ih${imageTokenSuffix()}`
+      const id = generateId(13)
+      const token = generateToken(12)
       const ext = mimeToExt(input.mime)
       const storageKey = `ih/${input.orgId}/${id}.${ext}`
       const now = new Date()

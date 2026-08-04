@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers'
-import { nanoid } from 'nanoid'
 import { describe, it } from 'vitest'
 import { DirType, ObjectStatus } from '../../../shared/constants'
+import { generateId } from '../../../shared/ids'
 import { organization } from '../../db/auth-schema'
 import { storages } from '../../db/schema'
 import { executeWriteTransaction } from '../../db/transaction'
@@ -13,8 +13,8 @@ import { initialStorageUsageProjectionQueries } from './storage-usage-breakdown'
 describe('[CF] storage usage projection invariant', () => {
   it('matches raw D1 data after every file lifecycle mutation', async () => {
     const db = createCloudflarePlatform(env).db
-    const orgId = `usage-${nanoid(8)}`
-    const storageId = `storage-${nanoid(8)}`
+    const orgId = generateId()
+    const storageId = generateId()
     const now = new Date()
     await db.insert(organization).values({
       id: orgId,

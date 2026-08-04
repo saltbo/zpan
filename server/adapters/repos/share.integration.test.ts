@@ -80,7 +80,7 @@ describe('createShare', () => {
     })
 
     expect(share.id).toBeTruthy()
-    expect(share.token).toHaveLength(10)
+    expect(share.token).toMatch(/^[A-Za-z0-9]{11}$/)
     expect(share.kind).toBe('landing')
     expect(share.status).toBe('active')
     expect(share.passwordHash).toBeTruthy()

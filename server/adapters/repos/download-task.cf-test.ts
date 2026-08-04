@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
+import { generateId } from '../../../shared/ids'
 import { createCloudflarePlatform } from '../../platform/cloudflare'
 import { createDownloadTaskRepo } from './download-task'
 
@@ -9,13 +9,13 @@ describe('[CF] download task events', () => {
   it('stores integer event fields as JSON integers', async () => {
     const db = createCloudflarePlatform(env).db
     const repo = createDownloadTaskRepo(db)
-    const taskId = `task-${nanoid()}`
+    const taskId = generateId()
     const createdAt = new Date('2026-07-24T12:00:00.000Z')
 
     await repo.insert({
       id: taskId,
-      orgId: `org-${nanoid()}`,
-      createdByUserId: `user-${nanoid()}`,
+      orgId: generateId(),
+      createdByUserId: generateId(),
       sourceType: 'http',
       sourceUri: 'https://example.com/file.bin',
       displayName: 'file.bin',

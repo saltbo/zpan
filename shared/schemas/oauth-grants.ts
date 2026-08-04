@@ -1,16 +1,17 @@
 import { z } from 'zod'
 import { OAUTH_ACCESS_TOKEN_SECONDS, OAUTH_REFRESH_TOKEN_SECONDS } from '../oauth'
+import { opaqueIdSchema } from './id'
 import { oauthGrantScopeSchema } from './oauth-resource'
 
 export const oauthGrantStatusSchema = z.enum(['active'])
 export type OAuthGrantStatus = z.infer<typeof oauthGrantStatusSchema>
 
 export const oauthGrantSchema = z.object({
-  id: z.string(),
+  id: opaqueIdSchema,
   clientId: z.string(),
   clientName: z.string(),
-  userId: z.string(),
-  workspaces: z.array(z.object({ id: z.string(), name: z.string().nullable() })).min(1),
+  userId: opaqueIdSchema,
+  workspaces: z.array(z.object({ id: opaqueIdSchema, name: z.string().nullable() })).min(1),
   scopes: z.array(oauthGrantScopeSchema),
   createdAt: z.string(),
   lastUsedAt: z.string().nullable(),
@@ -28,12 +29,12 @@ export const oauthConsentContextSchema = z.object({
   workspaces: z
     .array(
       z.object({
-        id: z.string(),
+        id: opaqueIdSchema,
         name: z.string().nullable(),
       }),
     )
     .min(1),
-  requestedWorkspaceIds: z.array(z.string()),
+  requestedWorkspaceIds: z.array(opaqueIdSchema),
   scopes: z.array(oauthGrantScopeSchema),
   standardScopes: z.array(z.string()),
   redirectUri: z.string(),

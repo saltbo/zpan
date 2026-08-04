@@ -1,9 +1,28 @@
 import { AuthorizationScope } from '@shared/authorization'
+import { BASE62_PATTERN } from '@shared/ids'
 import { describe, expect, it } from 'vitest'
 import { authRoute, findOperationsMissingAuthContract } from './http/openapi'
 import { createTestApp } from './test/setup'
 
 describe('global OpenAPI document', () => {
+  it('publishes the Base62 contract for ZPan-owned local ID inputs', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      paths: Record<string, Record<string, { parameters?: Array<{ name: string; schema?: { pattern?: string } }> }>>
+    }
+    const patternFor = (path: string, method: string, name: string) =>
+      doc.paths[path]?.[method]?.parameters?.find((parameter) => parameter.name === name)?.schema?.pattern
+
+    expect(patternFor('/api/objects/{id}', 'get', 'id')).toBe(BASE62_PATTERN.source)
+    expect(patternFor('/api/objects/{id}/uploads/{uploadSessionId}', 'delete', 'uploadSessionId')).toBe(
+      BASE62_PATTERN.source,
+    )
+    expect(patternFor('/api/trash/objects/{id}', 'delete', 'id')).toBe(BASE62_PATTERN.source)
+    expect(patternFor('/api/oauth-grants/{grantId}', 'delete', 'grantId')).toBe(BASE62_PATTERN.source)
+    expect(patternFor('/api/site/audit-events', 'get', 'orgId')).toBe(BASE62_PATTERN.source)
+  })
+
   it('aggregates every OpenAPIHono route at /api/openapi.json', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')

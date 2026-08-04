@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi'
 import { isSafeHttpUrl } from '../url-safety'
+import { opaqueIdSchema } from './id'
 
 export const downloaderStatusSchema = z.enum(['online', 'offline', 'disabled'])
 export const downloaderEngineSchema = z.enum(['http', 'aria2', 'qbittorrent'])
@@ -30,7 +31,7 @@ export const downloadTaskEventSchema = z.object({
   to: downloadTaskStatusSchema.optional(),
   reason: z.string().min(1).nullable().optional(),
   category: z.string().min(1),
-  downloaderId: z.string().min(1).nullable(),
+  downloaderId: opaqueIdSchema.nullable(),
   transferredBytes: z.number().int().min(0).nullable(),
   billedBytes: z.number().int().min(0),
   errorCode: z.string().nullable(),
@@ -121,9 +122,9 @@ export const downloadTaskRuntimeSchema = z.object({
 
 export const downloadTaskSchema = z
   .object({
-    id: z.string(),
-    orgId: z.string().optional(),
-    createdBy: z.string().optional(),
+    id: opaqueIdSchema,
+    orgId: opaqueIdSchema.optional(),
+    createdBy: opaqueIdSchema.optional(),
     spec: z.object({
       source: z.object({
         type: downloadSourceTypeSchema,
@@ -143,7 +144,7 @@ export const downloadTaskSchema = z
       attempt: z.number().int().min(1),
       assignment: z
         .object({
-          downloaderId: z.string(),
+          downloaderId: opaqueIdSchema,
           assignedAt: z.string().nullable().optional(),
           uploadToken: z.string().optional(),
         })
@@ -155,7 +156,7 @@ export const downloadTaskSchema = z
         chargedBytes: int64Schema(),
         chargedCredits: int64Schema(),
       }),
-      output: z.object({ objectId: z.string() }).nullable(),
+      output: z.object({ objectId: opaqueIdSchema }).nullable(),
       runtime: downloadTaskRuntimeSchema.nullable(),
       error: z
         .object({
@@ -210,8 +211,9 @@ export type DownloadTaskListItem = z.infer<typeof downloadTaskListItemSchema>
 
 export const downloadTaskTimelineItemSchema = z
   .object({
+    // Timeline IDs are structured event keys such as `initial:<taskId>`, not entity IDs.
     id: z.string(),
-    taskId: z.string(),
+    taskId: opaqueIdSchema,
     time: z.string(),
     source: z.enum(['task', 'activity']),
     action: z.string(),
@@ -281,7 +283,7 @@ export const downloaderHeartbeatResponseSchema = z.object({
 // the schema mirrors that instead of nesting them.
 export const downloaderSchema = downloaderHeartbeatResponseSchema
   .extend({
-    id: z.string(),
+    id: opaqueIdSchema,
     name: z.string(),
     status: downloaderStatusSchema,
     enabled: z.boolean(),
@@ -289,7 +291,7 @@ export const downloaderSchema = downloaderHeartbeatResponseSchema
     remoteDownloadCreditUnitBytes: z.number().int(),
     remoteDownloadCreditPerUnit: z.number().int(),
     lastHeartbeatAt: z.string().nullable(),
-    createdBy: z.string(),
+    createdBy: opaqueIdSchema,
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -314,6 +316,7 @@ export const downloaderListSchema = z.object({
 
 export const createDownloaderResponseSchema = z.object({
   downloader: downloaderSchema,
+  // Signed downloader credentials are JWTs, a protocol token outside the Base62 opaque-token contract.
   token: z.string(),
 })
 
@@ -385,7 +388,7 @@ export const updateDownloadTaskSchema = z
     status: downloadTaskStatusSchema.optional(),
     progress: downloadTaskProgressSchema.partial().optional(),
     errorMessage: z.string().max(1000).nullable().optional(),
-    resultObjectId: z.string().min(1).nullable().optional(),
+    resultObjectId: opaqueIdSchema.nullable().optional(),
     runtime: downloadTaskRuntimeSchema.nullable().optional(),
     cleanupCompleted: z.literal(true).optional(),
   })

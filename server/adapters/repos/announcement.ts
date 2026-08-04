@@ -1,6 +1,6 @@
 import type { AnnouncementInput } from '@shared/schemas'
 import { count, desc, eq, getTableColumns, ne, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { generateId } from '../../../shared/ids'
 import { announcements } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import type { AnnouncementRecord, AnnouncementRepo } from '../../usecases/ports'
@@ -31,7 +31,7 @@ export function createAnnouncementRepo(db: Database): AnnouncementRepo {
     async create(input, createdBy) {
       const now = new Date()
       const row: AnnouncementRow = {
-        id: nanoid(),
+        id: generateId(),
         title: input.title,
         body: input.body,
         status: input.status,

@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { cursorPageQuerySchema, cursorPageSchema, restoreObjectSchema } from '@shared/schemas'
+import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema, restoreObjectSchema } from '@shared/schemas'
 import type { Env } from '../middleware/platform'
 import { deleteObject, getTrashObject, listTrashedObjects, restoreObject } from '../usecases/object'
 import { badRequest, type Matter, notFound } from '../usecases/ports'
@@ -11,8 +11,8 @@ import { decodeOptionalPageToken, encodeNextPageToken, pageQueryFingerprint, tra
 // grouping/view of `objects`, not a separate resource.
 const matterSchema = z
   .object({
-    id: z.string(),
-    orgId: z.string(),
+    id: opaqueIdSchema,
+    orgId: opaqueIdSchema,
     alias: z.string(),
     name: z.string(),
     type: z.string(),
@@ -20,7 +20,7 @@ const matterSchema = z
     dirtype: z.number().int().nullable(),
     parent: z.string(),
     object: z.string(),
-    storageId: z.string(),
+    storageId: opaqueIdSchema,
     status: z.string(),
     trashedAt: z.number().int().nullable(),
     createdAt: z.string(),
@@ -50,7 +50,7 @@ function toMatterDTO(m: Matter): MatterDTO {
 }
 
 const trashPageSchema = cursorPageSchema(matterSchema, 'TrashObjectPage')
-const idParam = z.object({ id: z.string() })
+const idParam = z.object({ id: opaqueIdSchema })
 
 const listTrashRoute = authRoute(
   { scopes: [AuthorizationScope.OBJECTS_READ], minTeamRole: 'viewer' },

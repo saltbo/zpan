@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+import { BASE62_PATTERN } from '../../../shared/ids'
 import { currentTrafficPeriod } from '../../domain/quota'
 import { authedHeaders, createTestApp } from '../../test/setup'
 import {
@@ -83,7 +84,7 @@ describe('admin stats source integrity', () => {
     expect(() => assertAdminStatsSourceIntegrity(integrity)).not.toThrow()
     const rows = await db.all<{ events: number; issuedAt: number }>(sql`
       SELECT
-        (SELECT COUNT(*) FROM audit_events WHERE id = 'event:download_issued:traffic-integrity-ok') AS events,
+        (SELECT COUNT(*) FROM audit_events WHERE event_key = 'event:download_issued:traffic-integrity-ok') AS events,
         (SELECT issued_at FROM cloud_traffic_reports WHERE event_id = 'traffic-integrity-ok') AS issuedAt
     `)
     expect(rows).toEqual([{ events: 0, issuedAt: issuedAt.getTime() }])
@@ -93,6 +94,11 @@ describe('admin stats source integrity', () => {
     const { db } = await createTestApp()
     const reports = createCloudTrafficReportRepo(db)
     await reports.ensureLedgerOpening(new Date('2026-07-21T10:05:00.000Z'))
+    const [ledgerOpening] = await db.all<{ id: string; eventId: string }>(sql`
+      SELECT id, event_id AS eventId FROM cloud_traffic_reports WHERE status = 'ledger_opening'
+    `)
+    expect(ledgerOpening?.id).toMatch(BASE62_PATTERN)
+    expect(ledgerOpening?.eventId).toBe('traffic_ledger_opening_v1')
     const opening = await ensureAdminStatsIntegrityOpening(db, new Date('2026-07-21T12:00:00.000Z'))
     const issuedAt = Date.parse('2026-07-21T11:30:00.000Z')
     await db.run(sql`
@@ -130,7 +136,7 @@ describe('admin stats source integrity', () => {
     await expect(reports.markIssued('traffic-does-not-exist', now)).rejects.toThrow('traffic_report_not_found')
     const rows = await db.all<{ issuedAt: number | null; events: number }>(sql`
       SELECT issued_at AS issuedAt,
-        (SELECT COUNT(*) FROM audit_events WHERE id LIKE 'event:download_issued:traffic-%') AS events
+        (SELECT COUNT(*) FROM audit_events WHERE event_key LIKE 'event:download_issued:traffic-%') AS events
       FROM cloud_traffic_reports
       WHERE event_id = 'traffic-activity-mismatch'
     `)
@@ -156,6 +162,12 @@ describe('admin stats source integrity', () => {
     `)
     await ensureStorageUsageOpeningBalances(db, opening)
     await ensureStorageUsageIntegrityOpeningBalances(db, opening)
+    const ledgerIds = await db.all<{ id: string; eventKey: string }>(sql`
+      SELECT id, event_key AS eventKey FROM storage_usage_ledger
+    `)
+    expect(ledgerIds.every(({ id }) => BASE62_PATTERN.test(id))).toBe(true)
+    expect(ledgerIds.some(({ eventKey }) => eventKey.startsWith('opening:'))).toBe(true)
+    expect(ledgerIds.some(({ eventKey }) => eventKey.startsWith('integrity-opening:'))).toBe(true)
 
     const exact = await inspectAdminStatsSourceIntegrity(db, opening)
     expect(exact.storageLedgerDriftSpaces).toBe(0)

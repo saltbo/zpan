@@ -1,7 +1,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { isImageHostingToken } from '../domain/image-hosting'
+import { BASE62_PATTERN } from '../../shared/ids'
 import { isDownloadFailureStatus, transferAuditActor, transferFailureReason } from '../middleware/audit-transfers'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
@@ -11,6 +11,7 @@ import {
   resolveDirectShareDownload,
   resolveImageHostingDownload,
   resolveRedirectDownloadAuditTarget,
+  resolveRedirectTargetKind,
 } from '../usecases/redirect'
 import { recordDownloadFailure, recordDownloadIssued } from '../usecases/transfer-activity'
 
@@ -18,6 +19,12 @@ import { recordDownloadFailure, recordDownloadIssued } from '../usecases/transfe
 function stripExtension(token: string): string {
   const dot = token.lastIndexOf('.')
   return dot > 0 ? token.slice(0, dot) : token
+}
+
+function parseRedirectToken(raw: string): string {
+  const token = stripExtension(raw)
+  if (!BASE62_PATTERN.test(token)) throw notFound()
+  return token
 }
 
 const cloudBaseUrl = (c: Context<Env>) => c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
@@ -89,18 +96,18 @@ async function handleImageHosting(c: Context<Env>, token: string): Promise<Respo
 const app = new Hono<Env>()
 
 app.use('/:token', async (c, next) => {
-  const target = await resolveRedirectDownloadAuditTarget(c.get('deps'), stripExtension(c.req.param('token')))
+  const target = await resolveRedirectDownloadAuditTarget(c.get('deps'), parseRedirectToken(c.req.param('token')))
   await next()
   if (!target || !isDownloadFailureStatus(c.res.status)) return
   await recordDownloadFailure(c.get('deps'), transferAuditActor(c.get('principal')), target, transferFailureReason(c))
 })
 
 app.get('/:token', async (c) => {
-  const raw = c.req.param('token')
-  const token = stripExtension(raw)
+  const token = parseRedirectToken(c.req.param('token'))
 
-  if (token.startsWith('ds_')) return handleDirectShare(c, token)
-  if (isImageHostingToken(token)) return handleImageHosting(c, token)
+  const kind = await resolveRedirectTargetKind(c.get('deps'), token)
+  if (kind === 'direct_share') return handleDirectShare(c, token)
+  if (kind === 'image_hosting') return handleImageHosting(c, token)
 
   throw notFound()
 })

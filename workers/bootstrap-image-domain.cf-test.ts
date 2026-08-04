@@ -38,10 +38,21 @@ describe('[CF] image-domain Worker fast path', () => {
 
   it('serves repeated custom-domain requests without initializing Better Auth', async () => {
     const suffix = Date.now().toString(36)
-    const orgId = `fast-path-org-${suffix}`
+    const orgId = `fastpathorg${suffix}`
     const domain = `img-${suffix}.fast-path.test`
     const now = Date.now()
 
+    await env.DB.batch([
+      env.DB.prepare(
+        'CREATE TABLE IF NOT EXISTS _zpan_id_normalization_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+      ),
+      env.DB.prepare(
+        "INSERT OR REPLACE INTO _zpan_id_normalization_state (key, value) VALUES ('validation_version', '1')",
+      ),
+      env.DB.prepare(
+        "INSERT OR REPLACE INTO _zpan_id_normalization_state (key, value) VALUES ('completed_at', 'test-fixture')",
+      ),
+    ])
     await env.DB.prepare(
       `INSERT INTO organization (id, name, slug, created_at, updated_at)
        VALUES (?, 'Fast Path', ?, ?, ?)`,
