@@ -88,4 +88,23 @@ describe('Downloader Device Flow OpenAPI boundary', () => {
       'Better Auth OpenAPI operation POST /device/code is not self-contained: #/components/schemas/DeviceCode',
     )
   })
+
+  it('fails closed when a whitelisted operation is missing', () => {
+    expect(() => addDownloaderDeviceFlowOpenApi({ paths: {} }, { paths: {} })).toThrow(
+      'Better Auth OpenAPI is missing POST /device/code',
+    )
+  })
+
+  it('fails closed when the device token success response is missing', () => {
+    const authDoc = {
+      paths: {
+        '/device/code': { post: { responses: {} } },
+        '/device/token': { post: { responses: {} } },
+      },
+    }
+
+    expect(() => addDownloaderDeviceFlowOpenApi({ paths: {} }, authDoc)).toThrow(
+      'Better Auth OpenAPI is missing the JSON 200 response for POST /device/token',
+    )
+  })
 })
