@@ -27,6 +27,7 @@ import { notifications } from './http/notifications'
 import { oauthAuthorizationDetails } from './http/oauth-authorization-details'
 import { oauthGrants } from './http/oauth-grants'
 import objects from './http/objects'
+import { addRequestIdOpenApi } from './http/openapi'
 import { adminQuotas, userQuotas } from './http/quotas'
 import redirect from './http/redirect'
 import { authedShares, publicShares } from './http/shares'
@@ -132,6 +133,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     cors({
       origin: (origin) => (origin && corsOrigins.has(origin) ? origin : null),
       allowHeaders: ['Content-Type', 'Authorization'],
+      exposeHeaders: ['Request-Id'],
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
     }),
@@ -300,6 +302,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
         },
       },
     })
+    addRequestIdOpenApi(doc)
 
     return c.json(doc)
   })

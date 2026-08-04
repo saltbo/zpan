@@ -81,6 +81,21 @@ describe('global OpenAPI document', () => {
     expect(html).toContain('/api/openapi.json')
   })
 
+  it('documents and returns the request correlation header', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      components?: { headers?: Record<string, unknown> }
+      paths?: Record<string, { get?: { responses?: Record<string, { headers?: Record<string, unknown> }> } }>
+    }
+
+    expect(res.headers.get('Request-Id')).toMatch(/^[0-9a-f-]{36}$/)
+    expect(doc.components?.headers?.RequestId).toMatchObject({ schema: { type: 'string', format: 'uuid' } })
+    expect(doc.paths?.['/api/objects']?.get?.responses?.['200']?.headers?.['Request-Id']).toEqual({
+      $ref: '#/components/headers/RequestId',
+    })
+  })
+
   it('advertises and serves the Arazzo workflow description', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const [rootResponse, workflowResponse, documentResponse] = await Promise.all([
@@ -798,7 +813,10 @@ describe('global OpenAPI document', () => {
           }
         }
       >
-      components?: { schemas?: Record<string, unknown> }
+      components?: {
+        headers?: Record<string, unknown>
+        schemas?: Record<string, unknown>
+      }
     }
 
     expect(Object.keys(doc.paths).filter((path) => path.startsWith('/api/auth/device/'))).toEqual([
@@ -835,8 +853,18 @@ describe('global OpenAPI document', () => {
     expect(doc.paths['/api/auth/api-key/create']).toBeUndefined()
     expect(doc.components?.schemas?.Session).toBeUndefined()
     expect(doc.components?.schemas?.User).toBeUndefined()
-    expect(collectOpenApiReferences(doc.paths['/api/auth/device/code'])).toEqual([])
-    expect(collectOpenApiReferences(doc.paths['/api/auth/device/token'])).toEqual([])
+    // The admitted Better Auth operations are self-contained before ZPan's
+    // framework-level response header decoration. The final document may refer
+    // only to that shared header, and every reference must resolve.
+    const requestIdReference = '#/components/headers/RequestId'
+    for (const path of ['/api/auth/device/code', '/api/auth/device/token']) {
+      const references = collectOpenApiReferences(doc.paths[path])
+      expect(references.length).toBeGreaterThan(0)
+      expect([...new Set(references)]).toEqual([requestIdReference])
+      for (const reference of references) {
+        expect(resolveLocalOpenApiReference(doc, reference)).toBe(doc.components?.headers?.RequestId)
+      }
+    }
     const operationIds = Object.values(doc.paths).flatMap((path) =>
       Object.values(path).flatMap((operation) =>
         operation && typeof operation === 'object' && 'operationId' in operation ? [operation.operationId] : [],
@@ -874,4 +902,16 @@ function collectOpenApiReferences(value: unknown): string[] {
     ...(typeof object.$ref === 'string' ? [object.$ref] : []),
     ...Object.values(object).flatMap(collectOpenApiReferences),
   ]
+}
+
+function resolveLocalOpenApiReference(document: unknown, reference: string): unknown {
+  if (!reference.startsWith('#/')) return undefined
+  return reference
+    .slice(2)
+    .split('/')
+    .map((segment) => segment.replaceAll('~1', '/').replaceAll('~0', '~'))
+    .reduce<unknown>((value, segment) => {
+      if (!value || typeof value !== 'object') return undefined
+      return (value as Record<string, unknown>)[segment]
+    }, document)
 }

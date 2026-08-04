@@ -1,7 +1,7 @@
 import type { Handler } from 'hono'
 import { Hono } from 'hono'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { insufficientCredits, NameConflictError, notFound } from '../usecases/ports'
+import { AppError, insufficientCredits, NameConflictError, notFound } from '../usecases/ports'
 import { jsonError } from './error-handler'
 import { accessLog } from './logger'
 import type { Env } from './platform'
@@ -33,6 +33,7 @@ describe('accessLog', () => {
     app.use('*', accessLog)
     app.use('*', async (c, next) => {
       c.set('errorLog', null)
+      c.set('requestId', 'req-test')
       await next()
     })
     app.get('/x', handler)
@@ -45,8 +46,22 @@ describe('accessLog', () => {
     await app.request('/x')
     const f = parseLine(lines[0])
     expect(f.status).toBe('200')
+    expect(f.requestId).toBe('req-test')
     expect(f.error).toBeUndefined()
     expect(f.reason).toBeUndefined()
+  })
+
+  it('logs a server-only diagnostic reason separately from the public error reason', async () => {
+    const app = appWith(() => {
+      throw new AppError(401, 'Unauthorized', {
+        diagnostics: { reason: 'OAUTH_DPOP_REPLAY', message: 'DPoP proof jti has already been used' },
+      })
+    })
+    await app.request('/x')
+    const f = parseLine(lines[0])
+    expect(f.reason).toBe('UNAUTHENTICATED')
+    expect(f.diagnostic).toBe('OAUTH_DPOP_REPLAY')
+    expect(f.error).toBe('DPoP proof jti has already been used')
   })
 
   it('logs reason + message for a thrown AppError', async () => {

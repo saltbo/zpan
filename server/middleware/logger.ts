@@ -26,8 +26,10 @@ function accessLogFields(c: Context<Env>, start: number): Array<[string, string 
   const fields: Array<[string, string | number]> = [
     ['method', c.req.method],
     ['path', c.req.path],
+    ['route', c.req.routePath || '-'],
     ['status', status],
     ['ms', Date.now() - start],
+    ['requestId', c.get('requestId') ?? '-'],
     ['uid', c.get('userId') ?? '-'],
     ['cache', cacheLogSummary()],
   ]
@@ -51,6 +53,7 @@ function accessLogFields(c: Context<Env>, start: number): Array<[string, string 
   const errorLog = c.get('errorLog')
   if (errorLog) {
     fields.push(['reason', errorLog.reason], ['error', errorLog.message])
+    if (errorLog.diagnostic) fields.push(['diagnostic', errorLog.diagnostic])
   } else if (status >= 400) {
     fields.push(['error', c.res.statusText || '-'])
   }

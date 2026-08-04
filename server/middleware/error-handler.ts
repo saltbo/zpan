@@ -21,7 +21,11 @@ export function jsonError(c: Context<Env>, err: unknown): Response {
       status: err.meta.canonicalStatus,
       metadata: err.meta.metadata,
     })
-    c.set('errorLog', { reason: body.error.details?.[0]?.reason ?? body.error.status, message: err.message })
+    c.set('errorLog', {
+      reason: body.error.details?.[0]?.reason ?? body.error.status,
+      message: err.meta.diagnostics?.message ?? err.message,
+      diagnostic: err.meta.diagnostics?.reason,
+    })
     return c.json(body, err.httpStatus as ContentfulStatusCode, err.meta.headers)
   }
 
