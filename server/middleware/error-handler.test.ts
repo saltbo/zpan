@@ -29,6 +29,23 @@ describe('jsonError', () => {
     expect(c.get('errorLog')).toEqual({ reason: 'INSUFFICIENT_CREDITS', message: 'Insufficient credits' })
   })
 
+  it('keeps authentication diagnostics out of the client response', async () => {
+    const c = await ctx()
+    const res = jsonError(
+      c,
+      new AppError(401, 'Unauthorized', {
+        diagnostics: { reason: 'OAUTH_DPOP_REPLAY', message: 'DPoP proof jti has already been used' },
+      }),
+    )
+
+    expect(await res.json()).toMatchObject({ error: { message: 'Unauthorized', status: 'UNAUTHENTICATED' } })
+    expect(c.get('errorLog')).toEqual({
+      reason: 'UNAUTHENTICATED',
+      message: 'DPoP proof jti has already been used',
+      diagnostic: 'OAUTH_DPOP_REPLAY',
+    })
+  })
+
   it('renders a mapped domain error with its mapped status + reason', async () => {
     const c = await ctx()
     const res = jsonError(c, new NameConflictError('doc.txt', 'id-1'))

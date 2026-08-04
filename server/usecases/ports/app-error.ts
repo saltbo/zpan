@@ -15,6 +15,8 @@ export class AppError extends Error {
       reason?: string
       canonicalStatus?: CanonicalStatus
       metadata?: Record<string, string>
+      // Server-only diagnostics. These never enter the HTTP response body.
+      diagnostics?: { reason: string; message?: string }
       // Response headers the boundary must set (e.g. `Retry-After` on a 429).
       headers?: Record<string, string>
     } = {},

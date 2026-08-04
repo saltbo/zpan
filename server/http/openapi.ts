@@ -23,6 +23,39 @@ export const jsonBody = <T extends z.ZodType>(schema: T) => ({
 // `jsonError`; this just documents the response shape in the OpenAPI document.
 export const errorResponse = (description: string) => jsonContent(errorResponseSchema, description)
 
+type OpenApiDocument = {
+  components?: {
+    headers?: Record<string, unknown>
+  }
+  paths?: Record<string, Record<string, unknown>>
+}
+
+// Request correlation is a framework-level contract: every documented response
+// exposes the same support identifier instead of redefining it per endpoint.
+export function addRequestIdOpenApi(document: object): void {
+  const openApi = document as OpenApiDocument
+  openApi.components ??= {}
+  openApi.components.headers ??= {}
+  openApi.components.headers.RequestId = {
+    description: 'Opaque identifier for this request attempt. Provide it when requesting support.',
+    schema: { type: 'string', format: 'uuid' },
+  }
+
+  const methods = new Set(['get', 'put', 'post', 'delete', 'patch', 'head', 'options'])
+  for (const pathItem of Object.values(openApi.paths ?? {})) {
+    for (const [method, candidate] of Object.entries(pathItem)) {
+      if (!methods.has(method) || !candidate || typeof candidate !== 'object') continue
+      const operation = candidate as { responses?: Record<string, unknown> }
+      for (const responseCandidate of Object.values(operation.responses ?? {})) {
+        if (!responseCandidate || typeof responseCandidate !== 'object' || '$ref' in responseCandidate) continue
+        const response = responseCandidate as { headers?: Record<string, unknown> }
+        response.headers ??= {}
+        response.headers['Request-Id'] ??= { $ref: '#/components/headers/RequestId' }
+      }
+    }
+  }
+}
+
 export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> & { path: P }>(
   auth: RouteAuthorizationDeclaration,
   config: T,

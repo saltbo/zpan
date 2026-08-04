@@ -27,10 +27,11 @@ export type Env = {
     webDavResolvedPutTarget: WebDavTarget | null
     webDavUploadAuditTarget: TransferAuditTarget | null
     webDavLocksByResource: Map<string, DavLock[]>
+    requestId: string
     // Structured detail for the access log on a failed request. Set by `jsonError`
     // (via `app.onError`); read by the accessLog middleware so every 4xx/5xx carries
     // its reason + full message, not just unhandled crashes.
-    errorLog: { reason: string; message: string } | null
+    errorLog: { reason: string; message: string; diagnostic?: string } | null
   }
 }
 
@@ -165,6 +166,8 @@ export const anonymousAuthzContext = (): AuthzContext => ({
 
 export const platformMiddleware = (platform: Platform, auth: Auth) =>
   createMiddleware<Env>(async (c, next) => {
+    const requestId = crypto.randomUUID()
+    c.set('requestId', requestId)
     c.set('platform', platform)
     c.set('auth', auth)
     c.set('principal', null)
@@ -179,5 +182,9 @@ export const platformMiddleware = (platform: Platform, auth: Auth) =>
     c.set('webDavResolvedPutTarget', null)
     c.set('webDavUploadAuditTarget', null)
     c.set('webDavLocksByResource', new Map())
-    await next()
+    try {
+      await next()
+    } finally {
+      c.header('Request-Id', requestId)
+    }
   })

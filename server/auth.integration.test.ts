@@ -1081,7 +1081,7 @@ describe('OAuth consent guards', () => {
     })
   })
 
-  it('returns a DPoP challenge for a foreign access token instead of an internal error', async () => {
+  it('returns the standard invalid-token challenge for a foreign access token instead of an internal error', async () => {
     const ctx = await createTestApp()
     const apiUrl = 'http://localhost:3000/api/objects'
     const { privateKey: foreignPrivateKey } = await generateKeyPair('ES256')
@@ -1128,7 +1128,8 @@ describe('OAuth consent guards', () => {
     })
 
     expect(response.status).toBe(401)
-    expect(response.headers.get('www-authenticate')).toContain('DPoP')
+    expect(response.headers.get('request-id')).toMatch(/^[0-9a-f-]{36}$/)
+    expect(response.headers.get('www-authenticate')).toContain('Bearer')
     expect(response.headers.get('www-authenticate')).toContain('/.well-known/oauth-protected-resource/api')
   })
 

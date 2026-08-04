@@ -81,6 +81,21 @@ describe('global OpenAPI document', () => {
     expect(html).toContain('/api/openapi.json')
   })
 
+  it('documents and returns the request correlation header', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      components?: { headers?: Record<string, unknown> }
+      paths?: Record<string, { get?: { responses?: Record<string, { headers?: Record<string, unknown> }> } }>
+    }
+
+    expect(res.headers.get('Request-Id')).toMatch(/^[0-9a-f-]{36}$/)
+    expect(doc.components?.headers?.RequestId).toMatchObject({ schema: { type: 'string', format: 'uuid' } })
+    expect(doc.paths?.['/api/objects']?.get?.responses?.['200']?.headers?.['Request-Id']).toEqual({
+      $ref: '#/components/headers/RequestId',
+    })
+  })
+
   it('advertises and serves the Arazzo workflow description', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const [rootResponse, workflowResponse, documentResponse] = await Promise.all([

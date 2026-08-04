@@ -39,7 +39,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
           dpop: { replayStore: createDpopReplayStore(authContext.internalAdapter) },
         })
     } catch (error) {
-      if (isUnauthorizedApiError(error)) throw dpopUnauthorized(audience)
+      if (isUnauthorizedApiError(error)) throw mapOauthVerificationError(error, audience)
       throw error
     }
     const userId = typeof payload.sub === 'string' ? payload.sub : null
@@ -48,16 +48,18 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     const actorClaims = payload.act && typeof payload.act === 'object' ? (payload.act as Record<string, unknown>) : null
     const actorSubject = actorClaims?.sub
     const actorIssuer = actorClaims?.iss
-    if (!userId || !orgId || !clientId || typeof actorSubject !== 'string' || typeof actorIssuer !== 'string') {
-      throw unauthorized('Unauthorized')
+    if (!userId) throw invalidOauthToken(audience, 'OAUTH_SUBJECT_MISSING')
+    if (!orgId) throw invalidOauthToken(audience, 'OAUTH_WORKSPACE_CLAIM_INVALID')
+    if (!clientId) throw invalidOauthToken(audience, 'OAUTH_CLIENT_ID_MISSING')
+    if (typeof actorSubject !== 'string') throw invalidOauthToken(audience, 'OAUTH_ACTOR_SUBJECT_MISSING')
+    if (typeof actorIssuer !== 'string') throw invalidOauthToken(audience, 'OAUTH_ACTOR_ISSUER_MISSING')
+    if (typeof payload.jti !== 'string') throw invalidOauthToken(audience, 'OAUTH_TOKEN_ID_MISSING')
+    if (await c.get('deps').oauth.isJwtAccessTokenRevoked(c.get('platform').db, payload.jti)) {
+      throw invalidOauthToken(audience, 'OAUTH_TOKEN_REVOKED')
     }
-    if (
-      typeof payload.jti !== 'string' ||
-      (await c.get('deps').oauth.isJwtAccessTokenRevoked(c.get('platform').db, payload.jti))
-    ) {
-      throw dpopUnauthorized(audience)
+    if (await c.get('deps').userAdmin.isBanned(userId)) {
+      throw invalidOauthToken(audience, 'OAUTH_SUBJECT_BANNED')
     }
-    if (await c.get('deps').userAdmin.isBanned(userId)) throw unauthorized('Unauthorized')
     const role = (await c.get('deps').userAdmin.getSiteRole(userId)) ?? undefined
     const scopes = typeof payload.scope === 'string' ? payload.scope.split(/\s+/).filter(isAuthorizationScope) : []
     c.set('principal', {
@@ -233,17 +235,66 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
   await next()
 })
 
-function dpopUnauthorized(resource: string): AppError {
+function invalidOauthToken(resource: string, diagnostic: string): AppError {
   return new AppError(401, 'Unauthorized', {
+    diagnostics: { reason: diagnostic },
     headers: {
-      'WWW-Authenticate': `DPoP resource_metadata="${new URL('/.well-known/oauth-protected-resource/api', resource).toString()}"`,
+      'WWW-Authenticate': `DPoP error="invalid_token", resource_metadata="${resourceMetadataUrl(resource)}"`,
     },
   })
 }
 
+export function mapOauthVerificationError(error: unknown, resource: string): AppError {
+  const candidate = error as Error & {
+    body?: Record<string, unknown>
+    headers?: HeadersInit
+  }
+  const description = oauthErrorDescription(candidate)
+  const challenge = candidate.headers ? new Headers(candidate.headers).get('WWW-Authenticate') : null
+  return new AppError(401, 'Unauthorized', {
+    diagnostics: {
+      reason: oauthDiagnosticReason(candidate.body?.error, description),
+      message: description,
+    },
+    headers: {
+      'WWW-Authenticate': challenge ?? `DPoP resource_metadata="${resourceMetadataUrl(resource)}"`,
+    },
+  })
+}
+
+function oauthErrorDescription(error: Error & { body?: Record<string, unknown> }): string {
+  const description = error.body?.error_description
+  if (typeof description === 'string' && description.length > 0) return description
+  const bodyMessage = error.body?.message
+  if (typeof bodyMessage === 'string' && bodyMessage.length > 0) return bodyMessage
+  return error.message || 'OAuth access token verification failed'
+}
+
+function oauthDiagnosticReason(errorCode: unknown, description: string): string {
+  const normalized = description.toLowerCase()
+  if (normalized.includes('jti has already been used')) return 'OAUTH_DPOP_REPLAY'
+  if (normalized.includes('iat is outside the accepted window')) return 'OAUTH_DPOP_PROOF_TIME_INVALID'
+  if (normalized.includes('htu does not match')) return 'OAUTH_DPOP_URI_MISMATCH'
+  if (normalized.includes('htm does not match')) return 'OAUTH_DPOP_METHOD_MISMATCH'
+  if (normalized.includes('ath does not match')) return 'OAUTH_DPOP_TOKEN_HASH_MISMATCH'
+  if (normalized.includes('key does not match the bound token')) return 'OAUTH_DPOP_KEY_MISMATCH'
+  if (normalized.includes('proof header is required')) return 'OAUTH_DPOP_PROOF_MISSING'
+  if (normalized.includes('token expired')) return 'OAUTH_TOKEN_EXPIRED'
+  if (normalized.includes('invalid access token')) return 'OAUTH_TOKEN_INVALID'
+  if (normalized.includes('missing authorization header')) return 'OAUTH_CREDENTIAL_MISSING'
+  if (normalized.includes('authorization scheme')) return 'OAUTH_AUTHORIZATION_SCHEME_INVALID'
+  if (errorCode === 'invalid_dpop_proof') return 'OAUTH_DPOP_PROOF_INVALID'
+  if (errorCode === 'invalid_token') return 'OAUTH_TOKEN_INVALID'
+  return 'OAUTH_TOKEN_VERIFICATION_FAILED'
+}
+
+function resourceMetadataUrl(resource: string): string {
+  return new URL('/.well-known/oauth-protected-resource/api', resource).toString()
+}
+
 function isUnauthorizedApiError(error: unknown): boolean {
-  if (!(error instanceof Error) || error.name !== 'APIError') return false
-  const candidate = error as Error & { status?: unknown; statusCode?: unknown }
+  if (!error || typeof error !== 'object') return false
+  const candidate = error as { status?: unknown; statusCode?: unknown }
   return candidate.status === 'UNAUTHORIZED' || candidate.status === 401 || candidate.statusCode === 401
 }
 
