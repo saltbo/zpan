@@ -1,7 +1,8 @@
 // Generates the downloader's Go OpenAPI client (cmd/internal/openapi/client.gen.go)
-// straight from the complete, live /api/openapi.json — no committed intermediate
-// spec, no hand-curated subset. The spec is written to a temp file only so
-// oapi-codegen has something to read, then discarded.
+// straight from the live public product contract at /api/openapi.json, including
+// its explicit Downloader Device Flow whitelist. Code generation applies no
+// further endpoint subset and commits no intermediate spec; the temporary spec
+// exists only as oapi-codegen input and is discarded.
 //
 //   pnpm openapi:client          regenerate the committed Go client
 //   pnpm openapi:client --check  fail if the committed client is stale
@@ -36,10 +37,9 @@ function downconvertTo30(node: unknown): void {
   for (const v of Object.values(obj)) downconvertTo30(v)
 }
 
-// The client attaches its bearer token manually via a RequestEditorFn, so it
-// needs no security metadata. Strip it: better-auth's bearerAuth scheme otherwise
-// makes oapi-codegen (client-only) emit a `BearerAuthScopes` const whose
-// context-key type is only generated in server mode → undefined symbol.
+// The client attaches credentials manually via a RequestEditorFn, so the
+// generated transport needs no product-wide security metadata. Stripping it
+// also avoids client-only oapi-codegen emitting server-mode scope helpers.
 function stripSecurity(doc: Doc): void {
   delete (doc as Record<string, unknown>).security
   if (doc.components) delete (doc.components as Record<string, unknown>).securitySchemes
@@ -53,9 +53,8 @@ function stripSecurity(doc: Doc): void {
 
 const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace'])
 
-// better-auth omits path-parameter declarations on some operations (e.g.
-// /api/auth/callback/{id}), which oapi-codegen rejects. Declare any `{param}`
-// segment that an operation is missing. Whole-document, mechanical.
+// Declare any `{param}` segment that an operation is missing because
+// oapi-codegen rejects undeclared path parameters. Whole-document, mechanical.
 function declareMissingPathParams(doc: Doc): void {
   for (const [path, item] of Object.entries(doc.paths)) {
     const names = [...path.matchAll(/\{([^}]+)\}/g)].map((m) => m[1])

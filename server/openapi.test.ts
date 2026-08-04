@@ -19,7 +19,7 @@ describe('global OpenAPI document', () => {
     expect(doc.paths['/api/objects']?.get?.tags).toContain('Objects')
     expect(doc.paths['/api/events']?.get?.tags).toContain('Events')
     expect((doc.tags ?? []).map((t) => t.name)).toEqual(
-      expect.arrayContaining(['Objects', 'Events', 'Download Tasks', 'Downloaders']),
+      expect.arrayContaining(['Objects', 'Events', 'Download Tasks', 'Downloaders', 'Downloader Device Flow']),
     )
     // Every resource already converted to `.openapi()` shows up automatically.
     expect(Object.keys(doc.paths)).toEqual(
@@ -773,27 +773,50 @@ describe('global OpenAPI document', () => {
     })
   })
 
-  it("merges better-auth's auto-generated schema (incl. the device flow) into the same doc", async () => {
+  it('publishes only the whitelisted Better Auth Downloader Device Flow operations', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
       paths: Record<
         string,
         {
+          get?: Record<string, unknown>
           post?: {
+            operationId?: string
+            tags?: string[]
+            security?: Record<string, string[]>[]
             responses?: Record<
               string,
-              { content?: { 'application/json'?: { schema?: { properties?: Record<string, unknown> } } } }
+              {
+                content?: {
+                  'application/json'?: {
+                    schema?: { properties?: Record<string, unknown>; required?: string[] }
+                  }
+                }
+              }
             >
           }
         }
       >
+      components?: { schemas?: Record<string, unknown> }
     }
-    // better-auth's device-authorization endpoints come from its openAPI plugin,
-    // not hand-written stubs — prefixed under /api/auth.
-    const authPaths = Object.keys(doc.paths).filter((p) => p.startsWith('/api/auth/'))
-    expect(authPaths.length).toBeGreaterThan(0)
-    expect(authPaths.some((p) => p.includes('/device/'))).toBe(true)
+
+    expect(Object.keys(doc.paths).filter((path) => path.startsWith('/api/auth/device/'))).toEqual([
+      '/api/auth/device/code',
+      '/api/auth/device/token',
+    ])
+    expect(Object.keys(doc.paths['/api/auth/device/code'] ?? {})).toEqual(['post'])
+    expect(Object.keys(doc.paths['/api/auth/device/token'] ?? {})).toEqual(['post'])
+    expect(doc.paths['/api/auth/device/code']?.post).toMatchObject({
+      operationId: 'createDownloaderDeviceAuthorization',
+      tags: ['Downloader Device Flow'],
+      security: [],
+    })
+    expect(doc.paths['/api/auth/device/token']?.post).toMatchObject({
+      operationId: 'createDownloaderDeviceAccessToken',
+      tags: ['Downloader Device Flow'],
+      security: [],
+    })
     expect(
       doc.paths['/api/auth/device/token']?.post?.responses?.['200']?.content?.['application/json']?.schema?.properties,
     ).toMatchObject({
@@ -802,5 +825,53 @@ describe('global OpenAPI document', () => {
       expires_in: { type: 'integer' },
       scope: { type: 'string' },
     })
+    expect(
+      doc.paths['/api/auth/device/token']?.post?.responses?.['200']?.content?.['application/json']?.schema?.required,
+    ).toEqual(['access_token', 'token_type', 'expires_in'])
+
+    expect(doc.paths['/api/auth/sign-in/email']).toBeUndefined()
+    expect(doc.paths['/api/auth/organization/create']).toBeUndefined()
+    expect(doc.paths['/api/auth/admin/list-users']).toBeUndefined()
+    expect(doc.paths['/api/auth/api-key/create']).toBeUndefined()
+    expect(doc.components?.schemas?.Session).toBeUndefined()
+    expect(doc.components?.schemas?.User).toBeUndefined()
+    expect(collectOpenApiReferences(doc.paths['/api/auth/device/code'])).toEqual([])
+    expect(collectOpenApiReferences(doc.paths['/api/auth/device/token'])).toEqual([])
+    const operationIds = Object.values(doc.paths).flatMap((path) =>
+      Object.values(path).flatMap((operation) =>
+        operation && typeof operation === 'object' && 'operationId' in operation ? [operation.operationId] : [],
+      ),
+    )
+    expect(operationIds.filter((id) => id === 'createDownloaderDeviceAuthorization')).toHaveLength(1)
+    expect(operationIds.filter((id) => id === 'createDownloaderDeviceAccessToken')).toHaveLength(1)
+  })
+
+  it('keeps Better Auth runtime login, reference, and schema routes mounted', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const [login, reference, schema] = await Promise.all([
+      app.request('/api/auth/sign-in/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'missing@example.com', password: 'wrong-password' }),
+      }),
+      app.request('/api/auth/reference'),
+      app.request('/api/auth/open-api/generate-schema'),
+    ])
+
+    expect(login.status).not.toBe(404)
+    expect(reference.status).toBe(200)
+    expect(reference.headers.get('content-type')).toContain('text/html')
+    expect(schema.status).toBe(200)
+    await expect(schema.json()).resolves.toMatchObject({ paths: expect.any(Object) })
   })
 })
+
+function collectOpenApiReferences(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(collectOpenApiReferences)
+  if (!value || typeof value !== 'object') return []
+  const object = value as Record<string, unknown>
+  return [
+    ...(typeof object.$ref === 'string' ? [object.$ref] : []),
+    ...Object.values(object).flatMap(collectOpenApiReferences),
+  ]
+}

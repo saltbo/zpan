@@ -648,10 +648,10 @@ export async function createAuth(
     },
     plugins: [
       admin(),
-      // Self-documents every better-auth endpoint (incl. the device-authorization
-      // flow) at GET /api/auth/reference (Scalar UI) and
-      // /api/auth/open-api/generate-schema. Replaces the old hand-written device
-      // route stubs; our own routes live in the global doc at /api/openapi.json.
+      // Self-documents Better Auth's complete runtime surface at
+      // GET /api/auth/reference (Scalar UI) and
+      // /api/auth/open-api/generate-schema. The global product contract at
+      // /api/openapi.json admits only the Downloader Device Flow path/methods.
       openAPI(),
       organization({
         roles: {

@@ -15,6 +15,7 @@ import { adminStats } from './http/admin-stats'
 import { ARAZZO_DOCUMENT_PATH, ARAZZO_MEDIA_TYPE, createArazzoDocument } from './http/arazzo'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
+import { addDownloaderDeviceFlowOpenApi, DOWNLOADER_DEVICE_FLOW_TAG } from './http/better-auth-openapi'
 import { configz } from './http/configz'
 import downloadTasks, { downloaderTasksRoute } from './http/downloads/download-tasks'
 import downloaders, { downloaderSelfRoute } from './http/downloads/downloaders'
@@ -222,10 +223,10 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     return c.newResponse(JSON.stringify(createArazzoDocument(new URL(c.req.url).origin)), 200, headers)
   })
 
-  // Global OpenAPI document. Aggregates every route defined with `.openapi()`
-  // across all mounted sub-apps — a route appears here as soon as its resource is
-  // converted to OpenAPIHono, no curation needed. better-auth endpoints (incl. the
-  // device flow) document themselves separately at /api/auth/reference.
+  // Global OpenAPI document. ZPan routes defined with `.openapi()` are
+  // aggregated across all mounted sub-apps. Better Auth documents its complete
+  // runtime surface separately at /api/auth/reference; only the Downloader
+  // Device Flow protocol is explicitly admitted to this product contract.
   app.get('/api/openapi.json', async (c) => {
     const doc = app.getOpenAPIDocument({
       openapi: '3.1.0',
@@ -241,41 +242,18 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
         { name: 'Events', description: 'Multiplexed server-sent event stream' },
         { name: 'Download Tasks', description: 'Remote download tasks' },
         { name: 'Downloaders', description: 'Download agents and their heartbeats' },
+        {
+          name: DOWNLOADER_DEVICE_FLOW_TAG,
+          description: 'Public device authorization protocol used by downloader clients',
+        },
       ],
     })
 
-    // Merge better-auth's own auto-generated schema (sign-in/up, organization,
-    // the device-authorization flow, …) into the same document. Both halves are
-    // generated — nothing here is a hand-maintained endpoint definition; new
-    // better-auth endpoints appear automatically. Its paths are relative to the
-    // /api/auth mount, so prefix them.
-    const authDoc = (await c.get('auth').api.generateOpenAPISchema()) as {
-      paths?: Record<string, unknown>
-      components?: { schemas?: Record<string, unknown> }
-    }
-    for (const [path, item] of Object.entries(authDoc.paths ?? {})) {
-      doc.paths[`/api/auth${path}`] = item as (typeof doc.paths)[string]
-    }
-    // better-auth 1.7.0-rc.2 documents POST /device/token with its session
-    // response even though the handler returns an OAuth device token. Keep the
-    // generated contract aligned with the wire response until upstream fixes it.
-    const deviceTokenJson = (
-      doc.paths['/api/auth/device/token'] as
-        | { post?: { responses?: Record<string, { content?: Record<string, { schema?: unknown }> }> } }
-        | undefined
-    )?.post?.responses?.['200']?.content?.['application/json']
-    if (deviceTokenJson) {
-      deviceTokenJson.schema = {
-        type: 'object',
-        properties: {
-          access_token: { type: 'string' },
-          token_type: { type: 'string' },
-          expires_in: { type: 'integer' },
-          scope: { type: 'string' },
-        },
-        required: ['access_token', 'token_type', 'expires_in'],
-      }
-    }
+    // Better Auth owns the runtime routes and its complete reference schema.
+    // The public ZPan contract admits only the exact Downloader Device Flow
+    // path/method pairs; new Better Auth operations remain private by default.
+    const authDoc = await c.get('auth').api.generateOpenAPISchema()
+    addDownloaderDeviceFlowOpenApi(doc, authDoc)
     doc.components ??= {}
     doc.components.securitySchemes = {
       ...(doc.components.securitySchemes ?? {}),
@@ -296,10 +274,6 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       },
     }
     addOAuthClientRegistrationManagementOpenApi(doc)
-    doc.components.schemas = {
-      ...(authDoc.components?.schemas as typeof doc.components.schemas),
-      ...doc.components.schemas,
-    }
     Object.assign(doc, {
       'x-zpan-discovery': {
         oauthAuthorizationServer: '/.well-known/oauth-authorization-server/api/auth',

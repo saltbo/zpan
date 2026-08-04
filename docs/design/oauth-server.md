@@ -56,9 +56,12 @@ OpenAPI uses standard `security` declarations. Every protected ZPan operation
 declares its OAuth scopes, plus cookie and bearer alternatives. Role constraints
 that OpenAPI cannot express use the narrow
 `x-zpan-authorization-constraints` extension. Better Auth operations and their
-generated OpenAPI definitions remain owned by Better Auth. ZPan augments the
-dynamic-registration response and adds the RFC 7592 configuration endpoint that
-is implemented at its auth boundary.
+complete generated definitions remain owned by Better Auth and available from
+its reference endpoints. The public product contract imports only `POST
+/device/code` and `POST /device/token`, under their `/api/auth` runtime mount,
+for the Downloader Device Flow protocol; both explicitly require no existing
+session or bearer credential. ZPan separately publishes its dynamic-registration
+and RFC 7592 configuration operations implemented at the auth boundary.
 
 ## Workspace Authorization Details
 

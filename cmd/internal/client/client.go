@@ -416,7 +416,7 @@ func (c *Client) SeedingTasks(ctx context.Context) ([]DownloadTask, error) {
 
 func (c *Client) RequestDeviceCode(ctx context.Context) (DeviceCode, error) {
 	scope := "downloader:register"
-	res, err := c.api.PostApiAuthDeviceCodeWithResponse(ctx, openapi.PostApiAuthDeviceCodeJSONRequestBody{
+	res, err := c.api.CreateDownloaderDeviceAuthorizationWithResponse(ctx, openapi.CreateDownloaderDeviceAuthorizationJSONRequestBody{
 		ClientId: "zpan-cli",
 		Scope:    &scope,
 	})
@@ -440,7 +440,7 @@ func (c *Client) RequestDeviceCode(ctx context.Context) (DeviceCode, error) {
 }
 
 func (c *Client) PollDeviceToken(ctx context.Context, deviceCode string) (DeviceToken, error) {
-	res, err := c.api.PostApiAuthDeviceTokenWithResponse(ctx, openapi.PostApiAuthDeviceTokenJSONRequestBody{
+	res, err := c.api.CreateDownloaderDeviceAccessTokenWithResponse(ctx, openapi.CreateDownloaderDeviceAccessTokenJSONRequestBody{
 		GrantType:  "urn:ietf:params:oauth:grant-type:device_code",
 		DeviceCode: deviceCode,
 		ClientId:   "zpan-cli",
