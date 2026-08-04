@@ -147,8 +147,11 @@ The server follows a ports-and-adapters shape.
 ### `server/app.ts`
 
 Creates the Hono app, installs global middleware, exposes OpenAPI/Scalar docs,
-mounts WebDAV, and mounts each API resource. It also merges Better Auth's
-generated OpenAPI schema into `/api/openapi.json`.
+mounts WebDAV, and mounts each API resource. `/api/openapi.json` includes ZPan's
+explicit resource contracts plus operations admitted by the declarative Better
+Auth OpenAPI registry. The registry currently contains only the two Downloader
+Device Flow operations. Better Auth's full runtime schema remains available
+only from its own reference endpoints.
 
 ### `server/http/`
 
@@ -311,8 +314,11 @@ external URLs that are not ZPan APIs, such as presigned S3 upload URLs.
 
 - `/api/*` — primary JSON API, mounted from route modules in `server/http/`
 - `/api/auth/*` — Better Auth routes
-- `/api/openapi.json` — combined OpenAPI document for ZPan routes and Better
-  Auth routes
+- `/api/openapi.json` — public ZPan product contract; Better Auth operations are
+  denied by default and currently only the registered Downloader Device Flow
+  operations are included
+- `/api/auth/reference` and `/api/auth/open-api/generate-schema` — Better Auth's
+  complete reference UI and generated runtime schema
 - `/api/docs` — Scalar API reference
 - `/dav/*` — WebDAV endpoint
 - `/api/events` — one resumable server-sent event stream for scoped durable
