@@ -37,12 +37,12 @@ describe('Downloader Device Flow OpenAPI boundary', () => {
     expect(Object.keys(doc.paths['/api/auth/device/code'])).toEqual(['post'])
     expect(Object.keys(doc.paths['/api/auth/device/token'])).toEqual(['post'])
     expect(doc.paths['/api/auth/device/code'].post).toMatchObject({
-      operationId: 'createDownloaderDeviceAuthorization',
+      operationId: 'createDeviceAuthorization',
       tags: [DOWNLOADER_DEVICE_FLOW_TAG],
       security: [],
     })
     expect(doc.paths['/api/auth/device/token'].post).toMatchObject({
-      operationId: 'createDownloaderDeviceAccessToken',
+      operationId: 'createDeviceAccessToken',
       tags: [DOWNLOADER_DEVICE_FLOW_TAG],
       security: [],
       responses: {

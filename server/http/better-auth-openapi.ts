@@ -15,13 +15,13 @@ const DOWNLOADER_DEVICE_FLOW_OPERATIONS = [
     sourcePath: '/device/code',
     method: 'post',
     publicPath: '/api/auth/device/code',
-    operationId: 'createDownloaderDeviceAuthorization',
+    operationId: 'createDeviceAuthorization',
   },
   {
     sourcePath: '/device/token',
     method: 'post',
     publicPath: '/api/auth/device/token',
-    operationId: 'createDownloaderDeviceAccessToken',
+    operationId: 'createDeviceAccessToken',
   },
 ] as const
 

@@ -2059,48 +2059,48 @@ func (e WebDavVerificationStatus) Valid() bool {
 	}
 }
 
-// Defines values for CreateDownloaderDeviceAuthorization400JSONResponseBodyError.
+// Defines values for CreateDeviceAuthorization400JSONResponseBodyError.
 const (
-	CreateDownloaderDeviceAuthorization400JSONResponseBodyErrorInvalidClient  CreateDownloaderDeviceAuthorization400JSONResponseBodyError = "invalid_client"
-	CreateDownloaderDeviceAuthorization400JSONResponseBodyErrorInvalidRequest CreateDownloaderDeviceAuthorization400JSONResponseBodyError = "invalid_request"
+	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidClient  CreateDeviceAuthorization400JSONResponseBodyError = "invalid_client"
+	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidRequest CreateDeviceAuthorization400JSONResponseBodyError = "invalid_request"
 )
 
-// Valid indicates whether the value is a known member of the CreateDownloaderDeviceAuthorization400JSONResponseBodyError enum.
-func (e CreateDownloaderDeviceAuthorization400JSONResponseBodyError) Valid() bool {
+// Valid indicates whether the value is a known member of the CreateDeviceAuthorization400JSONResponseBodyError enum.
+func (e CreateDeviceAuthorization400JSONResponseBodyError) Valid() bool {
 	switch e {
-	case CreateDownloaderDeviceAuthorization400JSONResponseBodyErrorInvalidClient:
+	case CreateDeviceAuthorization400JSONResponseBodyErrorInvalidClient:
 		return true
-	case CreateDownloaderDeviceAuthorization400JSONResponseBodyErrorInvalidRequest:
+	case CreateDeviceAuthorization400JSONResponseBodyErrorInvalidRequest:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for CreateDownloaderDeviceAccessToken400JSONResponseBodyError.
+// Defines values for CreateDeviceAccessToken400JSONResponseBodyError.
 const (
-	CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorAccessDenied         CreateDownloaderDeviceAccessToken400JSONResponseBodyError = "access_denied"
-	CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorAuthorizationPending CreateDownloaderDeviceAccessToken400JSONResponseBodyError = "authorization_pending"
-	CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorExpiredToken         CreateDownloaderDeviceAccessToken400JSONResponseBodyError = "expired_token"
-	CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorInvalidGrant         CreateDownloaderDeviceAccessToken400JSONResponseBodyError = "invalid_grant"
-	CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorInvalidRequest       CreateDownloaderDeviceAccessToken400JSONResponseBodyError = "invalid_request"
-	CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorSlowDown             CreateDownloaderDeviceAccessToken400JSONResponseBodyError = "slow_down"
+	CreateDeviceAccessToken400JSONResponseBodyErrorAccessDenied         CreateDeviceAccessToken400JSONResponseBodyError = "access_denied"
+	CreateDeviceAccessToken400JSONResponseBodyErrorAuthorizationPending CreateDeviceAccessToken400JSONResponseBodyError = "authorization_pending"
+	CreateDeviceAccessToken400JSONResponseBodyErrorExpiredToken         CreateDeviceAccessToken400JSONResponseBodyError = "expired_token"
+	CreateDeviceAccessToken400JSONResponseBodyErrorInvalidGrant         CreateDeviceAccessToken400JSONResponseBodyError = "invalid_grant"
+	CreateDeviceAccessToken400JSONResponseBodyErrorInvalidRequest       CreateDeviceAccessToken400JSONResponseBodyError = "invalid_request"
+	CreateDeviceAccessToken400JSONResponseBodyErrorSlowDown             CreateDeviceAccessToken400JSONResponseBodyError = "slow_down"
 )
 
-// Valid indicates whether the value is a known member of the CreateDownloaderDeviceAccessToken400JSONResponseBodyError enum.
-func (e CreateDownloaderDeviceAccessToken400JSONResponseBodyError) Valid() bool {
+// Valid indicates whether the value is a known member of the CreateDeviceAccessToken400JSONResponseBodyError enum.
+func (e CreateDeviceAccessToken400JSONResponseBodyError) Valid() bool {
 	switch e {
-	case CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorAccessDenied:
+	case CreateDeviceAccessToken400JSONResponseBodyErrorAccessDenied:
 		return true
-	case CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorAuthorizationPending:
+	case CreateDeviceAccessToken400JSONResponseBodyErrorAuthorizationPending:
 		return true
-	case CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorExpiredToken:
+	case CreateDeviceAccessToken400JSONResponseBodyErrorExpiredToken:
 		return true
-	case CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorInvalidGrant:
+	case CreateDeviceAccessToken400JSONResponseBodyErrorInvalidGrant:
 		return true
-	case CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorInvalidRequest:
+	case CreateDeviceAccessToken400JSONResponseBodyErrorInvalidRequest:
 		return true
-	case CreateDownloaderDeviceAccessToken400JSONResponseBodyErrorSlowDown:
+	case CreateDeviceAccessToken400JSONResponseBodyErrorSlowDown:
 		return true
 	default:
 		return false
@@ -6355,8 +6355,8 @@ type UpdateSiteWebDav struct {
 // WebDavVerificationStatus defines model for WebDavVerificationStatus.
 type WebDavVerificationStatus string
 
-// CreateDownloaderDeviceAuthorizationJSONBody defines parameters for CreateDownloaderDeviceAuthorization.
-type CreateDownloaderDeviceAuthorizationJSONBody struct {
+// CreateDeviceAuthorizationJSONBody defines parameters for CreateDeviceAuthorization.
+type CreateDeviceAuthorizationJSONBody struct {
 	// ClientId The client ID of the application
 	ClientId string `json:"client_id"`
 
@@ -6367,11 +6367,11 @@ type CreateDownloaderDeviceAuthorizationJSONBody struct {
 	UserId *string `json:"user_id,omitempty"`
 }
 
-// CreateDownloaderDeviceAuthorization400JSONResponseBodyError defines parameters for CreateDownloaderDeviceAuthorization.
-type CreateDownloaderDeviceAuthorization400JSONResponseBodyError string
+// CreateDeviceAuthorization400JSONResponseBodyError defines parameters for CreateDeviceAuthorization.
+type CreateDeviceAuthorization400JSONResponseBodyError string
 
-// CreateDownloaderDeviceAccessTokenJSONBody defines parameters for CreateDownloaderDeviceAccessToken.
-type CreateDownloaderDeviceAccessTokenJSONBody struct {
+// CreateDeviceAccessTokenJSONBody defines parameters for CreateDeviceAccessToken.
+type CreateDeviceAccessTokenJSONBody struct {
 	// ClientId The client ID of the application
 	ClientId string `json:"client_id"`
 
@@ -6382,8 +6382,8 @@ type CreateDownloaderDeviceAccessTokenJSONBody struct {
 	GrantType interface{} `json:"grant_type"`
 }
 
-// CreateDownloaderDeviceAccessToken400JSONResponseBodyError defines parameters for CreateDownloaderDeviceAccessToken.
-type CreateDownloaderDeviceAccessToken400JSONResponseBodyError string
+// CreateDeviceAccessToken400JSONResponseBodyError defines parameters for CreateDeviceAccessToken.
+type CreateDeviceAccessToken400JSONResponseBodyError string
 
 // ListAuthorizationDetailsCatalogParams defines parameters for ListAuthorizationDetailsCatalog.
 type ListAuthorizationDetailsCatalogParams struct {
@@ -7466,11 +7466,11 @@ type UpdateUserEntitlementJSONBody struct {
 	Note      *string    `json:"note,omitempty"`
 }
 
-// CreateDownloaderDeviceAuthorizationJSONRequestBody defines body for CreateDownloaderDeviceAuthorization for application/json ContentType.
-type CreateDownloaderDeviceAuthorizationJSONRequestBody CreateDownloaderDeviceAuthorizationJSONBody
+// CreateDeviceAuthorizationJSONRequestBody defines body for CreateDeviceAuthorization for application/json ContentType.
+type CreateDeviceAuthorizationJSONRequestBody CreateDeviceAuthorizationJSONBody
 
-// CreateDownloaderDeviceAccessTokenJSONRequestBody defines body for CreateDownloaderDeviceAccessToken for application/json ContentType.
-type CreateDownloaderDeviceAccessTokenJSONRequestBody CreateDownloaderDeviceAccessTokenJSONBody
+// CreateDeviceAccessTokenJSONRequestBody defines body for CreateDeviceAccessToken for application/json ContentType.
+type CreateDeviceAccessTokenJSONRequestBody CreateDeviceAccessTokenJSONBody
 
 // CreateDynamicOAuthClientRegistrationJSONRequestBody defines body for CreateDynamicOAuthClientRegistration for application/json ContentType.
 type CreateDynamicOAuthClientRegistrationJSONRequestBody CreateDynamicOAuthClientRegistrationJSONBody
@@ -10793,15 +10793,15 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// CreateDownloaderDeviceAuthorizationWithBody request with any body
-	CreateDownloaderDeviceAuthorizationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateDeviceAuthorizationWithBody request with any body
+	CreateDeviceAuthorizationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateDownloaderDeviceAuthorization(ctx context.Context, body CreateDownloaderDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateDeviceAuthorization(ctx context.Context, body CreateDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateDownloaderDeviceAccessTokenWithBody request with any body
-	CreateDownloaderDeviceAccessTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateDeviceAccessTokenWithBody request with any body
+	CreateDeviceAccessTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateDownloaderDeviceAccessToken(ctx context.Context, body CreateDownloaderDeviceAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateDeviceAccessToken(ctx context.Context, body CreateDeviceAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListAuthorizationDetailsCatalog request
 	ListAuthorizationDetailsCatalog(ctx context.Context, params *ListAuthorizationDetailsCatalogParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -11396,8 +11396,8 @@ type ClientInterface interface {
 	GetUserProfile(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-func (c *Client) CreateDownloaderDeviceAuthorizationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateDownloaderDeviceAuthorizationRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateDeviceAuthorizationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDeviceAuthorizationRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11408,8 +11408,8 @@ func (c *Client) CreateDownloaderDeviceAuthorizationWithBody(ctx context.Context
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateDownloaderDeviceAuthorization(ctx context.Context, body CreateDownloaderDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateDownloaderDeviceAuthorizationRequest(c.Server, body)
+func (c *Client) CreateDeviceAuthorization(ctx context.Context, body CreateDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDeviceAuthorizationRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11420,8 +11420,8 @@ func (c *Client) CreateDownloaderDeviceAuthorization(ctx context.Context, body C
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateDownloaderDeviceAccessTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateDownloaderDeviceAccessTokenRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateDeviceAccessTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDeviceAccessTokenRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11432,8 +11432,8 @@ func (c *Client) CreateDownloaderDeviceAccessTokenWithBody(ctx context.Context, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateDownloaderDeviceAccessToken(ctx context.Context, body CreateDownloaderDeviceAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateDownloaderDeviceAccessTokenRequest(c.Server, body)
+func (c *Client) CreateDeviceAccessToken(ctx context.Context, body CreateDeviceAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDeviceAccessTokenRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14036,19 +14036,19 @@ func (c *Client) GetUserProfile(ctx context.Context, username string, reqEditors
 	return c.Client.Do(req)
 }
 
-// NewCreateDownloaderDeviceAuthorizationRequest calls the generic CreateDownloaderDeviceAuthorization builder with application/json body
-func NewCreateDownloaderDeviceAuthorizationRequest(server string, body CreateDownloaderDeviceAuthorizationJSONRequestBody) (*http.Request, error) {
+// NewCreateDeviceAuthorizationRequest calls the generic CreateDeviceAuthorization builder with application/json body
+func NewCreateDeviceAuthorizationRequest(server string, body CreateDeviceAuthorizationJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateDownloaderDeviceAuthorizationRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateDeviceAuthorizationRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewCreateDownloaderDeviceAuthorizationRequestWithBody generates requests for CreateDownloaderDeviceAuthorization with any type of body
-func NewCreateDownloaderDeviceAuthorizationRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateDeviceAuthorizationRequestWithBody generates requests for CreateDeviceAuthorization with any type of body
+func NewCreateDeviceAuthorizationRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -14076,19 +14076,19 @@ func NewCreateDownloaderDeviceAuthorizationRequestWithBody(server string, conten
 	return req, nil
 }
 
-// NewCreateDownloaderDeviceAccessTokenRequest calls the generic CreateDownloaderDeviceAccessToken builder with application/json body
-func NewCreateDownloaderDeviceAccessTokenRequest(server string, body CreateDownloaderDeviceAccessTokenJSONRequestBody) (*http.Request, error) {
+// NewCreateDeviceAccessTokenRequest calls the generic CreateDeviceAccessToken builder with application/json body
+func NewCreateDeviceAccessTokenRequest(server string, body CreateDeviceAccessTokenJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateDownloaderDeviceAccessTokenRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateDeviceAccessTokenRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewCreateDownloaderDeviceAccessTokenRequestWithBody generates requests for CreateDownloaderDeviceAccessToken with any type of body
-func NewCreateDownloaderDeviceAccessTokenRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateDeviceAccessTokenRequestWithBody generates requests for CreateDeviceAccessToken with any type of body
+func NewCreateDeviceAccessTokenRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -21186,15 +21186,15 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// CreateDownloaderDeviceAuthorizationWithBodyWithResponse request with any body
-	CreateDownloaderDeviceAuthorizationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDownloaderDeviceAuthorizationResponse, error)
+	// CreateDeviceAuthorizationWithBodyWithResponse request with any body
+	CreateDeviceAuthorizationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeviceAuthorizationResponse, error)
 
-	CreateDownloaderDeviceAuthorizationWithResponse(ctx context.Context, body CreateDownloaderDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDownloaderDeviceAuthorizationResponse, error)
+	CreateDeviceAuthorizationWithResponse(ctx context.Context, body CreateDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDeviceAuthorizationResponse, error)
 
-	// CreateDownloaderDeviceAccessTokenWithBodyWithResponse request with any body
-	CreateDownloaderDeviceAccessTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDownloaderDeviceAccessTokenResponse, error)
+	// CreateDeviceAccessTokenWithBodyWithResponse request with any body
+	CreateDeviceAccessTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeviceAccessTokenResponse, error)
 
-	CreateDownloaderDeviceAccessTokenWithResponse(ctx context.Context, body CreateDownloaderDeviceAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDownloaderDeviceAccessTokenResponse, error)
+	CreateDeviceAccessTokenWithResponse(ctx context.Context, body CreateDeviceAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDeviceAccessTokenResponse, error)
 
 	// ListAuthorizationDetailsCatalogWithResponse request
 	ListAuthorizationDetailsCatalogWithResponse(ctx context.Context, params *ListAuthorizationDetailsCatalogParams, reqEditors ...RequestEditorFn) (*ListAuthorizationDetailsCatalogResponse, error)
@@ -21789,7 +21789,7 @@ type ClientWithResponsesInterface interface {
 	GetUserProfileWithResponse(ctx context.Context, username string, reqEditors ...RequestEditorFn) (*GetUserProfileResponse, error)
 }
 
-type CreateDownloaderDeviceAuthorizationResponse struct {
+type CreateDeviceAuthorizationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -21812,8 +21812,8 @@ type CreateDownloaderDeviceAuthorizationResponse struct {
 		VerificationUriComplete *string `json:"verification_uri_complete,omitempty"`
 	}
 	JSON400 *struct {
-		Error            *CreateDownloaderDeviceAuthorization400JSONResponseBodyError `json:"error,omitempty"`
-		ErrorDescription *string                                                      `json:"error_description,omitempty"`
+		Error            *CreateDeviceAuthorization400JSONResponseBodyError `json:"error,omitempty"`
+		ErrorDescription *string                                            `json:"error_description,omitempty"`
 	}
 	JSON401 *struct {
 		Message string `json:"message"`
@@ -21833,7 +21833,7 @@ type CreateDownloaderDeviceAuthorizationResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r CreateDownloaderDeviceAuthorizationResponse) Status() string {
+func (r CreateDeviceAuthorizationResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -21841,7 +21841,7 @@ func (r CreateDownloaderDeviceAuthorizationResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r CreateDownloaderDeviceAuthorizationResponse) StatusCode() int {
+func (r CreateDeviceAuthorizationResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -21849,14 +21849,14 @@ func (r CreateDownloaderDeviceAuthorizationResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CreateDownloaderDeviceAuthorizationResponse) ContentType() string {
+func (r CreateDeviceAuthorizationResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
 }
 
-type CreateDownloaderDeviceAccessTokenResponse struct {
+type CreateDeviceAccessTokenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -21866,8 +21866,8 @@ type CreateDownloaderDeviceAccessTokenResponse struct {
 		TokenType   string  `json:"token_type"`
 	}
 	JSON400 *struct {
-		Error            *CreateDownloaderDeviceAccessToken400JSONResponseBodyError `json:"error,omitempty"`
-		ErrorDescription *string                                                    `json:"error_description,omitempty"`
+		Error            *CreateDeviceAccessToken400JSONResponseBodyError `json:"error,omitempty"`
+		ErrorDescription *string                                          `json:"error_description,omitempty"`
 	}
 	JSON401 *struct {
 		Message string `json:"message"`
@@ -21887,7 +21887,7 @@ type CreateDownloaderDeviceAccessTokenResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r CreateDownloaderDeviceAccessTokenResponse) Status() string {
+func (r CreateDeviceAccessTokenResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -21895,7 +21895,7 @@ func (r CreateDownloaderDeviceAccessTokenResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r CreateDownloaderDeviceAccessTokenResponse) StatusCode() int {
+func (r CreateDeviceAccessTokenResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -21903,7 +21903,7 @@ func (r CreateDownloaderDeviceAccessTokenResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CreateDownloaderDeviceAccessTokenResponse) ContentType() string {
+func (r CreateDeviceAccessTokenResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -27173,38 +27173,38 @@ func (r GetUserProfileResponse) ContentType() string {
 	return ""
 }
 
-// CreateDownloaderDeviceAuthorizationWithBodyWithResponse request with arbitrary body returning *CreateDownloaderDeviceAuthorizationResponse
-func (c *ClientWithResponses) CreateDownloaderDeviceAuthorizationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDownloaderDeviceAuthorizationResponse, error) {
-	rsp, err := c.CreateDownloaderDeviceAuthorizationWithBody(ctx, contentType, body, reqEditors...)
+// CreateDeviceAuthorizationWithBodyWithResponse request with arbitrary body returning *CreateDeviceAuthorizationResponse
+func (c *ClientWithResponses) CreateDeviceAuthorizationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeviceAuthorizationResponse, error) {
+	rsp, err := c.CreateDeviceAuthorizationWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateDownloaderDeviceAuthorizationResponse(rsp)
+	return ParseCreateDeviceAuthorizationResponse(rsp)
 }
 
-func (c *ClientWithResponses) CreateDownloaderDeviceAuthorizationWithResponse(ctx context.Context, body CreateDownloaderDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDownloaderDeviceAuthorizationResponse, error) {
-	rsp, err := c.CreateDownloaderDeviceAuthorization(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateDeviceAuthorizationWithResponse(ctx context.Context, body CreateDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDeviceAuthorizationResponse, error) {
+	rsp, err := c.CreateDeviceAuthorization(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateDownloaderDeviceAuthorizationResponse(rsp)
+	return ParseCreateDeviceAuthorizationResponse(rsp)
 }
 
-// CreateDownloaderDeviceAccessTokenWithBodyWithResponse request with arbitrary body returning *CreateDownloaderDeviceAccessTokenResponse
-func (c *ClientWithResponses) CreateDownloaderDeviceAccessTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDownloaderDeviceAccessTokenResponse, error) {
-	rsp, err := c.CreateDownloaderDeviceAccessTokenWithBody(ctx, contentType, body, reqEditors...)
+// CreateDeviceAccessTokenWithBodyWithResponse request with arbitrary body returning *CreateDeviceAccessTokenResponse
+func (c *ClientWithResponses) CreateDeviceAccessTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeviceAccessTokenResponse, error) {
+	rsp, err := c.CreateDeviceAccessTokenWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateDownloaderDeviceAccessTokenResponse(rsp)
+	return ParseCreateDeviceAccessTokenResponse(rsp)
 }
 
-func (c *ClientWithResponses) CreateDownloaderDeviceAccessTokenWithResponse(ctx context.Context, body CreateDownloaderDeviceAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDownloaderDeviceAccessTokenResponse, error) {
-	rsp, err := c.CreateDownloaderDeviceAccessToken(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateDeviceAccessTokenWithResponse(ctx context.Context, body CreateDeviceAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDeviceAccessTokenResponse, error) {
+	rsp, err := c.CreateDeviceAccessToken(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateDownloaderDeviceAccessTokenResponse(rsp)
+	return ParseCreateDeviceAccessTokenResponse(rsp)
 }
 
 // ListAuthorizationDetailsCatalogWithResponse request returning *ListAuthorizationDetailsCatalogResponse
@@ -29095,15 +29095,15 @@ func (c *ClientWithResponses) GetUserProfileWithResponse(ctx context.Context, us
 	return ParseGetUserProfileResponse(rsp)
 }
 
-// ParseCreateDownloaderDeviceAuthorizationResponse parses an HTTP response from a CreateDownloaderDeviceAuthorizationWithResponse call
-func ParseCreateDownloaderDeviceAuthorizationResponse(rsp *http.Response) (*CreateDownloaderDeviceAuthorizationResponse, error) {
+// ParseCreateDeviceAuthorizationResponse parses an HTTP response from a CreateDeviceAuthorizationWithResponse call
+func ParseCreateDeviceAuthorizationResponse(rsp *http.Response) (*CreateDeviceAuthorizationResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &CreateDownloaderDeviceAuthorizationResponse{
+	response := &CreateDeviceAuthorizationResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -29136,8 +29136,8 @@ func ParseCreateDownloaderDeviceAuthorizationResponse(rsp *http.Response) (*Crea
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest struct {
-			Error            *CreateDownloaderDeviceAuthorization400JSONResponseBodyError `json:"error,omitempty"`
-			ErrorDescription *string                                                      `json:"error_description,omitempty"`
+			Error            *CreateDeviceAuthorization400JSONResponseBodyError `json:"error,omitempty"`
+			ErrorDescription *string                                            `json:"error_description,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -29194,15 +29194,15 @@ func ParseCreateDownloaderDeviceAuthorizationResponse(rsp *http.Response) (*Crea
 	return response, nil
 }
 
-// ParseCreateDownloaderDeviceAccessTokenResponse parses an HTTP response from a CreateDownloaderDeviceAccessTokenWithResponse call
-func ParseCreateDownloaderDeviceAccessTokenResponse(rsp *http.Response) (*CreateDownloaderDeviceAccessTokenResponse, error) {
+// ParseCreateDeviceAccessTokenResponse parses an HTTP response from a CreateDeviceAccessTokenWithResponse call
+func ParseCreateDeviceAccessTokenResponse(rsp *http.Response) (*CreateDeviceAccessTokenResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &CreateDownloaderDeviceAccessTokenResponse{
+	response := &CreateDeviceAccessTokenResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -29222,8 +29222,8 @@ func ParseCreateDownloaderDeviceAccessTokenResponse(rsp *http.Response) (*Create
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest struct {
-			Error            *CreateDownloaderDeviceAccessToken400JSONResponseBodyError `json:"error,omitempty"`
-			ErrorDescription *string                                                    `json:"error_description,omitempty"`
+			Error            *CreateDeviceAccessToken400JSONResponseBodyError `json:"error,omitempty"`
+			ErrorDescription *string                                          `json:"error_description,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

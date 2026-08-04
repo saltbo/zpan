@@ -826,12 +826,12 @@ describe('global OpenAPI document', () => {
     expect(Object.keys(doc.paths['/api/auth/device/code'] ?? {})).toEqual(['post'])
     expect(Object.keys(doc.paths['/api/auth/device/token'] ?? {})).toEqual(['post'])
     expect(doc.paths['/api/auth/device/code']?.post).toMatchObject({
-      operationId: 'createDownloaderDeviceAuthorization',
+      operationId: 'createDeviceAuthorization',
       tags: ['Downloader Device Flow'],
       security: [],
     })
     expect(doc.paths['/api/auth/device/token']?.post).toMatchObject({
-      operationId: 'createDownloaderDeviceAccessToken',
+      operationId: 'createDeviceAccessToken',
       tags: ['Downloader Device Flow'],
       security: [],
     })
@@ -870,8 +870,8 @@ describe('global OpenAPI document', () => {
         operation && typeof operation === 'object' && 'operationId' in operation ? [operation.operationId] : [],
       ),
     )
-    expect(operationIds.filter((id) => id === 'createDownloaderDeviceAuthorization')).toHaveLength(1)
-    expect(operationIds.filter((id) => id === 'createDownloaderDeviceAccessToken')).toHaveLength(1)
+    expect(operationIds.filter((id) => id === 'createDeviceAuthorization')).toHaveLength(1)
+    expect(operationIds.filter((id) => id === 'createDeviceAccessToken')).toHaveLength(1)
   })
 
   it('keeps Better Auth runtime login, reference, and schema routes mounted', async () => {
