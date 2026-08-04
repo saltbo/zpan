@@ -57,11 +57,22 @@ declares its OAuth scopes, plus cookie and bearer alternatives. Role constraints
 that OpenAPI cannot express use the narrow
 `x-zpan-authorization-constraints` extension. Better Auth operations and their
 complete generated definitions remain owned by Better Auth and available from
-its reference endpoints. The public product contract imports only `POST
-/device/code` and `POST /device/token`, under their `/api/auth` runtime mount,
-for the Downloader Device Flow protocol; both explicitly require no existing
-session or bearer credential. ZPan separately publishes its dynamic-registration
-and RFC 7592 configuration operations implemented at the auth boundary.
+its reference endpoints. The public product contract uses a deny-by-default
+operation registry. Each admitted entry names the exact source path and method,
+public path, stable operation ID, tags, and security policy; it may also declare
+a narrow contract correction. The aggregator copies only path-item parameters
+and the transitive local component closure reachable from that operation,
+rejecting missing sources, collisions, dangling references, and external
+references.
+
+The registry currently imports only `POST /device/code` and `POST
+/device/token`, under their `/api/auth` runtime mount, for the Downloader Device
+Flow protocol; both explicitly require no existing session or bearer
+credential. Adding a Better Auth operation to the product contract is therefore
+an explicit contract and authorization decision made in one registry entry, not
+an automatic consequence of installing or updating a plugin. ZPan separately
+publishes its dynamic-registration and RFC 7592 configuration operations
+implemented at the auth boundary.
 
 ## Workspace Authorization Details
 

@@ -15,7 +15,7 @@ import { adminStats } from './http/admin-stats'
 import { ARAZZO_DOCUMENT_PATH, ARAZZO_MEDIA_TYPE, createArazzoDocument } from './http/arazzo'
 import { serveAvatarBlob } from './http/avatar-blobs'
 import backgroundJobs from './http/background-jobs'
-import { addDownloaderDeviceFlowOpenApi, DOWNLOADER_DEVICE_FLOW_TAG } from './http/better-auth-openapi'
+import { addRegisteredBetterAuthOpenApiOperations, DOWNLOADER_DEVICE_FLOW_TAG } from './http/better-auth-openapi'
 import { configz } from './http/configz'
 import downloadTasks, { downloaderTasksRoute } from './http/downloads/download-tasks'
 import downloaders, { downloaderSelfRoute } from './http/downloads/downloaders'
@@ -251,11 +251,6 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       ],
     })
 
-    // Better Auth owns the runtime routes and its complete reference schema.
-    // The public ZPan contract admits only the exact Downloader Device Flow
-    // path/method pairs; new Better Auth operations remain private by default.
-    const authDoc = await c.get('auth').api.generateOpenAPISchema()
-    addDownloaderDeviceFlowOpenApi(doc, authDoc)
     doc.components ??= {}
     doc.components.securitySchemes = {
       ...(doc.components.securitySchemes ?? {}),
@@ -276,6 +271,14 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       },
     }
     addOAuthClientRegistrationManagementOpenApi(doc)
+
+    // Better Auth owns the runtime routes and its complete reference schema.
+    // The product contract imports only operations whose path, method, public
+    // identity, tags, security, and any narrow correction are registered
+    // explicitly. Reachable components are copied transitively; everything
+    // else remains private by default.
+    const authDoc = await c.get('auth').api.generateOpenAPISchema()
+    addRegisteredBetterAuthOpenApiOperations(doc, authDoc)
     Object.assign(doc, {
       'x-zpan-discovery': {
         oauthAuthorizationServer: '/.well-known/oauth-authorization-server/api/auth',

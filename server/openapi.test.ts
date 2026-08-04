@@ -788,7 +788,7 @@ describe('global OpenAPI document', () => {
     })
   })
 
-  it('publishes only the whitelisted Better Auth Downloader Device Flow operations', async () => {
+  it('publishes only the registered Better Auth Downloader Device Flow operations', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
@@ -853,9 +853,9 @@ describe('global OpenAPI document', () => {
     expect(doc.paths['/api/auth/api-key/create']).toBeUndefined()
     expect(doc.components?.schemas?.Session).toBeUndefined()
     expect(doc.components?.schemas?.User).toBeUndefined()
-    // The admitted Better Auth operations are self-contained before ZPan's
-    // framework-level response header decoration. The final document may refer
-    // only to that shared header, and every reference must resolve.
+    // The registered Better Auth operations need no imported components after
+    // their declared normalization. ZPan's later framework-level response
+    // decoration adds only the shared RequestId header reference.
     const requestIdReference = '#/components/headers/RequestId'
     for (const path of ['/api/auth/device/code', '/api/auth/device/token']) {
       const references = collectOpenApiReferences(doc.paths[path])

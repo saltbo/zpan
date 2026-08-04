@@ -1,8 +1,9 @@
 // Generates the downloader's Go OpenAPI client (cmd/internal/openapi/client.gen.go)
 // straight from the live public product contract at /api/openapi.json, including
-// its explicit Downloader Device Flow whitelist. Code generation applies no
-// further endpoint subset and commits no intermediate spec; the temporary spec
-// exists only as oapi-codegen input and is discarded.
+// its explicitly registered Better Auth operations (currently Downloader
+// Device Flow). Code generation applies no further endpoint subset and commits
+// no intermediate spec; the temporary spec exists only as oapi-codegen input
+// and is discarded.
 //
 //   pnpm openapi:client          regenerate the committed Go client
 //   pnpm openapi:client --check  fail if the committed client is stale

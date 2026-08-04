@@ -651,7 +651,8 @@ export async function createAuth(
       // Self-documents Better Auth's complete runtime surface at
       // GET /api/auth/reference (Scalar UI) and
       // /api/auth/open-api/generate-schema. The global product contract at
-      // /api/openapi.json admits only the Downloader Device Flow path/methods.
+      // /api/openapi.json admits only explicitly registered path/methods
+      // (currently the Downloader Device Flow protocol).
       openAPI(),
       organization({
         roles: {
