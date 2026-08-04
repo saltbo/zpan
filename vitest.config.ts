@@ -52,6 +52,7 @@ export default defineConfig({
             'src/**/*.test.ts',
             'src/**/*.test.tsx',
             'scripts/**/*.test.mjs',
+            'scripts/**/*.test.ts',
           ],
           exclude: ['**/*.integration.test.ts', '**/*.cf-test.ts', '**/e2e-*.test.ts'],
           setupFiles: ['./server/test/app-version.ts'],

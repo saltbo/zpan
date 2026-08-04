@@ -1,3 +1,4 @@
+import { generateId } from '@shared/ids'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { organization } from '../../db/auth-schema'
 import {
@@ -133,7 +134,7 @@ export async function rebuildAdminStatsHour(
 
   const updatedAt = generatedAt
   const rows = rollups.values().map((row) => ({
-    id: rollupId(bucketStart, row),
+    id: generateId(),
     bucketStart,
     orgId: row.orgId,
     metricKey: row.metric,
@@ -198,7 +199,7 @@ export async function captureAdminStatsSnapshot(
   await addSnapshotMetrics(db, rollups, observedAt)
   rollups.add(M.statsRollupRun, '', 1, 0, { outcome: 'success' })
   const rows = rollups.values().map((row) => ({
-    id: rollupId(bucketStart, row),
+    id: generateId(),
     bucketStart,
     orgId: row.orgId,
     metricKey: row.metric,
@@ -895,10 +896,6 @@ function startOfHour(date: Date): Date {
 
 function key(metric: AdminStatsMetric, orgId: string, dimensionKey: string, dimensionValue: string): string {
   return `${metric}\u0000${orgId}\u0000${dimensionKey}\u0000${dimensionValue}`
-}
-
-function rollupId(bucketStart: Date, row: RollupValue): string {
-  return `${bucketStart.getTime()}:${row.orgId || 'global'}:${row.metric}:${row.dimensionKey || 'all'}:${row.dimensionValue || 'all'}`
 }
 
 async function queryStage<T>(name: string, query: PromiseLike<T>): Promise<T> {

@@ -1,5 +1,5 @@
+import { generateId } from '@shared/ids'
 import { and, count, desc, eq, getTableColumns, gte, lte, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { organization, user } from '../../db/auth-schema'
 import { auditEvents } from '../../db/schema'
 import { assertAuditEvent } from '../../domain/audit-events'
@@ -9,7 +9,7 @@ import type { AuditActorType, AuditRepo, RecordAuditEventInput } from '../../use
 export function auditEventValues(event: RecordAuditEventInput): typeof auditEvents.$inferInsert {
   assertAuditEvent(event)
   return {
-    id: nanoid(),
+    id: generateId(),
     orgId: event.orgId,
     userId: event.userId ?? null,
     actorType: event.actorType ?? (event.userId ? 'user' : 'anonymous'),
@@ -52,7 +52,7 @@ export function idempotentSystemEventValues(input: {
       targetName: input.targetName ?? targetId,
       metadata: input.metadata,
     }),
-    id: `event:${input.action}:${input.sourceId}`,
+    eventKey: `event:${input.action}:${input.sourceId}`,
     createdAt: input.occurredAt,
   }
 }
@@ -96,10 +96,10 @@ export function createAuditRepo(db: Database): AuditRepo {
         .insert(auditEvents)
         .values({
           ...auditEventValues(event),
-          id: `event:${event.action}:${idempotencyKey}`,
+          eventKey: `event:${event.action}:${idempotencyKey}`,
           createdAt: occurredAt,
         })
-        .onConflictDoNothing({ target: auditEvents.id })
+        .onConflictDoNothing({ target: auditEvents.eventKey })
     },
 
     async list(orgId, opts) {

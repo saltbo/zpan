@@ -129,7 +129,7 @@ describe('[CF] /r/:token image hosting', () => {
     const { app, db } = await buildApp()
     const { orgId } = await signUpAndGetIds(app, db)
     await insertStorage(db)
-    const token = `ih_cfext${Date.now()}`
+    const token = `ihCfext${Date.now()}`
     await insertImageHosting(db, orgId, { id: `cf-ihext-${Date.now()}`, token })
 
     const res = await app.request(`/r/${token}.jpg`, { redirect: 'manual' })

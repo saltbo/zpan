@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+import { generateToken } from '@shared/ids'
 import { z } from 'zod'
 import { hasFeature } from '../../domain/licensing'
 import { currentTrafficPeriod } from '../../domain/quota'
@@ -62,7 +62,7 @@ export async function reportTrafficEgress(
     throw new Error('storage_egress_pricing_missing')
   }
 
-  const eventId = params.eventId ?? `traffic_${nanoid()}`
+  const eventId = params.eventId ?? `traffic_${generateToken(22)}`
   const existing = params.eventIdIsNew ? undefined : await deps.cloudTrafficReports.findByEventId(eventId)
   const period = existing?.period ?? currentTrafficPeriod(now)
   if (existing) {

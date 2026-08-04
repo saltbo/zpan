@@ -1,6 +1,7 @@
 import { createApp } from './app'
 import { createAuth } from './auth'
 import { createDeps } from './composition'
+import { assertIdIntegrity } from './db/id-integrity'
 import type { Platform } from './platform/interface'
 import type { Deps } from './usecases/deps'
 
@@ -17,6 +18,7 @@ export async function createBootstrap(platform: Platform, deps: Deps = createDep
     .map((o) => o.trim())
     .filter(Boolean) || ['http://localhost:5185']
 
+  await assertIdIntegrity(platform.db)
   const auth = await createAuth(platform, secret, baseURL, trustedOrigins)
   return createApp(platform, auth, deps)
 }

@@ -1,6 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { pageSchema } from '@shared/schemas'
+import { opaqueIdSchema } from '@shared/schemas/identifiers'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
 import { getUserQuota, listQuotaOverview } from '../usecases/quota'
@@ -21,7 +22,7 @@ const currentStoragePlanSchema = z.object({
 
 const effectiveQuotaSchema = z
   .object({
-    orgId: z.string(),
+    orgId: opaqueIdSchema,
     baseQuota: z.number().int(),
     entitlementQuota: z.number().int(),
     quota: z.number().int(),
@@ -40,7 +41,7 @@ const effectiveQuotaSchema = z
   .openapi('EffectiveQuota')
 
 const quotaOverviewItemSchema = effectiveQuotaSchema
-  .extend({ id: z.string(), orgName: z.string(), orgType: z.string() })
+  .extend({ id: opaqueIdSchema, orgName: z.string(), orgType: z.string() })
   .openapi('QuotaOverviewItem')
 
 const quotaOverviewSchema = pageSchema(quotaOverviewItemSchema, 'QuotaOverview')

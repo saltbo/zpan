@@ -1,14 +1,14 @@
 // The redirect resource usecase. Owns every business decision behind the
-// /r/:token short-link download routes — the two sub-resources served there:
-// `ds_` direct shares and `ih` image-hosting links. Each resolves a token,
+// /r/:token short-link download routes — direct shares and image-hosting links.
+// Each resolves an opaque token from its owning table,
 // runs its access/expiry/limit gates, meters the download (egress quota + cloud
 // report, with refund-on-presign-failure rollback), and presigns the object.
 //
-// The http handler only dispatches on the token prefix, extracts request-bound
+// The http handler dispatches on database ownership, extracts request-bound
 // inputs (cloud base URL, referer header, request origin), and renders the
 // route-specific Responses from the discriminated outcomes below.
 
-import { isImageHostingToken } from '../domain/image-hosting'
+import { isBase62 } from '../../shared/ids'
 import {
   type AppError,
   expired as expiredError,
@@ -43,11 +43,32 @@ export type RedirectDeps = CloudTrafficMeteringDeps & {
   imageHosting: ImageHostingRepo
 }
 
+export type RedirectTokenKind = 'direct_share' | 'image_hosting' | 'not_found' | 'ambiguous'
+
+export async function resolveRedirectTokenKind(
+  deps: Pick<RedirectDeps, 'share' | 'imageHosting'>,
+  token: string,
+): Promise<RedirectTokenKind> {
+  if (!isBase62(token)) return 'not_found'
+  const [share, image] = await Promise.all([
+    deps.share.resolveByToken(token),
+    deps.imageHosting.resolveActiveByToken(token),
+  ])
+  const isDirectShare = (share.status === 'ok' || share.status === 'matter_trashed') && share.share.kind === 'direct'
+  const isImage = image !== null
+
+  if (isDirectShare && isImage) return 'ambiguous'
+  if (isDirectShare) return 'direct_share'
+  if (isImage) return 'image_hosting'
+  return 'not_found'
+}
+
 export async function resolveRedirectDownloadAuditTarget(
   deps: Pick<RedirectDeps, 'share' | 'imageHosting'>,
   token: string,
 ): Promise<TransferAuditTarget | null> {
-  if (token.startsWith('ds_')) {
+  const kind = await resolveRedirectTokenKind(deps, token)
+  if (kind === 'direct_share') {
     const resolved = await deps.share.resolveByToken(token)
     if (resolved.status !== 'ok' || resolved.share.kind !== 'direct') return null
     return {
@@ -65,7 +86,7 @@ export async function resolveRedirectDownloadAuditTarget(
     }
   }
 
-  if (isImageHostingToken(token)) {
+  if (kind === 'image_hosting') {
     const resolved = await deps.imageHosting.resolveActiveByToken(token)
     if (!resolved) return null
     return {
@@ -82,7 +103,7 @@ export async function resolveRedirectDownloadAuditTarget(
   return null
 }
 
-// ─── Direct share (ds_) ──────────────────────────────────────────────────────
+// ─── Direct share ────────────────────────────────────────────────────────────
 
 export type DirectShareOutcome =
   | {
@@ -100,7 +121,7 @@ export type DirectShareOutcome =
     }
   | { ok: false; error: AppError }
 
-// Resolve a ds_ token to a presigned download URL, running the share gates,
+// Resolve a direct-share token to a presigned download URL, running the share gates,
 // atomically reserving a download, metering traffic, and presigning. On a
 // presign failure the traffic and the reserved download are both rolled back
 // before the error propagates (→ 500 at the http layer).
@@ -189,7 +210,7 @@ export async function resolveDirectShareDownload(
   }
 }
 
-// ─── Image hosting (ih) ──────────────────────────────────────────────────────
+// ─── Image hosting ───────────────────────────────────────────────────────────
 
 export type ImageHostingOutcome =
   | {
@@ -206,7 +227,7 @@ export type ImageHostingOutcome =
     }
   | { ok: false; error: AppError }
 
-// Resolve an ih token to a presigned inline URL. Order matters and mirrors the
+// Resolve an image-hosting token to a presigned inline URL. Order matters and mirrors the
 // historical flow: enforce the referer allowlist, consume traffic quota, presign
 // (refunding the quota on failure → 500), THEN report egress to Cloud (refunding
 // + 402 on a credit block, so the presigned URL is discarded) and only then bump

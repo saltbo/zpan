@@ -1,6 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { pageQuerySchema, pageSchema } from '@shared/schemas'
+import { opaqueIdSchema } from '@shared/schemas/identifiers'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import type { AdminAuditEventWithOrg } from '../../usecases/ports'
@@ -10,9 +11,9 @@ import { authRoute, errorResponse, jsonContent } from '../openapi'
 
 const auditEventSchema = z
   .object({
-    id: z.string(),
-    orgId: z.string(),
-    userId: z.string().nullable(),
+    id: opaqueIdSchema,
+    orgId: opaqueIdSchema,
+    userId: opaqueIdSchema.nullable(),
     actorType: z.enum(['user', 'api_key', 'oauth', 'agent', 'anonymous', 'system', 'downloader', 'task-upload']),
     actorRef: z.string().nullable(),
     actorIssuer: z.string().nullable(),
@@ -22,7 +23,7 @@ const auditEventSchema = z
     targetName: z.string(),
     metadata: z.string().nullable(),
     createdAt: z.string(),
-    user: z.object({ id: z.string().nullable(), name: z.string(), image: z.string().nullable() }),
+    user: z.object({ id: opaqueIdSchema.nullable(), name: z.string(), image: z.string().nullable() }),
     orgName: z.string().nullable(),
   })
   .openapi('AuditEvent')
@@ -36,8 +37,8 @@ function toAuditEventDTO(e: AdminAuditEventWithOrg): AuditEventDTO {
 const auditPageSchema = pageSchema(auditEventSchema, 'AuditEventPage')
 
 const listAuditQuerySchema = pageQuerySchema.extend({
-  orgId: z.string().optional(),
-  userId: z.string().optional(),
+  orgId: opaqueIdSchema.optional(),
+  userId: opaqueIdSchema.optional(),
   action: z.string().optional(),
   targetType: z.string().optional(),
   createdFrom: z.string().datetime().optional(),

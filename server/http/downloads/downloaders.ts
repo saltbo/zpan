@@ -10,6 +10,7 @@ import {
   updateDownloaderCreditBillingSchema,
   updateDownloaderSchema,
 } from '@shared/schemas'
+import { opaqueIdSchema } from '@shared/schemas/identifiers'
 import { FREE_DOWNLOADER_LIMIT } from '../../../shared/constants'
 import { hasFeature } from '../../domain/licensing'
 import type { Env } from '../../middleware/platform'
@@ -71,7 +72,7 @@ const updateRoute = authRoute(
     tags: ['Downloaders'],
     method: 'patch',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderSchema) },
+    request: { params: z.object({ id: opaqueIdSchema }), ...jsonBody(updateDownloaderSchema) },
     responses: {
       200: jsonContent(downloaderSchema, 'Updated downloader'),
       402: errorResponse('Feature not available'),
@@ -88,7 +89,7 @@ const updateCreditBillingRoute = authRoute(
     tags: ['Downloaders'],
     method: 'put',
     path: '/{id}/credit-billing',
-    request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloaderCreditBillingSchema) },
+    request: { params: z.object({ id: opaqueIdSchema }), ...jsonBody(updateDownloaderCreditBillingSchema) },
     responses: {
       200: jsonContent(downloaderSchema, 'Updated downloader'),
       402: errorResponse('Feature not available'),
@@ -105,7 +106,7 @@ const deleteRoute = authRoute(
     tags: ['Downloaders'],
     method: 'delete',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       204: { description: 'Deleted downloader' },
       404: errorResponse('Not found'),

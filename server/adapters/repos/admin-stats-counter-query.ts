@@ -177,7 +177,7 @@ const HOURLY_SOURCES: readonly HourlySource[] = [
     where: `registered_user.action = 'user_register'
       AND registered_user.target_id IS NOT NULL
       AND registered_user.user_id = registered_user.target_id
-      AND registered_user.id = 'event:user_register:' || registered_user.target_id
+      AND registered_user.event_key = 'event:user_register:' || registered_user.target_id
       AND json_valid(registered_user.metadata) = 1
       AND json_type(registered_user.metadata, '$.provider') = 'text'
       AND length(json_extract(registered_user.metadata, '$.provider')) > 0`,
@@ -216,9 +216,7 @@ export function buildAdminStatsCounterRollupInsertSqlStatements(range: AdminStat
   count, bytes, unique_count, metadata, updated_at
 )
 SELECT
-  CAST(bucket_start AS TEXT) || ':' || COALESCE(NULLIF(org_id, ''), 'global') || ':' ||
-    metric_key || ':' || COALESCE(NULLIF(dimension_key, ''), 'all') || ':' ||
-    COALESCE(NULLIF(hex(dimension_value), ''), 'all'),
+  lower(hex(json_array(bucket_start, org_id, metric_key, dimension_key, dimension_value))),
   bucket_start, org_id, metric_key, dimension_key, dimension_value,
   count, bytes, unique_count,
   json_object('version', ${ROLLUP_VERSION}, 'scope', 'counters', 'quality', 'exact'),

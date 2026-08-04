@@ -4,6 +4,7 @@ import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { cursorPageSchema } from '../../shared/schemas'
+import { opaqueIdSchema, opaqueTokenSchema } from '../../shared/schemas/identifiers'
 import {
   createShareRequestSchema,
   listSharesQuerySchema,
@@ -50,7 +51,7 @@ const cloudBaseUrl = (c: Context<Env>) => c.get('platform').getEnv('ZPAN_CLOUD_U
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 const shareViewSchema = z
   .object({
-    token: z.string(),
+    token: opaqueTokenSchema,
     kind: z.string(),
     status: z.string(),
     expiresAt: z.string().nullable(),
@@ -71,9 +72,9 @@ const shareViewSchema = z
     views: z.number().int(),
     rootRef: z.string(),
     // creator-only fields
-    id: z.string().optional(),
-    matterId: z.string().optional(),
-    orgId: z.string().optional(),
+    id: opaqueIdSchema.optional(),
+    matterId: opaqueIdSchema.optional(),
+    orgId: opaqueIdSchema.optional(),
     creatorId: z.string().optional(),
     createdAt: z.string().optional(),
     recipients: z.array(shareRecipientViewSchema).optional(),
@@ -117,11 +118,11 @@ function toShareViewDTO(dto: ShareViewerDto | ShareCreatorDto): z.infer<typeof s
 
 const shareListItemSchema = z
   .object({
-    id: z.string(),
-    token: z.string(),
+    id: opaqueIdSchema,
+    token: opaqueTokenSchema,
     kind: z.string(),
-    matterId: z.string(),
-    orgId: z.string(),
+    matterId: opaqueIdSchema,
+    orgId: opaqueIdSchema,
     creatorId: z.string(),
     expiresAt: z.string().nullable(),
     downloadLimit: z.number().int().nullable(),
@@ -150,7 +151,7 @@ const shareObjectsSchema = shareObjectsResponseSchema.openapi('ShareObjects')
 
 const createdShareSchema = z
   .object({
-    token: z.string(),
+    token: opaqueTokenSchema,
     kind: z.string(),
     urls: z.object({ landing: z.string().optional(), direct: z.string().optional() }),
     expiresAt: z.string().nullable(),
@@ -162,16 +163,16 @@ const createdShareSchema = z
 // `saved` carries full Matter records; serialized inline (the named `Matter`
 // component is owned by the objects router).
 const savedMatterSchema = z.object({
-  id: z.string(),
-  orgId: z.string(),
-  alias: z.string(),
+  id: opaqueIdSchema,
+  orgId: opaqueIdSchema,
+  alias: opaqueTokenSchema,
   name: z.string(),
   type: z.string(),
   size: z.number().int().nullable(),
   dirtype: z.number().int().nullable(),
   parent: z.string(),
   object: z.string(),
-  storageId: z.string(),
+  storageId: opaqueIdSchema,
   status: z.string(),
   trashedAt: z.number().int().nullable(),
   createdAt: z.string(),
@@ -191,7 +192,7 @@ const saveShareResultSchema = z
 
 const listObjectsQuerySchema = z.object({
   parent: z.string().optional(),
-  pageToken: z.string().min(1).optional(),
+  pageToken: opaqueTokenSchema.optional(),
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
 })
 
@@ -206,7 +207,7 @@ const viewShareRoute = authRoute(
     tags: ['Shares'],
     method: 'get',
     path: '/{token}',
-    request: { params: z.object({ token: z.string() }) },
+    request: { params: z.object({ token: opaqueTokenSchema }) },
     responses: {
       200: jsonContent(shareViewSchema, 'Share'),
       404: errorResponse('Share not found or revoked'),
@@ -223,7 +224,7 @@ const verifyShareRoute = authRoute(
     tags: ['Shares'],
     method: 'post',
     path: '/{token}/sessions',
-    request: { params: z.object({ token: z.string() }), ...jsonBody(verifyPasswordSchema) },
+    request: { params: z.object({ token: opaqueTokenSchema }), ...jsonBody(verifyPasswordSchema) },
     responses: {
       200: jsonContent(z.object({ ok: z.literal(true) }), 'Verified'),
       403: errorResponse('Invalid password'),
@@ -240,7 +241,7 @@ const listShareObjectsRoute = authRoute(
     tags: ['Shares'],
     method: 'get',
     path: '/{token}/objects',
-    request: { params: z.object({ token: z.string() }), query: listObjectsQuerySchema },
+    request: { params: z.object({ token: opaqueTokenSchema }), query: listObjectsQuerySchema },
     responses: {
       200: jsonContent(shareObjectsSchema, 'Share objects'),
       400: errorResponse('Bad request'),
@@ -259,7 +260,7 @@ const readShareReadmeRoute = authRoute(
     tags: ['Shares'],
     method: 'get',
     path: '/{token}/readme',
-    request: { params: z.object({ token: z.string() }) },
+    request: { params: z.object({ token: opaqueTokenSchema }) },
     responses: {
       200: jsonContent(shareReadmeResponseSchema, 'README.md content'),
       400: errorResponse('README.md is not valid UTF-8'),
@@ -447,7 +448,7 @@ const revokeShareRoute = authRoute(
     method: 'put',
     path: '/{token}/status',
     request: {
-      params: z.object({ token: z.string() }),
+      params: z.object({ token: opaqueTokenSchema }),
       ...jsonBody(z.object({ status: z.literal('revoked') })),
     },
     responses: {
@@ -469,7 +470,7 @@ const putSharePrivacyRoute = authRoute(
     method: 'put',
     path: '/{token}/privacy',
     request: {
-      params: z.object({ token: z.string() }),
+      params: z.object({ token: opaqueTokenSchema }),
       ...jsonBody(sharePrivacySchema),
     },
     responses: {
@@ -489,7 +490,7 @@ const saveShareRoute = authRoute(
     tags: ['Shares'],
     method: 'post',
     path: '/{token}/objects',
-    request: { params: z.object({ token: z.string() }), ...jsonBody(saveShareRequestSchema) },
+    request: { params: z.object({ token: opaqueTokenSchema }), ...jsonBody(saveShareRequestSchema) },
     responses: {
       201: jsonContent(saveShareResultSchema, 'Saved'),
       400: errorResponse('Bad request'),

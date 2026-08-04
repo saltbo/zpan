@@ -1,9 +1,12 @@
+import { decodeBase62Bytes, encodeBase62Bytes, isBase62 } from '@shared/ids'
 import type { Platform } from '../platform/interface'
 import { badRequest } from '../usecases/ports'
 
 const TOKEN_VERSION = 1
 const TOKEN_TTL_MS = 72 * 60 * 60 * 1000
 const TOKEN_PURPOSE = 'zpan:page-token:v1'
+const TOKEN_HEADER_BYTES = 5
+const TOKEN_SIGNATURE_BYTES = 32
 
 export type PageBoundary = Record<string, string | number | null>
 
@@ -21,14 +24,6 @@ type PageTokenPayload = {
 
 function invalidPageToken(): never {
   throw badRequest('Invalid page token', 'INVALID_PAGE_TOKEN')
-}
-
-function encodeBase64Url(value: Uint8Array): string {
-  return Buffer.from(value).toString('base64url')
-}
-
-function decodeBase64Url(value: string): Uint8Array {
-  return new Uint8Array(Buffer.from(value, 'base64url'))
 }
 
 function secret(platform: Platform): string {
@@ -49,7 +44,7 @@ async function signingKey(platform: Platform): Promise<CryptoKey> {
 
 export async function pageQueryFingerprint(value: unknown): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value)))
-  return encodeBase64Url(new Uint8Array(digest))
+  return encodeBase62Bytes(new Uint8Array(digest))
 }
 
 export async function encodePageToken(
@@ -62,9 +57,16 @@ export async function encodePageToken(
     query: input.query,
     expiresAt: (input.now ?? Date.now()) + TOKEN_TTL_MS,
   }
-  const body = encodeBase64Url(new TextEncoder().encode(JSON.stringify(payload)))
-  const signature = await crypto.subtle.sign('HMAC', await signingKey(platform), new TextEncoder().encode(body))
-  return `${body}.${encodeBase64Url(new Uint8Array(signature))}`
+  const payloadBytes = new TextEncoder().encode(JSON.stringify(payload))
+  const signed = new Uint8Array(TOKEN_HEADER_BYTES + payloadBytes.length)
+  signed[0] = TOKEN_VERSION
+  new DataView(signed.buffer).setUint32(1, payloadBytes.length)
+  signed.set(payloadBytes, TOKEN_HEADER_BYTES)
+  const signature = new Uint8Array(await crypto.subtle.sign('HMAC', await signingKey(platform), signed))
+  const envelope = new Uint8Array(signed.length + signature.length)
+  envelope.set(signed)
+  envelope.set(signature, signed.length)
+  return encodeBase62Bytes(envelope)
 }
 
 export async function decodePageToken(
@@ -72,23 +74,25 @@ export async function decodePageToken(
   token: string,
   input: { query: string; now?: number },
 ): Promise<PageBoundary> {
-  const [body, signature, extra] = token.split('.')
-  if (!body || !signature || extra) invalidPageToken()
-
-  const signatureBytes = decodeBase64Url(signature)
-  const verificationSignature = new Uint8Array(signatureBytes.byteLength)
-  verificationSignature.set(signatureBytes)
-  const valid = await crypto.subtle.verify(
-    'HMAC',
-    await signingKey(platform),
-    verificationSignature,
-    new TextEncoder().encode(body),
-  )
+  if (!isBase62(token)) invalidPageToken()
+  let envelope: Uint8Array
+  try {
+    envelope = decodeBase62Bytes(token)
+  } catch {
+    invalidPageToken()
+  }
+  if (envelope.length < TOKEN_HEADER_BYTES + TOKEN_SIGNATURE_BYTES || envelope[0] !== TOKEN_VERSION) invalidPageToken()
+  const payloadLength = new DataView(envelope.buffer, envelope.byteOffset, envelope.byteLength).getUint32(1)
+  const signedLength = TOKEN_HEADER_BYTES + payloadLength
+  if (envelope.length !== signedLength + TOKEN_SIGNATURE_BYTES) invalidPageToken()
+  const signed = envelope.slice(0, signedLength)
+  const verificationSignature = envelope.slice(signedLength)
+  const valid = await crypto.subtle.verify('HMAC', await signingKey(platform), verificationSignature, signed)
   if (!valid) invalidPageToken()
 
   let payload: PageTokenPayload
   try {
-    payload = JSON.parse(new TextDecoder().decode(decodeBase64Url(body))) as PageTokenPayload
+    payload = JSON.parse(new TextDecoder().decode(signed.slice(TOKEN_HEADER_BYTES))) as PageTokenPayload
   } catch {
     invalidPageToken()
   }

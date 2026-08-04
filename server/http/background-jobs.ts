@@ -1,6 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { createBackgroundJobRequestSchema, cursorPageSchema, listBackgroundJobsQuerySchema } from '../../shared/schemas'
+import { opaqueIdSchema } from '../../shared/schemas/identifiers'
 import type { Env } from '../middleware/platform'
 import {
   cancelBackgroundJob,
@@ -30,9 +31,9 @@ const backgroundJobProgressSchema = z.object({
 
 const backgroundJobSchema = z
   .object({
-    id: z.string(),
-    orgId: z.string(),
-    userId: z.string(),
+    id: opaqueIdSchema,
+    orgId: opaqueIdSchema,
+    userId: opaqueIdSchema,
     type: z.string(),
     status: z.string(),
     targetFolder: z.string().nullable(),
@@ -119,7 +120,7 @@ const getJobRoute = authRoute(
     tags: ['Background Jobs'],
     method: 'get',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       200: jsonContent(backgroundJobSchema, 'Background job'),
       404: errorResponse('Not found'),
@@ -135,7 +136,7 @@ const cancelJobRoute = authRoute(
     tags: ['Background Jobs'],
     method: 'put',
     path: '/{id}/status',
-    request: { params: z.object({ id: z.string() }), ...jsonBody(cancelJobSchema) },
+    request: { params: z.object({ id: opaqueIdSchema }), ...jsonBody(cancelJobSchema) },
     responses: {
       200: jsonContent(backgroundJobSchema, 'Canceled background job'),
       404: errorResponse('Not found'),
@@ -152,7 +153,7 @@ const retryJobRoute = authRoute(
     tags: ['Background Jobs'],
     method: 'post',
     path: '/{id}/retries',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       201: jsonContent(backgroundJobSchema, 'Retried background job'),
       404: errorResponse('Not found'),

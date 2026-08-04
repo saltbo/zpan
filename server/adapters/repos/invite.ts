@@ -1,18 +1,16 @@
+import { generateId, generateToken } from '@shared/ids'
 import { and, count, desc, eq, getTableColumns, gt, isNull, or, sql } from 'drizzle-orm'
-import { customAlphabet, nanoid } from 'nanoid'
 import { inviteCodes } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import type { InviteCodeRecord, InviteRepo } from '../../usecases/ports'
-
-const generateCode = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 8)
 
 export function createInviteRepo(db: Database): InviteRepo {
   return {
     async generate(adminUserId, quantity, expiresAt) {
       const now = new Date()
       const rows: InviteCodeRecord[] = Array.from({ length: quantity }, () => ({
-        id: nanoid(),
-        code: generateCode(),
+        id: generateId(),
+        code: generateToken(8),
         createdBy: adminUserId,
         usedBy: null,
         usedAt: null,

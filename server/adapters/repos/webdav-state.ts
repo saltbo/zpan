@@ -1,5 +1,5 @@
+import { generateId } from '@shared/ids'
 import { and, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { webdavDeadProperties, webdavLocks } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
 import type { Database } from '../../platform/interface'
@@ -53,7 +53,7 @@ export function createWebDavStateRepo(db: Database): WebDavStateRepo {
           db
             .insert(webdavDeadProperties)
             .values({
-              id: nanoid(),
+              id: generateId(),
               orgId,
               resourcePath,
               namespace: property.namespace,
@@ -89,7 +89,7 @@ export function createWebDavStateRepo(db: Database): WebDavStateRepo {
           db
             .insert(webdavDeadProperties)
             .values({
-              id: nanoid(),
+              id: generateId(),
               orgId,
               resourcePath: targetPath,
               namespace: row.namespace,
@@ -280,7 +280,7 @@ function newLock(input: {
 }): DavLock {
   const now = new Date()
   return {
-    id: nanoid(),
+    id: generateId(),
     token: `opaquelocktoken:${crypto.randomUUID()}`,
     orgId: input.orgId,
     resourcePath: input.resourcePath,

@@ -102,9 +102,9 @@ async function getAccessCount(db: Awaited<ReturnType<typeof createTestApp>>['db'
   return rows[0]?.access_count ?? 0
 }
 
-// ─── ds_ direct share tests ───────────────────────────────────────────────────
+// ─── direct share tests ───────────────────────────────────────────────────────
 
-describe('GET /r/:token (ds_ direct shares)', () => {
+describe('GET /r/:token (direct shares)', () => {
   it('returns 302 with attachment disposition and no-store cache for valid direct share [spec: redirect/direct-share]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
@@ -132,10 +132,32 @@ describe('GET /r/:token (ds_ direct shares)', () => {
     ])
   })
 
-  it('returns 404 for unknown ds_ token [spec: redirect/unknown-ds-token]', async () => {
+  it('returns 404 for a legacy punctuated token [spec: redirect/unknown-ds-token]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/r/ds_unknowntoken', { redirect: 'manual' })
     expect(res.status).toBe(404)
+  })
+
+  it('fails closed when a token is owned by both redirect resource tables', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'collision-file', name: 'collision.bin' })
+    const share = await createShareRepo(db).create({
+      matterId: 'collision-file',
+      orgId,
+      creatorId,
+      kind: 'direct',
+    })
+    await db.run(sql`UPDATE shares SET token = 'CollisionToken' WHERE id = ${share.id}`)
+    await insertImageHosting(db, orgId, { id: 'collision-image', token: 'CollisionToken' })
+
+    const res = await app.request('/r/CollisionToken', { redirect: 'manual' })
+    expect(res.status).toBe(404)
+    expect(S3Service.prototype.presignDownload).not.toHaveBeenCalled()
+    expect(S3Service.prototype.presignInline).not.toHaveBeenCalled()
   })
 
   it('returns 404 for landing share token at /r/ [spec: redirect/landing-token-rejected]', async () => {
@@ -293,9 +315,9 @@ describe('GET /r/:token (image hosting)', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-img1', token: 'ih_testtoken1' })
+    await insertImageHosting(db, orgId, { id: 'ih-img1', token: 'ihTesttoken1' })
 
-    const res = await app.request('/r/ih_testtoken1', { redirect: 'manual' })
+    const res = await app.request('/r/ihTesttoken1', { redirect: 'manual' })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
     const cc = res.headers.get('cache-control') ?? ''
@@ -332,9 +354,9 @@ describe('GET /r/:token (image hosting)', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-img2', token: 'ih_exttest1' })
+    await insertImageHosting(db, orgId, { id: 'ih-img2', token: 'ihExttest1' })
 
-    const res = await app.request('/r/ih_exttest1.png', { redirect: 'manual' })
+    const res = await app.request('/r/ihExttest1.png', { redirect: 'manual' })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
   })
@@ -344,16 +366,16 @@ describe('GET /r/:token (image hosting)', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-img3', token: 'ih_exttest2' })
+    await insertImageHosting(db, orgId, { id: 'ih-img3', token: 'ihExttest2' })
 
-    const res = await app.request('/r/ih_exttest2.webp', { redirect: 'manual' })
+    const res = await app.request('/r/ihExttest2.webp', { redirect: 'manual' })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
   })
 
   it('returns 404 for non-existent ih_ token [spec: redirect/unknown-ih-token]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/r/ih_doesnotexist', { redirect: 'manual' })
+    const res = await app.request('/r/ihDoesnotexist', { redirect: 'manual' })
     expect(res.status).toBe(404)
   })
 
@@ -362,9 +384,9 @@ describe('GET /r/:token (image hosting)', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-draft1', token: 'ih_drafttoken', status: 'draft' })
+    await insertImageHosting(db, orgId, { id: 'ih-draft1', token: 'ihDrafttoken', status: 'draft' })
 
-    const res = await app.request('/r/ih_drafttoken', { redirect: 'manual' })
+    const res = await app.request('/r/ihDrafttoken', { redirect: 'manual' })
     expect(res.status).toBe(404)
   })
 
@@ -375,11 +397,11 @@ describe('GET /r/:token (image hosting)', () => {
     const orgId = await getOrgId(db)
     await insertImageHosting(db, orgId, {
       id: 'ih-no-storage',
-      token: 'ih_nostorage',
+      token: 'ihNostorage',
       storageId: 'st-missing-storage',
     })
 
-    const res = await app.request('/r/ih_nostorage', { redirect: 'manual' })
+    const res = await app.request('/r/ihNostorage', { redirect: 'manual' })
     expect(res.status).toBe(404)
     const body = (await res.json()) as { error: { message: string; status: string } }
     expect(body.error.message).toBe('Storage not found')
@@ -393,7 +415,7 @@ describe('GET /r/:token (image hosting)', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-credits', token: 'ih_credits' })
+    await insertImageHosting(db, orgId, { id: 'ih-credits', token: 'ihCredits' })
 
     const redirectUsecase = await import('../usecases/redirect.js')
     vi.spyOn(redirectUsecase, 'resolveImageHostingDownload').mockResolvedValueOnce({
@@ -401,7 +423,7 @@ describe('GET /r/:token (image hosting)', () => {
       error: insufficientCredits('Insufficient credits', { metadata: { resource: 'storage_egress' } }),
     })
 
-    const res = await app.request('/r/ih_credits', { redirect: 'manual' })
+    const res = await app.request('/r/ihCredits', { redirect: 'manual' })
     expect(res.status).toBe(402)
     const body = (await res.json()) as {
       error: {
@@ -422,10 +444,10 @@ describe('GET /r/:token (image hosting)', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-cnt1', token: 'ih_counttest1' })
+    await insertImageHosting(db, orgId, { id: 'ih-cnt1', token: 'ihCounttest1' })
 
     expect(await getAccessCount(db, 'ih-cnt1')).toBe(0)
-    await app.request('/r/ih_counttest1', { redirect: 'manual' })
+    await app.request('/r/ihCounttest1', { redirect: 'manual' })
     expect(await getAccessCount(db, 'ih-cnt1')).toBe(1)
   })
 
@@ -434,7 +456,7 @@ describe('GET /r/:token (image hosting)', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-quota-ok', token: 'ih_quotaok' })
+    await insertImageHosting(db, orgId, { id: 'ih-quota-ok', token: 'ihQuotaok' })
     const trafficPeriod = currentTrafficPeriod()
     await db.run(sql`
       UPDATE org_quotas
@@ -442,7 +464,7 @@ describe('GET /r/:token (image hosting)', () => {
       WHERE org_id = ${orgId}
     `)
 
-    const res = await app.request('/r/ih_quotaok', { redirect: 'manual' })
+    const res = await app.request('/r/ihQuotaok', { redirect: 'manual' })
     expect(res.status).toBe(302)
 
     const rows = await db.all<{ trafficUsed: number }>(
@@ -456,7 +478,7 @@ describe('GET /r/:token (image hosting)', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-sign-fail', token: 'ih_signfail' })
+    await insertImageHosting(db, orgId, { id: 'ih-sign-fail', token: 'ihSignfail' })
     const trafficPeriod = currentTrafficPeriod()
     await db.run(sql`
       UPDATE org_quotas
@@ -465,7 +487,7 @@ describe('GET /r/:token (image hosting)', () => {
     `)
     vi.mocked(S3Service.prototype.presignInline).mockRejectedValueOnce(new Error('sign failed'))
 
-    const res = await app.request('/r/ih_signfail', { redirect: 'manual' })
+    const res = await app.request('/r/ihSignfail', { redirect: 'manual' })
     expect(res.status).toBe(500)
 
     const rows = await db.all<{ trafficUsed: number }>(
@@ -480,7 +502,7 @@ describe('GET /r/:token (image hosting)', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-quota-repeat', token: 'ih_quotarepeat' })
+    await insertImageHosting(db, orgId, { id: 'ih-quota-repeat', token: 'ihQuotarepeat' })
     const trafficPeriod = currentTrafficPeriod()
     await db.run(sql`
       UPDATE org_quotas
@@ -489,11 +511,11 @@ describe('GET /r/:token (image hosting)', () => {
     `)
     await setTrafficPlanEntitlement(db, orgId, 1024)
 
-    const first = await app.request('/r/ih_quotarepeat', { redirect: 'manual' })
+    const first = await app.request('/r/ihQuotarepeat', { redirect: 'manual' })
     expect(first.status).toBe(302)
     expect(first.headers.get('cache-control')).toBe('no-store')
 
-    const second = await app.request('/r/ih_quotarepeat', { redirect: 'manual' })
+    const second = await app.request('/r/ihQuotarepeat', { redirect: 'manual' })
     expect(second.status).toBe(422)
     const secondBody = (await second.json()) as { error: { message: string; details: Array<{ reason: string }> } }
     expect(secondBody.error.message).toBe('Traffic quota exceeded')
@@ -507,9 +529,9 @@ describe('GET /r/:token (image hosting)', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-cnt2', token: 'ih_counttest2', status: 'draft' })
+    await insertImageHosting(db, orgId, { id: 'ih-cnt2', token: 'ihCounttest2', status: 'draft' })
 
-    await app.request('/r/ih_counttest2', { redirect: 'manual' })
+    await app.request('/r/ihCounttest2', { redirect: 'manual' })
     expect(await getAccessCount(db, 'ih-cnt2')).toBe(0)
   })
 })
@@ -522,10 +544,10 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-ref1', token: 'ih_reftest1' })
+    await insertImageHosting(db, orgId, { id: 'ih-ref1', token: 'ihReftest1' })
     // No config inserted — no allowlist
 
-    const res = await app.request('/r/ih_reftest1', {
+    const res = await app.request('/r/ihReftest1', {
       redirect: 'manual',
       headers: { Referer: 'https://anydomain.com/page' },
     })
@@ -537,10 +559,10 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-ref2', token: 'ih_reftest2' })
+    await insertImageHosting(db, orgId, { id: 'ih-ref2', token: 'ihReftest2' })
     await insertImageHostingConfig(db, orgId, { refererAllowlist: ['https://myblog.com'] })
 
-    const res = await app.request('/r/ih_reftest2', {
+    const res = await app.request('/r/ihReftest2', {
       redirect: 'manual',
       headers: { Referer: 'https://myblog.com/post/1' },
     })
@@ -552,10 +574,10 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-ref3', token: 'ih_reftest3' })
+    await insertImageHosting(db, orgId, { id: 'ih-ref3', token: 'ihReftest3' })
     await insertImageHostingConfig(db, orgId, { refererAllowlist: ['https://myblog.com'] })
 
-    const res = await app.request('/r/ih_reftest3', { redirect: 'manual' })
+    const res = await app.request('/r/ihReftest3', { redirect: 'manual' })
     expect(res.status).toBe(302)
   })
 
@@ -564,10 +586,10 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-ref4', token: 'ih_reftest4' })
+    await insertImageHosting(db, orgId, { id: 'ih-ref4', token: 'ihReftest4' })
     await insertImageHostingConfig(db, orgId, { refererAllowlist: ['https://myblog.com'] })
 
-    const res = await app.request('/r/ih_reftest4', {
+    const res = await app.request('/r/ihReftest4', {
       redirect: 'manual',
       headers: { Referer: 'https://otherdomain.com/page' },
     })
@@ -579,10 +601,10 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-ref5', token: 'ih_reftest5' })
+    await insertImageHosting(db, orgId, { id: 'ih-ref5', token: 'ihReftest5' })
     await insertImageHostingConfig(db, orgId, { refererAllowlist: ['https://myblog.com'] })
 
-    const res = await app.request('/r/ih_reftest5', {
+    const res = await app.request('/r/ihReftest5', {
       redirect: 'manual',
       headers: { Referer: 'https://sub.myblog.com/page' },
     })
@@ -594,10 +616,10 @@ describe('GET /r/:token — referer allowlist enforcement', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-ref6', token: 'ih_reftest6' })
+    await insertImageHosting(db, orgId, { id: 'ih-ref6', token: 'ihReftest6' })
     await insertImageHostingConfig(db, orgId, { refererAllowlist: ['https://myblog.com'] })
 
-    await app.request('/r/ih_reftest6', {
+    await app.request('/r/ihReftest6', {
       redirect: 'manual',
       headers: { Referer: 'https://evil.com/page' },
     })
@@ -647,9 +669,9 @@ describe('GET /r/:token — two-org isolation', () => {
       INSERT OR IGNORE INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
       VALUES (${STORAGE_ID}, 'test-bucket', 'https://s3.amazonaws.com', 'us-east-1', 'AK', 'SK', '', '', 0, 0, 'active', ${now}, ${now})
     `)
-    await insertImageHosting(db, orgId, { id: 'ih-iso1', token: 'ih_isolationtest' })
+    await insertImageHosting(db, orgId, { id: 'ih-iso1', token: 'ihIsolationtest' })
 
-    const res = await app.request('/r/ih_isolationtest', { redirect: 'manual' })
+    const res = await app.request('/r/ihIsolationtest', { redirect: 'manual' })
     expect(res.status).toBe(302)
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
   })
@@ -659,7 +681,7 @@ describe('GET /r/:token — two-org isolation', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImageHosting(db, orgId, { id: 'ih-quota', token: 'ih_quotatest' })
+    await insertImageHosting(db, orgId, { id: 'ih-quota', token: 'ihQuotatest' })
     const trafficPeriod = currentTrafficPeriod()
     await db.run(sql`
       UPDATE org_quotas
@@ -668,7 +690,7 @@ describe('GET /r/:token — two-org isolation', () => {
     `)
     await setTrafficPlanEntitlement(db, orgId, 512)
 
-    const res = await app.request('/r/ih_quotatest', { redirect: 'manual' })
+    const res = await app.request('/r/ihQuotatest', { redirect: 'manual' })
     expect(res.status).toBe(422)
     const body = (await res.json()) as { error: { message: string; details: Array<{ reason: string }> } }
     expect(body.error.message).toBe('Traffic quota exceeded')

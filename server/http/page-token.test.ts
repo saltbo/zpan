@@ -1,3 +1,4 @@
+import { encodeBase62Bytes } from '@shared/ids'
 import { describe, expect, it } from 'vitest'
 import type { Platform } from '../platform/interface'
 import {
@@ -20,7 +21,11 @@ function platform(secret = 'test-secret'): Platform {
 }
 
 async function signRawBody(body: string, secret: string): Promise<string> {
-  const encodedBody = Buffer.from(body).toString('base64url')
+  const payload = new TextEncoder().encode(body)
+  const signed = new Uint8Array(5 + payload.length)
+  signed[0] = 1
+  new DataView(signed.buffer).setUint32(1, payload.length)
+  signed.set(payload, 5)
   const key = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(`zpan:page-token:v1:${secret}`),
@@ -28,8 +33,11 @@ async function signRawBody(body: string, secret: string): Promise<string> {
     false,
     ['sign'],
   )
-  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(encodedBody))
-  return `${encodedBody}.${Buffer.from(signature).toString('base64url')}`
+  const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, signed))
+  const envelope = new Uint8Array(signed.length + signature.length)
+  envelope.set(signed)
+  envelope.set(signature, signed.length)
+  return encodeBase62Bytes(envelope)
 }
 
 describe('page tokens', () => {
@@ -41,6 +49,8 @@ describe('page tokens', () => {
       now: 1_000,
     })
 
+    expect(query).toMatch(/^[A-Za-z0-9]+$/)
+    expect(token).toMatch(/^[A-Za-z0-9]+$/)
     await expect(decodePageToken(platform(), token, { query, now: 2_000 })).resolves.toEqual({
       createdAt: 123,
       id: 'item-1',
@@ -127,6 +137,13 @@ describe('page tokens', () => {
     const token = await signRawBody('not-json', 'test-secret')
 
     await expect(decodePageToken(platform(), token, { query: 'query' })).rejects.toMatchObject({
+      httpStatus: 400,
+      meta: { reason: 'INVALID_PAGE_TOKEN' },
+    })
+  })
+
+  it('rejects the pre-release Base64url dotted format without a legacy decoder', async () => {
+    await expect(decodePageToken(platform(), 'eyJ2IjoxfQ.signature', { query: 'query' })).rejects.toMatchObject({
       httpStatus: 400,
       meta: { reason: 'INVALID_PAGE_TOKEN' },
     })

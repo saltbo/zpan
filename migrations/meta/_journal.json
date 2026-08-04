@@ -638,6 +638,27 @@
       "when": 1785721689950,
       "tag": "0091_oauth-client-registration-management",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "6",
+      "when": 1785868980173,
+      "tag": "0092_base62_audit_event_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "6",
+      "when": 1785875392712,
+      "tag": "0093_redirect-token-registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "6",
+      "when": 1785876121935,
+      "tag": "0094_redirect-token-kind-resource",
+      "breakpoints": true
     }
   ]
 }

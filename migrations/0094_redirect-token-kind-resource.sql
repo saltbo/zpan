@@ -1,0 +1,2 @@
+DROP INDEX `redirect_token_registry_resource_id_unique`;--> statement-breakpoint
+CREATE UNIQUE INDEX `redirect_token_registry_kind_resource_id_unique` ON `redirect_token_registry` (`kind`,`resource_id`);

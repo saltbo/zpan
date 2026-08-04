@@ -1,6 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { announcementInputSchema, announcementStatusSchema, pageQuerySchema, pageSchema } from '@shared/schemas'
+import { opaqueIdSchema } from '@shared/schemas/identifiers'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { type AnnouncementRecord, forbidden, notFound } from '../../usecases/ports'
@@ -16,14 +17,14 @@ import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const announcementSchema = z
   .object({
-    id: z.string(),
+    id: opaqueIdSchema,
     title: z.string(),
     body: z.string(),
     status: z.string(),
     priority: z.number().int(),
     publishedAt: z.string().nullable(),
     expiresAt: z.string().nullable(),
-    createdBy: z.string(),
+    createdBy: opaqueIdSchema,
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -90,7 +91,7 @@ const getAnnouncementRoute = authRoute(
     method: 'get',
     path: '/{id}',
     middleware: [requireFeature('site_announcements')] as const,
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       200: jsonContent(announcementSchema, 'Announcement'),
       404: errorResponse('Announcement not found'),
@@ -107,7 +108,7 @@ const updateAnnouncementRoute = authRoute(
     method: 'put',
     path: '/{id}',
     middleware: [requireFeature('site_announcements')] as const,
-    request: { params: z.object({ id: z.string() }), ...jsonBody(announcementInputSchema) },
+    request: { params: z.object({ id: opaqueIdSchema }), ...jsonBody(announcementInputSchema) },
     responses: {
       200: jsonContent(announcementSchema, 'Updated announcement'),
       404: errorResponse('Announcement not found'),
@@ -124,7 +125,7 @@ const deleteAnnouncementRoute = authRoute(
     method: 'delete',
     path: '/{id}',
     middleware: [requireFeature('site_announcements')] as const,
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       204: { description: 'Deleted announcement' },
       404: errorResponse('Announcement not found'),

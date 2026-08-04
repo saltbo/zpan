@@ -6,6 +6,7 @@ import { createShareRepo } from '../adapters/repos/share'
 import { auditEvents, shareRecipients, shares } from '../db/schema.js'
 import { currentTrafficPeriod } from '../domain/quota.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
+import { encodeChildRef } from './share-utils'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -212,7 +213,7 @@ describe('POST /api/shares', () => {
 
     const body = (await res.json()) as Record<string, unknown>
     expect(body.kind).toBe('direct')
-    expect((body.urls as Record<string, string>).direct).toMatch(/^\/r\/ds_/)
+    expect((body.urls as Record<string, string>).direct).toMatch(/^\/r\/[A-Za-z0-9]+$/)
     expect((body.urls as Record<string, string>).landing).toBeUndefined()
   })
 
@@ -2276,18 +2277,16 @@ describe('Public share routes', () => {
       await insertFile(db, orgId, { id: 'out1', name: 'outside.txt' })
       const share = await createShareRepo(db).create({ matterId: 'fld3', orgId, creatorId, kind: 'landing' })
 
-      const { createHmac } = await import('node:crypto')
-      const sig = createHmac('sha256', share.token).update('out1').digest('hex').slice(0, 16)
-      const fakeRef = Buffer.from(`out1.${sig}`).toString('base64url')
+      const fakeRef = encodeChildRef(share.token, 'out1')
 
       const res = await app.request(`/api/shares/${share.token}/objects/${fakeRef}`, { redirect: 'manual' })
       expect(res.status).toBe(404)
     })
   })
 
-  // ─── GET /r/:token — unified redirect for direct shares (ds_) ────────────────
+  // ─── GET /r/:token — unified redirect for direct shares ─────────────────────
 
-  describe('GET /r/:token (ds_ direct shares)', () => {
+  describe('GET /r/:token (direct shares)', () => {
     it('returns 302 redirect for valid direct share', async () => {
       const { app, db } = await createTestApp()
       await authedHeaders(app)
@@ -2332,10 +2331,10 @@ describe('Public share routes', () => {
       const now = Date.now()
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
-        VALUES ('sh-dltrash', 'ds_token-dltrash', 'direct', 'dlx3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
+        VALUES ('sh-dltrash', 'DirectDltrash', 'direct', 'dlx3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
       `)
 
-      const res = await app.request('/r/ds_token-dltrash', { redirect: 'manual' })
+      const res = await app.request('/r/DirectDltrash', { redirect: 'manual' })
       expect(res.status).toBe(410)
     })
 

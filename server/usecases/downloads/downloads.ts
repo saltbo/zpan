@@ -1,3 +1,4 @@
+import { generateId, generateToken } from '@shared/ids'
 import type {
   CreateDownloaderInput,
   CreateDownloadTaskInput,
@@ -17,7 +18,6 @@ import type {
   DownloadTaskRuntime,
   DownloadTaskTimelineItem,
 } from '@shared/types'
-import { nanoid } from 'nanoid'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import { parseDownloadTaskEvents } from '../../domain/download-task-events'
 import { hasFeature } from '../../domain/licensing'
@@ -159,8 +159,8 @@ async function prepareDownloaderRegistration(
   userId: string,
   now: Date,
 ) {
-  const id = nanoid()
-  const jti = nanoid()
+  const id = generateId()
+  const jti = generateToken(22)
   const token = await deps.downloadTokens.signDownloadToken(platform, {
     v: 1,
     typ: 'downloader',
@@ -317,7 +317,7 @@ export async function createDownloadTask(
     folderPath: input.targetFolder,
   })
   const now = new Date()
-  const id = nanoid()
+  const id = generateId()
   await deps.downloadTasks.insert({
     id,
     orgId,

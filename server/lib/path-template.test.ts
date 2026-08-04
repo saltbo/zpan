@@ -13,20 +13,20 @@ describe('buildObjectKey', () => {
     vi.setSystemTime(new Date('2026-03-15T12:00:00Z'))
 
     const result = buildObjectKey(baseVars)
-    // Template: $ORG_ID/$UID/$NOW_DATE/$RAND_16KEY$RAW_EXT
-    expect(result).toMatch(/^org456\/user123\/20260315\/.{16}\.jpg$/)
+    // 17 Base62 characters preserve the entropy of the previous 16-character Nano ID.
+    expect(result).toMatch(/^org456\/user123\/20260315\/[A-Za-z0-9]{17}\.jpg$/)
 
     vi.useRealTimers()
   })
 
-  it('includes a 16-char random key', () => {
+  it('includes a 17-char Base62 random key', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-03-15T12:00:00Z'))
 
     const result = buildObjectKey(baseVars)
     const parts = result.split('/')
     const filename = parts[3] // RAND_16KEY + ext
-    expect(filename.replace('.jpg', '')).toHaveLength(16)
+    expect(filename.replace('.jpg', '')).toMatch(/^[A-Za-z0-9]{17}$/)
 
     vi.useRealTimers()
   })
@@ -36,7 +36,7 @@ describe('buildObjectKey', () => {
     vi.setSystemTime(new Date('2026-03-15T12:00:00Z'))
 
     const result = buildObjectKey({ ...baseVars, rawExt: '' })
-    expect(result).toMatch(/^org456\/user123\/20260315\/.{16}$/)
+    expect(result).toMatch(/^org456\/user123\/20260315\/[A-Za-z0-9]{17}$/)
 
     vi.useRealTimers()
   })

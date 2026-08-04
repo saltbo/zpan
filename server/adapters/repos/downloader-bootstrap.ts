@@ -1,5 +1,5 @@
+import { generateId } from '@shared/ids'
 import { and, eq, gt, isNull, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { downloaderBootstrapCredential, session } from '../../db/auth-schema'
 import { downloaders } from '../../db/schema'
 import { executeRows, executeWriteTransactionWithResults } from '../../db/transaction'
@@ -15,7 +15,7 @@ export function createDownloaderBootstrapCredentialRepo(
   return {
     async issue(input) {
       await db.insert(downloaderBootstrapCredential).values({
-        id: nanoid(),
+        id: generateId(),
         tokenHash: await tokens.hashDownloadToken(input.platform, input.token),
         userId: input.userId,
         deviceCode: input.deviceCode,

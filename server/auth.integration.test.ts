@@ -81,6 +81,27 @@ describe('registration gate — first user always allowed', () => {
     expect(res.status).toBe(200)
   })
 
+  it('keeps Better Auth and ZPan-created authentication records on the Base62 contract', async () => {
+    const ctx = await createTestApp()
+    const res = await signUp(ctx, 'base62-contract@example.com')
+    const body = (await res.json()) as { user: { id: string } }
+    const rows = await ctx.db.all<{ id: string }>(sql`
+      SELECT id FROM user
+      UNION ALL SELECT id FROM account
+      UNION ALL SELECT id FROM session
+      UNION ALL SELECT id FROM organization
+      UNION ALL SELECT id FROM member
+      UNION ALL SELECT id FROM org_quotas
+      UNION ALL SELECT id FROM org_quota_entitlements
+      UNION ALL SELECT id FROM audit_events
+    `)
+
+    expect(res.status).toBe(200)
+    expect(body.user.id).toMatch(/^[A-Za-z0-9]+$/)
+    expect(rows.length).toBeGreaterThanOrEqual(8)
+    expect(rows.every(({ id }) => /^[A-Za-z0-9]+$/.test(id))).toBe(true)
+  })
+
   it('first user can register when auth_signup_mode is invite_only without a code', async () => {
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'invite_only' })
@@ -875,7 +896,7 @@ describe('OAuth consent guards', () => {
     expect(body).toMatchObject({
       client_id: expect.any(String),
       client_secret: expect.any(String),
-      registration_access_token: expect.stringMatching(/^zpr_/),
+      registration_access_token: expect.stringMatching(/^[A-Za-z0-9]{43}$/),
       registration_client_uri: expect.stringMatching(/^http:\/\/localhost:3000\/api\/auth\/oauth2\/register\//),
       token_endpoint_auth_method: 'client_secret_basic',
       authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],
@@ -1564,7 +1585,7 @@ describe('OAuth consent guards', () => {
     const pushedBody = (await pushed.json()) as { request_uri: string; expires_in: number }
     expect(pushed.status, JSON.stringify(pushedBody)).toBe(201)
     expect(pushedBody).toMatchObject({
-      request_uri: expect.stringMatching(/^urn:ietf:params:oauth:request_uri:/),
+      request_uri: expect.stringMatching(/^urn:ietf:params:oauth:request_uri:[A-Za-z0-9]{33}$/),
       expires_in: 90,
     })
 

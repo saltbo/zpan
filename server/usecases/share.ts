@@ -9,8 +9,9 @@
 // whether the access cookie is 'ok', whether the view cookie was already 'seen')
 // and returns cookie *decisions*; the handler runs getCookie/setCookie.
 
-import { createHmac } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import { DirType } from '@shared/constants'
+import { decodeBase62Bytes, encodeBase62Bytes, isBase62 } from '@shared/ids'
 import type { CreateShareRequest, ShareObjectsResponse } from '@shared/schemas/share'
 import { isAccessibleByUser } from '../domain/share'
 import { escapeHtml } from '../lib/html'
@@ -757,21 +758,40 @@ export async function dispatchShareCreated(
 // usecases may import it; http/share-utils re-exports it for the handlers.
 
 export const PRESIGN_TTL_SECS = 5 * 60
+const CHILD_REF_VERSION = 1
+const CHILD_REF_HEADER_BYTES = 3
+const CHILD_REF_SIGNATURE_BYTES = 8
 
 export function encodeChildRef(shareToken: string, matterId: string): string {
-  const sig = createHmac('sha256', shareToken).update(matterId).digest('hex').slice(0, 16)
-  return Buffer.from(`${matterId}.${sig}`).toString('base64url')
+  const matterBytes = new TextEncoder().encode(matterId)
+  if (matterBytes.length > 0xffff) throw new RangeError('Matter ID is too long')
+  const envelope = new Uint8Array(CHILD_REF_HEADER_BYTES + matterBytes.length + CHILD_REF_SIGNATURE_BYTES)
+  envelope[0] = CHILD_REF_VERSION
+  new DataView(envelope.buffer).setUint16(1, matterBytes.length)
+  envelope.set(matterBytes, CHILD_REF_HEADER_BYTES)
+  envelope.set(
+    createHmac('sha256', shareToken).update(matterBytes).digest().subarray(0, CHILD_REF_SIGNATURE_BYTES),
+    CHILD_REF_HEADER_BYTES + matterBytes.length,
+  )
+  return encodeBase62Bytes(envelope)
 }
 
 export function decodeChildRef(shareToken: string, childRef: string): string | null {
   try {
-    const raw = Buffer.from(childRef, 'base64url').toString('utf-8')
-    const dotIdx = raw.lastIndexOf('.')
-    if (dotIdx < 0) return null
-    const matterId = raw.slice(0, dotIdx)
-    const sig = raw.slice(dotIdx + 1)
-    const expectedSig = createHmac('sha256', shareToken).update(matterId).digest('hex').slice(0, 16)
-    return sig === expectedSig ? matterId : null
+    if (!isBase62(childRef)) return null
+    const envelope = decodeBase62Bytes(childRef)
+    if (envelope.length < CHILD_REF_HEADER_BYTES + CHILD_REF_SIGNATURE_BYTES || envelope[0] !== CHILD_REF_VERSION)
+      return null
+    const matterLength = new DataView(envelope.buffer, envelope.byteOffset, envelope.byteLength).getUint16(1)
+    if (envelope.length !== CHILD_REF_HEADER_BYTES + matterLength + CHILD_REF_SIGNATURE_BYTES) return null
+    const matterBytes = envelope.slice(CHILD_REF_HEADER_BYTES, CHILD_REF_HEADER_BYTES + matterLength)
+    const signature = envelope.slice(CHILD_REF_HEADER_BYTES + matterLength)
+    const expected = createHmac('sha256', shareToken)
+      .update(matterBytes)
+      .digest()
+      .subarray(0, CHILD_REF_SIGNATURE_BYTES)
+    if (!timingSafeEqual(signature, expected)) return null
+    return new TextDecoder('utf-8', { fatal: true }).decode(matterBytes)
   } catch {
     return null
   }

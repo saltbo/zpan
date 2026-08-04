@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { DirType } from '../../../shared/constants'
 import type { CreateShareInput } from '../../../shared/schemas/share'
-import { matters } from '../../db/schema'
+import { matters, redirectTokenRegistry } from '../../db/schema'
 import { isAccessibleByUser } from '../../domain/share'
 import { verifyPassword as verifyPasswordHash } from '../../lib/password'
 import type { Database } from '../../platform/interface'
@@ -80,7 +80,8 @@ describe('createShare', () => {
     })
 
     expect(share.id).toBeTruthy()
-    expect(share.token).toHaveLength(10)
+    expect(share.token).toHaveLength(11)
+    expect(share.token).toMatch(/^[A-Za-z0-9]+$/)
     expect(share.kind).toBe('landing')
     expect(share.status).toBe('active')
     expect(share.passwordHash).toBeTruthy()
@@ -101,6 +102,9 @@ describe('createShare', () => {
 
     expect(share.kind).toBe('direct')
     expect(share.passwordHash).toBeNull()
+    await expect(
+      db.select().from(redirectTokenRegistry).where(eq(redirectTokenRegistry.token, share.token)),
+    ).resolves.toEqual([{ token: share.token, kind: 'direct_share', resourceId: share.id }])
   })
 
   it('throws DIRECT_NO_PASSWORD when direct share has a password', async () => {

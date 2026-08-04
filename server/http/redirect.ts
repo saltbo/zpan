@@ -1,7 +1,6 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { isImageHostingToken } from '../domain/image-hosting'
 import { isDownloadFailureStatus, transferAuditActor, transferFailureReason } from '../middleware/audit-transfers'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
@@ -11,6 +10,7 @@ import {
   resolveDirectShareDownload,
   resolveImageHostingDownload,
   resolveRedirectDownloadAuditTarget,
+  resolveRedirectTokenKind,
 } from '../usecases/redirect'
 import { recordDownloadFailure, recordDownloadIssued } from '../usecases/transfer-activity'
 
@@ -99,8 +99,9 @@ app.get('/:token', async (c) => {
   const raw = c.req.param('token')
   const token = stripExtension(raw)
 
-  if (token.startsWith('ds_')) return handleDirectShare(c, token)
-  if (isImageHostingToken(token)) return handleImageHosting(c, token)
+  const kind = await resolveRedirectTokenKind(c.get('deps'), token)
+  if (kind === 'direct_share') return handleDirectShare(c, token)
+  if (kind === 'image_hosting') return handleImageHosting(c, token)
 
   throw notFound()
 })

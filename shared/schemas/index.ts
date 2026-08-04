@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { opaqueTokenSchema } from './identifiers'
 
 export {
   adminAnalyticsGrowthSchema,
@@ -456,7 +457,7 @@ export type PatchIhostImageInput = z.infer<typeof patchIhostImageSchema>
 
 export const listIhostImagesSchema = z.object({
   pathPrefix: z.string().optional(),
-  pageToken: z.string().min(1).optional(),
+  pageToken: opaqueTokenSchema.optional(),
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
 })
 

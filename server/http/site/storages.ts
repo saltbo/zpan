@@ -7,6 +7,7 @@ import {
   replaceStorageSchema,
   updateStorageEgressBillingSchema,
 } from '@shared/schemas'
+import { opaqueIdSchema } from '@shared/schemas/identifiers'
 import type { Env } from '../../middleware/platform'
 import { type StorageRecord, storageNotFound } from '../../usecases/ports'
 import {
@@ -25,7 +26,7 @@ import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 // Timestamps are the only Date fields; toStorageDTO serializes them.
 const storageSchema = z
   .object({
-    id: z.string(),
+    id: opaqueIdSchema,
     provider: z.string(),
     bucket: z.string(),
     endpoint: z.string(),
@@ -99,7 +100,7 @@ const getStorageRoute = authRoute(
     tags: ['Storages'],
     method: 'get',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       200: jsonContent(storageSchema, 'Storage'),
       404: errorResponse('Storage not found'),
@@ -115,7 +116,7 @@ const replaceStorageRoute = authRoute(
     tags: ['Storages'],
     method: 'put',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }), ...jsonBody(replaceStorageSchema) },
+    request: { params: z.object({ id: opaqueIdSchema }), ...jsonBody(replaceStorageSchema) },
     responses: {
       200: jsonContent(storageSchema, 'Replaced storage'),
       402: errorResponse('Feature not available'),
@@ -132,7 +133,7 @@ const patchStorageRoute = authRoute(
     tags: ['Storages'],
     method: 'patch',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }), ...jsonBody(patchStorageSchema) },
+    request: { params: z.object({ id: opaqueIdSchema }), ...jsonBody(patchStorageSchema) },
     responses: {
       200: jsonContent(storageSchema, 'Updated storage'),
       402: errorResponse('Feature not available'),
@@ -149,7 +150,7 @@ const updateStorageEgressBillingRoute = authRoute(
     tags: ['Storages'],
     method: 'put',
     path: '/{id}/egress-billing',
-    request: { params: z.object({ id: z.string() }), ...jsonBody(updateStorageEgressBillingSchema) },
+    request: { params: z.object({ id: opaqueIdSchema }), ...jsonBody(updateStorageEgressBillingSchema) },
     responses: {
       200: jsonContent(storageSchema, 'Updated storage'),
       402: errorResponse('Feature not available'),
@@ -166,7 +167,7 @@ const deleteStorageRoute = authRoute(
     tags: ['Storages'],
     method: 'delete',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       204: { description: 'Deleted storage' },
       404: errorResponse('Storage not found'),

@@ -93,7 +93,7 @@ describe('admin stats backfill', () => {
         created_at INTEGER NOT NULL, creator_id TEXT
       );
       CREATE TABLE audit_events (
-        id TEXT PRIMARY KEY, org_id TEXT NOT NULL, user_id TEXT, actor_type TEXT, actor_ref TEXT,
+        id TEXT PRIMARY KEY, event_key TEXT UNIQUE, org_id TEXT NOT NULL, user_id TEXT, actor_type TEXT, actor_ref TEXT,
         action TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT, target_name TEXT NOT NULL,
         metadata TEXT, created_at INTEGER NOT NULL
       );
@@ -162,7 +162,9 @@ describe('admin stats backfill', () => {
         ('m2', 'o2', 'u2', ${historyStartMs + 1000});
       INSERT INTO matters VALUES ('f1', 512, 0);
       INSERT INTO shares VALUES ('s1', 'landing', 'f1', 'o1', 'active', NULL, 10, 0, 1, ${eventSec}, 'u1');
-      INSERT INTO audit_events VALUES
+      INSERT INTO audit_events (
+        id, org_id, user_id, actor_type, actor_ref, action, target_type, target_id, target_name, metadata, created_at
+      ) VALUES
         ('audit:statistics_source_initialized:v3-authoritative-sources', '', NULL, 'system', 'statistics-integrity', 'statistics_source_initialized', 'statistics', 'v3-authoritative-sources', 'statistics source', '{"schemaVersion":3}', ${Math.floor(historyStartMs / 1000)}),
         ('upload-1', 'o1', 'u1', NULL, NULL, 'upload_confirm', 'file', 'f1', 'file.bin',
           '{"bytes":512,"source":"upload","status":"success"}', ${eventSec}),
@@ -182,6 +184,7 @@ describe('admin stats backfill', () => {
         ('legacy-task-completed', 'o1', NULL, 'system', 'legacy-download-task-worker', 'download_task_completed', 'remote_download', 't1', 'task',
           '{"category":"video","outcome":"completed","bytes":512}', ${eventSec}),
         ('legacy-cloud-customer', 'o1', 'cloud-customer-1', 'user', NULL, 'quota_order_increase', 'quota', 'o1', 'o1', NULL, ${eventSec});
+      UPDATE audit_events SET event_key = id WHERE id = 'audit:statistics_source_initialized:v3-authoritative-sources';
       INSERT INTO cloud_traffic_reports (
         id, org_id, period, source, source_id, event_id, bytes, storage_id, unit_bytes, credits_per_unit,
         status, error, attempt_count, next_retry_at, issued_at, created_at, updated_at

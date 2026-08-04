@@ -309,9 +309,14 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.uploadUrl).toBe('https://presigned-upload.example.com')
     expect(body.id).toBeTruthy()
-    expect(String(body.token)).toMatch(/^ih[A-Za-z0-9]{10}$/)
+    expect(String(body.token)).toMatch(/^[A-Za-z0-9]{12}$/)
     expect(body.path).toBe('blog/2026/shot.png')
     expect(String(body.storageKey)).toMatch(/^ih\//)
+    expect(
+      await db.all(
+        sql`SELECT token, kind, resource_id AS resourceId FROM redirect_token_registry WHERE token = ${String(body.token)}`,
+      ),
+    ).toEqual([{ token: body.token, kind: 'image_hosting', resourceId: body.id }])
   })
 
   it('returns 400 for path with .. [spec: image-hosting/path-traversal]', async () => {
@@ -589,7 +594,7 @@ describe('POST /api/image-hosting/images (multipart)', () => {
     const body = (await res.json()) as { data: Record<string, unknown> }
     expect(body.data).toBeDefined()
     expect(body.data.url).toBeTruthy()
-    expect(String(body.data.urlAlt)).toMatch(/\/r\/ih[A-Za-z0-9]{10}$/)
+    expect(String(body.data.urlAlt)).toMatch(/\/r\/[A-Za-z0-9]{12}$/)
     expect(String(body.data.markdown)).toContain('![](')
     expect(String(body.data.html)).toContain('<img src=')
     expect(String(body.data.bbcode)).toContain('[img]')
@@ -724,7 +729,7 @@ describe('POST /api/image-hosting/images (multipart)', () => {
     const body = (await res.json()) as { data: Record<string, unknown> }
     // url and urlAlt should both be the token URL when no custom domain
     expect(body.data.url).toBe(body.data.urlAlt)
-    expect(String(body.data.url)).toMatch(/\/r\/ih[A-Za-z0-9]{10}$/)
+    expect(String(body.data.url)).toMatch(/\/r\/[A-Za-z0-9]{12}$/)
   })
 
   it('cleans up DB row and refunds quota when S3 put fails', async () => {
@@ -1207,6 +1212,23 @@ describe('DELETE /api/image-hosting/images/:id', () => {
       headers,
     })
     expect(res.status).toBe(404)
+  })
+
+  it('removes the redirect token reservation when a draft is hard-deleted', async () => {
+    const { app, db } = await createTestApp()
+    await insertStorage(db)
+    const headers = await authedHeaders(app)
+    const orgId = await getOrgId(db)
+    await insertImageHostingConfig(db, orgId)
+    const createRes = await app.request('/api/image-hosting/images/presign', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: 'discard-draft.png', mime: 'image/png', size: 2048 }),
+    })
+    const image = (await createRes.json()) as { id: string; token: string }
+
+    expect((await app.request(`/api/image-hosting/images/${image.id}`, { method: 'DELETE', headers })).status).toBe(204)
+    expect(await db.all(sql`SELECT token FROM redirect_token_registry WHERE resource_id = ${image.id}`)).toEqual([])
   })
 
   it('removes the S3 object and retains a hidden DB tombstone', async () => {

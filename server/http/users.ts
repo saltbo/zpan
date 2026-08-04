@@ -1,5 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
+import { opaqueIdSchema } from '@shared/schemas/identifiers'
 import { publicProfileSchema } from '@shared/schemas/profile'
 import type { Env } from '../middleware/platform'
 import {
@@ -130,7 +131,7 @@ const getUserQuotaRoute = authRoute(
     tags: ['Users'],
     method: 'get',
     path: '/{userId}/quota',
-    request: { params: z.object({ userId: z.string() }) },
+    request: { params: z.object({ userId: opaqueIdSchema }) },
     responses: { 200: jsonContent(userQuotaSchema, 'User quota') },
   },
 )
@@ -143,7 +144,7 @@ const listUserEntitlementsRoute = authRoute(
     tags: ['Users'],
     method: 'get',
     path: '/{userId}/entitlements',
-    request: { params: z.object({ userId: z.string() }) },
+    request: { params: z.object({ userId: opaqueIdSchema }) },
     responses: {
       200: jsonContent(entitlementListSchema, 'Entitlements'),
       400: errorResponse('Bad request'),
@@ -160,7 +161,7 @@ const grantUserEntitlementRoute = authRoute(
     tags: ['Users'],
     method: 'post',
     path: '/{userId}/entitlements',
-    request: { params: z.object({ userId: z.string() }), ...jsonBody(grantEntitlementSchema) },
+    request: { params: z.object({ userId: opaqueIdSchema }), ...jsonBody(grantEntitlementSchema) },
     responses: {
       201: jsonContent(entitlementResultSchema, 'Granted'),
       400: errorResponse('Bad request'),
@@ -177,7 +178,10 @@ const updateUserEntitlementRoute = authRoute(
     tags: ['Users'],
     method: 'patch',
     path: '/{userId}/entitlements/{eid}',
-    request: { params: z.object({ userId: z.string(), eid: z.string() }), ...jsonBody(updateEntitlementSchema) },
+    request: {
+      params: z.object({ userId: opaqueIdSchema, eid: opaqueIdSchema }),
+      ...jsonBody(updateEntitlementSchema),
+    },
     responses: {
       200: jsonContent(entitlementResultSchema, 'Updated'),
       400: errorResponse('Bad request'),
@@ -194,7 +198,7 @@ const revokeUserEntitlementRoute = authRoute(
     tags: ['Users'],
     method: 'delete',
     path: '/{userId}/entitlements/{eid}',
-    request: { params: z.object({ userId: z.string(), eid: z.string() }) },
+    request: { params: z.object({ userId: opaqueIdSchema, eid: opaqueIdSchema }) },
     responses: {
       204: { description: 'Revoked' },
       400: errorResponse('Bad request'),

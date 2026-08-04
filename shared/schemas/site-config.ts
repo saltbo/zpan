@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { opaqueIdSchema } from './identifiers'
 
 export const signupModeSchema = z.enum(['open', 'invite_only', 'closed']).openapi('SignupMode')
 export const captchaProviderSchema = z
@@ -276,7 +277,7 @@ export const imageDomainProviderResponseSchema = z
     error: z.string().nullable(),
     domains: z.array(
       z.object({
-        orgId: z.string(),
+        orgId: opaqueIdSchema,
         hostname: z.string(),
         provider: z.enum(['cloudflare_saas', 'manual']).nullable(),
         status: z.enum(['pending_dns', 'pending_tls', 'verified', 'failed']).nullable(),

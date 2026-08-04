@@ -7,6 +7,7 @@ import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
 import { createAuth } from '../server/auth'
 import { createDeps } from '../server/composition'
+import { assertIdIntegrity } from '../server/db/id-integrity'
 import { isPotentialWebDavPublicRequest } from '../server/domain/webdav-public-url'
 import { isHandledError, standaloneJsonError } from '../server/middleware/error-handler'
 import { handleImageHostingDomainRequest } from '../server/middleware/image-hosting-domain'
@@ -45,6 +46,7 @@ interface WorkerRuntime {
   authBySlot: Map<AuthSlot, Auth>
   appBySlot: Map<AuthSlot, ReturnType<typeof createApp>>
   appInitBySlot: Map<AuthSlot, Promise<ReturnType<typeof createApp>>>
+  integrityCheck?: Promise<void>
 }
 
 let cachedRuntime: WorkerRuntime | undefined
@@ -98,14 +100,15 @@ async function appForRequest(
   const pendingApp = runtime.appInitBySlot.get(slot)
   if (pendingApp) return pendingApp
 
-  const appPromise = createAuth(runtime.platform, env.BETTER_AUTH_SECRET, baseURL, trustedOrigins, waitUntil).then(
-    (auth) => {
+  runtime.integrityCheck ??= assertIdIntegrity(runtime.platform.db)
+  const appPromise = runtime.integrityCheck
+    .then(() => createAuth(runtime.platform, env.BETTER_AUTH_SECRET, baseURL, trustedOrigins, waitUntil))
+    .then((auth) => {
       const app = createApp(runtime.platform, auth, runtime.deps)
       runtime.authBySlot.set(slot, auth)
       runtime.appBySlot.set(slot, app)
       return app
-    },
-  )
+    })
   runtime.appInitBySlot.set(slot, appPromise)
   try {
     return await appPromise
@@ -121,6 +124,8 @@ export default {
       throw new Error('BETTER_AUTH_SECRET is not configured for this deployment.')
     }
     const runtime = runtimeFor(env)
+    runtime.integrityCheck ??= assertIdIntegrity(runtime.platform.db)
+    await runtime.integrityCheck
     const imageDomainResponse = await handleImageDomainBeforeAuth(request, env, runtime)
     if (imageDomainResponse) return imageDomainResponse
     const edgeCached = await matchConfigzResponseCache(request, runtime.cache)
@@ -142,12 +147,17 @@ export default {
   },
 
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    const runtime = runtimeFor(env)
+    runtime.integrityCheck ??= assertIdIntegrity(runtime.platform.db)
+    await runtime.integrityCheck
     await handleScheduled(event, env)
   },
 
   async queue(batch: MessageBatch<ArchiveJobMessage>, env: Env): Promise<void> {
-    const platform = createCloudflarePlatform(env)
-    const archiveJobs = createArchiveJobsGateway(platform)
+    const runtime = runtimeFor(env)
+    runtime.integrityCheck ??= assertIdIntegrity(runtime.platform.db)
+    await runtime.integrityCheck
+    const archiveJobs = createArchiveJobsGateway(runtime.platform)
     for (const message of batch.messages) {
       await archiveJobs.runMessage(message.body)
       message.ack()

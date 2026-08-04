@@ -1,5 +1,5 @@
+import { generateId } from '@shared/ids'
 import { and, asc, count, eq, isNull, lt, or } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { matters, storages } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import type { CachePolicy, CacheService, StorageRecord, StorageRepo } from '../../usecases/ports'
@@ -70,7 +70,7 @@ export function createStorageRepo(db: Database, cache?: CacheService): StorageRe
     async create(input) {
       const now = new Date()
       const row: StorageRow = {
-        id: nanoid(),
+        id: generateId(),
         provider: input.provider ?? '',
         bucket: input.bucket,
         endpoint: input.endpoint,

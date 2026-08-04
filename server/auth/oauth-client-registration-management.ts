@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { generateToken } from '../../shared/ids'
 import {
   JWT_BEARER_GRANT_TYPE,
   OAUTH_SCOPES,
@@ -111,7 +112,7 @@ export function addOAuthClientRegistrationManagementOpenApi(document: { paths: R
     registrationSchema.properties = {
       ...properties,
       registration_client_uri: { type: 'string', format: 'uri' },
-      registration_access_token: { type: 'string' },
+      registration_access_token: { type: 'string', pattern: '^[A-Za-z0-9]{43}$' },
     }
     registrationSchema.required = [
       ...new Set([
@@ -128,7 +129,7 @@ export function addOAuthClientRegistrationManagementOpenApi(document: { paths: R
     properties: {
       client_id: { type: 'string' },
       registration_client_uri: { type: 'string', format: 'uri' },
-      registration_access_token: { type: 'string' },
+      registration_access_token: { type: 'string', pattern: '^[A-Za-z0-9]{43}$' },
       scope: { type: 'string' },
     },
     required: ['client_id', 'registration_client_uri', 'registration_access_token'],
@@ -441,8 +442,7 @@ function mergedHeaders(...inputs: Array<HeadersInit | undefined>): Headers {
 }
 
 function registrationToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32))
-  return `zpr_${base64Url(bytes)}`
+  return generateToken(43)
 }
 
 function configurationUrl(clientId: string, baseUrl: string): URL {

@@ -1,6 +1,7 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { pageQuerySchema, pageSchema } from '@shared/schemas'
+import { opaqueIdSchema, opaqueTokenSchema } from '@shared/schemas/identifiers'
 import type { Env } from '../../middleware/platform'
 import { notFound, unauthorized } from '../../usecases/ports'
 import {
@@ -15,14 +16,14 @@ import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 // SiteInvitation is already wire-shaped (ISO string timestamps) — no DTO mapper.
 const siteInvitationSchema = z
   .object({
-    id: z.string(),
+    id: opaqueIdSchema,
     email: z.string(),
-    token: z.string(),
-    invitedBy: z.string(),
+    token: opaqueTokenSchema,
+    invitedBy: opaqueIdSchema,
     invitedByName: z.string(),
-    acceptedBy: z.string().nullable(),
+    acceptedBy: opaqueIdSchema.nullable(),
     acceptedAt: z.string().nullable(),
-    revokedBy: z.string().nullable(),
+    revokedBy: opaqueIdSchema.nullable(),
     revokedAt: z.string().nullable(),
     expiresAt: z.string(),
     createdAt: z.string(),
@@ -73,7 +74,7 @@ const resendRoute = authRoute(
     tags: ['Invitations'],
     method: 'post',
     path: '/{id}/deliveries',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       200: jsonContent(siteInvitationSchema, 'Resent invitation'),
       400: errorResponse('Invitation is no longer pending'),
@@ -90,7 +91,7 @@ const revokeRoute = authRoute(
     tags: ['Invitations'],
     method: 'delete',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       204: { description: 'Revoked invitation' },
       400: errorResponse('Invitation is no longer pending'),
@@ -108,7 +109,7 @@ const getByTokenRoute = authRoute(
     tags: ['Invitations'],
     method: 'get',
     path: '/{token}',
-    request: { params: z.object({ token: z.string() }) },
+    request: { params: z.object({ token: opaqueTokenSchema }) },
     responses: {
       200: jsonContent(siteInvitationSchema, 'Invitation'),
       404: errorResponse('Invitation not found'),

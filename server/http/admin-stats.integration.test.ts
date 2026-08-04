@@ -1200,7 +1200,7 @@ async function seedStatsFixture(db: Awaited<ReturnType<typeof createTestApp>>['d
   await db.run(sql`
     UPDATE audit_events
     SET created_at = ${nowSec}
-    WHERE id = ${`event:user_register:${userId}`}
+    WHERE event_key = ${`event:user_register:${userId}`}
   `)
 
   await db.run(sql`

@@ -1,5 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
+import { opaqueIdSchema } from '@shared/schemas/identifiers'
 import { STORAGE_USAGE_CATEGORIES, STORAGE_USAGE_SORT_FIELDS } from '@shared/storage-usage'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
@@ -24,7 +25,7 @@ const usageSchema = z
   .openapi('StorageUsage')
 
 const itemSchema = z.object({
-  id: z.string(),
+  id: opaqueIdSchema,
   name: z.string(),
   path: z.string(),
   parentPath: z.string(),

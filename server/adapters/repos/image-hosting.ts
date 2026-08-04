@@ -1,6 +1,6 @@
+import { generateId, generateToken } from '@shared/ids'
 import { and, asc, eq, gt, isNotNull, isNull, like, or, sql } from 'drizzle-orm'
-import { customAlphabet, nanoid } from 'nanoid'
-import { imageHostingConfigs, imageHostings } from '../../db/schema'
+import { imageHostingConfigs, imageHostings, redirectTokenRegistry } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { mimeToExt } from '../../lib/mime-utils'
 import type { Database } from '../../platform/interface'
@@ -10,6 +10,7 @@ import type {
   ImageHostingRepo,
   ImageResolution,
 } from '../../usecases/ports'
+import { withRedirectToken } from './redirect-token'
 import { resourceChangeQuery } from './resource-change'
 import {
   imageActivationLedgerQuery,
@@ -21,8 +22,6 @@ import { imageAddedProjectionQueries, imageRemovedProjectionQueries } from './st
 type ImageHostingRow = typeof imageHostings.$inferSelect
 
 const MAX_COLLISION_RETRIES = 5
-const imageTokenSuffix = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 10)
-
 function toRecord(row: ImageHostingRow): ImageHostingRecord {
   return row as unknown as ImageHostingRecord
 }
@@ -66,8 +65,7 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
       if (conflict.length === 0) return candidate
     }
 
-    // Exhausted retries — use nanoid suffix as fallback
-    return `${prefix}${stem}-${nanoid(4)}${ext}`
+    return `${prefix}${stem}-${generateToken(5)}${ext}`
   }
 
   return {
@@ -136,49 +134,72 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
     },
 
     async create(input: CreateImageHostingInput) {
-      const id = nanoid(12)
-      const token = `ih${imageTokenSuffix()}`
+      const id = generateId(13)
       const ext = mimeToExt(input.mime)
       const storageKey = `ih/${input.orgId}/${id}.${ext}`
       const now = new Date()
 
       const resolvedPath = await resolveUniquePath(input.orgId, input.path)
 
-      const row: ImageHostingRow = {
-        id,
-        orgId: input.orgId,
-        token,
-        path: resolvedPath,
-        storageId: input.storageId,
-        storageKey,
-        size: input.size,
-        mime: input.mime,
-        width: null,
-        height: null,
-        status: input.status,
-        purgedAt: null,
-        accessCount: 0,
-        lastAccessedAt: null,
-        createdAt: now,
-      }
+      return withRedirectToken(
+        12,
+        async (token) => {
+          const row: ImageHostingRow = {
+            id,
+            orgId: input.orgId,
+            token,
+            path: resolvedPath,
+            storageId: input.storageId,
+            storageKey,
+            size: input.size,
+            mime: input.mime,
+            width: null,
+            height: null,
+            status: input.status,
+            purgedAt: null,
+            accessCount: 0,
+            lastAccessedAt: null,
+            createdAt: now,
+          }
 
-      await executeWriteTransaction(db, [
-        db.insert(imageHostings).values(row),
-        ...(row.status === 'active'
-          ? [
-              resourceChangeQuery(db, {
-                scopeType: 'organization',
-                scopeId: row.orgId,
-                resourceType: 'image_hosting',
-                resourceId: row.id,
-                changeType: 'upsert',
-                action: 'created',
-                occurredAt: now,
-              }),
-            ]
-          : []),
-      ])
-      return toRecord(row)
+          await executeWriteTransaction(db, [
+            db.insert(imageHostings).values(row),
+            db.insert(redirectTokenRegistry).values({
+              token: row.token,
+              kind: 'image_hosting',
+              resourceId: row.id,
+            }),
+            ...(row.status === 'active'
+              ? [
+                  resourceChangeQuery(db, {
+                    scopeType: 'organization',
+                    scopeId: row.orgId,
+                    resourceType: 'image_hosting',
+                    resourceId: row.id,
+                    changeType: 'upsert',
+                    action: 'created',
+                    occurredAt: now,
+                  }),
+                ]
+              : []),
+          ])
+          return toRecord(row)
+        },
+        async (token) => {
+          const existingImage = await db
+            .select({ id: imageHostings.id })
+            .from(imageHostings)
+            .where(eq(imageHostings.token, token))
+            .limit(1)
+          if (existingImage.length > 0) return true
+          const reservation = await db
+            .select({ token: redirectTokenRegistry.token })
+            .from(redirectTokenRegistry)
+            .where(eq(redirectTokenRegistry.token, token))
+            .limit(1)
+          return reservation.length > 0
+        },
+      )
     },
 
     async get(id, orgId) {
@@ -283,16 +304,27 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
       const row = existing[0]
       if (!row) return
       if (row.status === 'draft') {
-        await db
-          .delete(imageHostings)
-          .where(
-            and(
-              eq(imageHostings.id, id),
-              eq(imageHostings.orgId, orgId),
-              eq(imageHostings.status, 'draft'),
-              isNull(imageHostings.purgedAt),
+        await executeWriteTransaction(db, [
+          db
+            .delete(imageHostings)
+            .where(
+              and(
+                eq(imageHostings.id, id),
+                eq(imageHostings.orgId, orgId),
+                eq(imageHostings.status, 'draft'),
+                isNull(imageHostings.purgedAt),
+              ),
             ),
-          )
+          db
+            .delete(redirectTokenRegistry)
+            .where(
+              and(
+                eq(redirectTokenRegistry.resourceId, id),
+                eq(redirectTokenRegistry.kind, 'image_hosting'),
+                sql`NOT EXISTS (SELECT 1 FROM image_hostings WHERE image_hostings.id = ${id})`,
+              ),
+            ),
+        ])
         return
       }
 

@@ -83,7 +83,7 @@ describe('admin stats source integrity', () => {
     expect(() => assertAdminStatsSourceIntegrity(integrity)).not.toThrow()
     const rows = await db.all<{ events: number; issuedAt: number }>(sql`
       SELECT
-        (SELECT COUNT(*) FROM audit_events WHERE id = 'event:download_issued:traffic-integrity-ok') AS events,
+        (SELECT COUNT(*) FROM audit_events WHERE event_key = 'event:download_issued:traffic-integrity-ok') AS events,
         (SELECT issued_at FROM cloud_traffic_reports WHERE event_id = 'traffic-integrity-ok') AS issuedAt
     `)
     expect(rows).toEqual([{ events: 0, issuedAt: issuedAt.getTime() }])
@@ -130,7 +130,7 @@ describe('admin stats source integrity', () => {
     await expect(reports.markIssued('traffic-does-not-exist', now)).rejects.toThrow('traffic_report_not_found')
     const rows = await db.all<{ issuedAt: number | null; events: number }>(sql`
       SELECT issued_at AS issuedAt,
-        (SELECT COUNT(*) FROM audit_events WHERE id LIKE 'event:download_issued:traffic-%') AS events
+        (SELECT COUNT(*) FROM audit_events WHERE event_key LIKE 'event:download_issued:traffic-%') AS events
       FROM cloud_traffic_reports
       WHERE event_id = 'traffic-activity-mismatch'
     `)

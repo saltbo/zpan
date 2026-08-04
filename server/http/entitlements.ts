@@ -1,13 +1,14 @@
 import { z } from '@hono/zod-openapi'
 import { pageSchema } from '@shared/schemas'
+import { opaqueIdSchema } from '@shared/schemas/identifiers'
 import type { EntitlementResult, QuotaEntitlementItem } from '../usecases/ports'
 
 // Quota entitlement DTO shared by the team- and user-scoped admin endpoints. The
 // domain record carries Date timestamps; toQuotaEntitlementDTO serializes them.
 export const quotaEntitlementSchema = z
   .object({
-    id: z.string(),
-    orgId: z.string(),
+    id: opaqueIdSchema,
+    orgId: opaqueIdSchema,
     resourceType: z.string(),
     entitlementType: z.string(),
     source: z.string(),
@@ -35,7 +36,7 @@ export function toQuotaEntitlementDTO(e: QuotaEntitlementItem): QuotaEntitlement
 }
 
 export const entitlementResultSchema = z
-  .object({ orgId: z.string(), entitlement: quotaEntitlementSchema })
+  .object({ orgId: opaqueIdSchema, entitlement: quotaEntitlementSchema })
   .openapi('EntitlementResult')
 
 export function toEntitlementResultDTO(r: EntitlementResult): z.infer<typeof entitlementResultSchema> {

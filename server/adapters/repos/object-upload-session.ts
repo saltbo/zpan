@@ -1,5 +1,5 @@
+import { generateId } from '@shared/ids'
 import { and, eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { objectUploadSessions } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import type { ObjectUploadSessionRecord, ObjectUploadSessionRepo } from '../../usecases/ports'
@@ -29,7 +29,7 @@ export function createObjectUploadSessionRepo(db: Database): ObjectUploadSession
     async create(input) {
       const now = new Date()
       const row: typeof objectUploadSessions.$inferInsert = {
-        id: nanoid(),
+        id: generateId(),
         orgId: input.orgId,
         objectId: input.objectId,
         storageId: input.storageId,

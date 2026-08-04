@@ -1,0 +1,13 @@
+name = "zpan-id-backfill-maintenance"
+main = "workers/id-backfill.ts"
+compatibility_date = "2026-07-02"
+workers_dev = true
+
+# Copy this template to an encrypted/ignored operations directory and replace
+# both placeholders with the isolated clone (or explicitly approved target).
+# This Worker intentionally has no routes, assets, queues, cron triggers, or
+# service bindings from the application Worker.
+[[d1_databases]]
+binding = "DB"
+database_name = "REPLACE_WITH_D1_DATABASE_NAME"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"

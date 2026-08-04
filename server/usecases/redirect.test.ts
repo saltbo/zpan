@@ -12,7 +12,12 @@ import type {
   StorageRepo,
 } from './ports'
 import { AppError } from './ports'
-import { type RedirectDeps, resolveDirectShareDownload, resolveImageHostingDownload } from './redirect'
+import {
+  type RedirectDeps,
+  resolveDirectShareDownload,
+  resolveImageHostingDownload,
+  resolveRedirectTokenKind,
+} from './redirect'
 import {
   confirmDownloadTraffic,
   type DownloadTrafficOutcome,
@@ -74,7 +79,7 @@ const sampleMatter = {
 
 const sampleShare = {
   id: 's-1',
-  token: 'ds_token1',
+  token: 'DirectToken1',
   kind: 'direct',
   matterId: 'm-1',
   orgId: 'o-1',
@@ -85,7 +90,7 @@ const sampleShare = {
 const sampleImage = {
   id: 'ih-1',
   orgId: 'o-1',
-  token: 'ih_token1',
+  token: 'ihImageToken1',
   storageId: 'st-1',
   storageKey: 'ih/o-1/ih-1.png',
   size: 1024,
@@ -152,6 +157,30 @@ beforeEach(() => {
   vi.clearAllMocks()
   meter.mockResolvedValue(ok)
   reportEgress.mockResolvedValue(ok)
+})
+
+describe('resolveRedirectTokenKind', () => {
+  it('classifies tokens by database ownership instead of a prefix', async () => {
+    const { deps } = makeDeps({ imageHosting: { resolveActiveByToken: async () => null } })
+    await expect(resolveRedirectTokenKind(deps, 'DirectToken1')).resolves.toBe('direct_share')
+  })
+
+  it('rejects legacy punctuation without querying either repository', async () => {
+    const share = vi.fn()
+    const image = vi.fn()
+    const { deps } = makeDeps({
+      share: { resolveByToken: share },
+      imageHosting: { resolveActiveByToken: image },
+    })
+    await expect(resolveRedirectTokenKind(deps, 'ds_token1')).resolves.toBe('not_found')
+    expect(share).not.toHaveBeenCalled()
+    expect(image).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when both resource tables own the same token', async () => {
+    const { deps } = makeDeps()
+    await expect(resolveRedirectTokenKind(deps, 'CollisionToken1')).resolves.toBe('ambiguous')
+  })
 })
 
 // ─── resolveDirectShareDownload (ds_) ─────────────────────────────────────────

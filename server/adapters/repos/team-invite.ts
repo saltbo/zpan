@@ -1,20 +1,19 @@
+import { generateId, generateToken } from '@shared/ids'
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm'
-import { customAlphabet, nanoid } from 'nanoid'
 import { invitation, member, organization } from '../../db/auth-schema'
 import { teamInviteLinks } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import type { TeamInviteLinkRecord, TeamInviteRepo } from '../../usecases/ports'
 
-const generateToken = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 32)
 const DEFAULT_EXPIRES_IN_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 export function createTeamInviteRepo(db: Database): TeamInviteRepo {
   return {
     async createInviteLink(organizationId, inviterId, role, expiresIn) {
-      const token = generateToken()
+      const token = generateToken(32)
       const now = new Date()
       const row: TeamInviteLinkRecord = {
-        id: nanoid(),
+        id: generateId(),
         token,
         organizationId,
         role,
@@ -68,7 +67,7 @@ export function createTeamInviteRepo(db: Database): TeamInviteRepo {
       if (existing[0]) return 'already_member'
 
       await db.insert(member).values({
-        id: nanoid(),
+        id: generateId(),
         organizationId: link.organizationId,
         userId,
         role: link.role,

@@ -22,11 +22,11 @@ describe('generateInviteCodes', () => {
     expect(uniqueCodes.size).toBe(10)
   })
 
-  it('each code has an 8-character uppercase alphanumeric code field', async () => {
+  it('each code has an 8-character Base62 code field', async () => {
     const { db } = await createTestApp()
     const codes = await createInviteRepo(db).generate('admin-1', 3)
     for (const code of codes) {
-      expect(code.code).toMatch(/^[0-9A-Z]{8}$/)
+      expect(code.code).toMatch(/^[A-Za-z0-9]{8}$/)
     }
   })
 

@@ -1,5 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
+import { opaqueIdSchema } from '@shared/schemas/identifiers'
 import type { Env } from '../../middleware/platform'
 import { runtimeInfo } from '../../usecases/site/instance-info'
 import { getChangelog, resolveInstanceInfo } from '../../usecases/site/system'
@@ -7,7 +8,7 @@ import { authRoute, jsonContent } from '../openapi'
 
 const instanceInfoSchema = z
   .object({
-    id: z.string(),
+    id: opaqueIdSchema,
     name: z.string(),
     url: z.string(),
     version: z.string(),

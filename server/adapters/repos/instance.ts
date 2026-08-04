@@ -1,5 +1,5 @@
+import { generateId } from '@shared/ids'
 import { eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { systemOptions } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import type { InstanceRepo } from '../../usecases/ports'
@@ -16,7 +16,7 @@ export function createInstanceRepo(db: Database): InstanceRepo {
         .limit(1)
       if (rows[0]?.value) return rows[0].value
 
-      const id = nanoid(21)
+      const id = generateId()
       await db
         .insert(systemOptions)
         .values({ key: INSTANCE_ID_KEY, value: id })

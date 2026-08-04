@@ -1,5 +1,5 @@
+import { generateId } from '@shared/ids'
 import { and, asc, eq, isNull, lte, ne, or, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { cloudTrafficReports } from '../../db/schema'
 import { executeWriteTransaction } from '../../db/transaction'
 import { currentTrafficPeriod } from '../../domain/quota'
@@ -64,7 +64,7 @@ export function createCloudTrafficReportRepo(db: Database): CloudTrafficReportRe
       await executeWriteTransaction(db, [
         ledgerOpeningInsert(db, input.now),
         db.insert(cloudTrafficReports).values({
-          id: nanoid(),
+          id: generateId(),
           orgId: input.orgId,
           period: input.period,
           source: input.source,
@@ -143,7 +143,7 @@ function ledgerOpeningInsert(db: Database, now: Date) {
   return db
     .insert(cloudTrafficReports)
     .values({
-      id: TRAFFIC_LEDGER_OPENING_EVENT_ID,
+      id: generateId(),
       orgId: '',
       period: currentTrafficPeriod(now),
       source: 'object_download',

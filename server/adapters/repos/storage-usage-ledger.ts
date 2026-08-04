@@ -1,6 +1,6 @@
 import { DirType } from '@shared/constants'
+import { generateId, generateToken } from '@shared/ids'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { imageHostings, matters, storageUsageLedger } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
 import type { Database } from '../../platform/interface'
@@ -65,7 +65,7 @@ export function storageUsageOpeningBalanceQuery(
   return db
     .insert(storageUsageLedger)
     .values({
-      id: eventKey,
+      id: generateId(),
       eventKey,
       orgId,
       storageId,
@@ -95,11 +95,11 @@ export function storageUsageOpeningBalanceQuery(
 }
 
 export function storageUsageMutationQuery(db: Database, mutation: StorageUsageLedgerMutation): AtomicQuery {
-  const eventKey = mutation.eventKey ?? `mutation:${nanoid()}`
+  const eventKey = mutation.eventKey ?? `mutation:${generateToken(22)}`
   return db
     .insert(storageUsageLedger)
     .values({
-      id: nanoid(),
+      id: generateId(),
       eventKey,
       orgId: mutation.orgId,
       storageId: mutation.storageId,
@@ -127,7 +127,7 @@ export function matterActivationLedgerQuery(
   return conditionalMutationQuery(
     db,
     sql`SELECT
-      ${nanoid()}, ${eventKey}, ${matters.orgId}, ${matters.storageId}, 'matter', ${matters.id},
+      ${generateId()}, ${eventKey}, ${matters.orgId}, ${matters.storageId}, 'matter', ${matters.id},
       ${matters.size}, 'matter_activated', ${occurredAt.getTime()}, ${occurredAt.getTime()}
     FROM ${matters}
     WHERE ${matters.id} = ${matterId}
@@ -149,7 +149,7 @@ export function matterResizeLedgerQuery(
   return conditionalMutationQuery(
     db,
     sql`SELECT
-      ${nanoid()}, ${`matter:${matterId}:resized:${nanoid()}`}, ${matters.orgId}, ${matters.storageId}, 'matter',
+      ${generateId()}, ${`matter:${matterId}:resized:${generateToken(22)}`}, ${matters.orgId}, ${matters.storageId}, 'matter',
       ${matters.id}, ${nextSize} - COALESCE(${matters.size}, 0), 'matter_resized',
       ${occurredAt.getTime()}, ${occurredAt.getTime()}
     FROM ${matters}
@@ -167,7 +167,7 @@ export function matterPurgeLedgerQuery(db: Database, orgId: string, matterId: st
   return conditionalMutationQuery(
     db,
     sql`SELECT
-      ${nanoid()}, ${eventKey}, ${matters.orgId}, ${matters.storageId}, 'matter', ${matters.id},
+      ${generateId()}, ${eventKey}, ${matters.orgId}, ${matters.storageId}, 'matter', ${matters.id},
       -COALESCE(${matters.size}, 0), 'matter_purged', ${occurredAt.getTime()}, ${occurredAt.getTime()}
     FROM ${matters}
     WHERE ${matters.id} = ${matterId}
@@ -189,7 +189,7 @@ export function imageActivationLedgerQuery(
   return conditionalMutationQuery(
     db,
     sql`SELECT
-      ${nanoid()}, ${eventKey}, ${imageHostings.orgId}, ${imageHostings.storageId}, 'image_hosting',
+      ${generateId()}, ${eventKey}, ${imageHostings.orgId}, ${imageHostings.storageId}, 'image_hosting',
       ${imageHostings.id}, ${imageHostings.size}, 'image_activated', ${occurredAt.getTime()}, ${occurredAt.getTime()}
     FROM ${imageHostings}
     WHERE ${imageHostings.id} = ${imageId}
@@ -205,7 +205,7 @@ export function imagePurgeLedgerQuery(db: Database, orgId: string, imageId: stri
   return conditionalMutationQuery(
     db,
     sql`SELECT
-      ${nanoid()}, ${eventKey}, ${imageHostings.orgId}, ${imageHostings.storageId}, 'image_hosting',
+      ${generateId()}, ${eventKey}, ${imageHostings.orgId}, ${imageHostings.storageId}, 'image_hosting',
       ${imageHostings.id}, -${imageHostings.size}, 'image_purged', ${occurredAt.getTime()}, ${occurredAt.getTime()}
     FROM ${imageHostings}
     WHERE ${imageHostings.id} = ${imageId}
@@ -278,7 +278,7 @@ export async function ensureStorageUsageIntegrityOpeningBalances(db: Database, o
     return db
       .insert(storageUsageLedger)
       .values({
-        id: eventKey,
+        id: generateId(),
         eventKey,
         orgId,
         storageId,

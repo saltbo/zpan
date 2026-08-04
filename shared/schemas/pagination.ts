@@ -1,8 +1,9 @@
 import { z } from '@hono/zod-openapi'
+import { opaqueTokenSchema } from './identifiers'
 
 export const cursorPageQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
-  pageToken: z.string().min(1).optional(),
+  pageToken: opaqueTokenSchema.optional(),
 })
 
 export type CursorPageQuery = z.infer<typeof cursorPageQuerySchema>
@@ -11,7 +12,7 @@ export const cursorPageSchema = <T extends z.ZodType>(item: T, name: string) =>
   z
     .object({
       items: z.array(item),
-      nextPageToken: z.string().nullable(),
+      nextPageToken: opaqueTokenSchema.nullable(),
     })
     .openapi(name)
 

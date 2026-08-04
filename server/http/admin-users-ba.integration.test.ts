@@ -122,7 +122,7 @@ describe('better-auth admin user endpoints (migration target)', () => {
     const registrationBefore = await db.all<{ provider: string }>(sql`
       SELECT json_extract(metadata, '$.provider') AS provider
       FROM audit_events
-      WHERE id = ${`event:user_register:${userId}`}
+      WHERE event_key = ${`event:user_register:${userId}`}
     `)
     expect(registrationBefore).toEqual([{ provider: 'credential' }])
 
@@ -146,7 +146,7 @@ describe('better-auth admin user endpoints (migration target)', () => {
     const registrationAfter = await db.all<{ provider: string }>(sql`
       SELECT json_extract(metadata, '$.provider') AS provider
       FROM audit_events
-      WHERE id = ${`event:user_register:${userId}`}
+      WHERE event_key = ${`event:user_register:${userId}`}
     `)
     expect(registrationAfter).toEqual(registrationBefore)
   })

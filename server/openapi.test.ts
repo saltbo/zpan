@@ -60,7 +60,7 @@ describe('global OpenAPI document', () => {
               schema: {
                 properties: {
                   registration_client_uri: { type: 'string', format: 'uri' },
-                  registration_access_token: { type: 'string' },
+                  registration_access_token: { type: 'string', pattern: '^[A-Za-z0-9]{43}$' },
                 },
                 required: expect.arrayContaining(['registration_client_uri', 'registration_access_token']),
               },
@@ -69,6 +69,37 @@ describe('global OpenAPI document', () => {
         },
       },
     })
+  })
+
+  it('publishes Base62 contracts for ZPan-owned IDs and public tokens', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      paths: Record<string, Record<string, { parameters?: Array<{ name?: string; schema?: { pattern?: string } }> }>>
+      components?: { schemas?: Record<string, { properties?: Record<string, { pattern?: string }> }> }
+    }
+
+    const parameterPattern = (path: string, method: string, name: string) =>
+      doc.paths[path]?.[method]?.parameters?.find((parameter) => parameter.name === name)?.schema?.pattern
+    const objectId = doc.paths['/api/objects/{id}']?.get?.parameters?.find(({ name }) => name === 'id')
+    const shareToken = doc.paths['/api/shares/{token}']?.get?.parameters?.find(({ name }) => name === 'token')
+    expect(objectId?.schema?.pattern).toBe('^[A-Za-z0-9]+$')
+    expect(shareToken?.schema?.pattern).toBe('^[A-Za-z0-9]+$')
+    expect(parameterPattern('/api/teams/{teamId}', 'get', 'teamId')).toBe('^[A-Za-z0-9]+$')
+    expect(parameterPattern('/api/users/{userId}/entitlements/{eid}', 'delete', 'userId')).toBe('^[A-Za-z0-9]+$')
+    expect(parameterPattern('/api/users/{userId}/entitlements/{eid}', 'delete', 'eid')).toBe('^[A-Za-z0-9]+$')
+    expect(parameterPattern('/api/site/announcements/{id}', 'get', 'id')).toBe('^[A-Za-z0-9]+$')
+    expect(parameterPattern('/api/downloads/tasks', 'get', 'pageToken')).toBe('^[A-Za-z0-9]+$')
+    expect(parameterPattern('/api/image-hosting/images', 'get', 'pageToken')).toBe('^[A-Za-z0-9]+$')
+    expect(doc.components?.schemas?.Matter?.properties?.id?.pattern).toBe('^[A-Za-z0-9]+$')
+    expect(doc.components?.schemas?.TeamSummary?.properties?.id?.pattern).toBe('^[A-Za-z0-9]+$')
+    expect(doc.components?.schemas?.Announcement?.properties?.createdBy?.pattern).toBe('^[A-Za-z0-9]+$')
+    expect(doc.components?.schemas?.QuotaEntitlement?.properties?.orgId?.pattern).toBe('^[A-Za-z0-9]+$')
+    expect(doc.components?.schemas?.DownloadTask?.properties?.id?.pattern).toBe('^[A-Za-z0-9]+$')
+    expect(doc.components?.schemas?.DownloadTaskPage?.properties?.nextPageToken?.pattern).toBe('^[A-Za-z0-9]+$')
+    expect(doc.components?.schemas?.DownloadTaskListPage?.properties?.nextPageToken?.pattern).toBe('^[A-Za-z0-9]+$')
+    expect(doc.components?.schemas?.ImageHostingList?.properties?.nextPageToken?.pattern).toBe('^[A-Za-z0-9]+$')
+    expect(doc.components?.schemas?.ShareObjects?.properties?.nextPageToken?.pattern).toBe('^[A-Za-z0-9]+$')
   })
 
   it('serves the Scalar reference UI at /api/docs pointing at the spec', async () => {

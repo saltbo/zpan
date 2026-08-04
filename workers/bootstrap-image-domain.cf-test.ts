@@ -1,5 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { assertIdIntegrity } from '../server/db/id-integrity'
+import { createCloudflarePlatform } from '../server/platform/cloudflare'
 
 const createAuthMock = vi.hoisted(() =>
   vi.fn(() => {
@@ -37,8 +39,12 @@ describe('[CF] image-domain Worker fast path', () => {
   })
 
   it('serves repeated custom-domain requests without initializing Better Auth', async () => {
+    // Production bootstrap establishes the fresh-database checkpoint before
+    // any first write. This test inserts fixtures directly, so mirror that
+    // release boundary without initializing Better Auth.
+    await assertIdIntegrity(createCloudflarePlatform(env).db)
     const suffix = Date.now().toString(36)
-    const orgId = `fast-path-org-${suffix}`
+    const orgId = `FastPathOrg${suffix}`
     const domain = `img-${suffix}.fast-path.test`
     const now = Date.now()
 

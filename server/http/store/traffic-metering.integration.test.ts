@@ -429,10 +429,10 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-token', 'ih_cloudtoken')
+    await insertImage(db, orgId, 'ih-cloud-token', 'ihCloudtoken')
     await insertImageConfig(db, orgId)
 
-    const res = await app.request('/r/ih_cloudtoken', { redirect: 'manual' })
+    const res = await app.request('/r/ihCloudtoken', { redirect: 'manual' })
 
     expect(res.status).toBe(302)
     await expect(trafficReports(db)).resolves.toMatchObject([
@@ -448,11 +448,11 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-log-fail', 'ih_cloudlogfail')
+    await insertImage(db, orgId, 'ih-cloud-log-fail', 'ihCloudlogfail')
     await insertImageConfig(db, orgId)
     vi.spyOn(db, 'run').mockRejectedValue(new Error('access failed'))
 
-    const res = await app.request('/r/ih_cloudlogfail', { redirect: 'manual' })
+    const res = await app.request('/r/ihCloudlogfail', { redirect: 'manual' })
 
     expect(res.status).toBe(302)
     expect(consoleError).toHaveBeenCalled()
@@ -466,10 +466,10 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-presign-fail', 'ih_cloudpresignfail')
+    await insertImage(db, orgId, 'ih-cloud-presign-fail', 'ihCloudpresignfail')
     await insertImageConfig(db, orgId)
 
-    const res = await app.request('/r/ih_cloudpresignfail', { redirect: 'manual' })
+    const res = await app.request('/r/ihCloudpresignfail', { redirect: 'manual' })
 
     expect(res.status).toBe(500)
     expect(fetch).not.toHaveBeenCalled()
@@ -483,7 +483,7 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-domain', 'ih_clouddomain', 'blog/domain.png')
+    await insertImage(db, orgId, 'ih-cloud-domain', 'ihClouddomain', 'blog/domain.png')
     await insertImageConfig(db, orgId, 'img.example.com')
 
     const res = await app.request('https://img.example.com/blog/domain.png', {
@@ -507,7 +507,7 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-domain-blocked', 'ih_clouddomainblocked', 'blog/domain-blocked.png')
+    await insertImage(db, orgId, 'ih-cloud-domain-blocked', 'ihClouddomainblocked', 'blog/domain-blocked.png')
     await insertImageConfig(db, orgId, 'img-blocked.example.com')
     await setTrafficQuota(db, orgId)
 
@@ -542,7 +542,7 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-domain-confirm-fail', 'ih_clouddomainconfirmfail', 'blog/confirm-fail.png')
+    await insertImage(db, orgId, 'ih-cloud-domain-confirm-fail', 'ihClouddomainconfirmfail', 'blog/confirm-fail.png')
     await insertImageConfig(db, orgId, 'img-confirm-fail.example.com')
     await setTrafficQuota(db, orgId)
     vi.spyOn(deps.cloudTrafficReports, 'markIssued').mockRejectedValueOnce(new Error('confirm failed'))
@@ -574,7 +574,7 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-domain-log-fail', 'ih_clouddomainlogfail', 'blog/domain-log-fail.png')
+    await insertImage(db, orgId, 'ih-cloud-domain-log-fail', 'ihClouddomainlogfail', 'blog/domain-log-fail.png')
     await insertImageConfig(db, orgId, 'img.example.com')
     vi.spyOn(db, 'run').mockRejectedValue(new Error('access failed'))
 

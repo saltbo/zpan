@@ -19,13 +19,13 @@ import { ADMIN_STATS_METRICS as M } from '../server/domain/admin-stats-metrics'
 const MIN_VALID_TIMESTAMP_MS = Date.UTC(2000, 0, 1)
 const MAX_BACKFILL_HOURS = 100_000
 const STATISTICS_OPENING_SOURCE_ID = 'v3-authoritative-sources'
-const STATISTICS_OPENING_EVENT_ID = `audit:statistics_source_initialized:${STATISTICS_OPENING_SOURCE_ID}`
+const STATISTICS_OPENING_EVENT_KEY = `audit:statistics_source_initialized:${STATISTICS_OPENING_SOURCE_ID}`
 const STATISTICS_OPENING_OPTION_KEY = 'stats_integrity_exact_from_v3'
 const TRAFFIC_LEDGER_OPENING_EVENT_ID = 'traffic_ledger_opening_v1'
 
 const statisticsExactFromMsSql = `COALESCE(
   (SELECT unixepoch(value) * 1000 FROM system_options WHERE key = '${STATISTICS_OPENING_OPTION_KEY}'),
-  (SELECT created_at * 1000 FROM audit_events WHERE id = '${STATISTICS_OPENING_EVENT_ID}'),
+  (SELECT created_at * 1000 FROM audit_events WHERE event_key = '${STATISTICS_OPENING_EVENT_KEY}'),
   (unixepoch() + 1) * 1000
 )`
 const statisticsFirstFullHourMsSql = `CAST((${statisticsExactFromMsSql} + 3599999) / 3600000 AS INTEGER) * 3600000`
@@ -113,19 +113,19 @@ INSERT OR IGNORE INTO system_options (key, value)
 VALUES (
   '${STATISTICS_OPENING_OPTION_KEY}',
   COALESCE(
-    (SELECT strftime('%Y-%m-%dT%H:%M:%fZ', created_at, 'unixepoch') FROM audit_events WHERE id = '${STATISTICS_OPENING_EVENT_ID}'),
+    (SELECT strftime('%Y-%m-%dT%H:%M:%fZ', created_at, 'unixepoch') FROM audit_events WHERE event_key = '${STATISTICS_OPENING_EVENT_KEY}'),
     '${openingAt}'
   )
 );
 
-DELETE FROM audit_events WHERE id = '${STATISTICS_OPENING_EVENT_ID}';
+DELETE FROM audit_events WHERE event_key = '${STATISTICS_OPENING_EVENT_KEY}';
 
 INSERT OR IGNORE INTO cloud_traffic_reports (
   id, org_id, period, source, source_id, event_id, bytes, storage_id,
   unit_bytes, credits_per_unit, status, error, attempt_count, next_retry_at,
   issued_at, created_at, updated_at
 ) VALUES (
-  'traffic_ledger_opening_v1', '', '${trafficPeriod}', 'object_download',
+  lower(hex('traffic_ledger_opening_v1')), '', '${trafficPeriod}', 'object_download',
   'traffic_ledger_opening_v1', 'traffic_ledger_opening_v1', 0, NULL,
   NULL, NULL, 'ledger_opening', NULL, 0, NULL, NULL, ${now.getTime()}, ${now.getTime()}
 );
@@ -135,10 +135,11 @@ SET actor_type = CASE WHEN user_id IS NULL THEN 'anonymous' ELSE 'user' END
 WHERE actor_type IS NULL;
 
 INSERT OR IGNORE INTO audit_events (
-  id, org_id, user_id, actor_type, actor_ref, action, target_type,
+  id, event_key, org_id, user_id, actor_type, actor_ref, action, target_type,
   target_id, target_name, metadata, created_at
 )
 SELECT
+  lower(hex('event:user_register:' || registered_user.id)),
   'event:user_register:' || registered_user.id,
   '',
   registered_user.id,
@@ -324,7 +325,7 @@ function userSignupHistoryStartSql(currentHour: number): string {
         WHERE action = 'user_register'
           AND target_id IS NOT NULL
           AND user_id = target_id
-          AND id = 'event:user_register:' || target_id
+          AND event_key = 'event:user_register:' || target_id
           AND json_valid(metadata) = 1
           AND json_type(metadata, '$.provider') = 'text'
           AND length(json_extract(metadata, '$.provider')) > 0
@@ -477,7 +478,7 @@ INSERT INTO stats_rollups_hourly (
   count, bytes, unique_count, metadata, updated_at
 )
 SELECT
-  CAST(bucket_start AS TEXT) || ':global:stats.rollup_run:metric_key:${metric}',
+  lower(hex(json_array(bucket_start, '', 'stats.rollup_run', 'metric_key', '${metric}'))),
   bucket_start, '', 'stats.rollup_run', 'metric_key', '${metric}', 1, 0, 0,
   json_object('version', 3, 'scope', 'counters', 'quality', 'exact'),
   bucket_start + 3600000
@@ -529,7 +530,7 @@ INSERT INTO stats_rollups_hourly (
   count, bytes, unique_count, metadata, updated_at
 )
 SELECT
-  CAST(buckets.bucket_start AS TEXT) || ':global:stats.rollup_run:all:all',
+  lower(hex(json_array(buckets.bucket_start, '', 'stats.rollup_run', '', ''))),
   buckets.bucket_start, '', 'stats.rollup_run', '', '', 1, 0, 0,
   CASE WHEN snapshot_markers.bucket_start IS NULL THEN
     json_object(
@@ -686,7 +687,7 @@ export function buildValidationSql(now = new Date()): string {
     WHERE action = 'user_register'
       AND target_id IS NOT NULL
       AND user_id = target_id
-      AND id = 'event:user_register:' || target_id
+      AND event_key = 'event:user_register:' || target_id
       AND json_valid(metadata) = 1
       AND json_type(metadata, '$.provider') = 'text'
       AND length(json_extract(metadata, '$.provider')) > 0
@@ -777,7 +778,7 @@ export function buildValidationSql(now = new Date()): string {
           json_valid(metadata) = 0
           OR target_id IS NULL
           OR user_id <> target_id
-          OR id <> 'event:user_register:' || target_id
+          OR event_key <> 'event:user_register:' || target_id
           OR COALESCE(json_type(metadata, '$.provider') = 'text', 0) = 0
           OR COALESCE(length(json_extract(metadata, '$.provider')), 0) = 0
         ))
@@ -807,7 +808,7 @@ export function buildValidationSql(now = new Date()): string {
         SELECT 1
         FROM audit_events registration_event
         WHERE registration_event.action = 'user_register'
-          AND registration_event.id = 'event:user_register:' || registered_user.id
+          AND registration_event.event_key = 'event:user_register:' || registered_user.id
           AND registration_event.user_id = registered_user.id
           AND registration_event.target_id = registered_user.id
           AND registration_event.created_at = CAST(registered_user.created_at / 1000 AS INTEGER)
@@ -932,7 +933,7 @@ authoritative_registration_sources AS MATERIALIZED (
   WHERE action = 'user_register'
     AND target_id IS NOT NULL
     AND user_id = target_id
-    AND id = 'event:user_register:' || target_id
+    AND event_key = 'event:user_register:' || target_id
     AND json_valid(metadata) = 1
     AND json_type(metadata, '$.provider') = 'text'
     AND length(json_extract(metadata, '$.provider')) > 0
@@ -1225,7 +1226,7 @@ SELECT json_object(
           AND (
             ae.target_id IS NULL
             OR ae.user_id <> ae.target_id
-            OR ae.id <> 'event:user_register:' || ae.target_id
+            OR ae.event_key <> 'event:user_register:' || ae.target_id
             OR
             COALESCE(json_type(ae.metadata, '$.provider') = 'text', 0) = 0
             OR COALESCE(length(json_extract(ae.metadata, '$.provider')), 0) = 0
@@ -1238,7 +1239,7 @@ SELECT json_object(
     WHERE NOT EXISTS (
       SELECT 1
       FROM audit_events registration_event
-      WHERE registration_event.id = 'event:user_register:' || registered_user.id
+      WHERE registration_event.event_key = 'event:user_register:' || registered_user.id
     )
   ),
   'issuedTrafficReportsToRecover', (

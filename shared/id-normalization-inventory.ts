@@ -1,0 +1,65 @@
+export const OWNED_ID_TABLES = [
+  'user',
+  'account',
+  'organization',
+  'member',
+  'invitation',
+  'apikey',
+  'oauthClient',
+  'oauthResource',
+  'oauthClientResource',
+  'matters',
+  'webdav_dead_properties',
+  'webdav_locks',
+  'storages',
+  'org_quotas',
+  'cloud_traffic_reports',
+  'org_quota_entitlements',
+  'webhook_events',
+  'x402_capacity_purchase_intents',
+  'invite_codes',
+  'site_invitations',
+  'license_bindings',
+  'team_invite_links',
+  'notifications',
+  'background_jobs',
+  'downloaders',
+  'download_tasks',
+  'object_upload_sessions',
+  'remote_download_usage_reports',
+  'announcements',
+  'audit_events',
+  'stats_rollups_hourly',
+  'storage_usage_ledger',
+  'shares',
+  'share_recipients',
+  'image_hostings',
+] as const
+
+export const INVALIDATED_CREDENTIAL_TABLES = [
+  'session',
+  'verification',
+  'jwks',
+  'deviceCode',
+  'oauthClientRegistration',
+  'oauthRefreshToken',
+  'oauthAccessToken',
+  'oauthConsent',
+  'oauthClientAssertion',
+  'oauthPushedAuthorizationRequest',
+  'oauthJwtRevocation',
+  'downloader_bootstrap_credentials',
+] as const
+
+// Every table whose rows are read, rewritten, derived, or invalidated by the
+// one-time backfill. Runtime may mark a database as a fresh normalized install
+// only when all of these are empty. system_options is checked separately for
+// instance_id because unrelated site configuration is valid in a fresh DB.
+export const ID_NORMALIZATION_DATA_TABLES = [
+  ...OWNED_ID_TABLES,
+  ...INVALIDATED_CREDENTIAL_TABLES,
+  'image_hosting_configs',
+  'storage_usage_breakdowns',
+  'resource_changes',
+  'redirect_token_registry',
+] as const

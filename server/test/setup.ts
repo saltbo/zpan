@@ -500,6 +500,7 @@ const APP_SCHEMA_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS team_invite_links_token_unique ON team_invite_links(token);
 	  CREATE TABLE IF NOT EXISTS audit_events (
 		    id TEXT PRIMARY KEY,
+		    event_key TEXT UNIQUE,
 		    org_id TEXT NOT NULL,
 		    user_id TEXT,
 		    action TEXT NOT NULL,
@@ -574,6 +575,12 @@ const APP_SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS shares_creator_status_created_idx ON shares(creator_id, status, created_at);
   CREATE INDEX IF NOT EXISTS shares_creator_private_created_idx ON shares(creator_id, private, created_at);
+  CREATE TABLE IF NOT EXISTS redirect_token_registry (
+    token TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    resource_id TEXT NOT NULL,
+    UNIQUE (kind, resource_id)
+  );
   CREATE TABLE IF NOT EXISTS share_recipients (
     id TEXT PRIMARY KEY,
     share_id TEXT NOT NULL,

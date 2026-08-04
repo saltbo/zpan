@@ -18,7 +18,7 @@ import {
 import { genericOAuth } from 'better-auth/plugins/generic-oauth'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
 import { count, eq, like } from 'drizzle-orm'
-import { customAlphabet, nanoid } from 'nanoid'
+import { customAlphabet } from 'nanoid'
 import {
   API_KEY_TEMPLATES,
   ApiKeyTemplate,
@@ -31,6 +31,7 @@ import {
   WEBDAV_RATE_LIMITER_BINDING,
 } from '../shared/api-key-templates'
 import { DEFAULT_ORG_QUOTA, DEFAULT_ORG_TRAFFIC_QUOTA, SignupMode } from '../shared/constants'
+import { generateId } from '../shared/ids'
 import { JWT_BEARER_GRANT_TYPE, OAUTH_SCOPES, TOKEN_EXCHANGE_GRANT_TYPE } from '../shared/oauth'
 import {
   BUILTIN_PROVIDER_IDS,
@@ -1021,7 +1022,7 @@ async function createPersonalOrg(
   db: Database,
   user: { id: string; name: string; username?: string | null },
 ): Promise<string> {
-  const orgId = nanoid()
+  const orgId = generateId()
   const now = new Date()
   const displayName = user.name || user.username
   const orgName = displayName ? `${displayName}'s Space` : 'Personal Space'
@@ -1037,7 +1038,7 @@ async function createPersonalOrg(
       createdAt: now,
     }),
     db.insert(authSchema.member).values({
-      id: nanoid(),
+      id: generateId(),
       organizationId: orgId,
       userId: user.id,
       role: 'owner',
@@ -1067,7 +1068,7 @@ async function findPersonalOrgFromExistingSession(db: Database, userId: string):
 
 async function createOrgQuotaValues(_db: Database, orgId: string, now: Date): Promise<typeof orgQuotas.$inferInsert> {
   return {
-    id: nanoid(),
+    id: generateId(),
     orgId,
     quota: 0,
     used: 0,
@@ -1125,7 +1126,7 @@ function freePlanEntitlementValue(
   settingKey: string,
 ): typeof orgQuotaEntitlements.$inferInsert {
   return {
-    id: nanoid(),
+    id: generateId(),
     orgId,
     resourceType,
     entitlementType: 'plan',

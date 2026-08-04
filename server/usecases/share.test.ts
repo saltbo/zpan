@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { encodeChildRef } from '../http/share-utils'
+import { decodeChildRef, encodeChildRef } from '../http/share-utils'
 import { hashPassword } from '../lib/password'
 import type { Platform } from '../platform/interface'
 import { saveShareToDrive } from './object'
@@ -222,6 +222,16 @@ beforeEach(() => {
 })
 
 // ─── viewShare ───────────────────────────────────────────────────────────────
+
+describe('share child references', () => {
+  it('round-trips as a single Base62 token and rejects the legacy encoding', () => {
+    const ref = encodeChildRef('ShareToken1', 'matter-with-legacy-punctuation')
+    expect(ref).toMatch(/^[A-Za-z0-9]+$/)
+    expect(decodeChildRef('ShareToken1', ref)).toBe('matter-with-legacy-punctuation')
+    const legacy = Buffer.from('matter-with-legacy-punctuation.deadbeefdeadbeef').toString('base64url')
+    expect(decodeChildRef('ShareToken1', legacy)).toBeNull()
+  })
+})
 
 describe('viewShare', () => {
   it('returns matter_trashed when the matter is trashed', async () => {

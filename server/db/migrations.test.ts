@@ -82,6 +82,70 @@ describe('migration 0022_kind_storm.sql', () => {
   })
 })
 
+describe('migration 0092_base62_audit_event_key.sql', () => {
+  const migrationPath = join(process.cwd(), 'migrations/0092_base62_audit_event_key.sql')
+  const migration = readFileSync(migrationPath, 'utf-8')
+
+  it('adds a nullable unique idempotency key without rewriting audit primary IDs', () => {
+    const db = new Database(':memory:')
+    try {
+      db.exec('CREATE TABLE audit_events (id TEXT PRIMARY KEY)')
+      db.exec("INSERT INTO audit_events (id) VALUES ('legacy-event-id')")
+      for (const statement of migration.split('--> statement-breakpoint')) db.exec(statement)
+
+      expect(db.prepare('SELECT id, event_key FROM audit_events').get()).toEqual({
+        id: 'legacy-event-id',
+        event_key: null,
+      })
+      db.exec("INSERT INTO audit_events (id, event_key) VALUES ('new-id', 'event:key')")
+      expect(() => db.exec("INSERT INTO audit_events (id, event_key) VALUES ('other-id', 'event:key')")).toThrow()
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('migration 0093_redirect-token-registry.sql', () => {
+  const migrationPath = join(process.cwd(), 'migrations/0093_redirect-token-registry.sql')
+  const migration = readFileSync(migrationPath, 'utf-8')
+
+  it('creates a shared unique namespace for redirect token reservations', () => {
+    const db = new Database(':memory:')
+    try {
+      for (const statement of migration.split('--> statement-breakpoint')) db.exec(statement)
+      db.exec("INSERT INTO redirect_token_registry VALUES ('SharedToken1', 'direct_share', 'ShareId1')")
+      expect(() =>
+        db.exec("INSERT INTO redirect_token_registry VALUES ('SharedToken1', 'image_hosting', 'ImageId1')"),
+      ).toThrow()
+      expect(() =>
+        db.exec("INSERT INTO redirect_token_registry VALUES ('OtherToken2', 'image_hosting', 'ShareId1')"),
+      ).toThrow()
+    } finally {
+      db.close()
+    }
+  })
+})
+
+describe('migration 0094_redirect-token-kind-resource.sql', () => {
+  const createMigration = readFileSync(join(process.cwd(), 'migrations/0093_redirect-token-registry.sql'), 'utf-8')
+  const migration = readFileSync(join(process.cwd(), 'migrations/0094_redirect-token-kind-resource.sql'), 'utf-8')
+
+  it('allows independent resource ID namespaces while retaining per-kind uniqueness', () => {
+    const db = new Database(':memory:')
+    try {
+      for (const statement of createMigration.split('--> statement-breakpoint')) db.exec(statement)
+      for (const statement of migration.split('--> statement-breakpoint')) db.exec(statement)
+      db.exec("INSERT INTO redirect_token_registry VALUES ('ShareToken1', 'direct_share', 'SameId1')")
+      db.exec("INSERT INTO redirect_token_registry VALUES ('ImageToken1', 'image_hosting', 'SameId1')")
+      expect(() =>
+        db.exec("INSERT INTO redirect_token_registry VALUES ('ShareToken2', 'direct_share', 'SameId1')"),
+      ).toThrow()
+    } finally {
+      db.close()
+    }
+  })
+})
+
 describe('migration 0067_storage-health-status-default.sql', () => {
   const migrationPath = join(process.cwd(), 'migrations/0067_storage-health-status-default.sql')
   const migration = readFileSync(migrationPath, 'utf-8')

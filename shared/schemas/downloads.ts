@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi'
 import { isSafeHttpUrl } from '../url-safety'
+import { opaqueIdSchema, opaqueTokenSchema } from './identifiers'
 
 export const downloaderStatusSchema = z.enum(['online', 'offline', 'disabled'])
 export const downloaderEngineSchema = z.enum(['http', 'aria2', 'qbittorrent'])
@@ -22,7 +23,7 @@ export const downloadSourceTypeSchema = z.enum(['http', 'magnet', 'torrent_url']
 export const downloadTaskPhaseSchema = z.enum(['metadata', 'downloading', 'uploading', 'seeding', 'completed', 'error'])
 
 export const downloadTaskEventSchema = z.object({
-  id: z.string().min(1),
+  id: opaqueIdSchema,
   type: z.enum(['status_changed', 'error_reported', 'cleanup_requested', 'cleanup_completed']),
   occurredAt: z.number().int().min(0),
   attempt: z.number().int().min(1),
@@ -121,9 +122,9 @@ export const downloadTaskRuntimeSchema = z.object({
 
 export const downloadTaskSchema = z
   .object({
-    id: z.string(),
-    orgId: z.string().optional(),
-    createdBy: z.string().optional(),
+    id: opaqueIdSchema,
+    orgId: opaqueIdSchema.optional(),
+    createdBy: opaqueIdSchema.optional(),
     spec: z.object({
       source: z.object({
         type: downloadSourceTypeSchema,
@@ -143,9 +144,9 @@ export const downloadTaskSchema = z
       attempt: z.number().int().min(1),
       assignment: z
         .object({
-          downloaderId: z.string(),
+          downloaderId: opaqueIdSchema,
           assignedAt: z.string().nullable().optional(),
-          uploadToken: z.string().optional(),
+          uploadToken: opaqueTokenSchema.optional(),
         })
         .nullable(),
       progress: downloadTaskProgressSchema,
@@ -155,7 +156,7 @@ export const downloadTaskSchema = z
         chargedBytes: int64Schema(),
         chargedCredits: int64Schema(),
       }),
-      output: z.object({ objectId: z.string() }).nullable(),
+      output: z.object({ objectId: opaqueIdSchema }).nullable(),
       runtime: downloadTaskRuntimeSchema.nullable(),
       error: z
         .object({
@@ -210,8 +211,8 @@ export type DownloadTaskListItem = z.infer<typeof downloadTaskListItemSchema>
 
 export const downloadTaskTimelineItemSchema = z
   .object({
-    id: z.string(),
-    taskId: z.string(),
+    id: opaqueIdSchema,
+    taskId: opaqueIdSchema,
     time: z.string(),
     source: z.enum(['task', 'activity']),
     action: z.string(),
@@ -235,14 +236,14 @@ export type DownloadTaskTimeline = z.infer<typeof downloadTaskTimelineSchema>
 export const downloadTaskPageSchema = z
   .object({
     items: z.array(downloadTaskSchema),
-    nextPageToken: z.string().nullable(),
+    nextPageToken: opaqueTokenSchema.nullable(),
   })
   .openapi('DownloadTaskPage')
 
 export const downloadTaskListPageSchema = z
   .object({
     items: z.array(downloadTaskListItemSchema),
-    nextPageToken: z.string().nullable(),
+    nextPageToken: opaqueTokenSchema.nullable(),
   })
   .openapi('DownloadTaskListPage')
 
@@ -281,7 +282,7 @@ export const downloaderHeartbeatResponseSchema = z.object({
 // the schema mirrors that instead of nesting them.
 export const downloaderSchema = downloaderHeartbeatResponseSchema
   .extend({
-    id: z.string(),
+    id: opaqueIdSchema,
     name: z.string(),
     status: downloaderStatusSchema,
     enabled: z.boolean(),
@@ -289,7 +290,7 @@ export const downloaderSchema = downloaderHeartbeatResponseSchema
     remoteDownloadCreditUnitBytes: z.number().int(),
     remoteDownloadCreditPerUnit: z.number().int(),
     lastHeartbeatAt: z.string().nullable(),
-    createdBy: z.string(),
+    createdBy: opaqueIdSchema,
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -314,7 +315,7 @@ export const downloaderListSchema = z.object({
 
 export const createDownloaderResponseSchema = z.object({
   downloader: downloaderSchema,
-  token: z.string(),
+  token: opaqueTokenSchema,
 })
 
 export const updateDownloaderSchema = z.object({
@@ -421,7 +422,7 @@ export const listDownloadTasksQuerySchema = z.object({
   category: z.string().trim().min(1).max(120).optional(),
   tag: z.string().trim().min(1).max(80).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  pageToken: z.string().min(1).optional(),
+  pageToken: opaqueTokenSchema.optional(),
 })
 
 // Re-presign expired part URLs mid-upload (multipart sessions only). The happy

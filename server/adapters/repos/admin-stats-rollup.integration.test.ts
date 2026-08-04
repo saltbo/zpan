@@ -67,7 +67,7 @@ describe('admin hourly stats rollup', () => {
     await db.run(sql`
       UPDATE audit_events
       SET created_at = ${atSec}, metadata = '{"provider":"credential"}'
-      WHERE id = ${`event:user_register:${userId}`}
+      WHERE event_key = ${`event:user_register:${userId}`}
     `)
     await db.run(sql`UPDATE session SET created_at = ${atMs}, updated_at = ${atMs} WHERE user_id = ${userId}`)
     await db.run(sql`UPDATE organization SET created_at = ${atMs}, updated_at = ${atMs} WHERE id = ${orgId}`)
@@ -166,9 +166,14 @@ describe('admin hourly stats rollup', () => {
         ('rollup-share-created-limited', ${orgId}, ${userId}, 'user', 'share_create', 'share', 'rollup-share-limited', 'rollup-share-limited',
           '{"kind":"direct"}', ${atSec}),
         ('rollup-job-finished-fact', ${orgId}, NULL, 'system', 'background_job_failed', 'background_job', 'rollup-job-finished', 'rollup-job-finished',
-          '{"jobType":"archive","outcome":"failed"}', ${atSec}),
-        ('event:user_register:rollup-direct-user', '', 'rollup-direct-user', 'user', 'user_register', 'user',
-          'rollup-direct-user', 'rollup-direct-user', '{"provider":"unknown"}', ${atSec})
+          '{"jobType":"archive","outcome":"failed"}', ${atSec})
+    `)
+    await db.run(sql`
+      INSERT INTO audit_events
+        (id, event_key, org_id, user_id, actor_type, action, target_type, target_id, target_name, metadata, created_at)
+      VALUES
+        ('RollupDirectRegistration', 'event:user_register:rollup-direct-user', '', 'rollup-direct-user', 'user',
+          'user_register', 'user', 'rollup-direct-user', 'rollup-direct-user', '{"provider":"unknown"}', ${atSec})
     `)
     await db.run(sql`
       INSERT INTO object_upload_sessions

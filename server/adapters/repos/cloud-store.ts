@@ -1,8 +1,8 @@
+import { generateId } from '@shared/ids'
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import type { CloudOrderQuotaChange } from '@shared/schemas'
 import type { CloudStoreTarget } from '@shared/types'
 import { and, eq, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { member, organization, user } from '../../db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, webhookEvents } from '../../db/schema'
 import { type AtomicQuery, executeRows, executeWriteTransaction } from '../../db/transaction'
@@ -205,7 +205,7 @@ function quotaEntitlementValue(
 ): typeof orgQuotaEntitlements.$inferInsert | null {
   if (bytes === 0) return null
   return {
-    id: nanoid(),
+    id: generateId(),
     orgId: event.targetOrgId,
     resourceType,
     entitlementType: entitlementType(event),
@@ -272,7 +272,7 @@ async function beginWebhookEvent(
   rawPayload: string,
   payloadHash: string,
 ): Promise<{ id: string; duplicate: boolean }> {
-  const id = nanoid()
+  const id = generateId()
   const inserted = await executeRows(
     db
       .insert(webhookEvents)

@@ -1,5 +1,5 @@
+import { generateId } from '@shared/ids'
 import { and, count, desc, eq, isNull, lt, or } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { notifications } from '../../db/schema'
 import { executeWriteTransaction } from '../../db/transaction'
 import type { Database } from '../../platform/interface'
@@ -16,7 +16,7 @@ export function createNotificationRepo(db: Database): NotificationRepo {
   return {
     async create(input) {
       const row: NotificationRow = {
-        id: nanoid(),
+        id: generateId(),
         userId: input.userId,
         type: input.type,
         title: input.title,

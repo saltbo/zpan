@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { opaqueTokenSchema } from './identifiers'
 
 export const backgroundJobStatusSchema = z.enum(['queued', 'running', 'completed', 'failed', 'canceled'])
 export type BackgroundJobStatusInput = z.infer<typeof backgroundJobStatusSchema>
@@ -34,7 +35,7 @@ export const listBackgroundJobsQuerySchema = z.object({
   status: backgroundJobStatusSchema.optional(),
   type: backgroundJobTypeSchema.optional(),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  pageToken: z.string().min(1).optional(),
+  pageToken: opaqueTokenSchema.optional(),
 })
 
 export type ListBackgroundJobsQuery = z.infer<typeof listBackgroundJobsQuerySchema>

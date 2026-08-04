@@ -1,9 +1,9 @@
 import { DirType } from '@shared/constants'
+import { generateId } from '@shared/ids'
 import type { CreateShareInput } from '@shared/schemas/share'
 import { and, count, desc, eq, isNotNull, isNull, like, lt, or, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { user } from '../../db/auth-schema'
-import { matters, shareRecipients, shares } from '../../db/schema'
+import { matters, redirectTokenRegistry, shareRecipients, shares } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
 import { hashPassword } from '../../lib/password'
 import type { Database } from '../../platform/interface'
@@ -16,6 +16,7 @@ import {
   type ShareResolution,
 } from '../../usecases/ports'
 import { createQuotaRepo } from './quota'
+import { withRedirectToken } from './redirect-token'
 import { resourceChangeQuery } from './resource-change'
 
 function buildPath(parent: string, name: string): string {
@@ -45,49 +46,73 @@ export function createShareRepo(db: Database): ShareRepo {
       if (input.kind === 'direct' && matter.dirtype !== DirType.FILE) throw new CreateShareError('DIRECT_NO_FOLDER')
 
       const now = new Date()
-      const token = input.kind === 'direct' ? `ds_${nanoid(10)}` : nanoid(10)
-      const share: ShareRecord = {
-        id: nanoid(),
-        token,
-        kind: input.kind,
-        matterId: input.matterId,
-        orgId: input.orgId,
-        creatorId: input.creatorId,
-        passwordHash: input.password ? hashPassword(input.password) : null,
-        expiresAt: input.expiresAt ?? null,
-        downloadLimit: input.downloadLimit ?? null,
-        views: 0,
-        downloads: 0,
-        status: 'active',
-        private: input.private ?? false,
-        createdAt: now,
-      }
+      const id = generateId()
+      return withRedirectToken(
+        11,
+        async (token) => {
+          const share: ShareRecord = {
+            id,
+            token,
+            kind: input.kind,
+            matterId: input.matterId,
+            orgId: input.orgId,
+            creatorId: input.creatorId,
+            passwordHash: input.password ? hashPassword(input.password) : null,
+            expiresAt: input.expiresAt ?? null,
+            downloadLimit: input.downloadLimit ?? null,
+            views: 0,
+            downloads: 0,
+            status: 'active',
+            private: input.private ?? false,
+            createdAt: now,
+          }
 
-      const queries: AtomicQuery[] = [
-        db.insert(shares).values(share),
-        resourceChangeQuery(db, {
-          scopeType: 'user',
-          scopeId: share.creatorId,
-          resourceType: 'share',
-          resourceId: share.id,
-          changeType: 'upsert',
-          action: 'created',
-          occurredAt: now,
-        }),
-      ]
-      if (input.recipients && input.recipients.length > 0) {
-        const recipientRows = input.recipients.map((r) => ({
-          id: nanoid(),
-          shareId: share.id,
-          recipientUserId: r.recipientUserId ?? null,
-          recipientEmail: r.recipientEmail ?? null,
-          createdAt: now,
-        }))
-        queries.push(db.insert(shareRecipients).values(recipientRows))
-      }
+          const queries: AtomicQuery[] = [
+            db.insert(shares).values(share),
+            ...(share.kind === 'direct'
+              ? [
+                  db.insert(redirectTokenRegistry).values({
+                    token: share.token,
+                    kind: 'direct_share',
+                    resourceId: share.id,
+                  }),
+                ]
+              : []),
+            resourceChangeQuery(db, {
+              scopeType: 'user',
+              scopeId: share.creatorId,
+              resourceType: 'share',
+              resourceId: share.id,
+              changeType: 'upsert',
+              action: 'created',
+              occurredAt: now,
+            }),
+          ]
+          if (input.recipients && input.recipients.length > 0) {
+            const recipientRows = input.recipients.map((r) => ({
+              id: generateId(),
+              shareId: share.id,
+              recipientUserId: r.recipientUserId ?? null,
+              recipientEmail: r.recipientEmail ?? null,
+              createdAt: now,
+            }))
+            queries.push(db.insert(shareRecipients).values(recipientRows))
+          }
 
-      await executeWriteTransaction(db, queries)
-      return share
+          await executeWriteTransaction(db, queries)
+          return share
+        },
+        async (token) => {
+          const existingShare = await db.select({ id: shares.id }).from(shares).where(eq(shares.token, token)).limit(1)
+          if (existingShare.length > 0 || input.kind !== 'direct') return existingShare.length > 0
+          const reservation = await db
+            .select({ token: redirectTokenRegistry.token })
+            .from(redirectTokenRegistry)
+            .where(eq(redirectTokenRegistry.token, token))
+            .limit(1)
+          return reservation.length > 0
+        },
+      )
     },
 
     async resolveByToken(token: string): Promise<ShareResolution> {

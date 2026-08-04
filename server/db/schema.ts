@@ -529,6 +529,7 @@ export const auditEvents = sqliteTable(
   'audit_events',
   {
     id: text('id').primaryKey(),
+    eventKey: text('event_key').unique(),
     orgId: text('org_id').notNull(),
     userId: text('user_id'),
     action: text('action').notNull(), // 'upload', 'create', 'delete', 'rename', 'move', 'restore'
@@ -644,6 +645,19 @@ export const shares = sqliteTable(
   ],
 )
 
+// Shared namespace for resources resolved by /r/:token. Keeping the reservation
+// in the same transaction as the resource insert makes cross-table uniqueness
+// an invariant instead of a best-effort preflight check.
+export const redirectTokenRegistry = sqliteTable(
+  'redirect_token_registry',
+  {
+    token: text('token').primaryKey(),
+    kind: text('kind').notNull(), // 'direct_share' | 'image_hosting'
+    resourceId: text('resource_id').notNull(),
+  },
+  (t) => [uniqueIndex('redirect_token_registry_kind_resource_id_unique').on(t.kind, t.resourceId)],
+)
+
 export const shareRecipients = sqliteTable(
   'share_recipients',
   {
@@ -682,11 +696,11 @@ export const imageHostingConfigs = sqliteTable('image_hosting_configs', {
 export const imageHostings = sqliteTable(
   'image_hostings',
   {
-    id: text('id').primaryKey(), // nanoid(12)
+    id: text('id').primaryKey(), // 13-character Base62 ID
     orgId: text('org_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
-    token: text('token').notNull().unique(), // "ih" + 10 alphanumeric characters
+    token: text('token').notNull().unique(), // 12-character Base62 public token
     path: text('path').notNull(), // virtual path e.g. "blog/2026/04/shot.png"
     storageId: text('storage_id')
       .notNull()

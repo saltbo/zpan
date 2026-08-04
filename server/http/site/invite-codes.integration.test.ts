@@ -259,14 +259,14 @@ describe('Public Invite Codes API — POST /validate', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when code contains lowercase letters', async () => {
+  it('accepts lowercase letters in the Base62 alphabet', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/site/invite-codes/validations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: 'abcd1234' }),
     })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(200)
   })
 
   it('returns 400 when code is fewer than 8 characters', async () => {

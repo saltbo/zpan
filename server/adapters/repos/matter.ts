@@ -1,4 +1,5 @@
 import { DirType, ObjectStatus } from '@shared/constants'
+import { generateId, generateToken } from '@shared/ids'
 import type { SQL } from 'drizzle-orm'
 import {
   aliasedTable,
@@ -18,7 +19,6 @@ import {
   or,
   sql,
 } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { matters } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { suggestRenamed } from '../../domain/matter-name-conflict'
@@ -297,9 +297,9 @@ export function createMatterRepo(db: Database): MatterRepo {
       const finalName = plan.finalName
 
       const row: MatterRow = {
-        id: nanoid(),
+        id: generateId(),
         orgId: input.orgId,
-        alias: nanoid(10),
+        alias: generateToken(11),
         name: finalName,
         type: input.type,
         size: input.size ?? 0,
@@ -508,9 +508,9 @@ export function createMatterRepo(db: Database): MatterRepo {
       )
 
       const row: MatterRow = {
-        id: nanoid(),
+        id: generateId(),
         orgId: source.orgId,
-        alias: nanoid(10),
+        alias: generateToken(11),
         name: finalName,
         type: source.type,
         size: source.size,
