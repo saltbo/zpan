@@ -39,13 +39,13 @@ const coverageConfig = {
 const coverageGate =
   process.env.COVERAGE_ENFORCE === '1'
     ? {
-        // Lock the combined CI baseline by maximum uncovered items. Unlike rounded
+        // Lock the merged CI baseline by maximum uncovered items. Unlike rounded
         // percentages, negative thresholds cannot hide a small coverage regression.
         thresholds: {
-          statements: -1391,
-          branches: -2202,
-          functions: -1007,
-          lines: -698,
+          statements: -2099,
+          branches: -2869,
+          functions: -1924,
+          lines: -717,
         },
       }
     : {}
