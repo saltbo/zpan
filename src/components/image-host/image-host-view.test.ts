@@ -32,6 +32,7 @@ vi.mock('react-i18next', () => ({
 
 import { toast } from 'sonner'
 import { deleteIhostImage } from '@/lib/api'
+import { deleteImageHostItems, imageHostCopyText } from './image-host-actions'
 
 type ToastActionOptions = {
   action: {
@@ -82,28 +83,12 @@ function makeIhostItem(id: string, overrides: Partial<IhostItem> = {}): IhostIte
 // handleCopyUrl logic — mirrors the switch/case in the component
 // ---------------------------------------------------------------------------
 
-function buildCopyText(url: string, format?: 'raw' | 'markdown' | 'html' | 'bbcode'): string {
-  switch (format) {
-    case 'markdown':
-      return `![](${url})`
-    case 'html':
-      return `<img src="${url}" />`
-    case 'bbcode':
-      return `[img]${url}[/img]`
-    default:
-      return url
-  }
-}
-
 function handleCopyUrl(
   item: StorageObject,
   format?: 'raw' | 'markdown' | 'html' | 'bbcode',
   copy?: (text: string, key: string) => void,
 ): string {
-  const ihostItem = item as IhostItem
-  const path = ihostItem.publicUrl ?? ''
-  const url = path.startsWith('/') ? `${window.location.origin}${path}` : path
-  const text = buildCopyText(url, format)
+  const text = imageHostCopyText(item, format, window.location.origin)
   if (copy) copy(text, 'ihost.copy.copied')
   return text
 }
@@ -136,39 +121,13 @@ async function handleDeleteItems(
   queryClient: QueryClientStub,
   t: (key: string) => string,
 ): Promise<void> {
-  queryClient.setQueryData(
-    [...imageHostDataSource.queryKeyPrefix, '', undefined],
-    (old: { items: StorageObject[] } | undefined) => {
-      if (!old) return old
-      return { ...old, items: old.items.filter((i) => !ids.includes(i.id)) }
-    },
-  )
-
-  let cancelled = false
-
-  const toastId = toastController(t('ihost.delete.undoToast'), {
-    action: {
-      label: t('ihost.delete.undo'),
-      onClick: () => {
-        cancelled = true
-        queryClient.invalidateQueries({ queryKey: imageHostDataSource.queryKeyPrefix })
-        toastController.dismiss(toastId)
-      },
-    },
-    duration: 5000,
+  deleteImageHostItems(ids, {
+    queryClient: queryClient as never,
+    pendingDeletes: new Map(),
+    t,
+    toast: toastController,
+    deleteImage: deleteIhostImageFn,
   })
-
-  for (const id of ids) {
-    setTimeout(async () => {
-      if (cancelled) return
-      try {
-        await deleteIhostImageFn(id)
-      } catch {
-        queryClient.invalidateQueries({ queryKey: imageHostDataSource.queryKeyPrefix })
-        toastController.error(t('common.error'))
-      }
-    }, 5000)
-  }
 }
 
 const t = (key: string) => key

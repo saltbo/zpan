@@ -2,24 +2,10 @@ import { expect, test } from '@playwright/test'
 import { createFolder, signUpAndGoToFiles } from './helpers'
 
 // Acceptance coverage for the name-conflict dialog. Single consolidated test
-// because each sign-up costs a full round trip — reusing one session keeps the
-// flow tight and avoids hitting first-request cold-start on the dev server.
+// because each sign-up costs a full round trip and reusing one session keeps the
+// flow tight.
 
 test.describe('Name conflict — folders @all', () => {
-  // Warm the dev server so the sign-up that starts the test isn't the first
-  // POST hitting a freshly-spawned tsx-watch process.
-  test.beforeAll(async ({ request }) => {
-    for (let i = 0; i < 30; i++) {
-      try {
-        const res = await request.get('/api/health', { timeout: 3000 })
-        if (res.ok()) return
-      } catch {
-        // retry
-      }
-      await new Promise((r) => setTimeout(r, 1000))
-    }
-  })
-
   test('409 on duplicate folder, Keep Both auto-renames, case-insensitive match', async ({ page }) => {
     await signUpAndGoToFiles(page)
     await createFolder(page, 'reports')

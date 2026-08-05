@@ -7,7 +7,7 @@ import { signUpAndGoToFiles } from './helpers'
 const textType = 'text/plain'
 const fixtureSize = 6 * 1024 * 1024
 
-test.describe('Archive jobs with queued streaming workers @all', () => {
+test.describe('Archive jobs with queued streaming workers @all @critical', () => {
   test.setTimeout(120_000)
 
   test('compresses and extracts through the background queue', async ({ page }) => {
@@ -98,17 +98,23 @@ async function openRowAction(page: Page, fileName: string, action: string) {
 }
 
 async function expectJobCompleted(page: Page, jobId: string): Promise<BackgroundJob> {
-  const deadline = Date.now() + 60_000
-  while (Date.now() < deadline) {
-    const response = await page.request.get('/api/background-jobs?page=1&pageSize=20')
-    expect(response.ok()).toBe(true)
-    const body = (await response.json()) as PaginatedResponse<BackgroundJob>
-    const job = body.items.find((item) => item.id === jobId)
-    if (job?.status === 'completed') return job
-    if (job?.status === 'failed') throw new Error(job.errorMessage ?? 'Archive job failed')
-    await page.waitForTimeout(500)
-  }
-  throw new Error(`Timed out waiting for archive job ${jobId}`)
+  let completed: BackgroundJob | undefined
+  await expect
+    .poll(
+      async () => {
+        const response = await page.request.get('/api/background-jobs?page=1&pageSize=20')
+        expect(response.ok()).toBe(true)
+        const body = (await response.json()) as PaginatedResponse<BackgroundJob>
+        const job = body.items.find((item) => item.id === jobId)
+        if (job?.status === 'failed') throw new Error(job.errorMessage ?? 'Archive job failed')
+        if (job?.status === 'completed') completed = job
+        return job?.status
+      },
+      { timeout: 60_000 },
+    )
+    .toBe('completed')
+  if (!completed) throw new Error(`Archive job ${jobId} completed without a result`)
+  return completed
 }
 
 function isBackgroundJobPost(url: string, method: string) {

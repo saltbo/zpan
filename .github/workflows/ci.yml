@@ -6,9 +6,9 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  E2E_CLOUD_PRO_EMAIL: ${{ secrets.E2E_CLOUD_PRO_EMAIL }}
-  E2E_CLOUD_PRO_PASSWORD: ${{ secrets.E2E_CLOUD_PRO_PASSWORD }}
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Least-privilege default; jobs that need more (e.g. packages: write) opt in per-job.
 permissions:
@@ -43,8 +43,8 @@ jobs:
       - name: Verify live downloads
         run: LIVE_DOWNLOAD_VERIFY=1 go test ./pkg/downloaders -run 'TestLive(DownloadThreeSourceTypes|QBittorrentDownloadTorrentURL)' -count=1 -v
 
-  check:
-    name: Typecheck & Test
+  static:
+    name: Static checks
     runs-on: ubuntu-latest
     if: github.repository == 'saltbo/zpan'
     steps:
@@ -67,6 +67,19 @@ jobs:
       - run: pnpm lint:spec
       - run: pnpm typecheck
       - run: pnpm openapi:client:check
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    if: github.repository == 'saltbo/zpan'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: pnpm exec vitest run --project unit --coverage --coverage.reportsDirectory=coverage/unit
       - uses: codecov/codecov-action@v5
         if: always()
@@ -76,6 +89,19 @@ jobs:
           disable_search: true
           fail_ci_if_error: false
           handle_no_reports_found: true
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    if: github.repository == 'saltbo/zpan'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: pnpm exec vitest run --project integration --coverage --coverage.reportsDirectory=coverage/integration
       - uses: codecov/codecov-action@v5
         if: always()
@@ -85,8 +111,43 @@ jobs:
           disable_search: true
           fail_ci_if_error: false
           handle_no_reports_found: true
+
+  cloudflare:
+    name: Cloudflare tests
+    runs-on: ubuntu-latest
+    if: github.repository == 'saltbo/zpan'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: mkdir -p dist
       - run: pnpm test:cf
+
+  # Preserve the stable check name while every expensive gate runs independently.
+  # The final dependency list below also includes the jobs declared later.
+  check:
+    name: Typecheck & Test
+    runs-on: ubuntu-latest
+    if: ${{ always() && github.repository == 'saltbo/zpan' }}
+    needs:
+      - downloader
+      - static
+      - unit
+      - integration
+      - cloudflare
+      - docker-smoke
+      - cf-deploy-dry-run
+      - e2e-node
+      - e2e-cf
+    steps:
+      - name: Verify every required job passed
+        env:
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        run: test "$(jq -r '[.[].result] | all(. == "success")' <<<"$JOB_RESULTS")" = true
 
   docker-smoke:
     name: Docker image smoke test
@@ -182,13 +243,13 @@ jobs:
         run: pnpm exec wrangler deploy --dry-run
 
   e2e-node:
-    name: E2E (Node)
+    name: E2E (Node ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
-    needs: check
-    env:
-      BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-chars
-      E2E_CLOUD_BUSINESS_EMAIL_NODE: ${{ secrets.E2E_CLOUD_BUSINESS_EMAIL_NODE }}
-      E2E_CLOUD_BUSINESS_PASSWORD_NODE: ${{ secrets.E2E_CLOUD_BUSINESS_PASSWORD_NODE }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -198,46 +259,20 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Run E2E
-        run: |
-          E2E_APP_PORT=5185 \
-          E2E_BASE_URL=http://localhost:5185 \
-          E2E_LOCAL_BASE_URL=http://localhost:5185 \
-          E2E_S3_MOCK=1 \
-          E2E_STORAGE_ENDPOINT=http://127.0.0.1:9191 \
-          E2E_STORAGE_BUCKET=e2e-test \
-          E2E_STORAGE_REGION=auto \
-          E2E_STORAGE_ACCESS_KEY=e2e-access-key \
-          E2E_STORAGE_SECRET_KEY=e2e-secret-key \
-          BETTER_AUTH_URL=http://localhost:5185 \
-          TRUSTED_ORIGINS=http://localhost:5185 \
-          pnpm e2e --project=desktop --grep-invert "Cloud store|Cloud licensing|Archive jobs|Site announcements"
-      - name: Install cloudflared
-        if: env.E2E_CLOUD_BUSINESS_EMAIL_NODE != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_NODE != ''
-        run: |
-          curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-          chmod +x cloudflared
-      - name: Run cloud E2E
-        if: env.E2E_CLOUD_BUSINESS_EMAIL_NODE != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_NODE != ''
-        run: |
-          ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \
-          VITE_ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \
-          CLOUDFLARED_BIN=./cloudflared \
-          pnpm e2e:cloud -- --runtime node
+        run: pnpm e2e --project=desktop --shard=${{ matrix.shard }}/3
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report-node
-          path: playwright-report/
+          name: playwright-report-node-${{ matrix.shard }}
+          path: |
+            playwright-report/
+            test-results/
           retention-days: 7
 
   e2e-cf:
-    name: E2E (CF Workers)
+    name: E2E critical journeys (CF Workers)
     runs-on: ubuntu-latest
-    needs: [check, e2e-node]
-    env:
-      BETTER_AUTH_SECRET: ci-test-secret-that-is-at-least-32-chars
-      E2E_CLOUD_BUSINESS_EMAIL_CF: ${{ secrets.E2E_CLOUD_BUSINESS_EMAIL_CF }}
-      E2E_CLOUD_BUSINESS_PASSWORD_CF: ${{ secrets.E2E_CLOUD_BUSINESS_PASSWORD_CF }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -246,52 +281,13 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Prepare local D1
-        run: pnpm exec wrangler d1 migrations apply DB --local
-      - name: Prepare CF E2E env
-        run: |
-          cat > .dev.vars <<'EOF'
-          BETTER_AUTH_SECRET=ci-test-secret-that-is-at-least-32-chars
-          BETTER_AUTH_URL=http://localhost:5185
-          TRUSTED_ORIGINS=http://localhost:5185
-          ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev
-          VITE_ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev
-          E2E_STORAGE_ENDPOINT=http://127.0.0.1:9191
-          E2E_STORAGE_BUCKET=e2e-test
-          E2E_STORAGE_REGION=auto
-          E2E_STORAGE_ACCESS_KEY=e2e-access-key
-          E2E_STORAGE_SECRET_KEY=e2e-secret-key
-          EOF
       - name: Run E2E
-        run: |
-          E2E_RUNTIME=cf \
-          E2E_APP_PORT=5185 \
-          E2E_BASE_URL=http://localhost:5185 \
-          E2E_LOCAL_BASE_URL=http://localhost:5185 \
-          E2E_S3_MOCK=1 \
-          E2E_STORAGE_ENDPOINT=http://127.0.0.1:9191 \
-          E2E_STORAGE_BUCKET=e2e-test \
-          E2E_STORAGE_REGION=auto \
-          E2E_STORAGE_ACCESS_KEY=e2e-access-key \
-          E2E_STORAGE_SECRET_KEY=e2e-secret-key \
-          BETTER_AUTH_URL=http://localhost:5185 \
-          TRUSTED_ORIGINS=http://localhost:5185 \
-          pnpm e2e --project=desktop --grep-invert "Cloud store|Cloud licensing|Archive jobs|Site announcements"
-      - name: Install cloudflared
-        if: env.E2E_CLOUD_BUSINESS_EMAIL_CF != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_CF != ''
-        run: |
-          curl -L --fail --output cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-          chmod +x cloudflared
-      - name: Run cloud E2E
-        if: env.E2E_CLOUD_BUSINESS_EMAIL_CF != '' && env.E2E_CLOUD_BUSINESS_PASSWORD_CF != ''
-        run: |
-          ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \
-          VITE_ZPAN_CLOUD_URL=https://zpan-cloud-staging.saltbo.workers.dev \
-          CLOUDFLARED_BIN=./cloudflared \
-          pnpm e2e:cloud:cf
+        run: E2E_RUNTIME=cf pnpm e2e --project=desktop --grep @critical
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-report-cf
-          path: playwright-report/
+          path: |
+            playwright-report/
+            test-results/
           retention-days: 7

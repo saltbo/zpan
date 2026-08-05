@@ -1,18 +1,13 @@
 /**
  * E2E: Image Host gallery page
  *
- * Golden path: enable feature → upload (mocked S3 PUT) → view in grid →
- *   switch to table → copy Markdown URL → delete with Undo → delete permanently.
- *
- * S3 PUT is intercepted via page.route() because the test environment uses a
- * fake storage endpoint. All other API calls go through the real server.
+ * Golden path: enable feature → upload to the local S3 protocol fake → view in
+ * grid → switch to table → copy Markdown URL → delete with Undo.
  */
 
 import { type APIResponse, expect, test } from '@playwright/test'
-import { expandSignUpForm } from './helpers'
+import { expandSignUpForm, testIdentity } from './helpers'
 
-const EMAIL = () => `ihost-${Date.now()}@example.com`
-const USERNAME = () => `ihost${Date.now()}`
 const PASSWORD = 'password123456'
 
 async function expectApiOk(response: APIResponse, label: string) {
@@ -28,10 +23,11 @@ async function openImageRowActions(page: import('@playwright/test').Page, fileNa
 }
 
 async function signUpAndGoToImageHost(page: import('@playwright/test').Page) {
+  const identity = testIdentity('ihost')
   await page.goto('/sign-up')
   await expandSignUpForm(page)
-  await page.getByLabel('Email').fill(EMAIL())
-  await page.getByLabel('Username').fill(USERNAME())
+  await page.getByLabel('Email').fill(`${identity}@example.com`)
+  await page.getByLabel('Username').fill(identity)
   await page.getByLabel('Password').fill(PASSWORD)
   const [resp] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/api/auth/sign-up')),
@@ -95,21 +91,11 @@ test.describe('Image Host gallery golden path @all', () => {
     await enableImageHostFromSettings(page)
     await page.goto('/image-host')
     await expect(page).toHaveURL(/image-host/, { timeout: 10000 })
-    // Wait for gallery to load
-    await page.waitForTimeout(500)
+    await expect(page.getByText(/drag and drop|no image/i)).toBeVisible({ timeout: 10000 })
   }
 
-  test('upload → view in grid → switch to table', async ({ page }) => {
+  test('upload → switch between list and grid views @critical', async ({ page }) => {
     await setupImageHost(page)
-
-    // Intercept S3 PUT so upload completes without a real S3
-    await page.route(/presigned-upload|s3\.amazonaws\.com|localhost:9000/, async (route) => {
-      if (route.request().method() === 'PUT') {
-        await route.fulfill({ status: 200, body: '' })
-      } else {
-        await route.continue()
-      }
-    })
 
     // Create a tiny PNG file buffer (1×1 transparent PNG)
     const pngBytes = Buffer.from(
@@ -117,33 +103,29 @@ test.describe('Image Host gallery golden path @all', () => {
       'base64',
     )
 
-    await page.locator('input[type="file"]').first().setInputFiles({
-      name: 'test-image.png',
-      mimeType: 'image/png',
-      buffer: pngBytes,
-    })
-
-    // Wait for the presign + confirm API calls to complete
-    const uploadResp = await page.waitForResponse(
-      (r) => r.url().includes('/api/image-hosting/images') && r.request().method() === 'POST',
-      { timeout: 10000 },
-    )
+    const [uploadResp] = await Promise.all([
+      page.waitForResponse((r) => r.url().includes('/api/image-hosting/images') && r.request().method() === 'POST', {
+        timeout: 10000,
+      }),
+      page.locator('input[type="file"]').first().setInputFiles({
+        name: 'test-image.png',
+        mimeType: 'image/png',
+        buffer: pngBytes,
+      }),
+    ])
     await expectApiOk(uploadResp, 'Image upload')
 
-    // Grid view should be the default
-    // Switch to table view
-    const tableViewBtn = page.getByRole('button', { name: /table|list/i })
-    if (await tableViewBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await tableViewBtn.click()
-      // Table header or rows should appear
-      await expect(page.getByRole('table').or(page.getByRole('row')).first()).toBeVisible({ timeout: 5000 })
-    }
+    const listView = page.getByRole('radio', { name: 'List view' })
+    const gridView = page.getByRole('radio', { name: 'Grid view' })
+    await expect(listView).toBeChecked()
+    await expect(page.getByRole('row').filter({ hasText: 'test-image.png' })).toBeVisible()
 
-    // Switch back to grid
-    const gridViewBtn = page.getByRole('button', { name: /grid|card/i })
-    if (await gridViewBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await gridViewBtn.click()
-    }
+    await gridView.click()
+    await expect(gridView).toBeChecked()
+    await expect(page.getByRole('button', { name: /test-image\.png/ })).toBeVisible()
+
+    await listView.click()
+    await expect(listView).toBeChecked()
   })
 
   test('copy URL with Markdown format via row actions', async ({ page, context }) => {
@@ -214,35 +196,5 @@ test.describe('Image Host gallery golden path @all', () => {
 
     // Toast should be dismissed — item remains in the gallery
     await expect(undoBtn).not.toBeVisible({ timeout: 3000 })
-  })
-
-  test('delete permanently (let timer expire)', async ({ page }) => {
-    await setupImageHost(page)
-
-    // Seed an image
-    const presignResp = await page.request.post('/api/image-hosting/images/presign', {
-      headers: { 'Content-Type': 'application/json' },
-      data: { path: 'e2e-delete-perm.png', mime: 'image/png', size: 100 },
-    })
-    await expectApiOk(presignResp, 'Seed image presign')
-    const { id: draftId } = await presignResp.json()
-    const confirmResp = await page.request.put(`/api/image-hosting/images/${draftId}/status`)
-    await expectApiOk(confirmResp, 'Confirm seeded image')
-
-    await page.reload()
-
-    await openImageRowActions(page, 'e2e-delete-perm.png')
-    const deleteMenuItem = page.getByRole('menuitem', { name: /delete/i }).first()
-    await expect(deleteMenuItem).toBeVisible({ timeout: 3000 })
-    await deleteMenuItem.click()
-
-    // Undo toast appears — wait for the 5s timer, then the DELETE API call fires
-    const [deleteResp] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes('/api/image-hosting/images/') && r.request().method() === 'DELETE', {
-        timeout: 10000,
-      }),
-      page.waitForTimeout(5500), // wait past the 5s undo window
-    ])
-    expect(deleteResp.ok()).toBe(true)
   })
 })

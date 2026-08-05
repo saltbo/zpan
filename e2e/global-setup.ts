@@ -190,8 +190,7 @@ setup('seed admin and storage', async () => {
         data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
       })
       if (!authResp.ok()) {
-        console.warn('[setup] could not authenticate admin')
-        return
+        throw new Error(`could not authenticate E2E admin: ${authResp.status()} ${await authResp.text()}`)
       }
     }
 

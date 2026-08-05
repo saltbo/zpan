@@ -3,7 +3,7 @@ import { DirType } from '../shared/constants'
 import type { StorageObject } from '../shared/types'
 import { signUpAndGoToFiles } from './helpers'
 
-test.describe('Private S3 downloads @desktop', () => {
+test.describe('Private S3 downloads @desktop @critical', () => {
   test('keeps the signed S3 host and uses the latest English and Chinese filenames', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
