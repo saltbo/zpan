@@ -177,17 +177,39 @@ jobs:
       matrix:
         include:
           - label: Server image
+            scope: server
             target: ''
             tag: zpan-zpan:latest
             cache: docker-server
           - label: CLI image
+            scope: cli
             target: cli
             tag: zpan-cli-smoke:latest
             cache: docker-cli
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Detect packaging changes
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PACKAGE_SCOPE: ${{ matrix.scope }}
+        run: |
+          if [ "$PACKAGE_SCOPE" = cli ]; then
+            paths=(Dockerfile .dockerignore cmd)
+          else
+            paths=(Dockerfile .dockerignore docker-compose.yml scripts/docker-entrypoint.sh pnpm-lock.yaml)
+          fi
+          if [ "${{ github.event_name }}" != pull_request ] || ! git diff --quiet "$BASE_SHA" HEAD -- "${paths[@]}"; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/setup-buildx-action@v4
+        if: steps.scope.outputs.run == 'true'
       - name: Build image
+        if: steps.scope.outputs.run == 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -199,19 +221,19 @@ jobs:
       # Downloader engines and protocol behavior have their own live local job.
       # This smoke gate only needs to prove the current production server image boots.
       - name: Start server image
-        if: matrix.target == ''
+        if: steps.scope.outputs.run == 'true' && matrix.target == ''
         run: docker compose -f docker-compose.yml up -d --no-build --wait --wait-timeout 60 zpan
       - name: Assert server health from host
-        if: matrix.target == ''
+        if: steps.scope.outputs.run == 'true' && matrix.target == ''
         run: curl --fail --retry 5 --retry-delay 3 --retry-connrefused http://localhost:8222/api/health
       - name: Verify CLI entrypoint
-        if: matrix.target == 'cli'
+        if: steps.scope.outputs.run == 'true' && matrix.target == 'cli'
         run: docker run --rm zpan-cli-smoke:latest --help
       - name: Dump logs on failure
-        if: ${{ failure() && matrix.target == '' }}
+        if: ${{ failure() && steps.scope.outputs.run == 'true' && matrix.target == '' }}
         run: docker compose -f docker-compose.yml logs --no-color
       - name: Tear down
-        if: ${{ always() && matrix.target == '' }}
+        if: ${{ always() && steps.scope.outputs.run == 'true' && matrix.target == '' }}
         run: docker compose -f docker-compose.yml down -v
 
   deployment:
@@ -220,12 +242,24 @@ jobs:
     if: github.repository == 'saltbo/zpan'
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Detect server packaging changes
+        id: packaging
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "${{ github.event_name }}" != pull_request ] || ! git diff --quiet "$BASE_SHA" HEAD -- Dockerfile .dockerignore docker-compose.yml scripts/docker-entrypoint.sh pnpm-lock.yaml; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          fi
       - name: Build
         env:
           ZPAN_APP_VERSION: ci-dry-run
@@ -237,6 +271,9 @@ jobs:
       # (#417) or an unprovisioned binding added to wrangler.toml.
       - name: Validate Cloudflare deploy config
         run: pnpm exec wrangler deploy --dry-run
+      - name: Build Node package
+        if: steps.packaging.outputs.run != 'true'
+        run: pnpm build:node
 
   e2e:
     name: E2E / ${{ matrix.label }}
