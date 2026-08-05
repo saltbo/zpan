@@ -39,13 +39,13 @@ const coverageConfig = {
 const coverageGate =
   process.env.COVERAGE_ENFORCE === '1'
     ? {
-        // Integer floors of the merged CI shard baseline. Keep this as a ratchet:
-        // production growth must preserve or improve the repository-wide result.
+        // Lock the merged CI baseline by maximum uncovered items. Unlike rounded
+        // percentages, negative thresholds cannot hide a small coverage regression.
         thresholds: {
-          statements: 86,
-          branches: 75,
-          functions: 66,
-          lines: 94,
+          statements: -2099,
+          branches: -2869,
+          functions: -1924,
+          lines: -717,
         },
       }
     : {}

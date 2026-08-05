@@ -94,6 +94,7 @@ jobs:
           name: vitest-coverage-unit-${{ matrix.shard }}
           path: .vitest-reports/unit-${{ matrix.shard }}.blob
           include-hidden-files: true
+          if-no-files-found: error
           retention-days: 1
 
   integration:
@@ -122,6 +123,7 @@ jobs:
           name: vitest-coverage-integration-${{ matrix.shard }}
           path: .vitest-reports/integration-${{ matrix.shard }}.blob
           include-hidden-files: true
+          if-no-files-found: error
           retention-days: 1
 
   coverage:
@@ -142,6 +144,13 @@ jobs:
           pattern: vitest-coverage-*
           path: .vitest-reports
           merge-multiple: true
+      - name: Verify every coverage shard is present
+        run: |
+          test -f .vitest-reports/unit-1.blob
+          test -f .vitest-reports/unit-2.blob
+          test -f .vitest-reports/integration-1.blob
+          test -f .vitest-reports/integration-2.blob
+          test "$(find .vitest-reports -type f -name '*.blob' | wc -l)" -eq 4
       - name: Merge coverage and enforce thresholds
         env:
           COVERAGE_ENFORCE: '1'
