@@ -47,22 +47,28 @@ describe('buildObjectKey', () => {
     expect(a).not.toBe(b)
   })
 
+  it('accepts legacy owner IDs while keeping the generated key segment Base62', () => {
+    const result = buildObjectKey({ ...baseVars, orgId: 'legacy_org', uid: 'legacy-user' })
+    expect(result).toMatch(/^legacy_org\/legacy-user\/\d{8}\/[A-Za-z0-9]{17}\.jpg$/)
+  })
+
   it.each([
-    ['organization ID', { ...baseVars, orgId: 'legacy_org' }],
-    ['user ID', { ...baseVars, uid: 'legacy-user' }],
-  ])('rejects a non-Base62 %s before creating a key', (component, vars) => {
+    ['organization ID', { ...baseVars, orgId: 'invalid/org' }],
+    ['user ID', { ...baseVars, uid: 'invalid:user' }],
+  ])('rejects an unsafe %s before creating a key', (component, vars) => {
     expect(() => buildObjectKey(vars)).toThrow(`Invalid ${component} for object storage key`)
   })
 })
 
 describe('buildImageStorageKey', () => {
-  it('uses only Base62 ID components under the image namespace', () => {
+  it('uses compatible opaque ID components under the image namespace', () => {
     expect(buildImageStorageKey('org123', 'imageABC123', 'png')).toBe('ih/org123/imageABC123.png')
+    expect(buildImageStorageKey('legacy_org', 'legacy-image', 'png')).toBe('ih/legacy_org/legacy-image.png')
   })
 
   it.each([
-    ['organization ID', 'legacy_org', 'imageABC123', 'png'],
-    ['image ID', 'org123', 'legacy-image', 'png'],
+    ['organization ID', 'invalid/org', 'imageABC123', 'png'],
+    ['image ID', 'org123', 'invalid:image', 'png'],
     ['extension', 'org123', 'imageABC123', 'png/other'],
   ])('rejects an invalid %s component', (_component, orgId, imageId, extension) => {
     expect(() => buildImageStorageKey(orgId, imageId, extension)).toThrow(/Invalid .* for image storage key/)

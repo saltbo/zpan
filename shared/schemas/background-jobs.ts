@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { opaqueIdSchema } from './id'
 
 export const backgroundJobStatusSchema = z.enum(['queued', 'running', 'completed', 'failed', 'canceled'])
 export type BackgroundJobStatusInput = z.infer<typeof backgroundJobStatusSchema>
@@ -6,7 +7,7 @@ export type BackgroundJobStatusInput = z.infer<typeof backgroundJobStatusSchema>
 export const backgroundJobTypeSchema = z.string().min(1).max(80)
 export type BackgroundJobTypeInput = z.infer<typeof backgroundJobTypeSchema>
 
-const matterIdSchema = z.string().min(1)
+const matterIdSchema = opaqueIdSchema
 
 export const archiveCompressJobRequestSchema = z.object({
   type: z.literal('archive_compress'),

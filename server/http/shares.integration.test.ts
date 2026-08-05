@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { generateId } from '../../shared/ids'
+import { BASE62_PATTERN, generateId, SHARE_TOKEN_PATTERN } from '../../shared/ids'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { createShareRepo } from '../adapters/repos/share'
 import { auditEvents, shareRecipients, shares } from '../db/schema.js'
@@ -142,6 +142,35 @@ describe('POST /api/shares (auth guard)', () => {
 describe('POST /api/shares', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('rejects an unsafe externally supplied matter ID before lookup', async () => {
+    const { app } = await createTestApp()
+    const headers = await authedHeaders(app)
+
+    const res = await createShare(app, headers, { matterId: 'matter/id', kind: 'landing' })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('accepts a historical matter reference but creates only new-format share identities', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const matterId = 'legacy_matter-id'
+    await insertFile(db, orgId, { id: matterId, name: 'legacy.txt' })
+
+    const res = await createShare(app, headers, { matterId, kind: 'landing' })
+
+    expect(res.status).toBe(201)
+    const body = (await res.json()) as { token: string }
+    expect(body.token).toMatch(SHARE_TOKEN_PATTERN)
+    const rows = await db
+      .select({ id: shares.id, matterId: shares.matterId })
+      .from(shares)
+      .where(eq(shares.token, body.token))
+    expect(rows).toEqual([{ id: expect.stringMatching(BASE62_PATTERN), matterId }])
   })
 
   it('creates a landing share without password and returns 201 with correct shape [spec: shares/create-landing]', async () => {

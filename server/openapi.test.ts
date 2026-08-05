@@ -1,31 +1,73 @@
 import { AuthorizationScope } from '@shared/authorization'
-import { BASE62_PATTERN, IMAGE_TOKEN_PATTERN, SHARE_TOKEN_PATTERN } from '@shared/ids'
+import { COMPATIBLE_IMAGE_TOKEN_PATTERN, COMPATIBLE_SHARE_TOKEN_PATTERN, OPAQUE_ID_PATTERN } from '@shared/ids'
 import { describe, expect, it } from 'vitest'
 import { authRoute, findOperationsMissingAuthContract } from './http/openapi'
 import { createTestApp } from './test/setup'
 
 describe('global OpenAPI document', () => {
-  it('publishes the Base62 contract for ZPan-owned local ID inputs', async () => {
+  it('publishes compatibility contracts for stored IDs while preserving token namespaces', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
-      paths: Record<string, Record<string, { parameters?: Array<{ name: string; schema?: { pattern?: string } }> }>>
+      paths: Record<
+        string,
+        Record<
+          string,
+          {
+            parameters?: Array<{ name: string; schema?: { pattern?: string } }>
+            requestBody?: {
+              content?: {
+                'application/json'?: {
+                  schema?: {
+                    properties?: Record<string, { pattern?: string; items?: { pattern?: string } }>
+                  }
+                }
+              }
+            }
+          }
+        >
+      >
       components?: { schemas?: Record<string, { properties?: Record<string, { pattern?: string }> }> }
     }
     const patternFor = (path: string, method: string, name: string) =>
       doc.paths[path]?.[method]?.parameters?.find((parameter) => parameter.name === name)?.schema?.pattern
+    const bodyPropertyFor = (path: string, method: string, name: string) =>
+      doc.paths[path]?.[method]?.requestBody?.content?.['application/json']?.schema?.properties?.[name]
 
-    expect(patternFor('/api/objects/{id}', 'get', 'id')).toBe(BASE62_PATTERN.source)
+    for (const path of [
+      '/api/objects',
+      '/api/shares',
+      '/api/downloads/tasks',
+      '/api/downloads/downloaders',
+      '/api/site/storages',
+    ]) {
+      expect(
+        bodyPropertyFor(path, 'post', 'id'),
+        `${path} must not accept a caller-selected primary ID`,
+      ).toBeUndefined()
+    }
+
+    expect(patternFor('/api/objects/{id}', 'get', 'id')).toBe(OPAQUE_ID_PATTERN.source)
     expect(patternFor('/api/objects/{id}/uploads/{uploadSessionId}', 'delete', 'uploadSessionId')).toBe(
-      BASE62_PATTERN.source,
+      OPAQUE_ID_PATTERN.source,
     )
-    expect(patternFor('/api/trash/objects/{id}', 'delete', 'id')).toBe(BASE62_PATTERN.source)
-    expect(patternFor('/api/oauth-grants/{grantId}', 'delete', 'grantId')).toBe(BASE62_PATTERN.source)
-    expect(patternFor('/api/site/audit-events', 'get', 'orgId')).toBe(BASE62_PATTERN.source)
-    expect(patternFor('/api/shares/{token}', 'get', 'token')).toBe(SHARE_TOKEN_PATTERN.source)
-    expect(patternFor('/api/shares/{token}/objects', 'get', 'token')).toBe(SHARE_TOKEN_PATTERN.source)
-    expect(doc.components?.schemas?.ImageHosting?.properties?.token?.pattern).toBe(IMAGE_TOKEN_PATTERN.source)
-    expect(doc.components?.schemas?.ImageHostingDraft?.properties?.token?.pattern).toBe(IMAGE_TOKEN_PATTERN.source)
+    expect(patternFor('/api/trash/objects/{id}', 'delete', 'id')).toBe(OPAQUE_ID_PATTERN.source)
+    expect(patternFor('/api/oauth-grants/{grantId}', 'delete', 'grantId')).toBe(OPAQUE_ID_PATTERN.source)
+    expect(patternFor('/api/site/audit-events', 'get', 'orgId')).toBe(OPAQUE_ID_PATTERN.source)
+    expect(bodyPropertyFor('/api/objects', 'post', 'storageId')?.pattern).toBe(OPAQUE_ID_PATTERN.source)
+    expect(bodyPropertyFor('/api/objects/{id}/transfers', 'post', 'targetOrgId')?.pattern).toBe(
+      OPAQUE_ID_PATTERN.source,
+    )
+    expect(bodyPropertyFor('/api/shares', 'post', 'matterId')?.pattern).toBe(OPAQUE_ID_PATTERN.source)
+    expect(bodyPropertyFor('/api/oauth-consent', 'post', 'workspaceIds')?.items?.pattern).toBe(OPAQUE_ID_PATTERN.source)
+    expect(patternFor('/api/shares/{token}', 'get', 'token')).toBe(COMPATIBLE_SHARE_TOKEN_PATTERN.source)
+    expect(patternFor('/api/shares/{token}/objects', 'get', 'token')).toBe(COMPATIBLE_SHARE_TOKEN_PATTERN.source)
+    expect(doc.components?.schemas?.ImageHosting?.properties?.token?.pattern).toBe(
+      COMPATIBLE_IMAGE_TOKEN_PATTERN.source,
+    )
+    expect(doc.components?.schemas?.ImageHostingDraft?.properties?.token?.pattern).toBe(
+      COMPATIBLE_IMAGE_TOKEN_PATTERN.source,
+    )
   })
 
   it('aggregates every OpenAPIHono route at /api/openapi.json', async () => {

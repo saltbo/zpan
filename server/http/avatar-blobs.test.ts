@@ -20,8 +20,8 @@ function context(scope: string, id: string, getBinding = vi.fn()) {
 
 describe('serveAvatarBlob', () => {
   it.each([
-    ['user', 'legacy_user'],
-    ['user', 'legacy-user'],
+    ['user', 'invalid/user'],
+    ['user', 'invalid:user'],
     ['organization', 'Owner123'],
   ])('rejects an invalid public blob key before reading R2', async (scope, id) => {
     const ctx = context(scope, id)
@@ -31,15 +31,15 @@ describe('serveAvatarBlob', () => {
     expect(ctx.getBinding).not.toHaveBeenCalled()
   })
 
-  it('reads only the canonical scope and Base62 owner ID', async () => {
+  it.each(['Owner123', 'legacy_user', 'legacy-user'])('reads a compatible owner ID %s', async (ownerId) => {
     const get = vi.fn().mockResolvedValue({
       arrayBuffer: async () => new TextEncoder().encode('avatar').buffer,
       httpMetadata: { contentType: 'image/png' },
     })
-    const ctx = context('team', 'Owner123', vi.fn().mockReturnValue({ get }))
+    const ctx = context('team', ownerId, vi.fn().mockReturnValue({ get }))
     const response = await serveAvatarBlob(ctx.value)
 
-    expect(get).toHaveBeenCalledWith('team/Owner123')
+    expect(get).toHaveBeenCalledWith(`team/${ownerId}`)
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('image/png')
   })

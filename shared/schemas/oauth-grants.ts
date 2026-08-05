@@ -53,7 +53,7 @@ export type OAuthConsentContextRequest = z.infer<typeof oauthConsentContextReque
 export const oauthConsentSubmitSchema = z.object({
   accept: z.boolean(),
   oauthQuery: z.string().min(1),
-  workspaceIds: z.array(z.string().min(1)),
+  workspaceIds: z.array(opaqueIdSchema),
 })
 export type OAuthConsentSubmit = z.infer<typeof oauthConsentSubmitSchema>
 

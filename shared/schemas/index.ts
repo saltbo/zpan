@@ -148,7 +148,7 @@ export {
   errorInfoSchema,
   errorResponseSchema,
 } from './errors'
-export { imageTokenSchema, opaqueIdSchema, opaqueTokenSchema, shareTokenSchema } from './id'
+export { base62IdSchema, imageTokenSchema, opaqueIdSchema, opaqueTokenSchema, shareTokenSchema } from './id'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
 export type { WorkspaceAuthorizationDetail } from './oauth-authorization'
@@ -292,9 +292,7 @@ export const createMatterSchema = z.object({
   parent: matterParentPathSchema.default(''),
   dirtype: z.number().int().default(0),
   onConflict: conflictStrategySchema.optional(),
-  storageId: z
-    .string()
-    .min(1)
+  storageId: opaqueIdSchema
     .describe(
       'Only site administrators may set this field; omit it to let ZPan automatically select an available storage.',
     )
@@ -410,7 +408,7 @@ export const copyObjectBodySchema = z.object({
 export type CopyObjectBodyInput = z.infer<typeof copyObjectBodySchema>
 
 export const transferMatterSchema = z.object({
-  targetOrgId: z.string().min(1),
+  targetOrgId: opaqueIdSchema,
   targetParent: z.string().default(''),
   mode: z.enum(['copy', 'move']),
 })

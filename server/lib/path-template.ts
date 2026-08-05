@@ -1,4 +1,4 @@
-import { BASE62_PATTERN, generateToken } from '../../shared/ids'
+import { generateToken, OPAQUE_ID_PATTERN } from '../../shared/ids'
 
 export interface TemplateVars {
   uid: string
@@ -6,13 +6,13 @@ export interface TemplateVars {
   rawExt: string
 }
 
-function requireBase62KeyComponent(keyType: string, name: string, value: string): void {
-  if (!BASE62_PATTERN.test(value)) throw new Error(`Invalid ${name} for ${keyType} storage key`)
+function requireOpaqueIdKeyComponent(keyType: string, name: string, value: string): void {
+  if (!OPAQUE_ID_PATTERN.test(value)) throw new Error(`Invalid ${name} for ${keyType} storage key`)
 }
 
 export function assertObjectKeyOwner(vars: Pick<TemplateVars, 'orgId' | 'uid'>): void {
-  requireBase62KeyComponent('object', 'organization ID', vars.orgId)
-  requireBase62KeyComponent('object', 'user ID', vars.uid)
+  requireOpaqueIdKeyComponent('object', 'organization ID', vars.orgId)
+  requireOpaqueIdKeyComponent('object', 'user ID', vars.uid)
 }
 
 /** Returns the file extension including the leading dot, or '' when there is none. */
@@ -33,8 +33,8 @@ export function buildObjectKey(vars: TemplateVars): string {
 }
 
 export function buildImageStorageKey(orgId: string, imageId: string, extension: string): string {
-  requireBase62KeyComponent('image', 'organization ID', orgId)
-  requireBase62KeyComponent('image', 'image ID', imageId)
+  requireOpaqueIdKeyComponent('image', 'organization ID', orgId)
+  requireOpaqueIdKeyComponent('image', 'image ID', imageId)
   if (!/^[A-Za-z0-9]+$/.test(extension)) throw new Error('Invalid extension for image storage key')
   return `ih/${orgId}/${imageId}.${extension}`
 }

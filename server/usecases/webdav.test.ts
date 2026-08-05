@@ -523,10 +523,28 @@ describe('webdav usecase', () => {
       expect(deleteObject).not.toHaveBeenCalled()
     })
 
+    it('overwrites an existing object for compatible legacy owner IDs', async () => {
+      const existing = file('m1', { object: 'legacy_/existing-file-.txt', size: 20 })
+      const deps = makeDeps({ s3: { putObject: async () => 5 } })
+
+      await expect(
+        putWebDavFile(
+          deps,
+          putParams({
+            target: target({ matter: existing }),
+            contentLength: 5,
+            orgId: 'legacy_org',
+            userId: 'legacy-user',
+          }),
+        ),
+      ).resolves.toMatchObject({ ok: true, status: 204 })
+      expect(existing.object).toBe('legacy_/existing-file-.txt')
+    })
+
     it.each([
-      ['organization ID', { orgId: 'legacy_org' }],
-      ['user ID', { userId: 'legacy-user' }],
-    ])('rejects an invalid %s before overwriting an existing S3 object', async (component, overrides) => {
+      ['organization ID', { orgId: 'invalid/org' }],
+      ['user ID', { userId: 'invalid:user' }],
+    ])('rejects an unsafe %s before overwriting an existing S3 object', async (component, overrides) => {
       const putObject = vi.fn(async () => 5)
       const existing = file('m1', { object: 'legacy_/existing-file-.txt', size: 20 })
       const deps = makeDeps({ s3: { putObject } })

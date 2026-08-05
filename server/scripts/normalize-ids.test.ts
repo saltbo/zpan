@@ -84,10 +84,19 @@ function fixture(path = ':memory:'): Database.Database {
     CREATE TABLE notifications (
       id TEXT PRIMARY KEY, user_id TEXT NOT NULL, ref_type TEXT, ref_id TEXT, metadata TEXT
     );
-    CREATE TABLE apikey (id TEXT PRIMARY KEY, reference_id TEXT, key TEXT);
+    CREATE TABLE apikey (id TEXT PRIMARY KEY, reference_id TEXT, key TEXT, metadata TEXT);
     CREATE TABLE session (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, token TEXT NOT NULL);
     CREATE TABLE verification (id TEXT PRIMARY KEY);
-    CREATE TABLE deviceCode (id TEXT PRIMARY KEY);
+    CREATE TABLE deviceCode (
+      id TEXT PRIMARY KEY,
+      device_code TEXT NOT NULL,
+      user_code TEXT NOT NULL,
+      user_id TEXT,
+      client_id TEXT,
+      scope TEXT,
+      status TEXT NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
     CREATE TABLE oauthAccessToken (id TEXT PRIMARY KEY);
     CREATE TABLE oauthRefreshToken (id TEXT PRIMARY KEY);
     CREATE TABLE oauthPushedAuthorizationRequest (id TEXT PRIMARY KEY);
@@ -147,10 +156,16 @@ function fixture(path = ':memory:'): Database.Database {
       'notification_old-', 'user-_legacy', 'share', 'share_old-',
       '{"shareId":"share_old-","token":"ds_direct-old","customerId":"user-_legacy"}'
     );
-    INSERT INTO apikey VALUES ('api_key_old-', 'user-_legacy', 'irreversible-hash');
+    INSERT INTO apikey VALUES (
+      'api_key_old-', 'user-_legacy', 'irreversible-hash',
+      '{"scope":{"mode":"workspace","orgId":"-org_legacy-"}}'
+    );
     INSERT INTO session VALUES ('session_old-', 'user-_legacy', 'session-token');
     INSERT INTO verification VALUES ('verification_old-');
-    INSERT INTO deviceCode VALUES ('device_old-');
+    INSERT INTO deviceCode VALUES (
+      'device_old-', 'device-code-value', 'USER-CODE', 'user-_legacy', 'static-client',
+      'openid offline_access', 'pending', 1999999999999
+    );
     INSERT INTO oauthAccessToken VALUES ('access_old-');
     INSERT INTO oauthRefreshToken VALUES ('refresh_old-');
     INSERT INTO oauthPushedAuthorizationRequest VALUES ('par_old-');
@@ -215,7 +230,7 @@ describe('ID normalization backfill', () => {
     db.close()
   })
 
-  it('atomically maps IDs and references, rotates public tokens, rewrites JSON, and invalidates credentials', () => {
+  it('atomically maps IDs and references, preserves API keys and device codes, and invalidates other credentials', () => {
     const db = fixture()
     const summary = normalizeDatabase(db, true)
 
@@ -228,6 +243,8 @@ describe('ID normalization backfill', () => {
     const shareToken = value(db, 'SELECT token AS value FROM shares')
     const imageToken = value(db, 'SELECT token AS value FROM image_hostings')
     const taskId = value(db, 'SELECT id AS value FROM download_tasks')
+    const apiKeyId = value(db, 'SELECT id AS value FROM apikey')
+    const deviceCodeId = value(db, 'SELECT id AS value FROM deviceCode')
     const downloaderId = value(
       db,
       "SELECT substr(created_by, 12) AS value FROM object_upload_sessions WHERE created_by LIKE 'downloader:%'",
@@ -246,6 +263,8 @@ describe('ID normalization backfill', () => {
       shareToken,
       imageToken,
       taskId,
+      apiKeyId,
+      deviceCodeId,
       downloaderId,
     ]) {
       expect(governedValue).toMatch(BASE62_PATTERN)
@@ -311,6 +330,24 @@ describe('ID normalization backfill', () => {
     expect(value(db, 'SELECT event_key AS value FROM audit_events')).toContain(matterId)
     expect(value(db, 'SELECT event_key AS value FROM storage_usage_ledger')).toBe(`opening:${orgId}:${storageId}`)
     expect(value(db, 'SELECT id AS value FROM audit_events')).toMatch(BASE62_PATTERN)
+    expect(db.prepare('SELECT reference_id, key, metadata FROM apikey').get()).toEqual({
+      reference_id: userId,
+      key: 'irreversible-hash',
+      metadata: JSON.stringify({ scope: { mode: 'workspace', orgId } }),
+    })
+    expect(
+      db.prepare('SELECT device_code, user_code, user_id, client_id, scope, status, expires_at FROM deviceCode').get(),
+    ).toEqual({
+      device_code: 'device-code-value',
+      user_code: 'USER-CODE',
+      user_id: userId,
+      client_id: 'static-client',
+      scope: 'openid offline_access',
+      status: 'pending',
+      expires_at: 1999999999999,
+    })
+    expect(summary.invalidated.apikey).toBeUndefined()
+    expect(summary.invalidated.deviceCode).toBeUndefined()
 
     // Physical object keys are external storage references and intentionally do not change.
     expect(value(db, 'SELECT object AS value FROM matters')).toBe('objects/-org_legacy-/matter_old-')
@@ -321,9 +358,7 @@ describe('ID normalization backfill', () => {
     ])
     for (const table of [
       'session',
-      'apikey',
       'verification',
-      'deviceCode',
       'downloader_bootstrap_credentials',
       'oauthAccessToken',
       'oauthRefreshToken',
@@ -394,12 +429,13 @@ describe('ID normalization backfill', () => {
     d1Copy.close()
   })
 
-  it('resolves legacy API-key task creators before credentials are invalidated', () => {
+  it('resolves legacy API-key task creators while preserving their normalized API keys', () => {
     const addLegacyCreators = (db: Database.Database) => {
       db.exec(`
         ALTER TABLE download_tasks ADD COLUMN created_by_user_id TEXT;
         UPDATE download_tasks SET created_by_user_id = 'api-key:api_key_old-';
-        INSERT INTO apikey VALUES ('orphan_key-', 'deleted-user_', 'orphan-hash');
+        INSERT INTO user VALUES ('legacy-api-user_');
+        INSERT INTO apikey VALUES ('orphan_key-', 'legacy-api-user_', 'orphan-hash', NULL);
         INSERT INTO download_tasks (id, events, status, created_by_user_id)
         VALUES ('OrphanCreatorTask', '[]', 'completed', 'api-key:orphan_key-');
       `)
@@ -414,6 +450,9 @@ describe('ID normalization backfill', () => {
     expect(
       value(planningCopy, "SELECT created_by_user_id AS value FROM download_tasks WHERE id = 'OrphanCreatorTask'"),
     ).toMatch(BASE62_PATTERN)
+    expect(value(planningCopy, "SELECT reference_id AS value FROM apikey WHERE key = 'orphan-hash'")).toBe(
+      value(planningCopy, "SELECT created_by_user_id AS value FROM download_tasks WHERE id = 'OrphanCreatorTask'"),
+    )
 
     const plan = buildD1ApplySql(planningCopy)
     const d1Copy = fixture()
@@ -539,7 +578,7 @@ describe('ID normalization backfill', () => {
   it.each([
     {
       name: 'a newly persisted invalid API-key row ID',
-      mutate: (db: Database.Database) => db.exec("INSERT INTO apikey VALUES ('invalid-api-key', NULL, 'hash')"),
+      mutate: (db: Database.Database) => db.exec("INSERT INTO apikey VALUES ('invalid-api-key', NULL, 'hash', NULL)"),
       error: 'invalid_value_remaining:apikey.id:1',
     },
     {
@@ -581,6 +620,8 @@ describe('ID normalization backfill', () => {
     const expectedShareToken = value(planningCopy, 'SELECT token AS value FROM shares')
     const plan = buildD1ApplySql(planningCopy)
     expect(plan).not.toContain('WHERE rowid')
+    expect(plan).not.toContain('DELETE FROM "apikey"')
+    expect(plan).not.toContain('DELETE FROM "deviceCode"')
     expect(plan).toContain('substr("token", 1, 1) != \'s\'')
     expect(plan).toContain('substr("token", 1, 1) != \'i\'')
 
@@ -611,6 +652,18 @@ describe('ID normalization backfill', () => {
     )
     expect(value(d1Copy, 'SELECT events AS value FROM download_tasks')).toBe(
       value(planningCopy, 'SELECT events AS value FROM download_tasks'),
+    )
+    expect(d1Copy.prepare('SELECT id, reference_id, key, metadata FROM apikey').get()).toEqual(
+      planningCopy.prepare('SELECT id, reference_id, key, metadata FROM apikey').get(),
+    )
+    expect(
+      d1Copy
+        .prepare('SELECT id, device_code, user_code, user_id, client_id, scope, status, expires_at FROM deviceCode')
+        .get(),
+    ).toEqual(
+      planningCopy
+        .prepare('SELECT id, device_code, user_code, user_id, client_id, scope, status, expires_at FROM deviceCode')
+        .get(),
     )
     expect((d1Copy.prepare('SELECT COUNT(*) AS count FROM session').get() as { count: number }).count).toBe(0)
     expect(d1Copy.prepare("SELECT 1 FROM oauthClient WHERE client_id = 'dynamic-client'").get()).toBeUndefined()

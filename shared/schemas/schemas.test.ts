@@ -1,14 +1,41 @@
 import { describe, expect, it } from 'vitest'
 import {
+  archiveCompressJobRequestSchema,
   copyMatterSchema,
   createDownloadTaskSchema,
   createMatterSchema,
   createStorageSchema,
+  oauthConsentSubmitSchema,
   signInSchema,
   signUpSchema,
+  transferMatterSchema,
   updateImageDomainSettingsSchema,
   updateMatterSchema,
 } from './index.js'
+
+describe('external persisted-ID references', () => {
+  it.each([
+    ['object storage', createMatterSchema, { name: 'file.txt', storageId: 'legacy_storage-id' }],
+    ['object transfer target', transferMatterSchema, { targetOrgId: 'legacy_org-id', targetParent: '', mode: 'copy' }],
+    ['archive matters', archiveCompressJobRequestSchema, { type: 'archive_compress', matterIds: ['legacy_matter-id'] }],
+    [
+      'OAuth workspaces',
+      oauthConsentSubmitSchema,
+      { accept: true, oauthQuery: 'request', workspaceIds: ['legacy_org-id'] },
+    ],
+  ] as const)('accepts a historical %s that references an existing record', (_name, schema, input) => {
+    expect(schema.safeParse(input).success).toBe(true)
+  })
+
+  it.each([
+    ['object storage', createMatterSchema, { name: 'file.txt', storageId: 'storage/id' }],
+    ['object transfer target', transferMatterSchema, { targetOrgId: 'org:id', targetParent: '', mode: 'copy' }],
+    ['archive matters', archiveCompressJobRequestSchema, { type: 'archive_compress', matterIds: ['matter/id'] }],
+    ['OAuth workspaces', oauthConsentSubmitSchema, { accept: true, oauthQuery: 'request', workspaceIds: ['org.id'] }],
+  ] as const)('rejects an unsafe %s at the request-schema boundary', (_name, schema, input) => {
+    expect(schema.safeParse(input).success).toBe(false)
+  })
+})
 
 describe('signInSchema', () => {
   it('accepts valid input', () => {

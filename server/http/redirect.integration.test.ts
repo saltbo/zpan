@@ -137,6 +137,24 @@ describe('GET /r/:token (direct shares)', () => {
     ])
   })
 
+  it('keeps a historical ds_ direct-share link usable [spec: redirect/legacy-direct-share]', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const creatorId = await getUserId(db)
+    await insertFile(db, orgId, { id: 'legacy-direct-file_', name: 'legacy-direct.bin' })
+    await db.run(sql`
+      INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, private, created_at)
+      VALUES ('legacy-direct-share_', 'ds_legacy-token', 'direct', 'legacy-direct-file_', ${orgId}, ${creatorId}, 0, 0, 'active', 0, ${Date.now()})
+    `)
+
+    const res = await app.request('/r/ds_legacy-token', { redirect: 'manual' })
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe(MOCK_PRESIGN_URL)
+  })
+
   it('returns 404 for an unknown opaque token [spec: redirect/unknown-ds-token]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/r/s00000000000', { redirect: 'manual' })
@@ -339,6 +357,19 @@ describe('GET /r/:token (image hosting)', () => {
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
   })
 
+  it('keeps a historical ih image link usable [spec: redirect/legacy-image]', async () => {
+    const { app, db } = await createTestApp()
+    await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertImageHosting(db, orgId, { id: 'legacy-image_', token: 'ih_legacy-token' })
+
+    const res = await app.request('/r/ih_legacy-token.png', { redirect: 'manual' })
+
+    expect(res.status).toBe(302)
+    expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
+  })
+
   it('strips .png extension and resolves same image [spec: redirect/image-strip-ext]', async () => {
     const { app, db } = await createTestApp()
     await authedHeaders(app)
@@ -363,7 +394,7 @@ describe('GET /r/:token (image hosting)', () => {
     expect(res.headers.get('location')).toBe(MOCK_INLINE_URL)
   })
 
-  it('rejects a legacy punctuated image token [spec: redirect/unknown-ih-token]', async () => {
+  it('returns 404 for an unknown historical image token [spec: redirect/unknown-ih-token]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/r/ih_doesnotexist', { redirect: 'manual' })
     expect(res.status).toBe(404)

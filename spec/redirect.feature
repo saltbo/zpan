@@ -1,6 +1,6 @@
 Feature: Public redirects
-  Short links validate a 12-character namespaced Base62 token before lookup.
-  Tokens starting with s select shares and tokens starting with i select images.
+  New short links use a 12-character namespaced Base62 token. Historical ds_ and ih
+  links remain readable when an administrator chooses not to normalize stored data.
   Direct shares stream files, while image-hosting links serve images.
   Both meter traffic quota (refunding on failure), and images enforce the referer allowlist.
 
@@ -9,6 +9,12 @@ Feature: Public redirects
     Given a valid direct-share token
     When the link is followed
     Then it 302-redirects with attachment disposition and no-store cache
+
+  @redirect/legacy-direct-share @api
+  Scenario: A historical direct-share link remains usable
+    Given a stored ds_ direct-share token
+    When the link is followed without running ID normalization
+    Then it redirects to the same file
 
   @redirect/unknown-ds-token @api
   Scenario: An unknown direct-share token is not found
@@ -45,6 +51,12 @@ Feature: Public redirects
     Given a valid image token for an active image
     When the link is followed
     Then it 302-redirects with inline disposition and no-store cache
+
+  @redirect/legacy-image @api
+  Scenario: A historical image link remains usable
+    Given a stored ih image token
+    When the link is followed without running ID normalization
+    Then it redirects to the same image
 
   @redirect/image-strip-ext @api
   Scenario: Image links resolve regardless of extension

@@ -12,6 +12,7 @@ import {
   PUBLIC_TOKEN_RANDOM_LENGTH,
   SHARE_TOKEN_PATTERN,
 } from './ids'
+import { base62IdSchema } from './schemas/id'
 
 describe('Base62 identifiers', () => {
   it('uses the fixed 0-9A-Za-z alphabet', () => {
@@ -23,6 +24,7 @@ describe('Base62 identifiers', () => {
 
     expect(DEFAULT_ID_LENGTH * Math.log2(BASE62_ALPHABET.length)).toBeGreaterThanOrEqual(21 * Math.log2(64))
     expect(ids.every((id) => id.length === DEFAULT_ID_LENGTH && BASE62_PATTERN.test(id))).toBe(true)
+    expect(ids.every((id) => base62IdSchema.safeParse(id).success)).toBe(true)
     expect(new Set(ids).size).toBe(ids.length)
   })
 

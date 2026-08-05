@@ -1,5 +1,5 @@
 import type { Context } from 'hono'
-import { BASE62_PATTERN } from '../../shared/ids'
+import { OPAQUE_ID_PATTERN } from '../../shared/ids'
 import type { Env } from '../middleware/platform'
 import { PUBLIC_IMAGES_BINDING, type R2BucketLike } from '../platform/interface'
 
@@ -10,7 +10,7 @@ import { PUBLIC_IMAGES_BINDING, type R2BucketLike } from '../platform/interface'
 export async function serveAvatarBlob(c: Context<Env>) {
   const scope = c.req.param('scope')
   const id = c.req.param('id')
-  if ((scope !== 'user' && scope !== 'team') || !id || !BASE62_PATTERN.test(id)) return c.body(null, 404)
+  if ((scope !== 'user' && scope !== 'team') || !id || !OPAQUE_ID_PATTERN.test(id)) return c.body(null, 404)
 
   const bucket = c.get('platform').getBinding<R2BucketLike>(PUBLIC_IMAGES_BINDING)
   if (!bucket) return c.body(null, 404)

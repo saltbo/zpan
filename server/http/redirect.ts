@@ -1,7 +1,12 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { IMAGE_TOKEN_PATTERN, SHARE_TOKEN_PATTERN } from '../../shared/ids'
+import {
+  IMAGE_TOKEN_PATTERN,
+  LEGACY_DIRECT_SHARE_TOKEN_PATTERN,
+  LEGACY_IMAGE_TOKEN_PATTERN,
+  SHARE_TOKEN_PATTERN,
+} from '../../shared/ids'
 import { isDownloadFailureStatus, transferAuditActor, transferFailureReason } from '../middleware/audit-transfers'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
@@ -17,13 +22,17 @@ import { recordDownloadFailure, recordDownloadIssued } from '../usecases/transfe
 
 type ParsedRedirectToken = { kind: 'direct_share'; token: string } | { kind: 'image_hosting'; token: string }
 
-const REDIRECT_TOKEN_PATTERN = /^([si][A-Za-z0-9]{11})(?:\.[A-Za-z0-9]{1,16})?$/
+const REDIRECT_TOKEN_PATTERN = /^([A-Za-z0-9_-]+)(?:\.[A-Za-z0-9]{1,16})?$/
 
 function parseRedirectToken(raw: string): ParsedRedirectToken {
   const token = REDIRECT_TOKEN_PATTERN.exec(raw)?.[1]
   if (!token) throw notFound()
-  if (SHARE_TOKEN_PATTERN.test(token)) return { kind: 'direct_share', token }
-  if (IMAGE_TOKEN_PATTERN.test(token)) return { kind: 'image_hosting', token }
+  if (SHARE_TOKEN_PATTERN.test(token) || LEGACY_DIRECT_SHARE_TOKEN_PATTERN.test(token)) {
+    return { kind: 'direct_share', token }
+  }
+  if (IMAGE_TOKEN_PATTERN.test(token) || LEGACY_IMAGE_TOKEN_PATTERN.test(token)) {
+    return { kind: 'image_hosting', token }
+  }
   throw notFound()
 }
 

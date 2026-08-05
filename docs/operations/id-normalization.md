@@ -1,12 +1,26 @@
-# Base62 ID normalization release runbook
+# Optional Base62 ID normalization runbook
 
-This release is a breaking, maintenance-window migration. ZPan-owned opaque IDs and public tokens use the fixed alphabet
-`0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz` and must match `^[A-Za-z0-9]+$`. The runtime dispatches
-public redirects only by the new `s`/`i` namespace prefix and has no legacy lookup, alias, or old/new format fallback.
+New ZPan-owned opaque IDs and public tokens use the fixed alphabet
+`0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`. Existing entity IDs containing `_` or `-` remain
+supported, and historical `ds_`/`ih` public links remain readable. Administrators may leave historical values unchanged
+or run this maintenance-window tool to normalize them in bulk; normal application startup never requires it.
 
-Production execution is intentionally outside this change. Do not run any `wrangler ... --remote` command until a
-maintainer has reviewed the dry-run statistics, secured backup, reconciliation report, and D1 SQL plan and has given a
-new, explicit production approval.
+## Runtime ID policy
+
+- Every new ZPan entity receives its own ID from the central Base62 generator. Create/update APIs do not accept a
+  caller-selected primary ID, and new share/image public tokens use their current Base62 namespace.
+- Historical IDs may be returned and may be used to locate or reference the already-existing row. This includes write
+  operations against an existing legacy object and creating a new entity that refers to an existing legacy organization,
+  user, matter, or storage. The referenced row must still exist and pass the normal ownership/authorization checks.
+- Accepting a historical reference never creates or rewrites an entity with that legacy ID. ID-shaped external inputs
+  reject everything outside the compatibility alphabet (`A-Z`, `a-z`, `0-9`, `_`, `-`); path separators, punctuation,
+  whitespace, Unicode, URNs, and structured event/provider identifiers are not accepted as local entity IDs.
+- Provider-owned, protocol, business/event, natural, and physical-storage identifiers follow their own contracts and are
+  not treated as ZPan entity IDs.
+
+Production normalization is intentionally an explicit operator choice. Do not run any `wrangler ... --remote` command
+until a maintainer has reviewed the dry-run statistics, secured backup, reconciliation report, and D1 SQL plan and has
+given a new, explicit production approval.
 
 ## Observable release baseline
 
@@ -28,8 +42,8 @@ direct default `nanoid()` call in production roots.
 
 | Classification | Values | Migration action |
 | --- | --- | --- |
-| Must migrate: ZPan entity PKs | user, account, organization, member, invitation, OAuth client/resource/link row, matter, storage, share/recipient, audit event, notification, announcement, quota/entitlement, background job, downloader, download task/usage report, upload session, image, invite, WebDAV state row, traffic report, license binding, webhook row, x402 intent | Random old-to-new mapping for every non-Base62 value; update known references and embedded JSON. Audit event entity IDs are separated from `event_key`. |
-| Must migrate: public/unique tokens | share and direct-download token, image token, site invite token, team invite token, invite code, image-domain verification token | Rotate every value, including already-alphanumeric legacy values. Shares become `s` + 11 random Base62 characters and images become `i` + 11 random Base62 characters. Old public links intentionally stop working. |
+| Optional normalization: ZPan entity PKs | user, account, organization, member, invitation, OAuth client/resource/link row, matter, storage, share/recipient, audit event, notification, announcement, quota/entitlement, background job, downloader, download task/usage report, upload session, image, invite, WebDAV state row, traffic report, license binding, webhook row, x402 intent | When the tool is selected, create a random old-to-new mapping for every non-Base62 value and update known references and embedded JSON. Audit event entity IDs are separated from `event_key`. |
+| Optional normalization: public/unique tokens | share and direct-download token, image token, site invite token, team invite token, invite code, image-domain verification token | When the tool is selected, rotate every value, including already-alphanumeric legacy values. Shares become `s` + 11 random Base62 characters and images become `i` + 11 random Base62 characters. Old public links intentionally stop working only for an administrator who executes the tool. |
 | Future generator plus historical scan | matter alias; dynamic OAuth registration management token | Migrate invalid aliases. Dynamic registration token hashes cannot be rewritten without plaintext, so registrations are invalidated and clients must re-register. |
 | Structured business/event keys | `traffic_<id>`, `mutation:<id>`, `admin_grant:<id>`, storage ledger `event_key`, downloader event IDs, idempotency keys, webhook provider event IDs, stats rollup deterministic IDs | Not entity IDs. Preserve their structure. Update only typed local references: audit target/event keys, storage opening/matter/image keys, Free-plan source keys, and initial download-task event keys. Cloud/Webhook/downloader event IDs stay byte-for-byte unchanged because they are external idempotency identities. |
 | Protocol identifiers | HTTP request UUID, WebDAV `opaquelocktoken:` URI, OAuth/PAR `urn:ietf:params:oauth:request_uri:` value, OAuth state/PKCE values, JWT `jti`/claims, JWK `kid` | Preserve protocol format. The Base62 PAR suffix is new, but the standards-defined URN remains a URI and is not validated as an opaque ID. |
@@ -37,7 +51,7 @@ direct default `nanoid()` call in production roots.
 | External-system-owned values | S3 multipart `upload_id`, Cloud/Store order/resource/account/binding/attempt IDs, OAuth `client_id` and resource URI, provider account ID, external access/refresh/ID tokens | Do not rewrite. Inbound schemas remain protocol/provider appropriate. |
 | Physical object references | `matters.object`, image `storage_key`, storage bucket/key/path | Do not rename objects. These persisted physical references continue to point to the existing object even when organization/matter/image IDs change. Reconciliation proves every referenced object remains accessible. |
 | ID-derived avatar/logo objects | `user.image`, `organization.logo`, local `PUBLIC_IMAGES` keys (`user/<id>`, `team/<id>`), Cloud avatar owner IDs | If an owner ID needs mapping and an image/logo exists, fail before mutation. Export the affected owners, delete/clear the old hosted image while the old ID is authoritative, then re-upload after migration. The database-only tool never copies, deletes, or rebinds external R2/Cloud objects. Unrelated provider avatar URLs must still be reviewed and explicitly cleared/restored because the tool cannot prove their ownership from the URL alone. |
-| Session and authorization artifacts | API keys, sessions, verification rows, device codes, downloader bootstrap credentials, downloader bearer credentials, task-upload grants, OAuth access/refresh tokens, consents, PAR rows, client assertions, server signing keys, dynamic registration management rows and their dynamic clients | Delete the credential rows listed by the tool. Downloader rows remain for history, but every stored token hash/JTI is rotated and the row is disabled, including IDs that were already Base62. Active task-upload states must be drained before mapping, so old task-upload tokens cannot remain usable. Users must sign in again and recreate API keys; downloaders must re-pair; OAuth clients must authorize again; dynamic clients must re-register. No synthetic compatibility tokens are created. |
+| Session and authorization artifacts | API keys, sessions, verification rows, device codes, downloader bootstrap credentials, downloader bearer credentials, task-upload grants, OAuth access/refresh tokens, consents, PAR rows, client assertions, server signing keys, dynamic registration management rows and their dynamic clients | Preserve API keys and device-code rows while remapping their row IDs, user references, and workspace-scope metadata; their stored key/code material, permissions, limits, status, and expiry remain unchanged. Delete the other credential rows listed by the tool. Downloader rows remain for history, but every stored token hash/JTI is rotated and the row is disabled, including IDs that were already Base62. Active task-upload states must be drained before mapping, so old task-upload tokens cannot remain usable. Users must sign in again; downloaders must re-pair; OAuth clients must authorize again; dynamic clients must re-register. No synthetic compatibility tokens are created. |
 | Cross-system instance identity | `system_options.instance_id` and active Cloud license binding | A locally rewritten value would orphan the Cloud-side binding. If it is non-Base62, stop and obtain a Cloud reconciliation decision: disconnect/rebind under a new Base62 instance ID or coordinate an external mapping. The local migration must not silently rewrite it. |
 | Pending cross-system usage/purchase state | pending/failed/blocked/skipped/dead-letter Cloud usage, non-reported remote-download usage, unfinished x402 purchases, Cloud-order entitlements | If a referenced local ID needs mapping, fail before creating the mapping table. Drain, cancel, or reconcile the external operation first. Historical provider event/idempotency IDs are never rewritten locally. |
 | Active Cloud customer identity | organization IDs used as Cloud/Store customer and order targets while a license binding is active | If any organization ID would change while an active binding exists, fail before mutation. Production requires a separately approved Cloud-side mapping/rebind; this tool never changes Cloud data. |
@@ -46,10 +60,10 @@ direct default `nanoid()` call in production roots.
 
 Existing physical object references stay unchanged during migration, but every future key allocation uses a guarded builder.
 Ordinary object, WebDAV, archive, copy, transfer, and downloader uploads use
-`<Base62 org ID>/<Base62 owner user ID>/<YYYYMMDD>/<17 Base62 random characters><extension>`. Image-hosting uploads use
-`ih/<Base62 org ID>/<13-character Base62 image ID>.<MIME-derived extension>`. The `/` separators and filename extension
-are S3 key structure, not opaque IDs. Key construction fails before an upload is presigned or written if an ID component
-is not Base62.
+`<compatible org ID>/<compatible owner user ID>/<YYYYMMDD>/<17 Base62 random characters><extension>`. Image-hosting
+uploads use `ih/<compatible org ID>/<new Base62 image ID>.<MIME-derived extension>`. Compatible historical components
+may contain `_` or `-`; `/` and other path syntax remain rejected. The `/` separators and filename extension are S3 key
+structure, not opaque IDs.
 
 The inventory included `nanoid`, `customAlphabet`, `randomUUID`, and `randomBytes` calls; schema PKs/FKs/unique tokens;
 OpenAPI path parameters; clients/scripts/tests/docs; audit/notification/job JSON; R2/S3 physical keys; cache and idempotency
@@ -58,8 +72,9 @@ organization plugin owns separate organization, member, and invitation create ho
 21-character Nano IDs with `_`/`-`. ZPan configures Better Auth's supported `advanced.database.generateId` hook and all
 three organization hooks with the same central generator. A database contract test covers user, account, organization,
 member, invitation, and session IDs plus session tokens.
-Better Auth API keys use a Base62 custom generator; caller prefixes containing punctuation are rejected. Because stored
-API-key hashes cannot be rewritten, all historical keys are intentionally revoked by the maintenance migration.
+Better Auth API keys use a Base62 custom generator; caller prefixes containing punctuation are rejected. Historical
+API-key hashes remain byte-for-byte unchanged. The migration remaps the API-key row ID, owner reference, audit actor
+references, and workspace organization ID in metadata so the same presented key keeps its permissions and limits.
 
 ## Generator entropy and collision budget
 
@@ -99,14 +114,15 @@ the public redirect namespaces disjoint without a cross-resource lookup or redir
    describe. Invalid historical references are assigned a stable pseudonym in the same mapping kind; already-Base62
    historical pseudonyms are retained. They are format-checked but are not misrepresented as live foreign keys. Empty
    ledger sentinels remain empty and are never added to the mapping table.
-6. Credential/session tables listed above are invalidated explicitly. Dynamic OAuth client rows with registration
+6. API keys and device codes are preserved with normalized internal IDs and references. The other credential/session
+   tables listed above are invalidated explicitly. Dynamic OAuth client rows with registration
    management credentials are removed; statically configured clients remain. Every downloader token hash/JTI is
    replaced and the downloader is disabled even when its historical ID was already Base62.
 7. Validation checks row counts, uniqueness through constraints, `PRAGMA foreign_key_check`, zero illegal governed
    values, exact `s`/`i` public-token prefixes and lengths, live direct and typed-polymorphic target existence, typed JSON
    reference formats/targets according to their historical or live semantics, and structured upload creators. Any
    failure aborts the transaction. Legacy download tasks whose creator was stored as `api-key:<id>` are resolved to the
-   API-key owner before the API-key rows are intentionally invalidated.
+   API-key owner before the API-key row ID and owner reference are normalized.
 8. `--emit-d1-sql` writes the exact reviewed mapping and rewritten JSON to a mode-`0600` SQL plan. The plan has persistent
    `CHECK (violations = 0)` assertions for expected row counts, foreign keys, formats, exact rewritten values, logical
    references, and public-token namespace formats. The versioned completion marker is the last state change; a missed update or
@@ -118,10 +134,9 @@ the public redirect namespaces disjoint without a cross-resource lookup or redir
    exceeds 1,000 statements. A database with an individually oversized rewritten JSON value or a plan that still needs
    more statements requires a separately engineered phased migration; the tool never emits a known-unexecutable plan.
 
-The runtime startup gate is intentionally O(1) after migration: it requires both versioned proof markers instead of
-rescanning every large table on each Workers isolate cold start. A populated database without the proof fails fast.
-The expensive zero-invalid and logical-integrity scans are part of the maintenance transaction and D1 assertion plan;
-all future application writes use the central generator and narrowed schemas.
+The runtime does not inspect or require the normalization proof markers. A populated database with historical IDs starts
+normally. The expensive zero-invalid and logical-integrity scans run only when an administrator invokes the optional
+maintenance tool; all future application writes still use the central Base62 generator.
 
 Only counts are printed to stdout. Old/new values exist only in the protected backup, map table, and optional protected
 D1 plan.
@@ -152,7 +167,8 @@ The release rehearsal performed on 2026-08-04 used isolated temporary directorie
 `--remote` flag. It applied all 92 migrations, loaded the representative legacy fixture, completed dry-run and apply,
 created mode-`0600` backup/plan artifacts, and replayed 635 plan commands (including 496 persistent machine assertions) on a second
 fresh local D1 database. A second replay was semantically idempotent. Both SQLite and D1 returned zero foreign-key
-failures and zero invalid share/image tokens; credentials were deleted or deterministically disabled, direct,
+failures and zero invalid share/image tokens; credentials governed by the original rehearsal were deleted or
+deterministically disabled; direct,
 polymorphic, JSON, notification, and both user/downloader upload-creator references matched their mapped entities, and
 Cloud event IDs plus S3 object/image/multipart storage references stayed byte-for-byte unchanged. The backup retained
 the old IDs, public token, object keys, and session row, proving the documented full-restore rollback point.
@@ -176,7 +192,7 @@ profile share, image hosting, and image-domain flows were then run against an is
 This Draft must not be promoted until the mandatory CONTRIBUTING preview verification is run in an approved isolated
 preview environment with its own Cloud/S3 credentials.
 
-## Production maintenance procedure (requires new approval)
+## Optional production maintenance procedure (requires new approval)
 
 1. Announce a write outage and prevent all API, WebDAV, background-job, Queue-consumer, and downloader writes. Stop all
    old runtime isolates/processes; their in-process caches and old writers must not run while identifiers are changing.
@@ -197,13 +213,14 @@ preview environment with its own Cloud/S3 credentials.
    table or statement:** PK and logical-reference rewrites cross table boundaries. If the rehearsal exceeds a D1 batch,
    statement, or transaction limit, stop; a separate shadow-table/phased migration must be engineered, reviewed, and
    approved before production.
-7. Confirm both `validation_version=2` and `completed_at` exist only after all D1 assertion rows report zero. Deploy the
-   new runtime only after reconciliation passes. The v2 image-domain cache namespace prevents legacy KV hits; verify the
+7. Confirm both `validation_version=2` and `completed_at` exist only after all D1 assertion rows report zero. Reopen the
+   runtime only after reconciliation passes. The v2 image-domain cache namespace prevents legacy KV hits; verify the
    first domain lookup loads normalized state. Keep writes disabled until smoke tests prove share, image, object, quota,
    audit, job, WebDAV, downloader, and OAuth behavior. Re-upload reconciled avatars/logos and re-enqueue only normalized
    archive work.
-8. Notify users that old share/image/invite links are invalid, sessions require login, API keys must be recreated,
-   OAuth grants require authorization, dynamic clients require registration, and downloaders must re-pair. Drain or
+8. Notify users that old share/image/invite links are invalid and sessions require login. Existing API keys and
+   device-code rows remain valid according to their existing status and expiry; OAuth grants require authorization,
+   dynamic clients require registration, and downloaders must re-pair. Drain or
    pause assigned/in-flight download tasks before the snapshot; after migration reconcile each task, requeue safe work,
    and issue new downloader/task-upload credentials only after the corresponding downloader has re-paired. An encrypted
    operator-only mapping export may support targeted notification; it must never power runtime fallback.
@@ -252,4 +269,5 @@ reverse mappings in place: deleted session/OAuth/verification material cannot be
 and a partial inverse would violate the no-dual-format invariant. Re-run row counts, foreign keys, object reads, and old
 public-link checks on the restored database before reopening traffic.
 
-Old public links are a deliberate breaking change. There is no runtime redirect, legacy alias table, or fallback lookup.
+Executing the optional tool deliberately rotates old public links. Without normalization, the runtime continues to
+recognize historical `ds_` direct-share tokens, `ih` image tokens, and entity IDs containing `_` or `-`.

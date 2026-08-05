@@ -61,6 +61,8 @@ const VALUE_SPECS: ValueSpec[] = [
     references: [
       ref('account', 'user_id'),
       ref('session', 'user_id'),
+      ref('apikey', 'reference_id'),
+      ref('deviceCode', 'user_id'),
       ref('member', 'user_id'),
       ref('invitation', 'inviter_id'),
       ref('oauthClient', 'user_id'),
@@ -180,6 +182,7 @@ const VALUE_SPECS: ValueSpec[] = [
   ...[
     'account',
     'apikey',
+    'deviceCode',
     'audit_events',
     'member',
     'invitation',
@@ -227,10 +230,8 @@ const VALUE_SPECS: ValueSpec[] = [
 ]
 
 const INVALIDATE_TABLES = [
-  'apikey',
   'session',
   'verification',
-  'deviceCode',
   'downloader_bootstrap_credentials',
   'oauthAccessToken',
   'oauthRefreshToken',
@@ -241,11 +242,9 @@ const INVALIDATE_TABLES = [
 ] as const
 
 const VALIDATE_ONLY_COLUMNS = [
-  ref('apikey', 'id'),
   ref('session', 'id'),
   ref('session', 'token'),
   ref('verification', 'id'),
-  ref('deviceCode', 'id'),
   ref('downloader_bootstrap_credentials', 'id'),
   ref('oauthAccessToken', 'id'),
   ref('oauthRefreshToken', 'id'),
@@ -255,6 +254,7 @@ const VALIDATE_ONLY_COLUMNS = [
 ] as const
 
 const JSON_COLUMNS = [
+  ref('apikey', 'metadata'),
   ref('audit_events', 'metadata'),
   ref('notifications', 'metadata'),
   ref('background_jobs', 'metadata'),
