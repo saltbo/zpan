@@ -58,6 +58,9 @@ const cfServers = [
 export default defineConfig({
   testDir: './e2e',
   outputDir: `test-results/${artifactSuffix}`,
+  // CI shards individual tests instead of whole files. Each shard still uses one
+  // worker and its own database/services, so execution stays deterministic.
+  fullyParallel: true,
   timeout: 30_000,
   workers: 1,
   retries: 0,
