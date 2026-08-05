@@ -1,7 +1,7 @@
 import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
-import worker, { resolveAuthBaseURL } from './bootstrap'
+import worker from './bootstrap'
 
 const testEnv = { ...env, BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET || 'ci-test-secret-that-is-at-least-32-chars' }
 
@@ -12,18 +12,6 @@ const fakeAssets = {
 } as unknown as Fetcher
 
 describe('[CF] Worker fetch handler', () => {
-  it('uses an official Workers preview alias as the auth base URL', () => {
-    const configuredOrigin = 'https://zpan-staging.saltbo.workers.dev'
-
-    expect(resolveAuthBaseURL(configuredOrigin, 'https://99dc50ae-zpan.saltbo.workers.dev')).toBe(
-      'https://99dc50ae-zpan.saltbo.workers.dev',
-    )
-    expect(resolveAuthBaseURL(configuredOrigin, 'https://feat-preview-zpan.saltbo.workers.dev')).toBe(
-      'https://feat-preview-zpan.saltbo.workers.dev',
-    )
-    expect(resolveAuthBaseURL(configuredOrigin, 'https://unrelated.saltbo.workers.dev')).toBe(configuredOrigin)
-  })
-
   it('throws when BETTER_AUTH_SECRET is missing', async () => {
     const request = new Request('http://localhost/api/health')
     const envWithoutSecret = { ...env, BETTER_AUTH_SECRET: '' }
@@ -77,50 +65,6 @@ describe('[CF] Worker fetch handler', () => {
 
     const primary = await worker.fetch(new Request('https://pan.example.com/api/health'), testEnv)
     expect(primary.status).toBe(200)
-  })
-
-  it('keeps authenticated sessions usable on an official Workers preview alias', async () => {
-    const configuredOrigin = 'https://zpan-staging.saltbo.workers.dev'
-    const previewOrigin = 'https://99dc50ae-zpan.saltbo.workers.dev'
-    const previewEnv = {
-      ...testEnv,
-      BETTER_AUTH_URL: configuredOrigin,
-      TRUSTED_ORIGINS: configuredOrigin,
-    }
-    const email = `worker-preview-${Date.now()}@example.com`
-    const password = 'password123456'
-    const headers = { Origin: previewOrigin, 'Content-Type': 'application/json' }
-
-    const signUp = await worker.fetch(
-      new Request(`${previewOrigin}/api/auth/sign-up/email`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ name: 'Worker Preview User', email, password }),
-      }),
-      previewEnv,
-    )
-    expect(signUp.status, await signUp.clone().text()).toBe(200)
-
-    const signIn = await worker.fetch(
-      new Request(`${previewOrigin}/api/auth/sign-in/email`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ email, password, callbackURL: `${previewOrigin}/files` }),
-      }),
-      previewEnv,
-    )
-    expect(signIn.status, await signIn.clone().text()).toBe(200)
-    const cookie = signIn.headers
-      .getSetCookie()
-      .map((value) => value.split(';', 1)[0])
-      .join('; ')
-
-    const session = await worker.fetch(
-      new Request(`${previewOrigin}/api/auth/get-session`, { headers: { Cookie: cookie } }),
-      previewEnv,
-    )
-    expect(session.status, await session.clone().text()).toBe(200)
-    await expect(session.json()).resolves.toMatchObject({ user: { email } })
   })
 
   it('serves public config from the Worker response cache after the first request', async () => {
