@@ -95,7 +95,6 @@ export default defineConfig({
             'scripts/**/*.test.mjs',
           ],
           exclude: ['**/*.integration.test.ts', '**/*.cf-test.ts', '**/e2e-*.test.ts'],
-          sequence: { groupOrder: 1 },
           setupFiles: ['./server/test/app-version.ts'],
         },
       },
@@ -114,7 +113,6 @@ export default defineConfig({
         test: {
           name: 'backend-integration',
           include: ['server/**/*.integration.test.ts'],
-          sequence: { groupOrder: 2 },
           testTimeout: 15_000,
           setupFiles: ['./server/test/app-version.ts'],
         },
