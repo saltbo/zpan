@@ -93,7 +93,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Run tests with coverage
-        run: pnpm exec vitest run --project ${{ matrix.project }} --coverage --coverage.reportsDirectory=coverage/${{ matrix.report }} --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/${{ matrix.report }}.blob
+        # Passing tests produce hundreds of KB of intentional request/error logs.
+        # Keep captured output for failures without paying to stream every success.
+        run: pnpm exec vitest run --project ${{ matrix.project }} --silent=passed-only --coverage --coverage.reportsDirectory=coverage/${{ matrix.report }} --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/${{ matrix.report }}.blob
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -116,7 +118,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: mkdir -p dist
-      - run: pnpm test:cf
+      - run: pnpm test:cf --silent=passed-only
 
   coverage:
     name: Tests / Coverage
