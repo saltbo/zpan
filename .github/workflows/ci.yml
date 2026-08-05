@@ -78,10 +78,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: Backend
-            projects: --project backend-unit --project backend-integration
+          - label: Backend unit
+            projects: --project backend-unit
             scope: backend
-            report: backend
+            report: backend-unit
+          - label: Backend integration
+            projects: --project backend-integration
+            scope: backend
+            report: backend-integration
           - label: Frontend
             projects: --project frontend-unit
             scope: frontend
@@ -142,11 +146,12 @@ jobs:
           pattern: vitest-coverage-*
           path: .vitest-reports
           merge-multiple: true
-      - name: Verify both coverage reports are present
+      - name: Verify every coverage report is present
         run: |
-          test -f .vitest-reports/backend.blob
+          test -f .vitest-reports/backend-unit.blob
+          test -f .vitest-reports/backend-integration.blob
           test -f .vitest-reports/frontend.blob
-          test "$(find .vitest-reports -type f -name '*.blob' | wc -l)" -eq 2
+          test "$(find .vitest-reports -type f -name '*.blob' | wc -l)" -eq 3
       - name: Merge coverage and enforce thresholds
         env:
           COVERAGE_ENFORCE: '1'
