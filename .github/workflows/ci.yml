@@ -148,6 +148,7 @@ jobs:
       - integration
       - cloudflare
       - docker-smoke
+      - docker-cli-smoke
       - cf-deploy-dry-run
       - e2e-node
       - e2e-cf
@@ -184,6 +185,25 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose -f docker-compose.yml down -v
+
+  docker-cli-smoke:
+    name: Docker CLI image smoke test
+    runs-on: ubuntu-latest
+    if: github.repository == 'saltbo/zpan'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Build CLI image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: cli
+          load: true
+          tags: zpan-cli-smoke:latest
+          cache-from: type=gha,scope=docker-cli
+          cache-to: type=gha,mode=max,scope=docker-cli
+      - name: Verify CLI entrypoint
+        run: docker run --rm zpan-cli-smoke:latest --help
 
   docker-dev:
     name: Docker dev image
