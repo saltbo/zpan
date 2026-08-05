@@ -176,6 +176,10 @@ jobs:
     if: github.repository == 'saltbo/zpan'
     strategy:
       fail-fast: false
+      # GitHub grants ten concurrent runners here. Serial package smokes keep
+      # all four semantic test layers in the first wave; warm image builds still
+      # finish before the slowest test gate.
+      max-parallel: 1
       matrix:
         include:
           - label: Server image
