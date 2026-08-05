@@ -7,6 +7,7 @@ import { BASE62_PATTERN, generateId, generateImageToken, generateShareToken, gen
 
 const MAP_TABLE = '_zpan_id_normalization_map'
 const STATE_TABLE = '_zpan_id_normalization_state'
+const EXACT_VALUE_TABLE = '_zpan_id_normalization_exact_values'
 const VALIDATION_VERSION = '2'
 const D1_MAX_STATEMENT_BYTES = 100_000
 const D1_STATEMENT_BUDGET_BYTES = 90_000
@@ -15,6 +16,11 @@ const D1_MAX_COMMANDS = 1_000
 interface Reference {
   table: string
   column: string
+  allowDangling?: boolean
+}
+
+interface MappingSource extends Reference {
+  predicate?: string
 }
 
 interface ValueSpec {
@@ -24,6 +30,7 @@ interface ValueSpec {
   length: number
   rotateAll?: boolean
   references?: Reference[]
+  mappingSources?: MappingSource[]
 }
 
 export interface NormalizationSummary {
@@ -37,7 +44,11 @@ export interface NormalizationSummary {
   rowCountsVerified: number
 }
 
-const ref = (table: string, column: string): Reference => ({ table, column })
+const ref = (table: string, column: string, allowDangling = false): Reference => ({
+  table,
+  column,
+  ...(allowDangling ? { allowDangling } : {}),
+})
 
 // This is deliberately explicit. Columns owned by protocols or external systems are
 // absent from the list and are documented in docs/operations/id-normalization.md.
@@ -53,7 +64,9 @@ const VALUE_SPECS: ValueSpec[] = [
       ref('member', 'user_id'),
       ref('invitation', 'inviter_id'),
       ref('oauthClient', 'user_id'),
-      ref('audit_events', 'user_id'),
+      // Audit history intentionally survives user deletion. Preserve the historical
+      // pseudonym even when the original user row no longer exists.
+      ref('audit_events', 'user_id', true),
       ref('shares', 'creator_id'),
       ref('share_recipients', 'recipient_user_id'),
       ref('notifications', 'user_id'),
@@ -65,8 +78,15 @@ const VALUE_SPECS: ValueSpec[] = [
       ref('team_invite_links', 'inviter_id'),
       ref('announcements', 'created_by'),
       ref('background_jobs', 'user_id'),
-      ref('download_tasks', 'created_by_user_id'),
+      // Completed task history can outlive its creator.
+      ref('download_tasks', 'created_by_user_id', true),
       ref('downloaders', 'created_by'),
+    ],
+    mappingSources: [
+      ref('audit_events', 'user_id'),
+      { ...ref('audit_events', 'actor_ref'), predicate: "actor_type = 'user'" },
+      ref('apikey', 'reference_id'),
+      ref('download_tasks', 'created_by_user_id'),
     ],
   },
   {
@@ -80,7 +100,7 @@ const VALUE_SPECS: ValueSpec[] = [
       ref('session', 'active_organization_id'),
       ref('matters', 'org_id'),
       ref('shares', 'org_id'),
-      ref('audit_events', 'org_id'),
+      ref('audit_events', 'org_id', true),
       ref('org_quotas', 'org_id'),
       ref('org_quota_entitlements', 'org_id'),
       ref('storages', 'org_id'),
@@ -89,14 +109,14 @@ const VALUE_SPECS: ValueSpec[] = [
       ref('background_jobs', 'org_id'),
       ref('download_tasks', 'org_id'),
       ref('object_upload_sessions', 'org_id'),
-      ref('remote_download_usage_reports', 'org_id'),
-      ref('cloud_traffic_reports', 'org_id'),
-      ref('storage_usage_ledger', 'org_id'),
-      ref('storage_usage_breakdowns', 'org_id'),
+      ref('remote_download_usage_reports', 'org_id', true),
+      ref('cloud_traffic_reports', 'org_id', true),
+      ref('storage_usage_ledger', 'org_id', true),
+      ref('storage_usage_breakdowns', 'org_id', true),
       ref('image_hosting_configs', 'org_id'),
       ref('image_hostings', 'org_id'),
       ref('x402_capacity_purchase_intents', 'org_id'),
-      ref('stats_rollups_hourly', 'org_id'),
+      ref('stats_rollups_hourly', 'org_id', true),
       ref('webdav_dead_properties', 'org_id'),
       ref('webdav_locks', 'org_id'),
     ],
@@ -108,8 +128,8 @@ const VALUE_SPECS: ValueSpec[] = [
     length: 22,
     references: [
       ref('shares', 'matter_id'),
-      ref('object_upload_sessions', 'object_id'),
-      ref('download_tasks', 'result_object_id'),
+      ref('object_upload_sessions', 'object_id', true),
+      ref('download_tasks', 'result_object_id', true),
     ],
   },
   {
@@ -120,9 +140,9 @@ const VALUE_SPECS: ValueSpec[] = [
     references: [
       ref('matters', 'storage_id'),
       ref('object_upload_sessions', 'storage_id'),
-      ref('storage_usage_ledger', 'storage_id'),
+      ref('storage_usage_ledger', 'storage_id', true),
       ref('image_hostings', 'storage_id'),
-      ref('cloud_traffic_reports', 'storage_id'),
+      ref('cloud_traffic_reports', 'storage_id', true),
     ],
   },
   {
@@ -155,7 +175,7 @@ const VALUE_SPECS: ValueSpec[] = [
     table: 'download_tasks',
     column: 'id',
     length: 22,
-    references: [ref('remote_download_usage_reports', 'task_id')],
+    references: [ref('remote_download_usage_reports', 'task_id', true)],
   },
   ...[
     'account',
@@ -183,7 +203,14 @@ const VALUE_SPECS: ValueSpec[] = [
     'webdav_locks',
     'webhook_events',
     'x402_capacity_purchase_intents',
-  ].map((table): ValueSpec => ({ kind: table, table, column: 'id', length: 22 })),
+  ].map(
+    (table): ValueSpec => ({
+      kind: table,
+      table,
+      column: 'id',
+      length: 22,
+    }),
+  ),
   { kind: 'matter_alias', table: 'matters', column: 'alias', length: 11 },
   { kind: 'share_token', table: 'shares', column: 'token', length: 12, rotateAll: true },
   { kind: 'image_token', table: 'image_hostings', column: 'token', length: 12, rotateAll: true },
@@ -505,6 +532,37 @@ function assertMaintenanceStateIsDrained(db: Database.Database): void {
   }
 }
 
+function rewriteLegacyDownloadTaskCreators(db: Database.Database): number {
+  if (
+    !columnExists(db, 'download_tasks', 'created_by_user_id') ||
+    !columnExists(db, 'apikey', 'id') ||
+    !columnExists(db, 'apikey', 'reference_id')
+  ) {
+    return 0
+  }
+  const unresolved = (
+    db
+      .prepare(
+        `SELECT COUNT(*) AS count FROM download_tasks
+         WHERE created_by_user_id LIKE 'api-key:%'
+           AND NOT EXISTS (
+             SELECT 1 FROM apikey WHERE apikey.id = substr(download_tasks.created_by_user_id, 9)
+           )`,
+      )
+      .get() as { count: number }
+  ).count
+  if (unresolved > 0) throw new Error(`legacy_download_task_creator_unresolved:${unresolved}`)
+  return db
+    .prepare(
+      `UPDATE download_tasks
+       SET created_by_user_id = (
+         SELECT reference_id FROM apikey WHERE apikey.id = substr(download_tasks.created_by_user_id, 9)
+       )
+       WHERE created_by_user_id LIKE 'api-key:%'`,
+    )
+    .run().changes
+}
+
 function assertExternalUsageReferencesAreSafe(db: Database.Database): void {
   let invalid = 0
   if (
@@ -601,21 +659,53 @@ function assertExternallyBoundOrganizationsAreSafe(db: Database.Database): void 
 }
 
 function collectValues(db: Database.Database, spec: ValueSpec): string[] {
-  if (!columnExists(db, spec.table, spec.column)) return []
-  const table = quoteName(spec.table)
-  const column = quoteName(spec.column)
-  const rotationPredicate = spec.rotateAll ? `${column} IS NOT NULL AND ${column} != ''` : `${column} GLOB '*[^A-Za-z0-9]*' OR ${column} = ''`
-  const rows = db
-    .prepare(
-      `SELECT DISTINCT ${column} AS value FROM ${table}
-       WHERE (${rotationPredicate})
-         AND NOT EXISTS (
-           SELECT 1 FROM ${MAP_TABLE} map
-           WHERE map.kind = ? AND map.new_value = ${table}.${column}
-         )`,
-    )
-    .all(spec.kind) as Array<{ value: string | null }>
-  return rows.flatMap(({ value }) => (value === null ? [] : [value]))
+  const historicalPolymorphicSources = POLYMORPHIC_REFERENCES.flatMap(
+    ({ table, typeColumn, valueColumn, typeKinds }) =>
+      Object.entries(typeKinds).flatMap(([type, kind]) =>
+        kind === spec.kind
+          ? [
+              {
+                table,
+                column: valueColumn,
+                predicate: `${quoteName(typeColumn)} = ${sqlLiteral(type)} AND ${quoteName(valueColumn)} != ''`,
+              },
+            ]
+          : [],
+      ),
+  )
+  const sources: MappingSource[] = [
+    { table: spec.table, column: spec.column },
+    ...(spec.references ?? []).filter((reference) => reference.allowDangling),
+    ...(spec.mappingSources ?? []),
+    ...historicalPolymorphicSources,
+  ]
+  const values = new Set<string>()
+  for (const source of sources) {
+    if (!columnExists(db, source.table, source.column)) continue
+    const table = quoteName(source.table)
+    const column = quoteName(source.column)
+    const allowEmpty = EMPTY_REFERENCE_SENTINELS.has(`${source.table}.${source.column}`)
+    const rotationPredicate =
+      spec.rotateAll && source.table === spec.table && source.column === spec.column
+        ? `${column} IS NOT NULL AND ${column} != ''`
+        : allowEmpty
+          ? `${column} GLOB '*[^A-Za-z0-9]*'`
+          : `${column} GLOB '*[^A-Za-z0-9]*' OR ${column} = ''`
+    const sourcePredicate = source.predicate ? `AND (${source.predicate})` : ''
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT ${column} AS value FROM ${table}
+         WHERE (${rotationPredicate}) ${sourcePredicate}
+           AND NOT EXISTS (
+             SELECT 1 FROM ${MAP_TABLE} map
+             WHERE map.kind = ? AND map.new_value = ${table}.${column}
+           )`,
+      )
+      .all(spec.kind) as Array<{ value: string | null }>
+    for (const { value } of rows) if (value !== null) values.add(value)
+  }
+  for (const value of collectJsonMappingValues(db, spec)) values.add(value)
+  return [...values]
 }
 
 function addMappings(db: Database.Database, spec: ValueSpec, values: string[], now: number): void {
@@ -711,6 +801,61 @@ function jsonReferenceKind(source: Reference, key: string): string | undefined {
         ? 'matter'
           : undefined
   return contextualKind ?? JSON_KEY_KINDS[key]
+}
+
+function mappedValueIsValid(spec: ValueSpec, value: string): boolean {
+  if (spec.kind === 'share_token') return /^s[A-Za-z0-9]{11}$/.test(value)
+  if (spec.kind === 'image_token') return /^i[A-Za-z0-9]{11}$/.test(value)
+  return BASE62_PATTERN.test(value)
+}
+
+function collectJsonValuesForKind(
+  value: unknown,
+  source: Reference,
+  spec: ValueSpec,
+  result: Set<string>,
+  key?: string,
+): void {
+  if (Array.isArray(value)) {
+    for (const entry of value) collectJsonValuesForKind(entry, source, spec, result, key)
+    return
+  }
+  if (value && typeof value === 'object') {
+    for (const [childKey, child] of Object.entries(value)) {
+      collectJsonValuesForKind(child, source, spec, result, childKey)
+    }
+    return
+  }
+  if (typeof value !== 'string' || !key) return
+  if (source.table === 'download_tasks' && source.column === 'events' && key === 'id' && value.startsWith('initial:')) {
+    const taskId = value.slice('initial:'.length)
+    if (spec.kind === 'download_task' && !mappedValueIsValid(spec, taskId)) result.add(taskId)
+    return
+  }
+  if (jsonReferenceKind(source, key) === spec.kind && !mappedValueIsValid(spec, value)) result.add(value)
+}
+
+function collectJsonMappingValues(db: Database.Database, spec: ValueSpec): Set<string> {
+  const result = new Set<string>()
+  for (const source of JSON_COLUMNS) {
+    if (!columnExists(db, source.table, source.column)) continue
+    const rows = db
+      .prepare(
+        `SELECT ${quoteName(source.column)} AS value FROM ${quoteName(source.table)}
+         WHERE ${quoteName(source.column)} IS NOT NULL`,
+    )
+      .all() as Array<{ value: string }>
+    for (const row of rows) {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(row.value)
+      } catch {
+        throw new Error(`invalid_json:${source.table}.${source.column}`)
+      }
+      collectJsonValuesForKind(parsed, source, spec, result)
+    }
+  }
+  return result
 }
 
 function jsonReferenceKeys(source: Reference): Map<string, string[]> {
@@ -928,6 +1073,7 @@ function assertDirectReferencesResolve(db: Database.Database): void {
     if (!columnExists(db, spec.table, spec.column)) continue
     for (const reference of spec.references ?? []) {
       if (!columnExists(db, reference.table, reference.column)) continue
+      if (reference.allowDangling) continue
       const referenceColumn = quoteName(reference.column)
       const invalid = (
         db
@@ -956,12 +1102,22 @@ function polymorphicException(table: string, valueColumn: string): string {
   return ''
 }
 
+function polymorphicAllowsDangling(table: string): boolean {
+  return (
+    table === 'audit_events' ||
+    table === 'resource_changes' ||
+    table === 'storage_usage_ledger' ||
+    table === 'cloud_traffic_reports'
+  )
+}
+
 function assertPolymorphicReferencesResolve(db: Database.Database): void {
   for (const { table, typeColumn, valueColumn, typeKinds } of POLYMORPHIC_REFERENCES) {
     if (!columnExists(db, table, typeColumn) || !columnExists(db, table, valueColumn)) continue
     for (const [type, kind] of Object.entries(typeKinds)) {
-      // API-key rows are intentionally deleted; the mapped audit actor is a historical pseudonym.
-      if (table === 'audit_events' && typeColumn === 'actor_type' && type === 'api_key') continue
+      // Historical audit/change rows can outlive their referenced entity. Their
+      // normalized reference is a pseudonym, not a live foreign key.
+      if (polymorphicAllowsDangling(table)) continue
       const spec = targetSpec(kind)
       if (!spec || !columnExists(db, spec.table, spec.column)) continue
       const invalid = (
@@ -1030,8 +1186,19 @@ function assertJsonReferencesResolve(db: Database.Database): void {
       .all() as Array<{ value: string }>
     let invalid = 0
     for (const row of rows) invalid += countDanglingJsonReferences(db, JSON.parse(row.value), source)
-    if (invalid > 0) throw new Error(`dangling_json_reference:${source.table}.${source.column}:${invalid}`)
+    if (invalid > 0 && !jsonAllowsDangling(source)) {
+      throw new Error(`dangling_json_reference:${source.table}.${source.column}:${invalid}`)
+    }
   }
+}
+
+function jsonAllowsDangling(source: Reference): boolean {
+  return (
+    source.table === 'audit_events' ||
+    source.table === 'resource_changes' ||
+    source.table === 'background_jobs' ||
+    source.table === 'stats_rollups_hourly'
+  )
 }
 
 function assertStructuredReferencesResolve(db: Database.Database): void {
@@ -1140,6 +1307,10 @@ function validate(db: Database.Database, rowCounts: Map<string, number>, invalid
     if (invalid > 0) throw new Error(`invalid_structured_reference:object_upload_sessions.created_by:${invalid}`)
   }
 
+  for (const spec of VALUE_SPECS) {
+    const invalidJsonValues = collectJsonMappingValues(db, spec).size
+    if (invalidJsonValues > 0) throw new Error(`invalid_json_reference:${spec.kind}:${invalidJsonValues}`)
+  }
   assertDirectReferencesResolve(db)
   assertPolymorphicReferencesResolve(db)
   assertJsonReferencesResolve(db)
@@ -1181,6 +1352,8 @@ export function normalizeDatabase(db: Database.Database, apply: boolean): Normal
     assertExternalUsageReferencesAreSafe(db)
     assertIdentityDerivedImagesAreReconciled(db)
     assertMaintenanceStateIsDrained(db)
+
+    structuredKeysUpdated += rewriteLegacyDownloadTaskCreators(db)
 
     if (columnExists(db, 'audit_events', 'event_key')) {
       db.exec(
@@ -1282,6 +1455,13 @@ export function buildD1ApplySql(db: Database.Database): string {
       UNIQUE (kind, new_value)
     );`,
     `CREATE TABLE IF NOT EXISTS ${STATE_TABLE} (key TEXT PRIMARY KEY, value TEXT NOT NULL);`,
+    `CREATE TABLE IF NOT EXISTS ${EXACT_VALUE_TABLE} (
+      target_table TEXT NOT NULL,
+      target_column TEXT NOT NULL,
+      key_json TEXT NOT NULL,
+      value TEXT NOT NULL,
+      PRIMARY KEY (target_table, target_column, key_json)
+    );`,
     `CREATE TABLE IF NOT EXISTS _zpan_id_normalization_assertions (
       check_name TEXT PRIMARY KEY,
       violations INTEGER NOT NULL CHECK (violations = 0)
@@ -1332,7 +1512,28 @@ export function buildD1ApplySql(db: Database.Database): string {
        SELECT COUNT(*) FROM reviewed expected LEFT JOIN ${MAP_TABLE} actual
        ON actual.kind = expected.kind AND actual.old_value = expected.old_value
        WHERE actual.new_value IS NOT expected.new_value OR actual.created_at IS NOT expected.created_at`,
+      )
+  }
+
+  if (
+    columnExists(db, 'download_tasks', 'created_by_user_id') &&
+    columnExists(db, 'apikey', 'id') &&
+    columnExists(db, 'apikey', 'reference_id')
+  ) {
+    statements.push(
+      `UPDATE download_tasks
+       SET created_by_user_id = (
+         SELECT reference_id FROM apikey WHERE apikey.id = substr(download_tasks.created_by_user_id, 9)
+       )
+       WHERE ${normalizationPending} AND created_by_user_id LIKE 'api-key:%'
+         AND EXISTS (
+           SELECT 1 FROM apikey WHERE apikey.id = substr(download_tasks.created_by_user_id, 9)
+         );`,
     )
+    deferredAssertions.push({
+      name: 'legacy-download-task-creators',
+      countSql: "SELECT COUNT(*) FROM download_tasks WHERE created_by_user_id LIKE 'api-key:%'",
+    })
   }
 
   if (columnExists(db, 'audit_events', 'event_key')) {
@@ -1385,17 +1586,46 @@ export function buildD1ApplySql(db: Database.Database): string {
          FROM ${quoteName(table)} WHERE ${quoteName(column)} IS NOT NULL`,
       )
       .all() as Array<Record<string, string | number> & { migration_value: string }>
-    for (const row of rows) {
-      if (!newValues.some((value) => row.migration_value.includes(value))) continue
-      const predicate = keyColumns.map((key) => `${quoteName(key)} = ${sqlLiteral(row[key]!)}`).join(' AND ')
+    const exactRows = rows.flatMap((row) => {
+      if (!newValues.some((value) => row.migration_value.includes(value))) return []
+      return [
+        `(${sqlLiteral(table)}, ${sqlLiteral(column)}, ${sqlLiteral(JSON.stringify(keyColumns.map((key) => row[key])))}, ${sqlLiteral(row.migration_value)})`,
+      ]
+    })
+    for (const chunk of chunkSqlFragments(exactRows)) {
       statements.push(
-        `UPDATE ${quoteName(table)} SET ${quoteName(column)} = ${sqlLiteral(row.migration_value)} WHERE ${normalizationPending} AND ${predicate};`,
-      )
-      addAssertion(
-        `exact:${table}.${column}:${predicate}`,
-        `SELECT COUNT(*) FROM ${quoteName(table)} WHERE ${predicate} AND ${quoteName(column)} IS NOT ${sqlLiteral(row.migration_value)}`,
+        `INSERT INTO ${EXACT_VALUE_TABLE} (target_table, target_column, key_json, value)
+         VALUES ${chunk.join(', ')}
+         ON CONFLICT(target_table, target_column, key_json) DO UPDATE SET value = excluded.value;`,
       )
     }
+    if (exactRows.length === 0) continue
+    const keyJson = `json_array(${keyColumns.map((key) => `source.${quoteName(key)}`).join(', ')})`
+    const exactPredicate = `expected.target_table = ${sqlLiteral(table)} AND expected.target_column = ${sqlLiteral(column)} AND expected.key_json = ${keyJson}`
+    statements.push(
+      `UPDATE ${quoteName(table)} AS source
+       SET ${quoteName(column)} = (
+         SELECT expected.value FROM ${EXACT_VALUE_TABLE} expected WHERE ${exactPredicate}
+       )
+       WHERE ${normalizationPending} AND EXISTS (
+         SELECT 1 FROM ${EXACT_VALUE_TABLE} expected WHERE ${exactPredicate}
+       );`,
+    )
+    addAssertion(
+      `exact:${table}.${column}`,
+      `SELECT
+         ABS(
+           (SELECT COUNT(*) FROM ${EXACT_VALUE_TABLE}
+            WHERE target_table = ${sqlLiteral(table)} AND target_column = ${sqlLiteral(column)})
+           -
+           (SELECT COUNT(*) FROM ${quoteName(table)} source
+            INNER JOIN ${EXACT_VALUE_TABLE} expected ON ${exactPredicate})
+         )
+         +
+         (SELECT COUNT(*) FROM ${quoteName(table)} source
+          INNER JOIN ${EXACT_VALUE_TABLE} expected ON ${exactPredicate}
+          WHERE source.${quoteName(column)} IS NOT expected.value)`,
+    )
   }
   if (
     columnExists(db, 'downloaders', 'id') &&
@@ -1476,6 +1706,7 @@ export function buildD1ApplySql(db: Database.Database): string {
     if (!columnExists(db, spec.table, spec.column)) continue
     for (const reference of spec.references ?? []) {
       if (!columnExists(db, reference.table, reference.column)) continue
+      if (reference.allowDangling) continue
       addAssertion(
         `reference:${reference.table}.${reference.column}`,
         `SELECT COUNT(*) FROM ${quoteName(reference.table)} source WHERE source.${quoteName(reference.column)} IS NOT NULL AND source.${quoteName(reference.column)} != '' AND NOT EXISTS (SELECT 1 FROM ${quoteName(spec.table)} target WHERE target.${quoteName(spec.column)} = source.${quoteName(reference.column)})`,
@@ -1490,7 +1721,7 @@ export function buildD1ApplySql(db: Database.Database): string {
       `SELECT COUNT(*) FROM ${quoteName(table)} source WHERE source.${quoteName(typeColumn)} IN (${knownTypes}) ${table === 'cloud_traffic_reports' ? "AND source.status != 'ledger_opening'" : ''} ${table === 'resource_changes' && valueColumn === 'resource_id' ? "AND NOT (source.resource_type = 'notification' AND source.resource_id = '*')" : ''} AND source.${quoteName(valueColumn)} IS NOT NULL AND source.${quoteName(valueColumn)} != '' AND source.${quoteName(valueColumn)} GLOB '*[^A-Za-z0-9]*'`,
     )
     for (const [type, kind] of Object.entries(typeKinds)) {
-      if (table === 'audit_events' && typeColumn === 'actor_type' && type === 'api_key') continue
+      if (polymorphicAllowsDangling(table)) continue
       const spec = targetSpec(kind)
       if (!spec || !columnExists(db, spec.table, spec.column)) continue
       addAssertion(
@@ -1512,6 +1743,13 @@ export function buildD1ApplySql(db: Database.Database): string {
       const spec = targetSpec(kind)
       if (!spec || !columnExists(db, spec.table, spec.column)) continue
       addAssertion(
+        `json-format:${source.table}.${source.column}:${kind}`,
+        `SELECT COUNT(*) FROM ${table} source, json_tree(source.${column}) node
+         WHERE node.type = 'text' AND ${effectiveKey} IN (${keys.map(sqlLiteral).join(', ')})
+           AND (${invalidValuePredicate(spec, 'node.value', false)})`,
+      )
+      if (jsonAllowsDangling(source)) continue
+      addAssertion(
         `json-reference:${source.table}.${source.column}:${kind}`,
         `SELECT COUNT(*) FROM ${table} source, json_tree(source.${column}) node
          WHERE node.type = 'text' AND ${effectiveKey} IN (${keys.map(sqlLiteral).join(', ')})
@@ -1522,6 +1760,12 @@ export function buildD1ApplySql(db: Database.Database): string {
       )
     }
     if (source.table === 'download_tasks' && source.column === 'events') {
+      addAssertion(
+        'json-format:download_tasks.events:initial-task',
+        `SELECT COUNT(*) FROM download_tasks source, json_tree(source.events) node
+         WHERE node.type = 'text' AND node.key = 'id' AND node.value LIKE 'initial:%'
+           AND (substr(node.value, 9) = '' OR substr(node.value, 9) GLOB '*[^A-Za-z0-9]*')`,
+      )
       addAssertion(
         'json-reference:download_tasks.events:initial-task',
         `SELECT COUNT(*) FROM download_tasks source, json_tree(source.events) node

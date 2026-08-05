@@ -183,6 +183,25 @@ function value(db: Database.Database, sql: string): string {
   return (db.prepare(sql).get() as { value: string }).value
 }
 
+function insertOrphanedAuditActors(db: Database.Database): void {
+  const insert = db.prepare(
+    `INSERT INTO audit_events
+      (id, event_key, org_id, user_id, target_type, target_id, actor_type, actor_ref, metadata)
+     VALUES (?, NULL, '-org_legacy-', ?, 'historical', NULL, ?, ?, NULL)`,
+  )
+  insert.run('HistoricalUserAudit', 'deleted-user_', 'user', 'deleted-user_')
+  insert.run('HistoricalApiKeyAudit', null, 'api_key', 'deleted-api-key_')
+  insert.run('HistoricalDownloaderAudit', null, 'downloader', 'deleted-downloader_')
+  insert.run('HistoricalTaskAudit', null, 'task-upload', 'deleted-task_')
+  db.exec(`
+    UPDATE audit_events
+    SET metadata = '{"matterId":"deleted-matter_"}'
+    WHERE id = 'HistoricalUserAudit';
+    INSERT INTO resource_changes
+    VALUES (2, 'organization', '-org_legacy-', 'matter', 'deleted-matter_', NULL);
+  `)
+}
+
 describe('ID normalization backfill', () => {
   it('dry-runs without changing the source database', () => {
     const db = fixture()
@@ -324,6 +343,87 @@ describe('ID normalization backfill', () => {
     expect(db.prepare("SELECT 1 FROM oauthClientResource WHERE client_id = 'static-client'").get()).toBeTruthy()
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
     db.close()
+  })
+
+  it('normalizes orphaned historical audit actors without requiring deleted live rows', () => {
+    const planningCopy = fixture()
+    insertOrphanedAuditActors(planningCopy)
+    normalizeDatabase(planningCopy, true)
+
+    const historicalUserId = value(
+      planningCopy,
+      "SELECT user_id AS value FROM audit_events WHERE id = 'HistoricalUserAudit'",
+    )
+    expect(historicalUserId).toMatch(BASE62_PATTERN)
+    expect(value(planningCopy, "SELECT actor_ref AS value FROM audit_events WHERE id = 'HistoricalUserAudit'")).toBe(
+      historicalUserId,
+    )
+    for (const id of ['HistoricalApiKeyAudit', 'HistoricalDownloaderAudit', 'HistoricalTaskAudit']) {
+      expect(value(planningCopy, `SELECT actor_ref AS value FROM audit_events WHERE id = '${id}'`)).toMatch(
+        BASE62_PATTERN,
+      )
+    }
+    const historicalMatterId = (
+      JSON.parse(
+        value(planningCopy, "SELECT metadata AS value FROM audit_events WHERE id = 'HistoricalUserAudit'"),
+      ) as { matterId: string }
+    ).matterId
+    expect(historicalMatterId).toMatch(BASE62_PATTERN)
+    expect(value(planningCopy, 'SELECT resource_id AS value FROM resource_changes WHERE sequence = 2')).toBe(
+      historicalMatterId,
+    )
+
+    const plan = buildD1ApplySql(planningCopy)
+    const d1Copy = fixture()
+    insertOrphanedAuditActors(d1Copy)
+    d1Copy.exec(plan)
+    expect(
+      d1Copy
+        .prepare("SELECT id, user_id, actor_ref, metadata FROM audit_events WHERE id LIKE 'Historical%' ORDER BY id")
+        .all(),
+    ).toEqual(
+      planningCopy
+        .prepare("SELECT id, user_id, actor_ref, metadata FROM audit_events WHERE id LIKE 'Historical%' ORDER BY id")
+        .all(),
+    )
+    expect(value(d1Copy, 'SELECT resource_id AS value FROM resource_changes WHERE sequence = 2')).toBe(
+      historicalMatterId,
+    )
+    expect(d1Copy.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    planningCopy.close()
+    d1Copy.close()
+  })
+
+  it('resolves legacy API-key task creators before credentials are invalidated', () => {
+    const addLegacyCreators = (db: Database.Database) => {
+      db.exec(`
+        ALTER TABLE download_tasks ADD COLUMN created_by_user_id TEXT;
+        UPDATE download_tasks SET created_by_user_id = 'api-key:api_key_old-';
+        INSERT INTO apikey VALUES ('orphan_key-', 'deleted-user_', 'orphan-hash');
+        INSERT INTO download_tasks (id, events, status, created_by_user_id)
+        VALUES ('OrphanCreatorTask', '[]', 'completed', 'api-key:orphan_key-');
+      `)
+    }
+    const planningCopy = fixture()
+    addLegacyCreators(planningCopy)
+    normalizeDatabase(planningCopy, true)
+
+    expect(
+      value(planningCopy, "SELECT created_by_user_id AS value FROM download_tasks WHERE id != 'OrphanCreatorTask'"),
+    ).toBe(value(planningCopy, 'SELECT id AS value FROM user'))
+    expect(
+      value(planningCopy, "SELECT created_by_user_id AS value FROM download_tasks WHERE id = 'OrphanCreatorTask'"),
+    ).toMatch(BASE62_PATTERN)
+
+    const plan = buildD1ApplySql(planningCopy)
+    const d1Copy = fixture()
+    addLegacyCreators(d1Copy)
+    d1Copy.exec(plan)
+    expect(d1Copy.prepare('SELECT id, created_by_user_id FROM download_tasks ORDER BY id').all()).toEqual(
+      planningCopy.prepare('SELECT id, created_by_user_id FROM download_tasks ORDER BY id').all(),
+    )
+    planningCopy.close()
+    d1Copy.close()
   })
 
   it('is idempotent after a completed apply', () => {
@@ -551,30 +651,37 @@ describe('ID normalization backfill', () => {
     db.close()
   })
 
-  it('fails before emitting a D1 statement with an oversized rewritten JSON document', () => {
+  it('fails before emitting a D1 plan with an oversized rewritten JSON literal', () => {
     const db = fixture()
     db.prepare('UPDATE notifications SET metadata = ?').run(
       JSON.stringify({ shareId: 'share_old-', padding: 'x'.repeat(100_000) }),
     )
 
     normalizeDatabase(db, true)
-    expect(() => buildD1ApplySql(db)).toThrow('d1_plan_statement_limit_exceeded')
+    expect(() => buildD1ApplySql(db)).toThrow('d1_plan_literal_too_large')
     db.close()
   })
 
-  it('fails before emitting more commands than one D1 invocation can execute', () => {
+  it('batches exact JSON rewrites below the D1 command limit', () => {
     const db = fixture()
-    const insert = db.prepare(
-      "INSERT INTO notifications (id, user_id, ref_type, ref_id, metadata) VALUES (?, 'user-_legacy', 'share', 'share_old-', ?)",
-    )
-    db.transaction(() => {
-      for (let index = 0; index < 600; index += 1) {
-        insert.run(`SafeNotification${index}`, JSON.stringify({ shareId: 'share_old-' }))
-      }
-    })()
-
+    const source = fixture()
+    for (const target of [db, source]) {
+      const insert = target.prepare(
+        "INSERT INTO notifications (id, user_id, ref_type, ref_id, metadata) VALUES (?, 'user-_legacy', 'share', 'share_old-', ?)",
+      )
+      target.transaction(() => {
+        for (let index = 0; index < 600; index += 1) {
+          insert.run(`SafeNotification${index}`, JSON.stringify({ shareId: 'share_old-' }))
+        }
+      })()
+    }
     normalizeDatabase(db, true)
-    expect(() => buildD1ApplySql(db)).toThrow('d1_plan_command_limit_exceeded')
+    const plan = buildD1ApplySql(db)
+    expect(plan.match(/;\n/g)?.length).toBeLessThanOrEqual(1_000)
+    source.exec(plan)
+    expect((source.prepare('SELECT COUNT(*) AS count FROM notifications').get() as { count: number }).count).toBe(601)
+    expect(source.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    source.close()
     db.close()
   })
 

@@ -95,21 +95,28 @@ the public redirect namespaces disjoint without a cross-resource lookup or redir
    context-aware key-to-entity map, so external IDs that happen to equal a local old ID remain unchanged. Known audit,
    storage-ledger, Free-plan, and initial-task structured keys are parsed by format; no global substring replacement is
    used. Physical object keys and protocol/external identifiers are excluded.
+   Audit, change-log, completed upload/task, usage-ledger, and rollup rows can legitimately outlive the entity they
+   describe. Invalid historical references are assigned a stable pseudonym in the same mapping kind; already-Base62
+   historical pseudonyms are retained. They are format-checked but are not misrepresented as live foreign keys. Empty
+   ledger sentinels remain empty and are never added to the mapping table.
 6. Credential/session tables listed above are invalidated explicitly. Dynamic OAuth client rows with registration
    management credentials are removed; statically configured clients remain. Every downloader token hash/JTI is
    replaced and the downloader is disabled even when its historical ID was already Base62.
 7. Validation checks row counts, uniqueness through constraints, `PRAGMA foreign_key_check`, zero illegal governed
-   values, exact `s`/`i` public-token prefixes and lengths, direct and typed-polymorphic target existence, typed JSON
-   references, and structured upload creators. Any failure aborts the transaction.
+   values, exact `s`/`i` public-token prefixes and lengths, live direct and typed-polymorphic target existence, typed JSON
+   reference formats/targets according to their historical or live semantics, and structured upload creators. Any
+   failure aborts the transaction. Legacy download tasks whose creator was stored as `api-key:<id>` are resolved to the
+   API-key owner before the API-key rows are intentionally invalidated.
 8. `--emit-d1-sql` writes the exact reviewed mapping and rewritten JSON to a mode-`0600` SQL plan. The plan has persistent
    `CHECK (violations = 0)` assertions for expected row counts, foreign keys, formats, exact rewritten values, logical
    references, and public-token namespace formats. The versioned completion marker is the last state change; a missed update or
    unversioned pre-existing marker aborts without blessing the database. It contains sensitive
    old and new public tokens; never attach it to a PR or paste it into logs. Mapping inserts and review assertions are
-   packed into deterministic chunks below a 90,000-byte budget. Generation fails before writing the plan if any SQL
-   statement reaches D1's 100,000-byte limit or the complete plan exceeds 1,000 statements. A database with an
-   individually oversized rewritten JSON value or a plan that needs more statements requires a separately engineered
-   phased migration; the tool never emits a known-unexecutable plan.
+   packed into deterministic chunks below a 90,000-byte budget. Exact JSON/polymorphic rewrites are staged in
+   `_zpan_id_normalization_exact_values` and applied per governed column, instead of emitting one D1 command per row.
+   Generation fails before writing the plan if any SQL statement reaches D1's 100,000-byte limit or the complete plan
+   exceeds 1,000 statements. A database with an individually oversized rewritten JSON value or a plan that still needs
+   more statements requires a separately engineered phased migration; the tool never emits a known-unexecutable plan.
 
 The runtime startup gate is intentionally O(1) after migration: it requires both versioned proof markers instead of
 rescanning every large table on each Workers isolate cold start. A populated database without the proof fails fast.
@@ -232,7 +239,8 @@ WHERE length(token) != 12
 ```
 
 Both must return zero. Compare before/after counts for every table, allowing decreases only in the documented invalidation
-tables. Check every non-null direct, typed-polymorphic, typed-JSON, and structured creator reference resolves; unique PK/token counts equal row counts; audit `event_key` is
+tables. Check every live non-null direct, typed-polymorphic, typed-JSON, and structured creator reference resolves;
+historical pseudonyms must be Base62 and preserve same-kind equality without requiring a deleted target. Unique PK/token counts equal row counts; audit `event_key` is
 unique; JSON parses; object keys are byte-for-byte unchanged; referenced storage objects can be read; quota totals and
 stats rollups are unchanged; and the normalization completion marker exists.
 
