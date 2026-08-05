@@ -14,9 +14,11 @@ concurrency:
 permissions:
   contents: read
 
+# All primary gates start together. Tests feed the merged coverage gate; the
+# stable aggregate check waits for every required proof before main can merge.
 jobs:
   downloader:
-    name: Downloader (Go)
+    name: Downloader / Go
     runs-on: ubuntu-latest
     if: github.repository == 'saltbo/zpan'
     defaults:
@@ -43,8 +45,8 @@ jobs:
       - name: Verify live downloads
         run: LIVE_DOWNLOAD_VERIFY=1 go test ./pkg/downloaders -run 'TestLive(DownloadThreeSourceTypes|QBittorrentDownloadTorrentURL)' -count=1 -v
 
-  static:
-    name: Static checks
+  quality:
+    name: Quality / TypeScript
     runs-on: ubuntu-latest
     if: github.repository == 'saltbo/zpan'
     steps:
@@ -68,14 +70,37 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm openapi:client:check
 
-  unit:
-    name: Unit tests (${{ matrix.shard }}/2)
+  tests:
+    name: Tests / ${{ matrix.label }}
     runs-on: ubuntu-latest
     if: github.repository == 'saltbo/zpan'
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        include:
+          - label: Unit (1/2)
+            project: unit
+            shard: 1
+            coverage: true
+            report: unit-1
+          - label: Unit (2/2)
+            project: unit
+            shard: 2
+            coverage: true
+            report: unit-2
+          - label: Integration (1/2)
+            project: integration
+            shard: 1
+            coverage: true
+            report: integration-1
+          - label: Integration (2/2)
+            project: integration
+            shard: 2
+            coverage: true
+            report: integration-2
+          - label: Cloudflare
+            project: cloudflare
+            coverage: false
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -84,53 +109,31 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Run unit shard
+      - name: Prepare Cloudflare test assets
+        if: matrix.project == 'cloudflare'
+        run: mkdir -p dist
+      - name: Run coverage shard
+        if: matrix.coverage
         env:
-          VITEST_BLOB_LABEL: unit-${{ matrix.shard }}
-        run: pnpm exec vitest run --project unit --shard=${{ matrix.shard }}/2 --coverage --coverage.reportsDirectory=coverage/unit-${{ matrix.shard }} --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/unit-${{ matrix.shard }}.blob
+          VITEST_BLOB_LABEL: ${{ matrix.report }}
+        run: pnpm exec vitest run --project ${{ matrix.project }} --shard=${{ matrix.shard }}/2 --coverage --coverage.reportsDirectory=coverage/${{ matrix.report }} --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/${{ matrix.report }}.blob
+      - name: Run Cloudflare tests
+        if: matrix.project == 'cloudflare'
+        run: pnpm test:cf
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && matrix.coverage }}
         with:
-          name: vitest-coverage-unit-${{ matrix.shard }}
-          path: .vitest-reports/unit-${{ matrix.shard }}.blob
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 1
-
-  integration:
-    name: Integration tests (${{ matrix.shard }}/2)
-    runs-on: ubuntu-latest
-    if: github.repository == 'saltbo/zpan'
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Run integration shard
-        env:
-          VITEST_BLOB_LABEL: integration-${{ matrix.shard }}
-        run: pnpm exec vitest run --project integration --shard=${{ matrix.shard }}/2 --coverage --coverage.reportsDirectory=coverage/integration-${{ matrix.shard }} --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/integration-${{ matrix.shard }}.blob
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: vitest-coverage-integration-${{ matrix.shard }}
-          path: .vitest-reports/integration-${{ matrix.shard }}.blob
+          name: vitest-coverage-${{ matrix.report }}
+          path: .vitest-reports/${{ matrix.report }}.blob
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
 
   coverage:
-    name: Coverage gate
+    name: Tests / Coverage
     runs-on: ubuntu-latest
     if: github.repository == 'saltbo/zpan'
-    needs: [unit, integration]
+    needs: [tests]
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -164,8 +167,54 @@ jobs:
           fail_ci_if_error: false
           handle_no_reports_found: true
 
-  cloudflare:
-    name: Cloudflare tests
+  package-smoke:
+    name: Package smoke / ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    if: github.repository == 'saltbo/zpan'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Server image
+            target: ''
+            tag: zpan-zpan:latest
+            cache: docker-server
+          - label: CLI image
+            target: cli
+            tag: zpan-cli-smoke:latest
+            cache: docker-cli
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          load: true
+          tags: ${{ matrix.tag }}
+          cache-from: type=gha,scope=${{ matrix.cache }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
+      # Downloader engines and protocol behavior have their own live local job.
+      # This smoke gate only needs to prove the current production server image boots.
+      - name: Start server image
+        if: matrix.target == ''
+        run: docker compose -f docker-compose.yml up -d --no-build --wait --wait-timeout 60 zpan
+      - name: Assert server health from host
+        if: matrix.target == ''
+        run: curl --fail --retry 5 --retry-delay 3 --retry-connrefused http://localhost:8222/api/health
+      - name: Verify CLI entrypoint
+        if: matrix.target == 'cli'
+        run: docker run --rm zpan-cli-smoke:latest --help
+      - name: Dump logs on failure
+        if: ${{ failure() && matrix.target == '' }}
+        run: docker compose -f docker-compose.yml logs --no-color
+      - name: Tear down
+        if: ${{ always() && matrix.target == '' }}
+        run: docker compose -f docker-compose.yml down -v
+
+  deployment:
+    name: Deployment / Cloudflare contract
     runs-on: ubuntu-latest
     if: github.repository == 'saltbo/zpan'
     steps:
@@ -176,84 +225,93 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: mkdir -p dist
-      - run: pnpm test:cf
+      - name: Build
+        env:
+          ZPAN_APP_VERSION: ci-dry-run
+        run: pnpm build
+      # --dry-run compiles the Worker and validates wrangler.toml + the
+      # vite-plugin deploy config (assets dir, queues, bindings) without
+      # contacting Cloudflare, so it needs no secrets and runs on fork PRs.
+      # Guards the deploy regressions a unit test can't: a dropped build step
+      # (#417) or an unprovisioned binding added to wrangler.toml.
+      - name: Validate Cloudflare deploy config
+        run: pnpm exec wrangler deploy --dry-run
 
-  # Preserve the stable check name while every expensive gate runs independently.
-  # The final dependency list below also includes the jobs declared later.
+  e2e:
+    name: E2E / ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Node (1/4)
+            runtime: node
+            shard: 1
+            artifact: node-1
+          - label: Node (2/4)
+            runtime: node
+            shard: 2
+            artifact: node-2
+          - label: Node (3/4)
+            runtime: node
+            shard: 3
+            artifact: node-3
+          - label: Node (4/4)
+            runtime: node
+            shard: 4
+            artifact: node-4
+          - label: Cloudflare critical journeys
+            runtime: cloudflare
+            artifact: cf
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run Node E2E shard
+        if: matrix.runtime == 'node'
+        run: pnpm e2e --project=desktop --shard=${{ matrix.shard }}/4
+      - name: Run Cloudflare critical journeys
+        if: matrix.runtime == 'cloudflare'
+        run: E2E_RUNTIME=cf pnpm e2e --project=desktop --grep @critical
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.artifact }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # Keep one stable required identity while the expensive proof runs in parallel.
   check:
     name: Typecheck & Test
     runs-on: ubuntu-latest
     if: ${{ always() && github.repository == 'saltbo/zpan' }}
     needs:
       - downloader
-      - static
+      - quality
+      - tests
       - coverage
-      - cloudflare
-      - docker-smoke
-      - docker-cli-smoke
-      - cf-deploy-dry-run
-      - e2e-node
-      - e2e-cf
+      - package-smoke
+      - deployment
+      - e2e
     steps:
       - name: Verify every required job passed
         env:
           JOB_RESULTS: ${{ toJSON(needs) }}
         run: test "$(jq -r '[.[].result] | all(. == "success")' <<<"$JOB_RESULTS")" = true
 
-  docker-smoke:
-    name: Docker image smoke test
+  publish:
+    name: Publish / Docker dev images
     runs-on: ubuntu-latest
-    if: github.repository == 'saltbo/zpan'
-    steps:
-      - uses: actions/checkout@v6
-      - uses: docker/setup-buildx-action@v4
-      - name: Build server image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          load: true
-          tags: zpan-zpan:latest
-          cache-from: type=gha,scope=docker-server
-          cache-to: type=gha,mode=max,scope=docker-server
-      # Downloader engines and protocol behavior have their own live local job.
-      # This smoke gate only needs to prove the current production server image boots.
-      - name: Start server image
-        run: docker compose -f docker-compose.yml up -d --no-build --wait --wait-timeout 60 zpan
-      - name: Assert server health from host
-        run: curl --fail --retry 5 --retry-delay 3 --retry-connrefused http://localhost:8222/api/health
-      - name: Dump logs on failure
-        if: failure()
-        run: docker compose -f docker-compose.yml logs --no-color
-      - name: Tear down
-        if: always()
-        run: docker compose -f docker-compose.yml down -v
-
-  docker-cli-smoke:
-    name: Docker CLI image smoke test
-    runs-on: ubuntu-latest
-    if: github.repository == 'saltbo/zpan'
-    steps:
-      - uses: actions/checkout@v6
-      - uses: docker/setup-buildx-action@v4
-      - name: Build CLI image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          target: cli
-          load: true
-          tags: zpan-cli-smoke:latest
-          cache-from: type=gha,scope=docker-cli
-          cache-to: type=gha,mode=max,scope=docker-cli
-      - name: Verify CLI entrypoint
-        run: docker run --rm zpan-cli-smoke:latest --help
-
-  docker-dev:
-    name: Docker dev image
-    runs-on: ubuntu-latest
-    needs: [check, docker-smoke]
-    # Publish the bleeding-edge `:dev` image only for green pushes to main on the
-    # canonical repo — never on PRs or forks. `:latest` stays pinned to releases.
+    needs: [check]
+    # Publish the bleeding-edge `:dev` images only for green pushes to main on the
+    # canonical repo. Pull requests stop at the stable required gate above.
     if: github.repository == 'saltbo/zpan' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -290,7 +348,6 @@ jobs:
           context: .
           target: cli
           push: true
-          # Dev images are amd64-only (see server image above). Releases stay multi-arch.
           platforms: linux/amd64
           build-args: |
             APP_VERSION=dev
@@ -298,77 +355,3 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:dev-cli
           cache-from: type=gha,scope=docker-cli
           cache-to: type=gha,mode=max,scope=docker-cli
-
-  cf-deploy-dry-run:
-    name: CF deploy dry-run
-    runs-on: ubuntu-latest
-    if: github.repository == 'saltbo/zpan'
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Build
-        env:
-          ZPAN_APP_VERSION: ci-dry-run
-        run: pnpm build
-      # --dry-run compiles the Worker and validates wrangler.toml + the
-      # vite-plugin deploy config (assets dir, queues, bindings) without
-      # contacting Cloudflare, so it needs no secrets and runs on fork PRs.
-      # Guards the deploy regressions a unit test can't: a dropped build step
-      # (#417) or an unprovisioned binding added to wrangler.toml.
-      - name: Validate Cloudflare deploy config
-        run: pnpm exec wrangler deploy --dry-run
-
-  e2e-node:
-    name: E2E (Node ${{ matrix.shard }}/4)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Run E2E
-        run: pnpm e2e --project=desktop --shard=${{ matrix.shard }}/4
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-report-node-${{ matrix.shard }}
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 7
-
-  e2e-cf:
-    name: E2E critical journeys (CF Workers)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Run E2E
-        run: E2E_RUNTIME=cf pnpm e2e --project=desktop --grep @critical
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-report-cf
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 7
