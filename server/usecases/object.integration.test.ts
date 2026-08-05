@@ -1,5 +1,4 @@
 import { sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirType } from '../../shared/constants'
 import { generateId } from '../../shared/ids'
@@ -22,6 +21,8 @@ import {
   saveShareToDrive as saveShareToDriveUseCase,
 } from './object.js'
 import type { Matter } from './ports'
+
+const nanoid = generateId
 
 const createShare = (db: Database, input: CreateShareInput) => createShareRepo(db).create(input)
 const resolveShareByToken = (db: Database, token: string) => createShareRepo(db).resolveByToken(token)

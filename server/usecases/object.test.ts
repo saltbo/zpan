@@ -398,10 +398,10 @@ describe('object usecase', () => {
     })
 
     it('creates a small file draft and returns single-PUT upload instructions', async () => {
-      const draft = file('d1', { status: 'draft', object: 'o1/u1/key.jpg', name: 'photo.jpg', type: 'image/jpeg' })
+      const create = vi.fn(async (input: Parameters<MatterRepo['create']>[0]) => file('d1', input as Partial<Matter>))
       const presignUpload = vi.fn(async () => 'https://up')
       const { deps } = makeDeps({
-        matter: { create: async () => draft },
+        matter: { create },
         s3: { presignUpload },
       })
       const out = await createObject(deps, {
@@ -430,9 +430,10 @@ describe('object usecase', () => {
           },
         ])
         expect(out.matter.status).toBe('draft')
+        expect(out.matter.object).toMatch(/^o1\/u1\/\d{8}\/[A-Za-z0-9]{17}\.jpg$/)
         expect(presignUpload).toHaveBeenCalledWith(
           storage,
-          expect.any(String),
+          out.matter.object,
           'image/jpeg',
           UPLOAD_PRESIGNED_URL_TTL_SECONDS,
         )
@@ -675,8 +676,7 @@ describe('object usecase', () => {
       })
       const arg = create.mock.calls[0][0]
       expect(arg).not.toHaveProperty('userId')
-      // object key uses the creator's uid
-      expect(arg.object).toContain('o1/creator/')
+      expect(arg.object).toMatch(/^o1\/creator\/\d{8}\/[A-Za-z0-9]{17}\.txt$/)
     })
 
     it('recreates the actual upload parent and uses its canonical path', async () => {
@@ -1648,8 +1648,8 @@ describe('object usecase', () => {
 
   describe('copyObject', () => {
     it('copies a file: reserves quota, copies the S3 object, creates the matter', async () => {
-      const source = file('src', { size: 200, object: 'key/src' })
-      const copyObjectS3 = vi.fn(async () => {})
+      const source = file('src', { size: 200, object: 'legacy_/source-file-.txt' })
+      const copyObjectS3 = vi.fn(async (..._args: Parameters<S3Gateway['copyObject']>) => {})
       const increment = vi.fn(async () => true)
       const copy = vi.fn(async () => file('cp', { parent: 'Dest', name: source.name }))
       const { deps } = makeDeps({
@@ -1660,8 +1660,11 @@ describe('object usecase', () => {
       const out = await copyObject(deps, { orgId: 'o1', userId: 'u1', input: { copyFrom: 'src', parent: 'Dest' } })
       expect(out.ok).toBe(true)
       expect(increment).toHaveBeenCalledWith('o1', 'st-1', 200, true)
-      expect(copyObjectS3).toHaveBeenCalled()
-      expect(copy).toHaveBeenCalled()
+      const destinationKey = copyObjectS3.mock.calls[0]?.[3]
+      expect(source.object).toBe('legacy_/source-file-.txt')
+      expect(destinationKey).toMatch(/^o1\/u1\/\d{8}\/[A-Za-z0-9]{17}\.txt$/)
+      expect(copyObjectS3).toHaveBeenCalledWith(storage, source.object, storage, destinationKey)
+      expect(copy).toHaveBeenCalledWith(source, 'Dest', destinationKey, { onConflict: undefined })
     })
 
     it('returns not_found for a missing source', async () => {
@@ -1791,15 +1794,16 @@ describe('object usecase', () => {
     })
 
     it('copies into the target without deleting the source', async () => {
-      const source = file('m1', { status: 'active', object: 'key/m1' })
+      const source = file('m1', { status: 'active', name: 'report.pdf', object: 'legacy_/source-file-.pdf' })
       const collectForPurge = vi.fn()
+      const copyObjectS3 = vi.fn(async (..._args: Parameters<S3Gateway['copyObject']>) => {})
       const { deps } = makeDeps({
         matter: { get: async () => source, collectForPurge },
         storages: {
           get: async () => storage,
           select: async () => storage,
         },
-        s3: { copyObject: async () => {} },
+        s3: { copyObject: copyObjectS3 },
       })
       const out = await transferObject(deps, {
         orgId: 'o1',
@@ -1808,7 +1812,12 @@ describe('object usecase', () => {
         input: { targetOrgId: 'o2', targetParent: '', mode: 'copy' },
       })
       expect(out.ok).toBe(true)
-      if (out.ok) expect(out.result.sourceDeleted).toBe(false)
+      if (out.ok) {
+        expect(out.result.sourceDeleted).toBe(false)
+        expect(out.result.saved[0]?.object).toMatch(/^o2\/u1\/\d{8}\/[A-Za-z0-9]{17}\.pdf$/)
+      }
+      expect(source.object).toBe('legacy_/source-file-.pdf')
+      expect(copyObjectS3).toHaveBeenCalledWith(storage, source.object, storage, expect.stringMatching(/^o2\/u1\//))
       expect(collectForPurge).not.toHaveBeenCalled()
     })
 

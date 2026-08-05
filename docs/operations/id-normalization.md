@@ -44,6 +44,13 @@ direct default `nanoid()` call in production roots.
 | In-flight local/external work | queued/running archive jobs and their Cloudflare Queue messages; active multipart upload sessions; assigned/downloading/uploading download tasks | Fail before mutation. Drain the Queue and finish/cancel the DB job, complete or abort each S3 multipart upload, and drain/cancel task-upload work before taking the snapshot. Queue messages cannot be rewritten atomically with D1 and multipart `upload_id` values belong to S3. Re-enqueue only from normalized DB state after deployment. |
 | Runtime cache entries | distributed image-domain `host -> orgId`; in-process WebDAV/storage caches whose keys or values contain local IDs | The image-domain distributed cache policy is versioned from v1 to v2, making every old KV entry unreachable by the new runtime. In-process caches disappear with the old deployment. Keep old runtime instances stopped through the cutover and verify the first post-deploy image-domain lookup is a source/v2-cache result. |
 
+Existing physical object references stay unchanged during migration, but every future key allocation uses a guarded builder.
+Ordinary object, WebDAV, archive, copy, transfer, and downloader uploads use
+`<Base62 org ID>/<Base62 owner user ID>/<YYYYMMDD>/<17 Base62 random characters><extension>`. Image-hosting uploads use
+`ih/<Base62 org ID>/<13-character Base62 image ID>.<MIME-derived extension>`. The `/` separators and filename extension
+are S3 key structure, not opaque IDs. Key construction fails before an upload is presigned or written if an ID component
+is not Base62.
+
 The inventory included `nanoid`, `customAlphabet`, `randomUUID`, and `randomBytes` calls; schema PKs/FKs/unique tokens;
 OpenAPI path parameters; clients/scripts/tests/docs; audit/notification/job JSON; R2/S3 physical keys; cache and idempotency
 keys; OAuth claims/PAR; and Cloud/Store API identifiers. Better Auth 1.7 core IDs and session tokens are Base62, but its

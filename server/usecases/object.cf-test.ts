@@ -98,7 +98,7 @@ describe('[CF] resolveShareByToken', () => {
     const share = await createShare(db, {
       matterId: matter.id,
       orgId,
-      creatorId: 'cf-user-1',
+      creatorId: 'cfUser1',
       kind: 'landing',
     })
 
@@ -114,8 +114,8 @@ describe('[CF] resolveShareByToken', () => {
     await seedStorage(db, 'cf-storage-1')
     const matter = await seedMatter(db, orgId)
 
-    const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'cf-user-2', kind: 'landing' })
-    await revokeShareByToken(db, share.token, 'cf-user-2')
+    const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'cfUser2', kind: 'landing' })
+    await revokeShareByToken(db, share.token, 'cfUser2')
 
     const result = await resolveShareByToken(db, share.token)
     expect(result.status).toBe('revoked')
@@ -127,7 +127,7 @@ describe('[CF] resolveShareByToken', () => {
     await seedStorage(db, 'cf-storage-1')
     const matter = await seedMatter(db, orgId)
 
-    const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'cf-user-3', kind: 'landing' })
+    const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'cfUser3', kind: 'landing' })
     // Trash = active row with trashedAt set (no 'trashed' status).
     await db.run(`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = '${matter.id}'`)
 
@@ -152,14 +152,14 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     await seedStorageQuota(db, dstOrgId)
 
     const matter = await seedMatter(db, srcOrgId)
-    const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'cf-u1', kind: 'landing' })
+    const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'cfU1', kind: 'landing' })
 
     if (share.status === 'revoked') throw new Error('test setup failed')
 
     const result = await saveShareToDrive(db, {
       share,
       matter,
-      currentUserId: 'cf-u2',
+      currentUserId: 'cfU2',
       targetOrgId: dstOrgId,
       targetParent: '',
     })
@@ -168,6 +168,7 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     expect(result.skipped).toHaveLength(0)
     expect(result.saved[0].orgId).toBe(dstOrgId)
     expect(result.saved[0].status).toBe('active')
+    expect(result.saved[0].object).toMatch(new RegExp(`^${dstOrgId}/cfU2/\\d{8}/[A-Za-z0-9]{17}\\.pdf$`))
   })
 
   it('does not increment downloads counter after save', async () => {
@@ -178,7 +179,7 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     await seedStorageQuota(db, dstOrgId)
 
     const matter = await seedMatter(db, srcOrgId)
-    const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'cf-u3', kind: 'landing' })
+    const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'cfU3', kind: 'landing' })
 
     if (share.status === 'revoked') throw new Error('test setup failed')
     const downloadsBefore = share.downloads
@@ -186,7 +187,7 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     await saveShareToDrive(db, {
       share,
       matter,
-      currentUserId: 'cf-u4',
+      currentUserId: 'cfU4',
       targetOrgId: dstOrgId,
       targetParent: '',
     })
@@ -246,14 +247,14 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     }
     await db.insert(matters).values(file1)
 
-    const share = await createShare(db, { matterId: folder.id, orgId: srcOrgId, creatorId: 'cf-u5', kind: 'landing' })
+    const share = await createShare(db, { matterId: folder.id, orgId: srcOrgId, creatorId: 'cfU5', kind: 'landing' })
 
     if (share.status === 'revoked') throw new Error('test setup failed')
 
     const result = await saveShareToDrive(db, {
       share,
       matter: folder,
-      currentUserId: 'cf-u6',
+      currentUserId: 'cfU6',
       targetOrgId: dstOrgId,
       targetParent: '',
     })

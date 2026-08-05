@@ -3,6 +3,7 @@ import { generateId, generateImageToken, generateToken } from '../../../shared/i
 import { imageHostingConfigs, imageHostings } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { mimeToExt } from '../../lib/mime-utils'
+import { buildImageStorageKey } from '../../lib/path-template'
 import type { Database } from '../../platform/interface'
 import type {
   CreateImageHostingInput,
@@ -136,7 +137,7 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
       const id = generateId(13)
       const token = generateImageToken()
       const ext = mimeToExt(input.mime)
-      const storageKey = `ih/${input.orgId}/${id}.${ext}`
+      const storageKey = buildImageStorageKey(input.orgId, id, ext)
       const now = new Date()
 
       const resolvedPath = await resolveUniquePath(input.orgId, input.path)

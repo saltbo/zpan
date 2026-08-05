@@ -103,7 +103,7 @@ function fixture(path = ':memory:'): Database.Database {
       id TEXT PRIMARY KEY, token_hash TEXT NOT NULL, token_jti TEXT NOT NULL UNIQUE, enabled INTEGER NOT NULL
     );
     CREATE TABLE object_upload_sessions (
-      id TEXT PRIMARY KEY, created_by TEXT, status TEXT NOT NULL DEFAULT 'completed'
+      id TEXT PRIMARY KEY, storage_key TEXT NOT NULL, created_by TEXT, status TEXT NOT NULL DEFAULT 'completed'
     );
 
     INSERT INTO user VALUES ('user-_legacy');
@@ -169,8 +169,12 @@ function fixture(path = ':memory:'): Database.Database {
     INSERT INTO downloader_bootstrap_credentials VALUES ('bootstrap_old-', 'user-_legacy', 'bootstrap-hash');
     INSERT INTO downloaders VALUES ('downloader_old-', 'legacy-hash', 'legacy-jti', 1);
     INSERT INTO downloaders VALUES ('SafeDownloader123', 'safe-legacy-hash', 'safe-legacy-jti', 1);
-    INSERT INTO object_upload_sessions VALUES ('upload_old-', 'downloader:downloader_old-', 'completed');
-    INSERT INTO object_upload_sessions VALUES ('user_upload_old-', 'user-_legacy', 'completed');
+    INSERT INTO object_upload_sessions VALUES (
+      'upload_old-', 'objects/-org_legacy-/matter_old-', 'downloader:downloader_old-', 'completed'
+    );
+    INSERT INTO object_upload_sessions VALUES (
+      'user_upload_old-', 'objects/-org_legacy-/matter-user_old-', 'user-_legacy', 'completed'
+    );
   `)
   return db
 }
@@ -292,6 +296,10 @@ describe('ID normalization backfill', () => {
     // Physical object keys are external storage references and intentionally do not change.
     expect(value(db, 'SELECT object AS value FROM matters')).toBe('objects/-org_legacy-/matter_old-')
     expect(value(db, 'SELECT storage_key AS value FROM image_hostings')).toBe('ih/-org_legacy-/image_old-.png')
+    expect(db.prepare('SELECT storage_key FROM object_upload_sessions ORDER BY storage_key').all()).toEqual([
+      { storage_key: 'objects/-org_legacy-/matter-user_old-' },
+      { storage_key: 'objects/-org_legacy-/matter_old-' },
+    ])
     for (const table of [
       'session',
       'apikey',

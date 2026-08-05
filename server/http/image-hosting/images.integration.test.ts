@@ -310,9 +310,10 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.uploadUrl).toBe('https://presigned-upload.example.com')
     expect(body.id).toBeTruthy()
+    expect(String(body.id)).toMatch(/^[A-Za-z0-9]{13}$/)
     expect(String(body.token)).toMatch(/^i[A-Za-z0-9]{11}$/)
     expect(body.path).toBe('blog/2026/shot.png')
-    expect(String(body.storageKey)).toMatch(/^ih\//)
+    expect(String(body.storageKey)).toBe(`ih/${orgId}/${String(body.id)}.png`)
   })
 
   it('returns 400 for path with .. [spec: image-hosting/path-traversal]', async () => {
