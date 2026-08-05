@@ -31,7 +31,7 @@
     "api-key-scopes:backfill": "tsx scripts/backfill-api-key-scopes.ts",
     "oauth-scopes:backfill": "tsx scripts/backfill-oauth-scopes.ts",
     "ids:normalize": "tsx scripts/normalize-ids.ts",
-    "typecheck": "tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p src/tsconfig.json",
+    "typecheck": "node scripts/run-typecheck.mjs",
     "test": "vitest run --project unit --project integration",
     "test:cf": "vitest run --project cloudflare",
     "test:libsql": "vitest run --project libsql",
