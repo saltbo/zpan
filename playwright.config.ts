@@ -77,7 +77,6 @@ export default defineConfig({
       : undefined,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
   },
   projects: [
     {
