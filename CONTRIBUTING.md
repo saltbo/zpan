@@ -35,7 +35,7 @@ pnpm e2e              # Playwright E2E tests
 
 - Backend unit tests use `*.test.ts`, run in Node, and must not create a database-backed application.
 - Frontend unit and component tests use `*.test.ts(x)` and run in jsdom.
-- Backend repository, HTTP, and application integration tests use `*.integration.test.ts`.
+- Backend repository, HTTP, and application integration tests use `*.integration.test.ts`; CI runs HTTP/application and datastore/adapter boundaries independently.
 - `*.cf-test.ts` is reserved for behavior that specifically needs D1, Workers bindings, or the Workers runtime.
 - Pull requests run only `@critical` browser journeys against the local Cloudflare runtime. The complete multi-viewport browser suite runs nightly.
 - Tests must replace S3 and ZPan Cloud with local fakes; CI must not depend on staging services or credentials.

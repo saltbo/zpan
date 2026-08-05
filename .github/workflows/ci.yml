@@ -82,10 +82,14 @@ jobs:
             projects: --project backend-unit
             scope: backend
             report: backend-unit
-          - label: Backend integration
-            projects: --project backend-integration
+          - label: Backend HTTP integration
+            projects: --project backend-integration-http
             scope: backend
-            report: backend-integration
+            report: backend-integration-http
+          - label: Backend data integration
+            projects: --project backend-integration-data
+            scope: backend
+            report: backend-integration-data
           - label: Frontend
             projects: --project frontend-unit
             scope: frontend
@@ -149,9 +153,10 @@ jobs:
       - name: Verify every coverage report is present
         run: |
           test -f .vitest-reports/backend-unit.blob
-          test -f .vitest-reports/backend-integration.blob
+          test -f .vitest-reports/backend-integration-http.blob
+          test -f .vitest-reports/backend-integration-data.blob
           test -f .vitest-reports/frontend.blob
-          test "$(find .vitest-reports -type f -name '*.blob' | wc -l)" -eq 3
+          test "$(find .vitest-reports -type f -name '*.blob' | wc -l)" -eq 4
       - name: Merge coverage and enforce thresholds
         env:
           COVERAGE_ENFORCE: '1'

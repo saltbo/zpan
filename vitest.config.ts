@@ -79,6 +79,15 @@ const isolatedCloudflareTests = [
   'workers/bootstrap.cf-test.ts',
 ]
 
+const backendHttpIntegrationTests = [
+  'server/app.integration.test.ts',
+  'server/auth.integration.test.ts',
+  'server/cors.integration.test.ts',
+  'server/openapi.integration.test.ts',
+  'server/http/**/*.integration.test.ts',
+  'server/middleware/**/*.integration.test.ts',
+]
+
 export default defineConfig({
   test: {
     globals: true,
@@ -111,8 +120,18 @@ export default defineConfig({
       {
         resolve: { alias: aliases },
         test: {
-          name: 'backend-integration',
+          name: 'backend-integration-http',
+          include: backendHttpIntegrationTests,
+          testTimeout: 15_000,
+          setupFiles: ['./server/test/app-version.ts'],
+        },
+      },
+      {
+        resolve: { alias: aliases },
+        test: {
+          name: 'backend-integration-data',
           include: ['server/**/*.integration.test.ts'],
+          exclude: backendHttpIntegrationTests,
           testTimeout: 15_000,
           setupFiles: ['./server/test/app-version.ts'],
         },
