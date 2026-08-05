@@ -64,6 +64,16 @@ describe('[CF] Auth API', () => {
         body: JSON.stringify({ email, password, callbackURL: `${origin}/files` }),
       })
       expect(signIn.status, await signIn.clone().text()).toBe(200)
+
+      const cookie = signIn.headers
+        .getSetCookie()
+        .map((value) => value.split(';', 1)[0])
+        .join('; ')
+      const session = await app.request(`${origin}/api/auth/get-session`, {
+        headers: { Cookie: cookie },
+      })
+      expect(session.status, await session.clone().text()).toBe(200)
+      await expect(session.json()).resolves.toMatchObject({ user: { email } })
     }
 
     const unrelatedOrigin = 'https://unrelated-worker.other-account.workers.dev'

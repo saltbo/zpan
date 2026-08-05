@@ -30,6 +30,14 @@ const e2eWorkerVars =
       }
     : undefined
 
+const cloudflarePlugin = e2eWorkerVars
+  ? cloudflare({
+      persistState: process.env.E2E_STATE_DIR ? { path: process.env.E2E_STATE_DIR } : undefined,
+      inspectorPort: false,
+      config: (config) => ({ vars: { ...config.vars, ...e2eWorkerVars } }),
+    })
+  : cloudflare()
+
 export default defineConfig(({ mode }) => ({
   define: {
     'globalThis.__ZPAN_APP_VERSION__': JSON.stringify(appVersion),
@@ -61,17 +69,7 @@ export default defineConfig(({ mode }) => ({
     }),
     react(),
     tailwindcss(),
-    ...(mode === 'node'
-      ? []
-      : [
-          cloudflare({
-            persistState: process.env.E2E_STATE_DIR ? { path: process.env.E2E_STATE_DIR } : undefined,
-            inspectorPort: process.env.E2E_RUNTIME === 'cf' ? false : undefined,
-            config: e2eWorkerVars
-              ? (config) => ({ vars: { ...config.vars, ...e2eWorkerVars } })
-              : undefined,
-          }),
-        ]),
+    ...(mode === 'node' ? [] : [cloudflarePlugin]),
   ],
   resolve: {
     alias: {
