@@ -507,12 +507,23 @@ describe('updateMatter', () => {
 async function insertTrashedMatter(
   db: TestDb,
   orgId: string,
-  opts: { id: string; alias: string; name: string; parent: string; dirtype: number; storageId: string },
+  opts: {
+    id: string
+    alias: string
+    name: string
+    parent: string
+    dirtype: number
+    storageId: string
+    trashedAt?: number
+    createdAt?: number
+  },
 ) {
   const now = Date.now()
+  const trashedAt = opts.trashedAt ?? now
+  const createdAt = opts.createdAt ?? now
   await db.run(sql`
     INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
-    VALUES (${opts.id}, ${orgId}, ${opts.alias}, ${opts.name}, 'text/plain', 0, ${opts.dirtype}, ${opts.parent}, '', ${opts.storageId}, 'active', ${now}, ${now}, ${now})
+    VALUES (${opts.id}, ${orgId}, ${opts.alias}, ${opts.name}, 'text/plain', 0, ${opts.dirtype}, ${opts.parent}, '', ${opts.storageId}, 'active', ${trashedAt}, ${createdAt}, ${now})
   `)
 }
 
@@ -574,7 +585,7 @@ describe('listTrashedRoots', () => {
     expect(ids).not.toContain('file-in-b')
   })
 
-  it('returns multiple independent trashed items when none is a descendant of another', async () => {
+  it('orders independent roots by trashed time and then creation time', async () => {
     const { db } = await createTestApp()
     const orgId = nanoid()
     const storageId = await insertStorage(db, { id: 'st-trash3' })
@@ -586,6 +597,8 @@ describe('listTrashedRoots', () => {
       parent: '',
       dirtype: 0,
       storageId,
+      trashedAt: 1_000,
+      createdAt: 1_000,
     })
     await insertTrashedMatter(db, orgId, {
       id: 'item-y',
@@ -594,14 +607,23 @@ describe('listTrashedRoots', () => {
       parent: '',
       dirtype: 0,
       storageId,
+      trashedAt: 2_000,
+      createdAt: 1_000,
+    })
+    await insertTrashedMatter(db, orgId, {
+      id: 'item-z',
+      alias: 'item-z-alias',
+      name: 'Z',
+      parent: '',
+      dirtype: 0,
+      storageId,
+      trashedAt: 2_000,
+      createdAt: 2_000,
     })
 
     const roots = await listTrashedRoots(db, orgId)
-    const ids = roots.map((m) => m.id)
 
-    expect(ids).toContain('item-x')
-    expect(ids).toContain('item-y')
-    expect(roots).toHaveLength(2)
+    expect(roots.map((matter) => matter.id)).toEqual(['item-z', 'item-y', 'item-x'])
   })
 
   it('returns an empty array when no trashed items exist for the org', async () => {

@@ -78,12 +78,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: Unit
+          - label: Unit (1/2)
             project: unit
-            report: unit
-          - label: Integration
+            shard: 1
+            report: unit-1
+          - label: Unit (2/2)
+            project: unit
+            shard: 2
+            report: unit-2
+          - label: Integration (1/2)
             project: integration
-            report: integration
+            shard: 1
+            report: integration-1
+          - label: Integration (2/2)
+            project: integration
+            shard: 2
+            report: integration-2
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -95,7 +105,7 @@ jobs:
       - name: Run tests with coverage
         # Passing tests produce hundreds of KB of intentional request/error logs.
         # Keep captured output for failures without paying to stream every success.
-        run: pnpm exec vitest run --project ${{ matrix.project }} --silent=passed-only --coverage --coverage.reportsDirectory=coverage/${{ matrix.report }} --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/${{ matrix.report }}.blob
+        run: pnpm exec vitest run --project ${{ matrix.project }} --shard=${{ matrix.shard }}/2 --silent=passed-only --coverage --coverage.reportsDirectory=coverage/${{ matrix.report }} --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/${{ matrix.report }}.blob
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -138,11 +148,13 @@ jobs:
           pattern: vitest-coverage-*
           path: .vitest-reports
           merge-multiple: true
-      - name: Verify both coverage reports are present
+      - name: Verify every coverage shard is present
         run: |
-          test -f .vitest-reports/unit.blob
-          test -f .vitest-reports/integration.blob
-          test "$(find .vitest-reports -type f -name '*.blob' | wc -l)" -eq 2
+          test -f .vitest-reports/unit-1.blob
+          test -f .vitest-reports/unit-2.blob
+          test -f .vitest-reports/integration-1.blob
+          test -f .vitest-reports/integration-2.blob
+          test "$(find .vitest-reports -type f -name '*.blob' | wc -l)" -eq 4
       - name: Merge coverage and enforce thresholds
         env:
           COVERAGE_ENFORCE: '1'
