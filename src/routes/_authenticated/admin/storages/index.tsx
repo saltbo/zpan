@@ -351,7 +351,7 @@ export function StoragesPage() {
 
       <StorageOverview storages={storages} />
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg border bg-card p-1">
           {(['all', 'healthy', 'attention', 'failed', 'disabled'] as const).map((value) => (
             <Button
@@ -369,7 +369,7 @@ export function StoragesPage() {
           ))}
         </div>
         <div className="flex gap-2">
-          <div className="relative min-w-0 flex-1 sm:w-60">
+          <div className="relative min-w-0 flex-1 lg:w-60">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}

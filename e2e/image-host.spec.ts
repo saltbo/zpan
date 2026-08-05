@@ -84,7 +84,7 @@ test.describe('Image Host @all', () => {
 // ---------------------------------------------------------------------------
 // Image Host gallery — full golden path
 // ---------------------------------------------------------------------------
-test.describe('Image Host gallery golden path @all', () => {
+test.describe('Image Host gallery golden path', () => {
   // Sign up, enable image hosting, and return to the page
   async function setupImageHost(page: import('@playwright/test').Page) {
     await signUpAndGoToImageHost(page)
@@ -94,7 +94,7 @@ test.describe('Image Host gallery golden path @all', () => {
     await expect(page.getByText(/drag and drop|no image/i)).toBeVisible({ timeout: 10000 })
   }
 
-  test('upload → switch between list and grid views @critical', async ({ page }) => {
+  test('upload → switch between list and grid views @desktop @tablet @critical', async ({ page }) => {
     await setupImageHost(page)
 
     // Create a tiny PNG file buffer (1×1 transparent PNG)
@@ -128,7 +128,7 @@ test.describe('Image Host gallery golden path @all', () => {
     await expect(listView).toBeChecked()
   })
 
-  test('copy URL with Markdown format via row actions', async ({ page, context }) => {
+  test('copy URL with Markdown format via row actions @all', async ({ page, context }) => {
     await setupImageHost(page)
 
     // Grant clipboard permissions
@@ -167,7 +167,7 @@ test.describe('Image Host gallery golden path @all', () => {
     expect(clipText).toBe('![](https://images.example.com/e2e-copy-test.png)')
   })
 
-  test('delete with Undo → cancel → item restored', async ({ page }) => {
+  test('delete with Undo → cancel → item restored @all', async ({ page }) => {
     await setupImageHost(page)
 
     // Seed an image

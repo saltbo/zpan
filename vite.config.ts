@@ -66,6 +66,7 @@ export default defineConfig(({ mode }) => ({
       : [
           cloudflare({
             persistState: process.env.E2E_STATE_DIR ? { path: process.env.E2E_STATE_DIR } : undefined,
+            inspectorPort: process.env.E2E_RUNTIME === 'cf' ? false : undefined,
             config: e2eWorkerVars
               ? (config) => ({ vars: { ...config.vars, ...e2eWorkerVars } })
               : undefined,

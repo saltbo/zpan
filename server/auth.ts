@@ -92,6 +92,16 @@ async function authVerifyPassword({ hash, password }: { hash: string; password: 
   return verifyPasswordHash(hash, password)
 }
 
+interface AuthPasswordProvider {
+  hash(password: string): Promise<string>
+  verify(input: { hash: string; password: string }): Promise<boolean>
+}
+
+const productionPasswordProvider: AuthPasswordProvider = {
+  hash: authHashPassword,
+  verify: authVerifyPassword,
+}
+
 function generateApiKey({ length, prefix }: { length: number; prefix: string | undefined }): string {
   if (prefix && !BASE62_PATTERN.test(prefix)) {
     throw new APIError('BAD_REQUEST', { message: 'API key prefixes must contain only ASCII letters and digits' })
@@ -420,6 +430,7 @@ export async function createAuth(
   baseURL?: string,
   trustedOrigins?: string[],
   backgroundTaskHandler?: (promise: Promise<unknown>) => void,
+  passwordProvider: AuthPasswordProvider = productionPasswordProvider,
 ) {
   const isPlatform = 'db' in initialSource
   const rawPlatform = isPlatform ? initialSource : null
@@ -479,8 +490,8 @@ export async function createAuth(
     emailAndPassword: {
       enabled: true,
       password: {
-        hash: authHashPassword,
-        verify: authVerifyPassword,
+        hash: passwordProvider.hash,
+        verify: passwordProvider.verify,
       },
       sendResetPassword: async ({ user, url }) => {
         if (!(await email.isConfigured(authPlatform))) return

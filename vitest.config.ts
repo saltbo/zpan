@@ -50,22 +50,41 @@ const coverageGate =
       }
     : {}
 
+function createCloudflarePlugin() {
+  return cloudflareTest(async () => {
+    const migrationsPath = path.join(__dirname, './migrations')
+    const migrations = await readD1Migrations(migrationsPath)
+
+    return {
+      wrangler: { configPath: './wrangler.toml' },
+      miniflare: {
+        bindings: { TEST_MIGRATIONS: migrations },
+      },
+    }
+  })
+}
+
+const isolatedCloudflareTests = [
+  'server/http/objects.cf-test.ts',
+  'server/http/site/storages.cf-test.ts',
+  'server/http/site/system.cf-test.ts',
+  'workers/bootstrap-image-domain.cf-test.ts',
+  'workers/bootstrap.cf-test.ts',
+]
+
 export default defineConfig({
   test: {
     globals: true,
     coverage: { ...coverageConfig, ...coverageGate },
     projects: [
       {
-        plugins: [react()],
         resolve: { alias: aliases },
         test: {
-          name: 'unit',
-          environment: 'jsdom',
+          name: 'backend-unit',
+          environment: 'node',
           include: [
             'server/**/*.test.ts',
             'shared/**/*.test.ts',
-            'src/**/*.test.ts',
-            'src/**/*.test.tsx',
             'scripts/**/*.test.mjs',
           ],
           exclude: ['**/*.integration.test.ts', '**/*.cf-test.ts', '**/e2e-*.test.ts'],
@@ -73,33 +92,50 @@ export default defineConfig({
         },
       },
       {
+        plugins: [react()],
         resolve: { alias: aliases },
         test: {
-          name: 'integration',
-          include: ['server/**/*.integration.test.ts', 'src/**/*.integration.test.ts'],
+          name: 'frontend-unit',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+          exclude: ['**/*.integration.test.ts'],
+        },
+      },
+      {
+        resolve: { alias: aliases },
+        test: {
+          name: 'backend-integration',
+          include: ['server/**/*.integration.test.ts'],
           setupFiles: ['./server/test/app-version.ts'],
         },
       },
       {
-        plugins: [
-          cloudflareTest(async () => {
-            const migrationsPath = path.join(__dirname, './migrations')
-            const migrations = await readD1Migrations(migrationsPath)
-
-            return {
-              wrangler: { configPath: './wrangler.toml' },
-              miniflare: {
-                bindings: { TEST_MIGRATIONS: migrations },
-              },
-            }
-          }),
-        ],
+        plugins: [createCloudflarePlugin()],
         resolve: { alias: aliases },
         test: {
-          name: 'cloudflare',
+          name: 'cloudflare-contract',
           globals: true,
+          // These D1-focused contracts use unique fixture identifiers and scoped
+          // assertions, so sharing one migrated database avoids replaying the
+          // complete migration history for every file.
+          isolate: false,
+          maxWorkers: 1,
+          sequence: { groupOrder: 1 },
           testTimeout: 15000,
           include: ['server/**/*.cf-test.ts', 'workers/**/*.cf-test.ts'],
+          exclude: isolatedCloudflareTests,
+          setupFiles: ['./server/test/app-version.ts', './server/test/apply-migrations.ts'],
+        },
+      },
+      {
+        plugins: [createCloudflarePlugin()],
+        resolve: { alias: aliases },
+        test: {
+          name: 'cloudflare-isolated',
+          globals: true,
+          sequence: { groupOrder: 2 },
+          testTimeout: 15000,
+          include: isolatedCloudflareTests,
           setupFiles: ['./server/test/app-version.ts', './server/test/apply-migrations.ts'],
         },
       },

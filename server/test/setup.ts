@@ -11,6 +11,11 @@ import * as schema from '../db/schema'
 import type { Platform } from '../platform/interface'
 import { resetSitePublicOriginCache } from '../usecases/site/public-origin'
 
+const testPasswordProvider = {
+  hash: async (password: string) => `test:${password}`,
+  verify: async ({ hash, password }: { hash: string; password: string }) => hash === `test:${password}`,
+}
+
 const AUTH_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS user (
     id TEXT PRIMARY KEY,
@@ -870,7 +875,17 @@ export async function createTestApp(
     getEnv: (key: string) => envOverrides[key] ?? (key === 'BETTER_AUTH_SECRET' ? 'test-secret' : undefined),
     getBinding: <T = unknown>(key: string) => bindingOverrides[key] as T | undefined,
   }
-  const auth = await createAuth(platform, 'test-secret', 'http://localhost:3000', undefined, backgroundTaskHandler)
+  // Auth integration tests exercise the HTTP/database contract. The production
+  // scrypt implementation has its own focused tests and would otherwise add a
+  // deliberately expensive hash to every signup performed by this shared fixture.
+  const auth = await createAuth(
+    platform,
+    'test-secret',
+    'http://localhost:3000',
+    undefined,
+    backgroundTaskHandler,
+    testPasswordProvider,
+  )
   const deps = createDeps(platform)
   const app = createApp(platform, auth, deps)
 

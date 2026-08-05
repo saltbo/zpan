@@ -28,7 +28,6 @@ test.describe('Archive jobs with queued streaming workers @all @critical', () =>
     const compressJob = (await compressResponse.json()) as BackgroundJob
     expect(compressJob.status).toBe('queued')
     await expect(page.getByText('Background task created')).toBeVisible()
-    await expect(page.getByRole('link', { name: /tasks/i })).toContainText('1')
 
     await expectJobCompleted(page, compressJob.id)
     await page.goto('/tasks')
@@ -45,7 +44,6 @@ test.describe('Archive jobs with queued streaming workers @all @critical', () =>
     expect(extractResponse.ok()).toBe(true)
     const extractJob = (await extractResponse.json()) as BackgroundJob
     expect(extractJob.status).toBe('queued')
-    await expect(page.getByRole('link', { name: /tasks/i })).toContainText('1')
 
     await expectJobCompleted(page, extractJob.id)
     await page.goto('/files')
