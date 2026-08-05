@@ -33,12 +33,25 @@ const coverageConfig = {
     'src/**/*.integration.test.ts',
     'src/i18n/index.ts',
   ],
-  reporter: ['text', 'json'] as const,
+  reporter: ['text-summary', 'json'] as const,
 }
+
+const coverageGate =
+  process.env.COVERAGE_ENFORCE === '1'
+    ? {
+        thresholds: {
+          statements: 85,
+          branches: 80,
+          functions: 75,
+          lines: 90,
+        },
+      }
+    : {}
 
 export default defineConfig({
   test: {
     globals: true,
+    coverage: { ...coverageConfig, ...coverageGate },
     projects: [
       {
         plugins: [react()],
@@ -55,15 +68,6 @@ export default defineConfig({
           ],
           exclude: ['**/*.integration.test.ts', '**/*.cf-test.ts', '**/e2e-*.test.ts'],
           setupFiles: ['./server/test/app-version.ts'],
-          coverage: {
-            ...coverageConfig,
-            thresholds: {
-              statements: 60,
-              branches: 50,
-              functions: 40,
-              lines: 60,
-            },
-          },
         },
       },
       {
@@ -72,15 +76,6 @@ export default defineConfig({
           name: 'integration',
           include: ['server/**/*.integration.test.ts', 'src/**/*.integration.test.ts'],
           setupFiles: ['./server/test/app-version.ts'],
-          coverage: {
-            ...coverageConfig,
-            thresholds: {
-              statements: 90,
-              branches: 80,
-              functions: 90,
-              lines: 90,
-            },
-          },
         },
       },
       {

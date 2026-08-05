@@ -84,15 +84,17 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec vitest run --project unit --shard=${{ matrix.shard }}/2 --coverage --coverage.reportsDirectory=coverage/unit-${{ matrix.shard }}
-      - uses: codecov/codecov-action@v5
+      - name: Run unit shard
+        env:
+          VITEST_BLOB_LABEL: unit-${{ matrix.shard }}
+        run: pnpm exec vitest run --project unit --shard=${{ matrix.shard }}/2 --coverage --coverage.reportsDirectory=coverage/unit-${{ matrix.shard }} --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/unit-${{ matrix.shard }}.blob
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
-          files: coverage/unit-${{ matrix.shard }}/coverage-final.json
-          flags: unit
-          disable_search: true
-          fail_ci_if_error: false
-          handle_no_reports_found: true
+          name: vitest-coverage-unit-${{ matrix.shard }}
+          path: .vitest-reports/unit-${{ matrix.shard }}.blob
+          include-hidden-files: true
+          retention-days: 1
 
   integration:
     name: Integration tests (${{ matrix.shard }}/2)
@@ -110,12 +112,45 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec vitest run --project integration --shard=${{ matrix.shard }}/2 --coverage --coverage.reportsDirectory=coverage/integration-${{ matrix.shard }}
+      - name: Run integration shard
+        env:
+          VITEST_BLOB_LABEL: integration-${{ matrix.shard }}
+        run: pnpm exec vitest run --project integration --shard=${{ matrix.shard }}/2 --coverage --coverage.reportsDirectory=coverage/integration-${{ matrix.shard }} --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/integration-${{ matrix.shard }}.blob
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vitest-coverage-integration-${{ matrix.shard }}
+          path: .vitest-reports/integration-${{ matrix.shard }}.blob
+          include-hidden-files: true
+          retention-days: 1
+
+  coverage:
+    name: Coverage gate
+    runs-on: ubuntu-latest
+    if: github.repository == 'saltbo/zpan'
+    needs: [unit, integration]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: vitest-coverage-*
+          path: .vitest-reports
+          merge-multiple: true
+      - name: Merge coverage and enforce thresholds
+        env:
+          COVERAGE_ENFORCE: '1'
+        run: pnpm exec vitest --merge-reports=.vitest-reports --coverage --reporter=agent --coverage.reportsDirectory=coverage/merged
       - uses: codecov/codecov-action@v5
         if: always()
         with:
-          files: coverage/integration-${{ matrix.shard }}/coverage-final.json
-          flags: integration
+          files: coverage/merged/coverage-final.json
+          flags: unit,integration
           disable_search: true
           fail_ci_if_error: false
           handle_no_reports_found: true
@@ -144,8 +179,7 @@ jobs:
     needs:
       - downloader
       - static
-      - unit
-      - integration
+      - coverage
       - cloudflare
       - docker-smoke
       - docker-cli-smoke
