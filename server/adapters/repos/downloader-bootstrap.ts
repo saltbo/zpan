@@ -56,14 +56,11 @@ export function createDownloaderBootstrapCredentialRepo(
 
     async consume(platform, token, now) {
       const tokenHash = await tokens.hashDownloadToken(platform, token)
-      const [row] = await executeRows<{ userId: string }>({
-        all: () =>
-          consumeBootstrapQuery(db, tokenHash, now)
-            .returning({
-              userId: downloaderBootstrapCredential.userId,
-            })
-            .all(),
-      })
+      const [row] = await executeRows<{ userId: string }>(
+        consumeBootstrapQuery(db, tokenHash, now).returning({
+          userId: downloaderBootstrapCredential.userId,
+        }),
+      )
       if (!row) return null
       return {
         userId: row.userId,
@@ -75,14 +72,9 @@ export function createDownloaderBootstrapCredentialRepo(
 
     async registerDownloader(input) {
       const tokenHash = await tokens.hashDownloadToken(input.platform, input.token)
-      const consumeBootstrap = {
-        all: () =>
-          consumeBootstrapQuery(db, tokenHash, input.now)
-            .returning({
-              userId: downloaderBootstrapCredential.userId,
-            })
-            .all(),
-      }
+      const consumeBootstrap = consumeBootstrapQuery(db, tokenHash, input.now).returning({
+        userId: downloaderBootstrapCredential.userId,
+      })
       const insertDownloader = conditionalDownloaderInsertQuery(db, input.downloader, tokenHash)
       const deleteBootstrapSession = db.delete(session).where(eq(session.token, input.token))
       const [, consumeResult] = await executeWriteTransactionWithResults(
