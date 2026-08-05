@@ -2,6 +2,8 @@ import { isPersonalOrgLike } from '@shared/org-slugs'
 import { eq } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CAPTCHA_ENABLED_KEY, CAPTCHA_SECRET_OPTION_KEY, CAPTCHA_SITE_KEY_KEY } from '../../../shared/captcha.js'
+import { createApp } from '../../app.js'
+import { createAuth } from '../../auth.js'
 import * as authSchema from '../../db/auth-schema.js'
 import * as schema from '../../db/schema.js'
 import { createTestApp } from '../../test/setup.js'
@@ -398,7 +400,9 @@ describe('Auth API', () => {
   })
 
   it('sign-in with a malformed stored password hash returns a non-200 error response', async () => {
-    const { app, db } = await createTestApp()
+    const { db, deps, platform } = await createTestApp()
+    const auth = await createAuth(platform, 'test-secret', 'http://localhost:3000')
+    const app = createApp(platform, auth, deps)
     await app.request('/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

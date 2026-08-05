@@ -9,16 +9,23 @@ const aliases = {
   '@server': path.resolve(__dirname, './server'),
 }
 
+const backendCoverageIncludes = ['server/**/*.ts', 'shared/**/*.ts']
+const frontendCoverageIncludes = [
+  'src/lib/**/*.ts',
+  'src/i18n/**/*.ts',
+  'src/routes/u/**/*.tsx',
+  'src/routes/_authenticated/settings/**/*.tsx',
+]
+const coverageIncludes =
+  process.env.COVERAGE_SCOPE === 'backend'
+    ? backendCoverageIncludes
+    : process.env.COVERAGE_SCOPE === 'frontend'
+      ? frontendCoverageIncludes
+      : [...backendCoverageIncludes, ...frontendCoverageIncludes]
+
 const coverageConfig = {
   provider: 'v8' as const,
-  include: [
-    'server/**/*.ts',
-    'shared/**/*.ts',
-    'src/lib/**/*.ts',
-    'src/i18n/**/*.ts',
-    'src/routes/u/**/*.tsx',
-    'src/routes/_authenticated/settings/**/*.tsx',
-  ],
+  include: coverageIncludes,
   exclude: [
     'server/entry-*.ts',
     'server/**/*.test.ts',
@@ -88,6 +95,7 @@ export default defineConfig({
             'scripts/**/*.test.mjs',
           ],
           exclude: ['**/*.integration.test.ts', '**/*.cf-test.ts', '**/e2e-*.test.ts'],
+          sequence: { groupOrder: 1 },
           setupFiles: ['./server/test/app-version.ts'],
         },
       },
@@ -106,6 +114,8 @@ export default defineConfig({
         test: {
           name: 'backend-integration',
           include: ['server/**/*.integration.test.ts'],
+          sequence: { groupOrder: 2 },
+          testTimeout: 15_000,
           setupFiles: ['./server/test/app-version.ts'],
         },
       },

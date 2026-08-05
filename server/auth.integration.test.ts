@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations.js'
 import { createApp } from './app.js'
-import { createAuth } from './auth.js'
+import { createAuth, officialWorkersPreviewOrigin } from './auth.js'
 import * as authSchema from './db/auth-schema.js'
 import * as schema from './db/schema.js'
 import { inviteCodes, siteInvitations } from './db/schema.js'
@@ -894,6 +894,44 @@ describe('Cloudflare Workers preview auth origins', () => {
 })
 
 describe('OAuth consent guards', () => {
+  it('rejects malformed dynamic registration JSON without trusting its origin', async () => {
+    const ctx = await createTestApp()
+    const response = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{',
+    })
+
+    expect(response.status).toBeGreaterThanOrEqual(400)
+  })
+
+  it('rejects invalid dynamic registration URLs without trusting their origin', async () => {
+    const ctx = await createTestApp()
+    const response = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Invalid Resource Broker',
+        redirect_uris: ['not-a-url'],
+        grant_types: [
+          'authorization_code',
+          'refresh_token',
+          'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          'urn:ietf:params:oauth:grant-type:token-exchange',
+        ],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_basic',
+        jwks_uri: 'also-not-a-url',
+      }),
+    })
+
+    expect(response.status).toBeGreaterThanOrEqual(400)
+  })
+
+  it('does not trust malformed Workers preview origins', () => {
+    expect(officialWorkersPreviewOrigin('https://zpan-staging.account.workers.dev', 'not-a-url')).toBeNull()
+  })
+
   it('publishes the external resource discovery contract at the exact API URL', async () => {
     const ctx = await createTestApp()
     const resource = await ctx.app.request('http://localhost:3000/api')

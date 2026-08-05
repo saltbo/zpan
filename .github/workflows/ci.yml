@@ -80,9 +80,11 @@ jobs:
         include:
           - label: Backend
             projects: --project backend-unit --project backend-integration
+            scope: backend
             report: backend
           - label: Frontend
             projects: --project frontend-unit
+            scope: frontend
             report: frontend
     steps:
       - uses: actions/checkout@v6
@@ -95,6 +97,8 @@ jobs:
       - name: Run tests with coverage
         # Passing tests produce hundreds of KB of intentional request/error logs.
         # Keep captured output for failures without paying to stream every success.
+        env:
+          COVERAGE_SCOPE: ${{ matrix.scope }}
         run: pnpm exec vitest run ${{ matrix.projects }} --silent=passed-only --coverage --coverage.reportsDirectory=coverage/${{ matrix.report }} --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/${{ matrix.report }}.blob
       - uses: actions/upload-artifact@v4
         if: always()
