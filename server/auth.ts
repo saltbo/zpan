@@ -754,7 +754,9 @@ export async function createAuth(
         verificationUri: '/device',
         validateClient: async (clientId) => clientId === LEGACY_DOWNLOADER_CLIENT_ID,
       }),
-      jwt(),
+      // OAuth clients obtain tokens from /oauth2/token. Signing another JWT on
+      // every session read is unused work and couples login to the JWKS secret.
+      jwt({ disableSettingJwtHeader: true }),
       oauthPushedAuthorizationRequests(oauthProviderOptions),
       oauthProvider(oauthProviderOptions),
       apiKey([

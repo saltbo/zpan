@@ -878,6 +878,29 @@ describe('Cloudflare Workers preview auth origins', () => {
     }
   })
 
+  it('reads a session without signing an implicit JWT', async () => {
+    const ctx = await createTestApp()
+    await ctx.auth.api.getJwks()
+    await signUp(ctx, 'preview-session@example.com')
+    const [session] = await ctx.db.select({ token: authSchema.session.token }).from(authSchema.session).limit(1)
+    if (!session) throw new Error('sign-up did not create a session')
+
+    const previewAuth = await createAuth(
+      ctx.platform,
+      'different-preview-secret-that-is-at-least-32-bytes',
+      configuredOrigin,
+      [configuredOrigin],
+    )
+    const previewApp = createApp(ctx.platform, previewAuth)
+    const response = await previewApp.request(`${commitOrigin}/api/auth/get-session`, {
+      headers: { Authorization: `Bearer ${session.token}` },
+    })
+
+    expect(response.status, await response.clone().text()).toBe(200)
+    expect(response.headers.has('set-auth-jwt')).toBe(false)
+    await expect(response.json()).resolves.toMatchObject({ user: { email: 'preview-session@example.com' } })
+  })
+
   it('rejects unrelated workers.dev origins', async () => {
     const ctx = await createTestApp()
     const auth = await createAuth(ctx.platform, 'test-secret', configuredOrigin, [configuredOrigin])
