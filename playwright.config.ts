@@ -1,23 +1,13 @@
-import { mkdirSync, rmSync } from 'node:fs'
 import { defineConfig, devices } from '@playwright/test'
 
-// e2e runs against its OWN throwaway SQLite database, wiped on every run, so it
-// never reads or writes the dev ./zpan.db. entry-node and e2e/global-setup both
-// honor DATABASE_URL, so setting it here (before the web servers spawn) isolates
-// the whole stack. The CF runtime uses D1, not this file; set DATABASE_URL
-// yourself to opt out.
-if (process.env.E2E_RUNTIME !== 'cf' && !process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = '.e2e/e2e.db'
-  rmSync('.e2e', { recursive: true, force: true })
-  mkdirSync('.e2e', { recursive: true })
-}
-
 const isCF = process.env.E2E_RUNTIME === 'cf'
-const envFile = process.env.CI ? '' : '--env-file=.dev.vars'
+const envFile = process.env.CI ? '' : '--env-file-if-exists=.dev.vars'
 const chromeHostResolverRules = process.env.E2E_CHROME_HOST_RESOLVER_RULES
 const appPort = Number(process.env.E2E_APP_PORT ?? 5185)
 const apiPort = Number(process.env.E2E_API_PORT ?? 8222)
 const s3MockPort = Number(process.env.E2E_S3_MOCK_PORT ?? 9191)
+const cloudFakePort = Number(process.env.E2E_CLOUD_FAKE_PORT ?? 9292)
+const artifactSuffix = process.env.E2E_ARTIFACT_SUFFIX ?? 'run'
 const nodeCommand = JSON.stringify(process.execPath)
 
 const s3MockServer = process.env.E2E_S3_MOCK
@@ -30,8 +20,19 @@ const s3MockServer = process.env.E2E_S3_MOCK
     ]
   : []
 
+const cloudFakeServer = process.env.E2E_CLOUD_FAKE
+  ? [
+      {
+        command: `node scripts/zpan-cloud-fake.mjs`,
+        url: `http://127.0.0.1:${cloudFakePort}/health`,
+        reuseExistingServer: false,
+      },
+    ]
+  : []
+
 const nodeServers = [
   ...s3MockServer,
+  ...cloudFakeServer,
   {
     command: `PORT=${apiPort} ${nodeCommand} ${envFile} node_modules/tsx/dist/cli.mjs server/entry-node.ts`,
     port: apiPort,
@@ -46,6 +47,7 @@ const nodeServers = [
 
 const cfServers = [
   ...s3MockServer,
+  ...cloudFakeServer,
   {
     command: `vite dev --host 127.0.0.1 --port ${appPort} --strictPort`,
     port: appPort,
@@ -55,13 +57,20 @@ const cfServers = [
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: process.env.CI ? 180000 : 30000,
-  // The suite shares one local dev server pair and its own (throwaway) SQLite
-  // database. Keep execution serial to avoid flaky connection resets and
-  // cross-test bleed.
+  outputDir: `test-results/${artifactSuffix}`,
+  // CI shards individual tests instead of whole files. Each shard still uses one
+  // worker and its own database/services, so execution stays deterministic.
+  fullyParallel: true,
+  timeout: 30_000,
   workers: 1,
-  retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? 'github' : 'list',
+  retries: 0,
+  reporter: process.env.CI
+    ? [
+        ['github'],
+        ['html', { open: 'never', outputFolder: `playwright-report/${artifactSuffix}` }],
+        ['junit', { outputFile: `test-results/${artifactSuffix}/e2e-junit.xml` }],
+      ]
+    : 'list',
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5185',
     headless: true,
@@ -69,7 +78,8 @@ export default defineConfig({
     launchOptions: chromeHostResolverRules
       ? { args: [`--host-resolver-rules=${chromeHostResolverRules}`] }
       : undefined,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
   },
   projects: [
     {

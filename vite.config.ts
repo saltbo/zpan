@@ -14,6 +14,21 @@ const configuredDevHosts = (process.env.ZPAN_DEV_ALLOWED_HOSTS ?? '')
   .split(',')
   .map((host) => host.trim())
   .filter(Boolean)
+const e2eWorkerVars =
+  process.env.E2E_RUNTIME === 'cf'
+    ? {
+        BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET!,
+        BETTER_AUTH_URL: process.env.BETTER_AUTH_URL!,
+        TRUSTED_ORIGINS: process.env.TRUSTED_ORIGINS!,
+        ZPAN_CLOUD_URL: process.env.ZPAN_CLOUD_URL!,
+        ZPAN_LICENSE_PUBLIC_KEYS: process.env.ZPAN_LICENSE_PUBLIC_KEYS!,
+        E2E_STORAGE_ENDPOINT: process.env.E2E_STORAGE_ENDPOINT!,
+        E2E_STORAGE_BUCKET: process.env.E2E_STORAGE_BUCKET!,
+        E2E_STORAGE_REGION: process.env.E2E_STORAGE_REGION!,
+        E2E_STORAGE_ACCESS_KEY: process.env.E2E_STORAGE_ACCESS_KEY!,
+        E2E_STORAGE_SECRET_KEY: process.env.E2E_STORAGE_SECRET_KEY!,
+      }
+    : undefined
 
 export default defineConfig(({ mode }) => ({
   define: {
@@ -46,7 +61,17 @@ export default defineConfig(({ mode }) => ({
     }),
     react(),
     tailwindcss(),
-    ...(mode === 'node' ? [] : [cloudflare()]),
+    ...(mode === 'node'
+      ? []
+      : [
+          cloudflare({
+            persistState: process.env.E2E_STATE_DIR ? { path: process.env.E2E_STATE_DIR } : undefined,
+            inspectorPort: process.env.E2E_RUNTIME === 'cf' ? false : undefined,
+            config: e2eWorkerVars
+              ? (config) => ({ vars: { ...config.vars, ...e2eWorkerVars } })
+              : undefined,
+          }),
+        ]),
   ],
   resolve: {
     alias: {

@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
 import { createSiteInvitationRepo } from './adapters/repos/site-invitations.js'
 import { createApp } from './app.js'
-import { createAuth } from './auth.js'
+import { createAuth, officialWorkersPreviewOrigin } from './auth.js'
 import * as authSchema from './db/auth-schema.js'
 import * as schema from './db/schema.js'
 import { inviteCodes, siteInvitations } from './db/schema.js'
@@ -878,6 +878,29 @@ describe('Cloudflare Workers preview auth origins', () => {
     }
   })
 
+  it('reads a session without signing an implicit JWT', async () => {
+    const ctx = await createTestApp()
+    await ctx.auth.api.getJwks()
+    await signUp(ctx, 'preview-session@example.com')
+    const [session] = await ctx.db.select({ token: authSchema.session.token }).from(authSchema.session).limit(1)
+    if (!session) throw new Error('sign-up did not create a session')
+
+    const previewAuth = await createAuth(
+      ctx.platform,
+      'different-preview-secret-that-is-at-least-32-bytes',
+      configuredOrigin,
+      [configuredOrigin],
+    )
+    const previewApp = createApp(ctx.platform, previewAuth)
+    const response = await previewApp.request(`${commitOrigin}/api/auth/get-session`, {
+      headers: { Authorization: `Bearer ${session.token}` },
+    })
+
+    expect(response.status, await response.clone().text()).toBe(200)
+    expect(response.headers.has('set-auth-jwt')).toBe(false)
+    await expect(response.json()).resolves.toMatchObject({ user: { email: 'preview-session@example.com' } })
+  })
+
   it('rejects unrelated workers.dev origins', async () => {
     const ctx = await createTestApp()
     const auth = await createAuth(ctx.platform, 'test-secret', configuredOrigin, [configuredOrigin])
@@ -894,6 +917,44 @@ describe('Cloudflare Workers preview auth origins', () => {
 })
 
 describe('OAuth consent guards', () => {
+  it('rejects malformed dynamic registration JSON without trusting its origin', async () => {
+    const ctx = await createTestApp()
+    const response = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{',
+    })
+
+    expect(response.status).toBeGreaterThanOrEqual(400)
+  })
+
+  it('rejects invalid dynamic registration URLs without trusting their origin', async () => {
+    const ctx = await createTestApp()
+    const response = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Invalid Resource Broker',
+        redirect_uris: ['not-a-url'],
+        grant_types: [
+          'authorization_code',
+          'refresh_token',
+          'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          'urn:ietf:params:oauth:grant-type:token-exchange',
+        ],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_basic',
+        jwks_uri: 'also-not-a-url',
+      }),
+    })
+
+    expect(response.status).toBeGreaterThanOrEqual(400)
+  })
+
+  it('does not trust malformed Workers preview origins', () => {
+    expect(officialWorkersPreviewOrigin('https://zpan-staging.account.workers.dev', 'not-a-url')).toBeNull()
+  })
+
   it('publishes the external resource discovery contract at the exact API URL', async () => {
     const ctx = await createTestApp()
     const resource = await ctx.app.request('http://localhost:3000/api')

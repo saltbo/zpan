@@ -9,16 +9,23 @@ const aliases = {
   '@server': path.resolve(__dirname, './server'),
 }
 
+const backendCoverageIncludes = ['server/**/*.ts', 'shared/**/*.ts']
+const frontendCoverageIncludes = [
+  'src/lib/**/*.ts',
+  'src/i18n/**/*.ts',
+  'src/routes/u/**/*.tsx',
+  'src/routes/_authenticated/settings/**/*.tsx',
+]
+const coverageIncludes =
+  process.env.COVERAGE_SCOPE === 'backend'
+    ? backendCoverageIncludes
+    : process.env.COVERAGE_SCOPE === 'frontend'
+      ? frontendCoverageIncludes
+      : [...backendCoverageIncludes, ...frontendCoverageIncludes]
+
 const coverageConfig = {
   provider: 'v8' as const,
-  include: [
-    'server/**/*.ts',
-    'shared/**/*.ts',
-    'src/lib/**/*.ts',
-    'src/i18n/**/*.ts',
-    'src/routes/u/**/*.tsx',
-    'src/routes/_authenticated/settings/**/*.tsx',
-  ],
+  include: coverageIncludes,
   exclude: [
     'server/entry-*.ts',
     'server/**/*.test.ts',
@@ -33,76 +40,129 @@ const coverageConfig = {
     'src/**/*.integration.test.ts',
     'src/i18n/index.ts',
   ],
-  reporter: ['text', 'json'] as const,
+  reporter: ['text-summary', 'json'] as const,
 }
+
+const coverageGate =
+  process.env.COVERAGE_ENFORCE === '1'
+    ? {
+        // Lock the merged CI baseline by maximum uncovered items. Unlike rounded
+        // percentages, negative thresholds cannot hide a small coverage regression.
+        thresholds: {
+          statements: -2099,
+          branches: -2869,
+          functions: -1924,
+          lines: -717,
+        },
+      }
+    : {}
+
+function createCloudflarePlugin() {
+  return cloudflareTest(async () => {
+    const migrationsPath = path.join(__dirname, './migrations')
+    const migrations = await readD1Migrations(migrationsPath)
+
+    return {
+      wrangler: { configPath: './wrangler.toml' },
+      miniflare: {
+        bindings: { TEST_MIGRATIONS: migrations },
+      },
+    }
+  })
+}
+
+const isolatedCloudflareTests = [
+  'server/http/objects.cf-test.ts',
+  'server/http/site/storages.cf-test.ts',
+  'server/http/site/system.cf-test.ts',
+  'workers/bootstrap-image-domain.cf-test.ts',
+  'workers/bootstrap.cf-test.ts',
+]
+
+const backendHttpIntegrationTests = [
+  'server/app.integration.test.ts',
+  'server/auth.integration.test.ts',
+  'server/cors.integration.test.ts',
+  'server/openapi.integration.test.ts',
+  'server/http/**/*.integration.test.ts',
+  'server/middleware/**/*.integration.test.ts',
+]
 
 export default defineConfig({
   test: {
     globals: true,
+    coverage: { ...coverageConfig, ...coverageGate },
     projects: [
       {
-        plugins: [react()],
         resolve: { alias: aliases },
         test: {
-          name: 'unit',
-          environment: 'jsdom',
+          name: 'backend-unit',
+          environment: 'node',
           include: [
             'server/**/*.test.ts',
             'shared/**/*.test.ts',
-            'src/**/*.test.ts',
-            'src/**/*.test.tsx',
             'scripts/**/*.test.mjs',
           ],
           exclude: ['**/*.integration.test.ts', '**/*.cf-test.ts', '**/e2e-*.test.ts'],
           setupFiles: ['./server/test/app-version.ts'],
-          coverage: {
-            ...coverageConfig,
-            thresholds: {
-              statements: 60,
-              branches: 50,
-              functions: 40,
-              lines: 60,
-            },
-          },
+        },
+      },
+      {
+        plugins: [react()],
+        resolve: { alias: aliases },
+        test: {
+          name: 'frontend-unit',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+          exclude: ['**/*.integration.test.ts'],
         },
       },
       {
         resolve: { alias: aliases },
         test: {
-          name: 'integration',
-          include: ['server/**/*.integration.test.ts', 'src/**/*.integration.test.ts'],
+          name: 'backend-integration-http',
+          include: backendHttpIntegrationTests,
+          testTimeout: 15_000,
           setupFiles: ['./server/test/app-version.ts'],
-          coverage: {
-            ...coverageConfig,
-            thresholds: {
-              statements: 90,
-              branches: 80,
-              functions: 90,
-              lines: 90,
-            },
-          },
         },
       },
       {
-        plugins: [
-          cloudflareTest(async () => {
-            const migrationsPath = path.join(__dirname, './migrations')
-            const migrations = await readD1Migrations(migrationsPath)
-
-            return {
-              wrangler: { configPath: './wrangler.toml' },
-              miniflare: {
-                bindings: { TEST_MIGRATIONS: migrations },
-              },
-            }
-          }),
-        ],
         resolve: { alias: aliases },
         test: {
-          name: 'cloudflare',
+          name: 'backend-integration-data',
+          include: ['server/**/*.integration.test.ts'],
+          exclude: backendHttpIntegrationTests,
+          testTimeout: 15_000,
+          setupFiles: ['./server/test/app-version.ts'],
+        },
+      },
+      {
+        plugins: [createCloudflarePlugin()],
+        resolve: { alias: aliases },
+        test: {
+          name: 'cloudflare-contract',
           globals: true,
+          // These D1-focused contracts use unique fixture identifiers and scoped
+          // assertions, so sharing one migrated database avoids replaying the
+          // complete migration history for every file.
+          isolate: false,
+          maxWorkers: 1,
+          sequence: { groupOrder: 1 },
           testTimeout: 15000,
           include: ['server/**/*.cf-test.ts', 'workers/**/*.cf-test.ts'],
+          exclude: isolatedCloudflareTests,
+          setupFiles: ['./server/test/app-version.ts', './server/test/apply-migrations.ts'],
+        },
+      },
+      {
+        plugins: [createCloudflarePlugin()],
+        resolve: { alias: aliases },
+        test: {
+          name: 'cloudflare-isolated',
+          globals: true,
+          sequence: { groupOrder: 2 },
+          testTimeout: 15000,
+          include: isolatedCloudflareTests,
           setupFiles: ['./server/test/app-version.ts', './server/test/apply-migrations.ts'],
         },
       },

@@ -1,5 +1,5 @@
 import { env } from 'cloudflare:workers'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirType } from '../../shared/constants'
 import { generateId } from '../../shared/ids'
 import type { CreateShareInput } from '../../shared/schemas/share'
@@ -142,6 +142,10 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
   beforeEach(() => {
     vi.spyOn(S3Service.prototype, 'copyObject').mockResolvedValue(undefined)
     vi.spyOn(S3Service.prototype, 'streamCopy').mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('saves a single file to the target org on D1', async () => {

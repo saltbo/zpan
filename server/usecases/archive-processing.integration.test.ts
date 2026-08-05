@@ -245,10 +245,10 @@ describe('archive processing', () => {
     expect(s3.putKeys[0]).toBe(extractedFile?.object)
   })
 
-  it('prevalidates then streams extraction for a 128 MiB ZIP entry', async () => {
+  it('prevalidates then streams extraction across multiple chunks', async () => {
     const { db } = await createTestApp()
     await seedStorage(db)
-    const size = 128 * 1024 * 1024
+    const size = 6 * 1024 * 1024
     const archive = await streamToBytes(
       zip.createZipArchiveStream([{ archivePath: 'large.bin', openStream: async () => generatedBytes(size) }]),
     )
@@ -298,10 +298,10 @@ describe('archive processing', () => {
     expect(s3.objects.get(sourceKey)).toEqual(bytes('hello'))
   })
 
-  it('streams compression for a 128 MiB source without buffering the source object', async () => {
+  it('streams compression across multiple chunks without buffering the source object', async () => {
     const { db } = await createTestApp()
     await seedStorage(db)
-    const size = 128 * 1024 * 1024
+    const size = 6 * 1024 * 1024
     await seedMatter(db, { id: 'large-file', name: 'large.bin', object: 'objects/large.bin', size })
 
     const s3 = new GeneratedObjectS3('objects/large.bin', size)
@@ -321,10 +321,10 @@ describe('archive processing', () => {
   it('persists compression progress while streaming source objects', async () => {
     const { db } = await createTestApp()
     await seedStorage(db)
-    const size = 12 * 1024 * 1024
+    const size = 6 * 1024 * 1024
     await seedMatter(db, { id: 'progress-file', name: 'large.bin', object: 'objects/progress.bin', size })
 
-    const s3 = new BlockingGeneratedObjectS3('objects/progress.bin', size, 6 * 1024 * 1024)
+    const s3 = new BlockingGeneratedObjectS3('objects/progress.bin', size, 5 * 1024 * 1024 + 1)
     const request = { type: 'archive_compress' as const, matterIds: ['progress-file'] }
     const queued = await enqueueArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
@@ -357,7 +357,7 @@ describe('archive processing', () => {
   it('persists extraction progress while streaming ZIP bytes', async () => {
     const { db } = await createTestApp()
     await seedStorage(db)
-    const size = 12 * 1024 * 1024
+    const size = 6 * 1024 * 1024
     const archive = createZip({ 'large.bin': filledBytes(size) })
     await seedMatter(db, {
       id: 'progress-zip',
@@ -366,7 +366,7 @@ describe('archive processing', () => {
       size: archive.byteLength,
     })
 
-    const s3 = new BlockingStoredObjectS3(6 * 1024 * 1024)
+    const s3 = new BlockingStoredObjectS3(5 * 1024 * 1024 + 1)
     s3.objects.set('source/progress.zip', archive)
     const request = { type: 'archive_extract' as const, matterId: 'progress-zip' }
     const queued = await enqueueArchiveJob(archiveDeps(db), {

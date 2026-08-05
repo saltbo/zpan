@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { expandSignInForm, expandSignUpForm } from './helpers'
+import { expandSignInForm, expandSignUpForm, testIdentity } from './helpers'
 
 test.describe('Auth flow', () => {
   test('redirects to sign-in when not authenticated @all', async ({ page }) => {
@@ -8,12 +8,13 @@ test.describe('Auth flow', () => {
   })
 
   test('sign-up and redirect to files @all', async ({ page }) => {
+    const identity = testIdentity('signup')
     await page.goto('/sign-up')
     await expect(page.getByRole('heading', { name: 'ZPan' })).toBeVisible()
 
     await expandSignUpForm(page)
-    await page.getByLabel('Email').fill(`test-${Date.now()}@example.com`)
-    await page.getByLabel('Username').fill(`test${Date.now()}`)
+    await page.getByLabel('Email').fill(`${identity}@example.com`)
+    await page.getByLabel('Username').fill(identity)
     await page.getByLabel('Password').fill('password123456')
 
     // Listen for the sign-up API response
@@ -26,14 +27,15 @@ test.describe('Auth flow', () => {
     await expect(page).toHaveURL(/files/, { timeout: 10000 })
   })
 
-  test('sign-in with existing account @all', async ({ page }) => {
-    const email = `login-${Date.now()}@example.com`
+  test('sign-in with existing account @all @critical', async ({ page }) => {
+    const identity = testIdentity('login')
+    const email = `${identity}@example.com`
 
     // Register via UI
     await page.goto('/sign-up')
     await expandSignUpForm(page)
     await page.getByLabel('Email').fill(email)
-    await page.getByLabel('Username').fill(`login${Date.now()}`)
+    await page.getByLabel('Username').fill(identity)
     await page.getByLabel('Password').fill('password123456')
     const [signUpResp] = await Promise.all([
       page.waitForResponse((r) => r.url().includes('/api/auth/sign-up')),
@@ -62,10 +64,11 @@ test.describe('Auth flow', () => {
   })
 
   test('sidebar shows only My Files and Trash for regular users @desktop @tablet', async ({ page }) => {
+    const identity = testIdentity('sidebar')
     await page.goto('/sign-up')
     await expandSignUpForm(page)
-    await page.getByLabel('Email').fill(`sidebar-${Date.now()}@example.com`)
-    await page.getByLabel('Username').fill(`sidebar${Date.now()}`)
+    await page.getByLabel('Email').fill(`${identity}@example.com`)
+    await page.getByLabel('Username').fill(identity)
     await page.getByLabel('Password').fill('password123456')
 
     const [signUpResp] = await Promise.all([

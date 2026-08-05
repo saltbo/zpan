@@ -22,15 +22,6 @@ test.describe('Uploader responsive behavior', () => {
   }) => {
     await signUpAndGoToFiles(page)
 
-    await page.route('**/*', async (route) => {
-      if (route.request().method() === 'PUT') {
-        // The unified slice uploader reads the ETag from each S3 PUT response.
-        await route.fulfill({ status: 200, headers: { ETag: '"e2e-etag"' }, body: '' })
-        return
-      }
-      await route.continue()
-    })
-
     const files = makeFiles(12)
     await page.locator('input[type="file"]').first().setInputFiles(files)
 
