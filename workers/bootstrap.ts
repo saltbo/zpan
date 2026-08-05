@@ -5,7 +5,7 @@ import { createArchiveJobsGateway } from '../server/adapters/gateways/archive-jo
 import { createShareRepo } from '../server/adapters/repos/share'
 import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
-import { createAuth } from '../server/auth'
+import { createAuth, officialWorkersPreviewOrigin } from '../server/auth'
 import { createDeps } from '../server/composition'
 import { isPotentialWebDavPublicRequest } from '../server/domain/webdav-public-url'
 import { isHandledError, standaloneJsonError } from '../server/middleware/error-handler'
@@ -36,7 +36,11 @@ const SHARE_TOKEN_RE = /^\/s\/([^/?#]+)/
 // request on the WebDAV hostname from fixing the primary app base URL without
 // allowing arbitrary Host headers to grow the cache. Changes to OAuth provider
 // configs or env vars take effect on isolate recycle.
-type AuthSlot = 'configured' | 'primary' | 'webdav'
+type AuthSlot = 'configured' | 'primary' | 'webdav' | `preview:${string}`
+
+export function resolveAuthBaseURL(configuredBaseURL: string | undefined, requestOrigin: string): string {
+  return officialWorkersPreviewOrigin(configuredBaseURL, requestOrigin) || configuredBaseURL || requestOrigin
+}
 
 interface WorkerRuntime {
   platform: ReturnType<typeof createCloudflarePlatform>
@@ -84,12 +88,18 @@ async function appForRequest(
 ): Promise<ReturnType<typeof createApp>> {
   const origin = new URL(request.url).origin
   const webDavRequest = isPotentialWebDavPublicRequest(request.url)
-  const inferredOrigin = origin
-  const baseURL = env.BETTER_AUTH_URL || inferredOrigin
+  const previewOrigin = officialWorkersPreviewOrigin(env.BETTER_AUTH_URL, origin)
+  const baseURL = resolveAuthBaseURL(env.BETTER_AUTH_URL, origin)
   const trustedOrigins = env.TRUSTED_ORIGINS?.split(',')
     .map((value) => value.trim())
-    .filter(Boolean) || [inferredOrigin]
-  const slot: AuthSlot = env.BETTER_AUTH_URL ? 'configured' : webDavRequest ? 'webdav' : 'primary'
+    .filter(Boolean) || [origin]
+  const slot: AuthSlot = previewOrigin
+    ? `preview:${previewOrigin}`
+    : env.BETTER_AUTH_URL
+      ? 'configured'
+      : webDavRequest
+        ? 'webdav'
+        : 'primary'
 
   const cachedApp = runtime.appBySlot.get(slot)
   const cachedAuth = runtime.authBySlot.get(slot)
