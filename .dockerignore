@@ -9,6 +9,10 @@
 .vscode
 .idea
 e2e
+server/test
+**/*.test.ts
+**/*.test.tsx
+**/*.test.mjs
 playwright-report
 test-results
 *.log
