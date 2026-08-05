@@ -1,5 +1,5 @@
 import { AuthorizationScope } from '@shared/authorization'
-import { BASE62_PATTERN } from '@shared/ids'
+import { BASE62_PATTERN, IMAGE_TOKEN_PATTERN, SHARE_TOKEN_PATTERN } from '@shared/ids'
 import { describe, expect, it } from 'vitest'
 import { authRoute, findOperationsMissingAuthContract } from './http/openapi'
 import { createTestApp } from './test/setup'
@@ -10,6 +10,7 @@ describe('global OpenAPI document', () => {
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
       paths: Record<string, Record<string, { parameters?: Array<{ name: string; schema?: { pattern?: string } }> }>>
+      components?: { schemas?: Record<string, { properties?: Record<string, { pattern?: string }> }> }
     }
     const patternFor = (path: string, method: string, name: string) =>
       doc.paths[path]?.[method]?.parameters?.find((parameter) => parameter.name === name)?.schema?.pattern
@@ -21,6 +22,10 @@ describe('global OpenAPI document', () => {
     expect(patternFor('/api/trash/objects/{id}', 'delete', 'id')).toBe(BASE62_PATTERN.source)
     expect(patternFor('/api/oauth-grants/{grantId}', 'delete', 'grantId')).toBe(BASE62_PATTERN.source)
     expect(patternFor('/api/site/audit-events', 'get', 'orgId')).toBe(BASE62_PATTERN.source)
+    expect(patternFor('/api/shares/{token}', 'get', 'token')).toBe(SHARE_TOKEN_PATTERN.source)
+    expect(patternFor('/api/shares/{token}/objects', 'get', 'token')).toBe(SHARE_TOKEN_PATTERN.source)
+    expect(doc.components?.schemas?.ImageHosting?.properties?.token?.pattern).toBe(IMAGE_TOKEN_PATTERN.source)
+    expect(doc.components?.schemas?.ImageHostingDraft?.properties?.token?.pattern).toBe(IMAGE_TOKEN_PATTERN.source)
   })
 
   it('aggregates every OpenAPIHono route at /api/openapi.json', async () => {

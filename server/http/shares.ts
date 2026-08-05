@@ -3,7 +3,7 @@ import { AuthorizationScope } from '@shared/authorization'
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { cursorPageSchema, opaqueIdSchema, opaqueTokenSchema } from '../../shared/schemas'
+import { cursorPageSchema, opaqueIdSchema, opaqueTokenSchema, shareTokenSchema } from '../../shared/schemas'
 import {
   createShareRequestSchema,
   listSharesQuerySchema,
@@ -51,7 +51,7 @@ const cloudBaseUrl = (c: Context<Env>) => c.get('platform').getEnv('ZPAN_CLOUD_U
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 const shareViewSchema = z
   .object({
-    token: opaqueTokenSchema,
+    token: shareTokenSchema,
     kind: z.string(),
     status: z.string(),
     expiresAt: z.string().nullable(),
@@ -119,7 +119,7 @@ function toShareViewDTO(dto: ShareViewerDto | ShareCreatorDto): z.infer<typeof s
 const shareListItemSchema = z
   .object({
     id: opaqueIdSchema,
-    token: opaqueTokenSchema,
+    token: shareTokenSchema,
     kind: z.string(),
     matterId: opaqueIdSchema,
     orgId: opaqueIdSchema,
@@ -151,7 +151,7 @@ const shareObjectsSchema = shareObjectsResponseSchema.openapi('ShareObjects')
 
 const createdShareSchema = z
   .object({
-    token: opaqueTokenSchema,
+    token: shareTokenSchema,
     kind: z.string(),
     urls: z.object({ landing: z.string().optional(), direct: z.string().optional() }),
     expiresAt: z.string().nullable(),
@@ -207,7 +207,7 @@ const viewShareRoute = authRoute(
     tags: ['Shares'],
     method: 'get',
     path: '/{token}',
-    request: { params: z.object({ token: opaqueTokenSchema }) },
+    request: { params: z.object({ token: shareTokenSchema }) },
     responses: {
       200: jsonContent(shareViewSchema, 'Share'),
       404: errorResponse('Share not found or revoked'),
@@ -224,7 +224,7 @@ const verifyShareRoute = authRoute(
     tags: ['Shares'],
     method: 'post',
     path: '/{token}/sessions',
-    request: { params: z.object({ token: opaqueTokenSchema }), ...jsonBody(verifyPasswordSchema) },
+    request: { params: z.object({ token: shareTokenSchema }), ...jsonBody(verifyPasswordSchema) },
     responses: {
       200: jsonContent(z.object({ ok: z.literal(true) }), 'Verified'),
       403: errorResponse('Invalid password'),
@@ -241,7 +241,7 @@ const listShareObjectsRoute = authRoute(
     tags: ['Shares'],
     method: 'get',
     path: '/{token}/objects',
-    request: { params: z.object({ token: opaqueTokenSchema }), query: listObjectsQuerySchema },
+    request: { params: z.object({ token: shareTokenSchema }), query: listObjectsQuerySchema },
     responses: {
       200: jsonContent(shareObjectsSchema, 'Share objects'),
       400: errorResponse('Bad request'),
@@ -260,7 +260,7 @@ const readShareReadmeRoute = authRoute(
     tags: ['Shares'],
     method: 'get',
     path: '/{token}/readme',
-    request: { params: z.object({ token: opaqueTokenSchema }) },
+    request: { params: z.object({ token: shareTokenSchema }) },
     responses: {
       200: jsonContent(shareReadmeResponseSchema, 'README.md content'),
       400: errorResponse('README.md is not valid UTF-8'),
@@ -279,7 +279,7 @@ const pub = new OpenAPIHono<Env>()
 // stays a plain route, excluded from the OpenAPI document.
 pub.get('/:token/objects/:ref', async (c) => {
   const token = c.req.param('token')
-  if (!opaqueTokenSchema.safeParse(token).success) throw notFound()
+  if (!shareTokenSchema.safeParse(token).success) throw notFound()
   const ref = c.req.param('ref')
   const returnUrl = c.req.query('downloadUrl') === '1'
   const viewerId = await readUserId(c)
@@ -449,7 +449,7 @@ const revokeShareRoute = authRoute(
     method: 'put',
     path: '/{token}/status',
     request: {
-      params: z.object({ token: opaqueTokenSchema }),
+      params: z.object({ token: shareTokenSchema }),
       ...jsonBody(z.object({ status: z.literal('revoked') })),
     },
     responses: {
@@ -471,7 +471,7 @@ const putSharePrivacyRoute = authRoute(
     method: 'put',
     path: '/{token}/privacy',
     request: {
-      params: z.object({ token: opaqueTokenSchema }),
+      params: z.object({ token: shareTokenSchema }),
       ...jsonBody(sharePrivacySchema),
     },
     responses: {
@@ -491,7 +491,7 @@ const saveShareRoute = authRoute(
     tags: ['Shares'],
     method: 'post',
     path: '/{token}/objects',
-    request: { params: z.object({ token: opaqueTokenSchema }), ...jsonBody(saveShareRequestSchema) },
+    request: { params: z.object({ token: shareTokenSchema }), ...jsonBody(saveShareRequestSchema) },
     responses: {
       201: jsonContent(saveShareResultSchema, 'Saved'),
       400: errorResponse('Bad request'),

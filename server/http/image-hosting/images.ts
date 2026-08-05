@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { opaqueIdSchema, opaqueTokenSchema } from '@shared/schemas'
+import { imageTokenSchema, opaqueIdSchema } from '@shared/schemas'
 import { generateToken } from '../../../shared/ids'
 import {
   ALLOWED_IMAGE_MIMES,
@@ -45,7 +45,7 @@ const imageHostingSchema = z
   .object({
     id: opaqueIdSchema,
     orgId: opaqueIdSchema,
-    token: opaqueTokenSchema,
+    token: imageTokenSchema,
     path: z.string(),
     url: z.string(),
     storageId: opaqueIdSchema,
@@ -80,7 +80,7 @@ function toImageHostingDTO(
 const imageDraftSchema = z
   .object({
     id: opaqueIdSchema,
-    token: opaqueTokenSchema,
+    token: imageTokenSchema,
     path: z.string(),
     uploadUrl: z.string(),
     storageKey: z.string(),

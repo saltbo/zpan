@@ -13,10 +13,13 @@ import type {
 } from './ports'
 import { AppError } from './ports'
 import {
+  directShareDownloadAuditTarget,
+  imageHostingDownloadAuditTarget,
   type RedirectDeps,
-  resolveDirectShareDownload,
-  resolveImageHostingDownload,
-  resolveRedirectTargetKind,
+  resolveDirectShareDownload as resolveDirectShareDownloadFromResolution,
+  resolveDirectShareRedirectTarget,
+  resolveImageHostingDownload as resolveImageHostingDownloadFromResolution,
+  resolveImageHostingRedirectTarget,
 } from './redirect'
 import {
   confirmDownloadTraffic,
@@ -79,7 +82,7 @@ const sampleMatter = {
 
 const sampleShare = {
   id: 's-1',
-  token: 'DirectToken1',
+  token: 'sDirectTok01',
   kind: 'direct',
   matterId: 'm-1',
   orgId: 'o-1',
@@ -90,7 +93,7 @@ const sampleShare = {
 const sampleImage = {
   id: 'ih-1',
   orgId: 'o-1',
-  token: 'ImageToken1',
+  token: 'iImageToken1',
   storageId: 'st-1',
   storageKey: 'ih/o-1/ih-1.png',
   size: 1024,
@@ -153,35 +156,76 @@ function makeDeps(
   return { deps, refundTraffic, incrementAccessCount, decrementDownloads, presignDownload, presignInline }
 }
 
+async function resolveDirectShareDownload(
+  deps: RedirectDeps,
+  params: { token: string; cloudBaseUrl: string; now?: Date },
+) {
+  const { token: _token, ...rest } = params
+  return resolveDirectShareDownloadFromResolution(deps, {
+    ...rest,
+    resolved: await deps.share.resolveByToken(params.token),
+  })
+}
+
+async function resolveImageHostingDownload(
+  deps: RedirectDeps,
+  params: { token: string; cloudBaseUrl: string; refererHeader: string | null; requestOrigin: string },
+) {
+  const { token: _token, ...rest } = params
+  return resolveImageHostingDownloadFromResolution(deps, {
+    ...rest,
+    resolved: await deps.imageHosting.resolveActiveByToken(params.token),
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   meter.mockResolvedValue(ok)
   reportEgress.mockResolvedValue(ok)
 })
 
-describe('resolveRedirectTargetKind', () => {
-  it('resolves an alphanumeric direct-share token from its database record', async () => {
-    const { deps } = makeDeps({ imageHosting: { resolveActiveByToken: async () => null } })
-    await expect(resolveRedirectTargetKind(deps, 'DirectToken123')).resolves.toBe('direct_share')
-  })
-
-  it('resolves an image when the same-looking share record is not direct', async () => {
-    const { deps } = makeDeps({
-      share: {
-        resolveByToken: async () => ({
-          status: 'ok',
-          share: { ...sampleShare, kind: 'landing' },
-          matter: sampleMatter,
-          recipients: [],
-        }),
-      },
+describe('redirect download audit targets', () => {
+  it('derives the direct-share audit target from the same resolved record used for download', () => {
+    const resolved: ShareResolution = { status: 'ok', share: sampleShare, matter: sampleMatter, recipients: [] }
+    expect(directShareDownloadAuditTarget(resolved)).toMatchObject({
+      targetType: 'share',
+      targetId: sampleShare.id,
+      metadata: { shareId: sampleShare.id, matterId: sampleMatter.id },
     })
-    await expect(resolveRedirectTargetKind(deps, 'OpaqueToken123')).resolves.toBe('image_hosting')
   })
 
-  it('rejects a token that ambiguously identifies both a direct share and an image', async () => {
-    const { deps } = makeDeps()
-    await expect(resolveRedirectTargetKind(deps, 'CollisionToken123')).resolves.toBe('ambiguous')
+  it('does not create a direct-share audit target for landing shares', () => {
+    const resolved: ShareResolution = {
+      status: 'ok',
+      share: { ...sampleShare, kind: 'landing' },
+      matter: sampleMatter,
+      recipients: [],
+    }
+    expect(directShareDownloadAuditTarget(resolved)).toBeNull()
+  })
+
+  it('derives the image audit target from the same resolved record used for download', () => {
+    expect(imageHostingDownloadAuditTarget({ image: sampleImage, refererAllowlist: [] })).toMatchObject({
+      targetType: 'image',
+      targetId: sampleImage.id,
+      metadata: { imageId: sampleImage.id, storageId: sampleImage.storageId },
+    })
+    expect(imageHostingDownloadAuditTarget(null)).toBeNull()
+  })
+
+  it('resolves each namespace once and returns the audit target with that record', async () => {
+    const share = makeShareRepo({ resolveByToken: vi.fn(makeShareRepo().resolveByToken) })
+    const imageHosting = makeImageRepo({
+      resolveActiveByToken: vi.fn(makeImageRepo().resolveActiveByToken),
+    })
+
+    const shareTarget = await resolveDirectShareRedirectTarget({ share }, sampleShare.token)
+    const imageTarget = await resolveImageHostingRedirectTarget({ imageHosting }, sampleImage.token)
+
+    expect(share.resolveByToken).toHaveBeenCalledOnce()
+    expect(imageHosting.resolveActiveByToken).toHaveBeenCalledOnce()
+    expect(shareTarget.auditTarget?.targetId).toBe(sampleShare.id)
+    expect(imageTarget.auditTarget?.targetId).toBe(sampleImage.id)
   })
 })
 
@@ -190,7 +234,7 @@ describe('resolveRedirectTargetKind', () => {
 describe('resolveDirectShareDownload', () => {
   it('presigns the download and returns the URL on the happy path', async () => {
     const { deps, presignDownload } = makeDeps()
-    const out = await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    const out = await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expect(out).toMatchObject({ ok: true, url: PRESIGNED_DOWNLOAD })
     expect(presignDownload).toHaveBeenCalledWith(sampleStorage, 'some/key.bin', 'file.bin', expect.any(Number))
     expect(confirmDownload).toHaveBeenCalledWith(deps, { eventId: expect.any(String) })
@@ -198,7 +242,7 @@ describe('resolveDirectShareDownload', () => {
 
   it('passes cloudBaseUrl, source/sourceId, and a decrement onRejected to the meter', async () => {
     const { deps, decrementDownloads } = makeDeps()
-    await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expect(meter).toHaveBeenCalledWith(
       deps,
       expect.objectContaining({
@@ -228,19 +272,19 @@ describe('resolveDirectShareDownload', () => {
         }),
       },
     })
-    const out = await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    const out = await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expectError(out, 410, undefined, 'File no longer available')
   })
 
   it('returns not_found when the token does not resolve', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'not_found' }) } })
-    const out = await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    const out = await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expectError(out, 404, undefined, 'Share not found or revoked')
   })
 
   it('returns not_found when the share is revoked', async () => {
     const { deps } = makeDeps({ share: { resolveByToken: async () => ({ status: 'revoked' }) } })
-    const out = await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    const out = await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expectError(out, 404, undefined, 'Share not found or revoked')
   })
 
@@ -251,7 +295,7 @@ describe('resolveDirectShareDownload', () => {
         resolveByToken: async () => ({ status: 'ok', share: landing, matter: sampleMatter, recipients: [] }),
       },
     })
-    const out = await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    const out = await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expectError(out, 404, undefined, 'Share not found or revoked')
   })
 
@@ -263,7 +307,7 @@ describe('resolveDirectShareDownload', () => {
       },
     })
     const out = await resolveDirectShareDownload(deps, {
-      token: 'DirectToken1',
+      token: 'sDirectTok01',
       cloudBaseUrl: CLOUD_BASE_URL,
       now: new Date('2030-01-01'),
     })
@@ -272,7 +316,7 @@ describe('resolveDirectShareDownload', () => {
 
   it('returns limit_exceeded when no downloads remain', async () => {
     const { deps, presignDownload } = makeDeps({ share: { hasDownloadsAvailable: async () => false } })
-    const out = await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    const out = await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expectError(out, 410, undefined, 'Download limit exceeded')
     expect(presignDownload).not.toHaveBeenCalled()
     expect(meter).not.toHaveBeenCalled()
@@ -282,21 +326,21 @@ describe('resolveDirectShareDownload', () => {
     const { deps, presignDownload } = makeDeps({
       share: { incrementDownloadsAtomic: async () => ({ ok: false, downloads: 0 }) },
     })
-    const out = await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    const out = await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expectError(out, 410, undefined, 'Download limit exceeded')
     expect(presignDownload).not.toHaveBeenCalled()
   })
 
   it('returns storage_not_found when the storage is missing', async () => {
     const { deps } = makeDeps({ storages: { get: async () => null } })
-    const out = await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    const out = await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expectError(out, 404, undefined, 'Storage not found')
   })
 
   it('returns quota_exceeded when the meter rejects on quota', async () => {
     meter.mockResolvedValue(quotaExceeded)
     const { deps, presignDownload } = makeDeps()
-    const out = await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    const out = await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expectError(out, 422, 'QUOTA_EXCEEDED', 'Traffic quota exceeded')
     // The meter owns the compensating decrement; presign never runs.
     expect(presignDownload).not.toHaveBeenCalled()
@@ -305,7 +349,7 @@ describe('resolveDirectShareDownload', () => {
   it('returns insufficient_credits when the meter rejects on credits', async () => {
     meter.mockResolvedValue(insufficientCredits)
     const { deps, presignDownload } = makeDeps()
-    const out = await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    const out = await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expectError(out, 402, 'INSUFFICIENT_CREDITS', 'Insufficient credits')
     expect(presignDownload).not.toHaveBeenCalled()
   })
@@ -316,7 +360,7 @@ describe('resolveDirectShareDownload', () => {
     })
     const { deps, refundTraffic, decrementDownloads } = makeDeps({ s3: { presignDownload } })
     await expect(
-      resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL }),
+      resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL }),
     ).rejects.toThrow('sign failed')
     expect(refundTraffic).toHaveBeenCalledWith('o-1', 1024)
     expect(decrementDownloads).toHaveBeenCalledWith('s-1')
@@ -329,7 +373,7 @@ describe('resolveDirectShareDownload', () => {
         resolveByToken: async () => ({ status: 'ok', share: sampleShare, matter: sizeless, recipients: [] }),
       },
     })
-    await resolveDirectShareDownload(deps, { token: 'DirectToken1', cloudBaseUrl: CLOUD_BASE_URL })
+    await resolveDirectShareDownload(deps, { token: 'sDirectTok01', cloudBaseUrl: CLOUD_BASE_URL })
     expect(meter).toHaveBeenCalledWith(deps, expect.objectContaining({ bytes: 0 }))
   })
 })
@@ -338,7 +382,7 @@ describe('resolveDirectShareDownload', () => {
 
 describe('resolveImageHostingDownload', () => {
   const baseParams = {
-    token: 'ImageToken1',
+    token: 'iImageToken1',
     cloudBaseUrl: CLOUD_BASE_URL,
     refererHeader: null,
     requestOrigin: 'https://app.example.com',

@@ -1,8 +1,8 @@
 # Base62 ID normalization release runbook
 
 This release is a breaking, maintenance-window migration. ZPan-owned opaque IDs and public tokens use the fixed alphabet
-`0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz` and must match `^[A-Za-z0-9]+$`. The runtime has no
-legacy lookup, alias, prefix dispatch, or old/new format fallback.
+`0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz` and must match `^[A-Za-z0-9]+$`. The runtime dispatches
+public redirects only by the new `s`/`i` namespace prefix and has no legacy lookup, alias, or old/new format fallback.
 
 Production execution is intentionally outside this change. Do not run any `wrangler ... --remote` command until a
 maintainer has reviewed the dry-run statistics, secured backup, reconciliation report, and D1 SQL plan and has given a
@@ -29,7 +29,7 @@ direct default `nanoid()` call in production roots.
 | Classification | Values | Migration action |
 | --- | --- | --- |
 | Must migrate: ZPan entity PKs | user, account, organization, member, invitation, OAuth client/resource/link row, matter, storage, share/recipient, audit event, notification, announcement, quota/entitlement, background job, downloader, download task/usage report, upload session, image, invite, WebDAV state row, traffic report, license binding, webhook row, x402 intent | Random old-to-new mapping for every non-Base62 value; update known references and embedded JSON. Audit event entity IDs are separated from `event_key`. |
-| Must migrate: public/unique tokens | share and direct-download token, image token, site invite token, team invite token, invite code, image-domain verification token | Rotate every value, including already-alphanumeric legacy values. Share and image namespaces are checked for redirect collisions. Old public links intentionally stop working. |
+| Must migrate: public/unique tokens | share and direct-download token, image token, site invite token, team invite token, invite code, image-domain verification token | Rotate every value, including already-alphanumeric legacy values. Shares become `s` + 11 random Base62 characters and images become `i` + 11 random Base62 characters. Old public links intentionally stop working. |
 | Future generator plus historical scan | matter alias; dynamic OAuth registration management token | Migrate invalid aliases. Dynamic registration token hashes cannot be rewritten without plaintext, so registrations are invalidated and clients must re-register. |
 | Structured business/event keys | `traffic_<id>`, `mutation:<id>`, `admin_grant:<id>`, storage ledger `event_key`, downloader event IDs, idempotency keys, webhook provider event IDs, stats rollup deterministic IDs | Not entity IDs. Preserve their structure. Update only typed local references: audit target/event keys, storage opening/matter/image keys, Free-plan source keys, and initial download-task event keys. Cloud/Webhook/downloader event IDs stay byte-for-byte unchanged because they are external idempotency identities. |
 | Protocol identifiers | HTTP request UUID, WebDAV `opaquelocktoken:` URI, OAuth/PAR `urn:ietf:params:oauth:request_uri:` value, OAuth state/PKCE values, JWT `jti`/claims, JWK `kid` | Preserve protocol format. The Base62 PAR suffix is new, but the standards-defined URN remains a URI and is not validated as an opaque ID. |
@@ -62,15 +62,15 @@ entity IDs are 22 characters: `22 × log2(62) = 130.99` bits, above the previous
 | Length | Entropy | Use | Approximate birthday collision probability |
 | ---: | ---: | --- | ---: |
 | 10 | 59.54 bits | invite code | `6.0e-11` at 10,000 active codes; `6.0e-7` at 1,000,000 total generated codes |
-| 11 | 65.50 bits | matter alias, share token | `9.6e-9` at 1,000,000 tokens |
-| 12 | 71.45 bits | image public token (12 random) | `1.6e-10` at 1,000,000 tokens |
+| 11 | 65.50 bits | matter alias; random suffix of share/image public tokens | `9.6e-9` at 1,000,000 values in one namespace |
+| 12 total | 65.50 random bits | `s` + 11 random Base62 for shares; `i` + 11 random Base62 for images | `9.6e-9` at 1,000,000 tokens in either disjoint namespace |
 | 13 | 77.41 bits | image row ID | `2.7e-12` at 1,000,000 rows |
 | 22 | 130.99 bits | default entity ID | negligible at projected scale |
 | 32/33 | 190.53/196.48 bits | team/site/PAR/verification token | negligible |
 | 43 | 256.04 bits | OAuth registration management token | above 256 bits |
 
-Unique database constraints remain the final collision guard. A collision fails the write instead of accepting an
-ambiguous identifier.
+Unique database constraints remain the final collision guard within each resource. The fixed `s` and `i` prefixes make
+the public redirect namespaces disjoint without a cross-resource lookup or redirect table.
 
 ## Mapping algorithm and safety properties
 
@@ -80,7 +80,7 @@ ambiguous identifier.
 2. Apply requires a new backup pathname; the tool uses SQLite's online backup API and sets mode `0600`.
 3. `_zpan_id_normalization_map(kind, old_value, new_value)` stores random mappings with unique constraints. It never
    removes or substitutes punctuation.
-4. The SQLite apply uses one transaction. It writes `validation_version=1` and `completed_at` only after every validation
+4. The SQLite apply uses one transaction. It writes `validation_version=2` and `completed_at` only after every validation
    succeeds. Once both markers exist, reruns are validation-only: they do not rotate
    tokens or invalidate credentials created after the release.
 5. PKs and direct references are updated by an explicit table/column inventory. Polymorphic references use their
@@ -92,11 +92,11 @@ ambiguous identifier.
    management credentials are removed; statically configured clients remain. Every downloader token hash/JTI is
    replaced and the downloader is disabled even when its historical ID was already Base62.
 7. Validation checks row counts, uniqueness through constraints, `PRAGMA foreign_key_check`, zero illegal governed
-   values, direct and typed-polymorphic target existence, typed JSON references, structured upload creators, and zero
-   share/image redirect-token collisions. Any failure aborts the transaction.
+   values, exact `s`/`i` public-token prefixes and lengths, direct and typed-polymorphic target existence, typed JSON
+   references, and structured upload creators. Any failure aborts the transaction.
 8. `--emit-d1-sql` writes the exact reviewed mapping and rewritten JSON to a mode-`0600` SQL plan. The plan has persistent
    `CHECK (violations = 0)` assertions for expected row counts, foreign keys, formats, exact rewritten values, logical
-   references, and token collisions. The versioned completion marker is the last state change; a missed update or
+   references, and public-token namespace formats. The versioned completion marker is the last state change; a missed update or
    unversioned pre-existing marker aborts without blessing the database. It contains sensitive
    old and new public tokens; never attach it to a PR or paste it into logs. Mapping inserts and review assertions are
    packed into deterministic chunks below a 90,000-byte budget. Generation fails before writing the plan if any SQL
@@ -136,7 +136,7 @@ and local D1. The automated test also replays the emitted plan against an indepe
 
 The release rehearsal performed on 2026-08-04 used isolated temporary directories only and never supplied Wrangler's
 `--remote` flag. It applied all 92 migrations, loaded the representative legacy fixture, completed dry-run and apply,
-created mode-`0600` backup/plan artifacts, and replayed 636 plan commands (including 497 persistent machine assertions) on a second
+created mode-`0600` backup/plan artifacts, and replayed 635 plan commands (including 496 persistent machine assertions) on a second
 fresh local D1 database. A second replay was semantically idempotent. Both SQLite and D1 returned zero foreign-key
 failures and zero invalid share/image tokens; credentials were deleted or deterministically disabled, direct,
 polymorphic, JSON, notification, and both user/downloader upload-creator references matched their mapped entities, and
@@ -148,8 +148,8 @@ the old IDs, public token, object keys, and session row, proving the documented 
 Final local gates on 2026-08-04 passed with:
 
 - lint plus the uncontrolled-ID-generation guard; repository `typecheck` and each TypeScript project independently;
-- 268 Node unit/integration files with 5,475 tests, all passing;
-- coverage thresholds at 85.28% statements, 76.07% branches, 76.94% functions, and 88.11% lines;
+- 268 Node unit/integration files with 5,485 tests, all passing;
+- coverage thresholds at 85.28% statements, 76.06% branches, 76.99% functions, and 88.11% lines;
 - 18 Cloudflare files/81 tests and the libSQL project (1 file/6 tests);
 - dependency architecture (370 modules/1,509 dependencies), HTTP boundary, and 434-scenario spec traceability;
 - OpenAPI/client and Drizzle schema drift checks, plus Workers, Node, Lambda, Vercel, Netlify, and Azure builds.
@@ -183,7 +183,7 @@ preview environment with its own Cloud/S3 credentials.
    table or statement:** PK and logical-reference rewrites cross table boundaries. If the rehearsal exceeds a D1 batch,
    statement, or transaction limit, stop; a separate shadow-table/phased migration must be engineered, reviewed, and
    approved before production.
-7. Confirm both `validation_version=1` and `completed_at` exist only after all D1 assertion rows report zero. Deploy the
+7. Confirm both `validation_version=2` and `completed_at` exist only after all D1 assertion rows report zero. Deploy the
    new runtime only after reconciliation passes. The v2 image-domain cache namespace prevents legacy KV hits; verify the
    first domain lookup loads normalized state. Keep writes disabled until smoke tests prove share, image, object, quota,
    audit, job, WebDAV, downloader, and OAuth behavior. Re-upload reconciled avatars/logos and re-enqueue only normalized
@@ -208,15 +208,23 @@ WHERE <column> IS NULL
    OR <column> GLOB '*[^A-Za-z0-9]*';
 ```
 
-Nullable governed tokens omit the `IS NULL` branch. Also require:
+Nullable governed tokens omit the `IS NULL` branch. Public redirect tokens use stricter scans:
 
 ```sql
 SELECT COUNT(*)
 FROM shares
-INNER JOIN image_hostings ON image_hostings.token = shares.token;
+WHERE length(token) != 12
+   OR substr(token, 1, 1) != 's'
+   OR substr(token, 2) GLOB '*[^A-Za-z0-9]*';
+
+SELECT COUNT(*)
+FROM image_hostings
+WHERE length(token) != 12
+   OR substr(token, 1, 1) != 'i'
+   OR substr(token, 2) GLOB '*[^A-Za-z0-9]*';
 ```
 
-to return zero. Compare before/after counts for every table, allowing decreases only in the documented invalidation
+Both must return zero. Compare before/after counts for every table, allowing decreases only in the documented invalidation
 tables. Check every non-null direct, typed-polymorphic, typed-JSON, and structured creator reference resolves; unique PK/token counts equal row counts; audit `event_key` is
 unique; JSON parses; object keys are byte-for-byte unchanged; referenced storage objects can be read; quota totals and
 stats rollups are unchanged; and the normalization completion marker exists.

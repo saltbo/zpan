@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { opaqueTokenSchema } from './id'
+import { shareTokenSchema } from './id'
 
 export const publicUserSchema = z.object({
   username: z.string(),
@@ -8,7 +8,7 @@ export const publicUserSchema = z.object({
 })
 
 export const publicProfileShareSchema = z.object({
-  token: opaqueTokenSchema,
+  token: shareTokenSchema,
   name: z.string(),
   type: z.string(),
   size: z.number().int().nullable(),

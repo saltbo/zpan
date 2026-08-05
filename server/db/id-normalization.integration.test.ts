@@ -15,7 +15,7 @@ describe('normalized identifier startup contract', () => {
       await db.all<{ value: string }>(
         sql.raw("SELECT value FROM _zpan_id_normalization_state WHERE key = 'validation_version'"),
       ),
-    ).toEqual([{ value: '1' }])
+    ).toEqual([{ value: '2' }])
     await db.run(sql`INSERT INTO user (id, name, email, email_verified, created_at, updated_at)
       VALUES ('CreatedAfterBoot', 'New', 'new@example.com', 1, 0, 0)`)
     await expect(assertNormalizedIdentifiers(db)).resolves.toBeUndefined()
@@ -25,7 +25,7 @@ describe('normalized identifier startup contract', () => {
     const { db } = await createTestApp()
     await db.run(sql.raw('CREATE TABLE _zpan_id_normalization_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)'))
     await db.run(
-      sql.raw("INSERT INTO _zpan_id_normalization_state VALUES ('completed_at', '1'), ('validation_version', '1')"),
+      sql.raw("INSERT INTO _zpan_id_normalization_state VALUES ('completed_at', '1'), ('validation_version', '2')"),
     )
     await expect(assertNormalizedIdentifiers(db)).resolves.toBeUndefined()
   })
@@ -66,7 +66,7 @@ describe('normalized identifier startup contract', () => {
       VALUES ('AlreadyBase62', 'Existing', 'existing@example.com', 1, 0, 0)`)
     await db.run(sql.raw('CREATE TABLE _zpan_id_normalization_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)'))
     await db.run(
-      sql.raw("INSERT INTO _zpan_id_normalization_state VALUES ('completed_at', '1'), ('validation_version', '1')"),
+      sql.raw("INSERT INTO _zpan_id_normalization_state VALUES ('completed_at', '1'), ('validation_version', '2')"),
     )
 
     await expect(assertNormalizedIdentifiers(db)).resolves.toBeUndefined()

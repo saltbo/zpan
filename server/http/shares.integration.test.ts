@@ -692,7 +692,7 @@ describe('GET /api/shares/:token', () => {
 
   it('returns 404 for a non-existent token [spec: shares/detail-not-found]', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/shares/DoesNotExist1')
+    const res = await app.request('/api/shares/sMissing0001')
     expect(res.status).toBe(404)
   })
 
@@ -764,7 +764,7 @@ describe('POST /api/shares/:token/objects', () => {
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
 
-    const res = await app.request('/api/shares/NonexistentToken1/objects', {
+    const res = await app.request('/api/shares/sMissing0001/objects', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetOrgId: orgId, targetParent: '' }),
@@ -1161,7 +1161,7 @@ describe('PUT /api/shares/:token/status', () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
 
-    const res = await revokeRequest(app, 'DoesNotExist1', headers)
+    const res = await revokeRequest(app, 'sMissing0001', headers)
     expect(res.status).toBe(404)
   })
 
@@ -1386,7 +1386,7 @@ describe('Public share routes', () => {
   describe('GET /api/shares/:token', () => {
     it('returns 404 for unknown token', async () => {
       const { app } = await createTestApp()
-      const res = await app.request('/api/shares/UnknownToken')
+      const res = await app.request('/api/shares/sUnknown0001')
       expect(res.status).toBe(404)
     })
 
@@ -1486,10 +1486,10 @@ describe('Public share routes', () => {
       const now = Date.now()
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
-        VALUES ('sh-trash', 'TokenTrash1', 'landing', 'f3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
+        VALUES ('sh-trash', 'sTrashTok001', 'landing', 'f3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
       `)
 
-      const res = await app.request('/api/shares/TokenTrash1')
+      const res = await app.request('/api/shares/sTrashTok001')
       expect(res.status).toBe(410)
     })
 
@@ -1614,7 +1614,7 @@ describe('Public share routes', () => {
 
     it('returns 404 when verifying a password for an unknown token', async () => {
       const { app } = await createTestApp()
-      const res = await app.request('/api/shares/NoSuchToken1/sessions', {
+      const res = await app.request('/api/shares/sNoSuchTok01/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: 'whatever' }),
@@ -2036,9 +2036,9 @@ describe('Public share routes', () => {
   // ─── GET /api/shares/:token/objects — list folder children ───────────────────
 
   describe('GET /api/shares/:token/objects', () => {
-    it('returns 404 for invalid token', async () => {
+    it('returns 404 for an unknown valid token', async () => {
       const { app } = await createTestApp()
-      const res = await app.request('/api/shares/NoSuchToken1/objects')
+      const res = await app.request('/api/shares/sNoSuchTok01/objects')
       expect(res.status).toBe(404)
     })
 
@@ -2052,9 +2052,9 @@ describe('Public share routes', () => {
       const now = Date.now()
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
-        VALUES ('sh-trash-ch', 'TokenTrashChild', 'landing', 'TrashedDir', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
+        VALUES ('sh-trash-ch', 'sTrashChild1', 'landing', 'TrashedDir', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
       `)
-      const res = await app.request('/api/shares/TokenTrashChild/objects')
+      const res = await app.request('/api/shares/sTrashChild1/objects')
       expect(res.status).toBe(410)
     })
 
@@ -2332,10 +2332,10 @@ describe('Public share routes', () => {
       const now = Date.now()
       await db.run(sql`
         INSERT INTO shares (id, token, kind, matter_id, org_id, creator_id, views, downloads, status, created_at)
-        VALUES ('shdltrash', 'DirectTrash1', 'direct', 'dlx3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
+        VALUES ('shdltrash', 'sDirectTrash', 'direct', 'dlx3', ${orgId}, ${creatorId}, 0, 0, 'active', ${now})
       `)
 
-      const res = await app.request('/r/DirectTrash1', { redirect: 'manual' })
+      const res = await app.request('/r/sDirectTrash', { redirect: 'manual' })
       expect(res.status).toBe(410)
     })
 

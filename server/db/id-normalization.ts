@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '../platform/interface'
 
 const STATE_TABLE = '_zpan_id_normalization_state'
-const VALIDATION_VERSION = '1'
+const VALIDATION_VERSION = '2'
 
 // The release tool performs the expensive format, FK, JSON, and logical-reference
 // scans before it writes this versioned marker. Runtime startup deliberately checks

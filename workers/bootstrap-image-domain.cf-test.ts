@@ -47,7 +47,7 @@ describe('[CF] image-domain Worker fast path', () => {
         'CREATE TABLE IF NOT EXISTS _zpan_id_normalization_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
       ),
       env.DB.prepare(
-        "INSERT OR REPLACE INTO _zpan_id_normalization_state (key, value) VALUES ('validation_version', '1')",
+        "INSERT OR REPLACE INTO _zpan_id_normalization_state (key, value) VALUES ('validation_version', '2')",
       ),
       env.DB.prepare(
         "INSERT OR REPLACE INTO _zpan_id_normalization_state (key, value) VALUES ('completed_at', 'test-fixture')",

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { buildD1ApplySql, normalizeDatabase, runNormalizationCli } from '../../scripts/normalize-ids'
-import { BASE62_PATTERN } from '../../shared/ids'
+import { BASE62_PATTERN, IMAGE_TOKEN_PATTERN, SHARE_TOKEN_PATTERN } from '../../shared/ids'
 
 function fixture(path = ':memory:'): Database.Database {
   const db = new Database(path)
@@ -227,6 +227,10 @@ describe('ID normalization backfill', () => {
     ]) {
       expect(governedValue).toMatch(BASE62_PATTERN)
     }
+    expect(shareToken).toMatch(SHARE_TOKEN_PATTERN)
+    expect(imageToken).toMatch(IMAGE_TOKEN_PATTERN)
+    expect(shareToken).toHaveLength(12)
+    expect(imageToken).toHaveLength(12)
     expect(shareToken).not.toBe(imageToken)
     expect(value(db, 'SELECT org_id AS value FROM matters')).toBe(orgId)
     expect(value(db, 'SELECT storage_id AS value FROM matters')).toBe(storageId)
@@ -331,18 +335,12 @@ describe('ID normalization backfill', () => {
     const matterId = value(db, 'SELECT id AS value FROM matters')
     const orgId = value(db, 'SELECT id AS value FROM organization')
     const userId = value(db, 'SELECT id AS value FROM user')
-    db.prepare('INSERT INTO shares VALUES (?, ?, ?, ?, ?)').run(
-      'NewShare123',
-      'NewPublicToken123',
-      matterId,
-      orgId,
-      userId,
-    )
+    db.prepare('INSERT INTO shares VALUES (?, ?, ?, ?, ?)').run('NewShare123', 'sNewToken123', matterId, orgId, userId)
     db.prepare('INSERT INTO session VALUES (?, ?, ?)').run('NewSession123', userId, 'NewSessionToken123')
 
     const summary = normalizeDatabase(db, true)
 
-    expect(value(db, "SELECT token AS value FROM shares WHERE id = 'NewShare123'")).toBe('NewPublicToken123')
+    expect(value(db, "SELECT token AS value FROM shares WHERE id = 'NewShare123'")).toBe('sNewToken123')
     expect(value(db, "SELECT token AS value FROM session WHERE id = 'NewSession123'")).toBe('NewSessionToken123')
     expect(summary.invalidated).toEqual({})
     db.close()
@@ -450,10 +448,14 @@ describe('ID normalization backfill', () => {
       error: 'invalid_structured_reference:object_upload_sessions.created_by:1',
     },
     {
-      name: 'a cross-resource redirect-token collision',
-      mutate: (db: Database.Database) =>
-        db.exec('UPDATE image_hostings SET token = (SELECT token FROM shares LIMIT 1)'),
-      error: 'redirect_token_collision:1',
+      name: 'a share token with the image namespace prefix',
+      mutate: (db: Database.Database) => db.exec("UPDATE shares SET token = 'i00000000000'"),
+      error: 'invalid_value_remaining:shares.token:1',
+    },
+    {
+      name: 'an image token with the share namespace prefix',
+      mutate: (db: Database.Database) => db.exec("UPDATE image_hostings SET token = 's00000000000'"),
+      error: 'invalid_value_remaining:image_hostings.token:1',
     },
   ])('rejects $name after completion', ({ mutate, error }) => {
     const db = fixture()
@@ -471,6 +473,8 @@ describe('ID normalization backfill', () => {
     const expectedShareToken = value(planningCopy, 'SELECT token AS value FROM shares')
     const plan = buildD1ApplySql(planningCopy)
     expect(plan).not.toContain('WHERE rowid')
+    expect(plan).toContain('substr("token", 1, 1) != \'s\'')
+    expect(plan).toContain('substr("token", 1, 1) != \'i\'')
 
     const d1Copy = fixture()
     d1Copy.exec(plan)
@@ -639,7 +643,7 @@ describe('ID normalization backfill', () => {
         kind TEXT NOT NULL, old_value TEXT NOT NULL, new_value TEXT NOT NULL, created_at INTEGER NOT NULL,
         PRIMARY KEY (kind, old_value), UNIQUE (kind, new_value)
       );
-      INSERT INTO _zpan_id_normalization_map VALUES ('share_token', 'ds_direct-old', 'DifferentToken123', 0);
+      INSERT INTO _zpan_id_normalization_map VALUES ('share_token', 'ds_direct-old', 'sDifferent01', 0);
     `)
 
     expect(() => d1Copy.exec(plan)).toThrow()

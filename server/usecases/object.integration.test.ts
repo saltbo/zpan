@@ -570,7 +570,7 @@ describe('POST /api/shares/:token/objects', () => {
 
   it('returns 404 for unknown token', async () => {
     const { app, headers, personalOrgId } = await setup()
-    const res = await app.request('/api/shares/NonexistentToken1/objects', {
+    const res = await app.request('/api/shares/sMissing0001/objects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: personalOrgId }),

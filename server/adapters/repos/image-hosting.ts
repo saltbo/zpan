@@ -1,5 +1,5 @@
 import { and, asc, eq, gt, isNotNull, isNull, like, or, sql } from 'drizzle-orm'
-import { generateId, generateToken } from '../../../shared/ids'
+import { generateId, generateImageToken, generateToken } from '../../../shared/ids'
 import { imageHostingConfigs, imageHostings } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { mimeToExt } from '../../lib/mime-utils'
@@ -134,7 +134,7 @@ export function createImageHostingRepo(db: Database): ImageHostingRepo {
 
     async create(input: CreateImageHostingInput) {
       const id = generateId(13)
-      const token = generateToken(12)
+      const token = generateImageToken()
       const ext = mimeToExt(input.mime)
       const storageKey = `ih/${input.orgId}/${id}.${ext}`
       const now = new Date()

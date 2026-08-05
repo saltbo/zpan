@@ -1,6 +1,7 @@
 Feature: Public redirects
-  Short links resolve public assets by looking up a Base62 token and its stored
-  resource kind. Direct shares stream files, while image-hosting links serve images.
+  Short links validate a 12-character namespaced Base62 token before lookup.
+  Tokens starting with s select shares and tokens starting with i select images.
+  Direct shares stream files, while image-hosting links serve images.
   Both meter traffic quota (refunding on failure), and images enforce the referer allowlist.
 
   @redirect/direct-share @api
@@ -11,7 +12,7 @@ Feature: Public redirects
 
   @redirect/unknown-ds-token @api
   Scenario: An unknown direct-share token is not found
-    Given an unknown Base62 direct-share token
+    Given an unknown s-prefixed direct-share token
     When the link is followed
     Then the API responds 404
 
@@ -53,7 +54,7 @@ Feature: Public redirects
 
   @redirect/unknown-ih-token @api
   Scenario: An unknown image token is not found
-    Given an unknown Base62 image token
+    Given an unknown i-prefixed image token
     When the link is followed
     Then the API responds 404
 

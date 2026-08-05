@@ -1,7 +1,7 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
-import { BASE62_PATTERN } from '../../shared/ids'
+import { IMAGE_TOKEN_PATTERN, SHARE_TOKEN_PATTERN } from '../../shared/ids'
 import { isDownloadFailureStatus, transferAuditActor, transferFailureReason } from '../middleware/audit-transfers'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
@@ -9,22 +9,22 @@ import {
   type DirectShareOutcome,
   type ImageHostingOutcome,
   resolveDirectShareDownload,
+  resolveDirectShareRedirectTarget,
   resolveImageHostingDownload,
-  resolveRedirectDownloadAuditTarget,
-  resolveRedirectTargetKind,
+  resolveImageHostingRedirectTarget,
 } from '../usecases/redirect'
 import { recordDownloadFailure, recordDownloadIssued } from '../usecases/transfer-activity'
 
-// Strip optional file extension from token (e.g. "ihaB3xK9.png" → "ihaB3xK9")
-function stripExtension(token: string): string {
-  const dot = token.lastIndexOf('.')
-  return dot > 0 ? token.slice(0, dot) : token
-}
+type ParsedRedirectToken = { kind: 'direct_share'; token: string } | { kind: 'image_hosting'; token: string }
 
-function parseRedirectToken(raw: string): string {
-  const token = stripExtension(raw)
-  if (!BASE62_PATTERN.test(token)) throw notFound()
-  return token
+const REDIRECT_TOKEN_PATTERN = /^([si][A-Za-z0-9]{11})(?:\.[A-Za-z0-9]{1,16})?$/
+
+function parseRedirectToken(raw: string): ParsedRedirectToken {
+  const token = REDIRECT_TOKEN_PATTERN.exec(raw)?.[1]
+  if (!token) throw notFound()
+  if (SHARE_TOKEN_PATTERN.test(token)) return { kind: 'direct_share', token }
+  if (IMAGE_TOKEN_PATTERN.test(token)) return { kind: 'image_hosting', token }
+  throw notFound()
 }
 
 const cloudBaseUrl = (c: Context<Env>) => c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
@@ -36,8 +36,10 @@ function presignedRedirect(c: Context<Env>, url: string): Response {
 }
 
 async function handleDirectShare(c: Context<Env>, token: string): Promise<Response> {
+  const { resolved, auditTarget } = await resolveDirectShareRedirectTarget(c.get('deps'), token)
+  c.set('redirectDownloadAuditTarget', auditTarget)
   const outcome: DirectShareOutcome = await resolveDirectShareDownload(c.get('deps'), {
-    token,
+    resolved,
     cloudBaseUrl: cloudBaseUrl(c),
   })
   if (outcome.ok) {
@@ -66,8 +68,10 @@ async function handleDirectShare(c: Context<Env>, token: string): Promise<Respon
 }
 
 async function handleImageHosting(c: Context<Env>, token: string): Promise<Response> {
+  const { resolved, auditTarget } = await resolveImageHostingRedirectTarget(c.get('deps'), token)
+  c.set('redirectDownloadAuditTarget', auditTarget)
   const outcome: ImageHostingOutcome = await resolveImageHostingDownload(c.get('deps'), {
-    token,
+    resolved,
     cloudBaseUrl: cloudBaseUrl(c),
     refererHeader: c.req.header('Referer') ?? null,
     requestOrigin: new URL(c.req.url).origin,
@@ -96,20 +100,16 @@ async function handleImageHosting(c: Context<Env>, token: string): Promise<Respo
 const app = new Hono<Env>()
 
 app.use('/:token', async (c, next) => {
-  const target = await resolveRedirectDownloadAuditTarget(c.get('deps'), parseRedirectToken(c.req.param('token')))
+  c.set('redirectDownloadAuditTarget', null)
   await next()
+  const target = c.get('redirectDownloadAuditTarget')
   if (!target || !isDownloadFailureStatus(c.res.status)) return
   await recordDownloadFailure(c.get('deps'), transferAuditActor(c.get('principal')), target, transferFailureReason(c))
 })
 
 app.get('/:token', async (c) => {
-  const token = parseRedirectToken(c.req.param('token'))
-
-  const kind = await resolveRedirectTargetKind(c.get('deps'), token)
-  if (kind === 'direct_share') return handleDirectShare(c, token)
-  if (kind === 'image_hosting') return handleImageHosting(c, token)
-
-  throw notFound()
+  const parsed = parseRedirectToken(c.req.param('token'))
+  return parsed.kind === 'direct_share' ? handleDirectShare(c, parsed.token) : handleImageHosting(c, parsed.token)
 })
 
 export default app

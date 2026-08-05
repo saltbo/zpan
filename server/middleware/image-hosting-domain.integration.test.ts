@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { generateToken } from '../../shared/ids'
+import { generateImageToken } from '../../shared/ids'
 import { S3Service } from '../adapters/gateways/s3'
 import { currentTrafficPeriod } from '../domain/quota'
 import { authedHeaders, createTestApp } from '../test/setup'
@@ -49,7 +49,7 @@ async function insertImageHosting(db: TestDb, orgId: string, opts: { id: string;
   const now = Date.now()
   await db.run(sql`
     INSERT INTO image_hostings (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
-    VALUES (${opts.id}, ${orgId}, ${generateToken(12)}, ${opts.path}, ${STORAGE_ID}, ${`ih/${orgId}/${opts.id}.png`}, 1024, 'image/png', ${opts.status ?? 'active'}, 0, ${now})
+    VALUES (${opts.id}, ${orgId}, ${generateImageToken()}, ${opts.path}, ${STORAGE_ID}, ${`ih/${orgId}/${opts.id}.png`}, 1024, 'image/png', ${opts.status ?? 'active'}, 0, ${now})
   `)
 }
 

@@ -148,7 +148,7 @@ export {
   errorInfoSchema,
   errorResponseSchema,
 } from './errors'
-export { opaqueIdSchema, opaqueTokenSchema } from './id'
+export { imageTokenSchema, opaqueIdSchema, opaqueTokenSchema, shareTokenSchema } from './id'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
 export type { WorkspaceAuthorizationDetail } from './oauth-authorization'

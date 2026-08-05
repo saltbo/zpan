@@ -3,11 +3,11 @@ import { chmodSync, existsSync, unlinkSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import Database from 'better-sqlite3'
-import { BASE62_PATTERN, generateId, generateToken } from '../shared/ids'
+import { BASE62_PATTERN, generateId, generateImageToken, generateShareToken, generateToken } from '../shared/ids'
 
 const MAP_TABLE = '_zpan_id_normalization_map'
 const STATE_TABLE = '_zpan_id_normalization_state'
-const VALIDATION_VERSION = '1'
+const VALIDATION_VERSION = '2'
 const D1_MAX_STATEMENT_BYTES = 100_000
 const D1_STATEMENT_BUDGET_BYTES = 90_000
 const D1_MAX_COMMANDS = 1_000
@@ -185,7 +185,7 @@ const VALUE_SPECS: ValueSpec[] = [
     'x402_capacity_purchase_intents',
   ].map((table): ValueSpec => ({ kind: table, table, column: 'id', length: 22 })),
   { kind: 'matter_alias', table: 'matters', column: 'alias', length: 11 },
-  { kind: 'share_token', table: 'shares', column: 'token', length: 11, rotateAll: true },
+  { kind: 'share_token', table: 'shares', column: 'token', length: 12, rotateAll: true },
   { kind: 'image_token', table: 'image_hostings', column: 'token', length: 12, rotateAll: true },
   { kind: 'site_invite_token', table: 'site_invitations', column: 'token', length: 33, rotateAll: true },
   { kind: 'team_invite_token', table: 'team_invite_links', column: 'token', length: 32, rotateAll: true },
@@ -627,11 +627,27 @@ function addMappings(db: Database.Database, spec: ValueSpec, values: string[], n
     (db.prepare(`SELECT new_value AS value FROM ${MAP_TABLE}`).all() as Array<{ value: string }>).map(({ value }) => value),
   )
   for (const oldValue of values) {
-    let newValue = spec.column === 'id' ? generateId(spec.length) : generateToken(spec.length)
-    while (used.has(newValue)) newValue = spec.column === 'id' ? generateId(spec.length) : generateToken(spec.length)
+    let newValue = generateMappedValue(spec)
+    while (used.has(newValue)) newValue = generateMappedValue(spec)
     used.add(newValue)
     insert.run(spec.kind, oldValue, newValue, now)
   }
+}
+
+function generateMappedValue(spec: ValueSpec): string {
+  if (spec.kind === 'share_token') return generateShareToken()
+  if (spec.kind === 'image_token') return generateImageToken()
+  return spec.column === 'id' ? generateId(spec.length) : generateToken(spec.length)
+}
+
+function invalidValuePredicate(spec: ValueSpec, column: string, allowEmpty: boolean): string {
+  const invalid =
+    spec.kind === 'share_token'
+      ? `length(${column}) != 12 OR substr(${column}, 1, 1) != 's' OR substr(${column}, 2) GLOB '*[^A-Za-z0-9]*'`
+      : spec.kind === 'image_token'
+        ? `length(${column}) != 12 OR substr(${column}, 1, 1) != 'i' OR substr(${column}, 2) GLOB '*[^A-Za-z0-9]*'`
+        : `${column} = '' OR ${column} GLOB '*[^A-Za-z0-9]*'`
+  return allowEmpty ? `${column} != '' AND (${invalid})` : invalid
 }
 
 function updateColumn(db: Database.Database, spec: ValueSpec, target: Reference): number {
@@ -1067,7 +1083,7 @@ function validate(db: Database.Database, rowCounts: Map<string, number>, invalid
           .prepare(
             `SELECT COUNT(*) AS count FROM ${quoteName(target.table)}
              WHERE ${column} IS NOT NULL
-               AND (${allowEmpty ? `${column} != '' AND ` : ''}(${column} = '' OR ${column} GLOB '*[^A-Za-z0-9]*'))`,
+               AND (${invalidValuePredicate(spec, column, allowEmpty)})`,
           )
           .get() as { count: number }
       ).count
@@ -1129,14 +1145,6 @@ function validate(db: Database.Database, rowCounts: Map<string, number>, invalid
   assertJsonReferencesResolve(db)
   assertStructuredReferencesResolve(db)
 
-  if (tableExists(db, 'shares') && tableExists(db, 'image_hostings')) {
-    const collisions = (
-      db
-        .prepare('SELECT COUNT(*) AS count FROM shares INNER JOIN image_hostings ON image_hostings.token = shares.token')
-        .get() as { count: number }
-    ).count
-    if (collisions > 0) throw new Error(`redirect_token_collision:${collisions}`)
-  }
   return rowCounts.size
 }
 
@@ -1453,7 +1461,7 @@ export function buildD1ApplySql(db: Database.Database): string {
       const column = quoteName(target.column)
       addAssertion(
         `format:${target.table}.${target.column}`,
-        `SELECT COUNT(*) FROM ${quoteName(target.table)} WHERE ${column} IS NOT NULL AND (${allowEmpty ? `${column} != '' AND ` : ''}(${column} = '' OR ${column} GLOB '*[^A-Za-z0-9]*'))`,
+        `SELECT COUNT(*) FROM ${quoteName(target.table)} WHERE ${column} IS NOT NULL AND (${invalidValuePredicate(spec, column, allowEmpty)})`,
       )
     }
   }
@@ -1532,13 +1540,6 @@ export function buildD1ApplySql(db: Database.Database): string {
       `SELECT COUNT(*) FROM object_upload_sessions source WHERE (source.created_by LIKE 'downloader:%' AND NOT EXISTS (SELECT 1 FROM downloaders target WHERE target.id = substr(source.created_by, 12))) OR (source.created_by NOT LIKE 'downloader:%' AND NOT EXISTS (SELECT 1 FROM user target WHERE target.id = source.created_by))`,
     )
   }
-  if (tableExists(db, 'shares') && tableExists(db, 'image_hostings')) {
-    addAssertion(
-      'redirect-token-collision',
-      'SELECT COUNT(*) FROM shares INNER JOIN image_hostings ON image_hostings.token = shares.token',
-    )
-  }
-
   const completedAt = valueFromState(db, 'completed_at')
   statements.push(
     `INSERT INTO ${STATE_TABLE} (key, value) VALUES ('validation_version', ${sqlLiteral(VALIDATION_VERSION)}) ON CONFLICT(key) DO UPDATE SET value = excluded.value;`,

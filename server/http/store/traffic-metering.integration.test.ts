@@ -429,10 +429,10 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-token', 'ihCloudtoken')
+    await insertImage(db, orgId, 'ih-cloud-token', 'i10000000001')
     await insertImageConfig(db, orgId)
 
-    const res = await app.request('/r/ihCloudtoken', { redirect: 'manual' })
+    const res = await app.request('/r/i10000000001', { redirect: 'manual' })
 
     expect(res.status).toBe(302)
     await expect(trafficReports(db)).resolves.toMatchObject([
@@ -448,11 +448,11 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-log-fail', 'ihCloudlogfail')
+    await insertImage(db, orgId, 'ih-cloud-log-fail', 'i10000000002')
     await insertImageConfig(db, orgId)
     vi.spyOn(db, 'run').mockRejectedValue(new Error('access failed'))
 
-    const res = await app.request('/r/ihCloudlogfail', { redirect: 'manual' })
+    const res = await app.request('/r/i10000000002', { redirect: 'manual' })
 
     expect(res.status).toBe(302)
     expect(consoleError).toHaveBeenCalled()
@@ -466,10 +466,10 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-presign-fail', 'ihCloudpresignfail')
+    await insertImage(db, orgId, 'ih-cloud-presign-fail', 'i10000000003')
     await insertImageConfig(db, orgId)
 
-    const res = await app.request('/r/ihCloudpresignfail', { redirect: 'manual' })
+    const res = await app.request('/r/i10000000003', { redirect: 'manual' })
 
     expect(res.status).toBe(500)
     expect(fetch).not.toHaveBeenCalled()

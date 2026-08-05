@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { generateId, generateToken } from '../../../shared/ids.js'
+import { generateId, generateImageToken, generateToken } from '../../../shared/ids.js'
 import { S3Service } from '../../adapters/gateways/s3.js'
 import { authedHeaders, createTestApp } from '../../test/setup.js'
 import { confirmImageHosting, deleteImageHosting } from '../../usecases/image-hosting/images.js'
@@ -109,7 +109,7 @@ async function insertImageHosting(
   } = {},
 ) {
   const id = opts.id ?? generateId(13)
-  const token = generateToken(12)
+  const token = generateImageToken()
   const path = opts.path ?? `test/image-${nanoid(4)}.png`
   const status = opts.status ?? 'active'
   const size = opts.size ?? 1024
@@ -310,7 +310,7 @@ describe('POST /api/image-hosting/images/presign (JSON two-stage)', () => {
     const body = (await res.json()) as Record<string, unknown>
     expect(body.uploadUrl).toBe('https://presigned-upload.example.com')
     expect(body.id).toBeTruthy()
-    expect(String(body.token)).toMatch(/^[A-Za-z0-9]{12}$/)
+    expect(String(body.token)).toMatch(/^i[A-Za-z0-9]{11}$/)
     expect(body.path).toBe('blog/2026/shot.png')
     expect(String(body.storageKey)).toMatch(/^ih\//)
   })
@@ -1371,7 +1371,7 @@ describe('image-hosting usecase — direct calls', () => {
     )
 
     const id = generateId(13)
-    const token = generateToken(12)
+    const token = generateImageToken()
     await db.run(sql`
       INSERT INTO image_hostings (id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at)
       VALUES (${id}, ${orgId}, ${token}, 'sz0.png', 'st1', 'ih/x/y.png', 0, 'image/png', 'draft', 0, ${now})

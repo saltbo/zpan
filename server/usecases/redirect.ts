@@ -1,17 +1,20 @@
 // The redirect resource usecase owns every business decision behind the
-// /r/:token short-link download route. Tokens are opaque: resolution comes from
-// persisted resource kind, never token syntax.
+// /r/:token short-link download route. The HTTP boundary selects the resource
+// namespace from the token prefix and passes the one resolved record through
+// download and audit handling.
 import {
   type AppError,
   expired as expiredError,
   forbidden,
   type ImageHostingRepo,
+  type ImageResolution,
   insufficientCredits,
   notFound,
   type QuotaRepo,
   quotaExceeded,
   type S3Gateway,
   type ShareRepo,
+  type ShareResolution,
   type StorageRepo,
   storageNotFound,
 } from './ports'
@@ -35,31 +38,8 @@ export type RedirectDeps = CloudTrafficMeteringDeps & {
   imageHosting: ImageHostingRepo
 }
 
-export type RedirectTargetKind = 'direct_share' | 'image_hosting' | 'not_found' | 'ambiguous'
-
-export async function resolveRedirectTargetKind(
-  deps: Pick<RedirectDeps, 'share' | 'imageHosting'>,
-  token: string,
-): Promise<RedirectTargetKind> {
-  const [share, image] = await Promise.all([
-    deps.share.resolveByToken(token),
-    deps.imageHosting.resolveActiveByToken(token),
-  ])
-  const isDirectShare = (share.status === 'ok' || share.status === 'matter_trashed') && share.share.kind === 'direct'
-  if (isDirectShare && image) return 'ambiguous'
-  if (isDirectShare) return 'direct_share'
-  if (image) return 'image_hosting'
-  return 'not_found'
-}
-
-export async function resolveRedirectDownloadAuditTarget(
-  deps: Pick<RedirectDeps, 'share' | 'imageHosting'>,
-  token: string,
-): Promise<TransferAuditTarget | null> {
-  const kind = await resolveRedirectTargetKind(deps, token)
-  if (kind === 'direct_share') {
-    const resolved = await deps.share.resolveByToken(token)
-    if (resolved.status !== 'ok' || resolved.share.kind !== 'direct') return null
+export function directShareDownloadAuditTarget(resolved: ShareResolution): TransferAuditTarget | null {
+  if (resolved.status === 'ok' && resolved.share.kind === 'direct') {
     return {
       orgId: resolved.share.orgId,
       targetType: 'share',
@@ -74,10 +54,11 @@ export async function resolveRedirectDownloadAuditTarget(
       },
     }
   }
+  return null
+}
 
-  if (kind === 'image_hosting') {
-    const resolved = await deps.imageHosting.resolveActiveByToken(token)
-    if (!resolved) return null
+export function imageHostingDownloadAuditTarget(resolved: ImageResolution | null): TransferAuditTarget | null {
+  if (resolved) {
     return {
       orgId: resolved.image.orgId,
       targetType: 'image',
@@ -88,8 +69,23 @@ export async function resolveRedirectDownloadAuditTarget(
       metadata: { imageId: resolved.image.id, storageId: resolved.image.storageId },
     }
   }
-
   return null
+}
+
+export async function resolveDirectShareRedirectTarget(
+  deps: Pick<RedirectDeps, 'share'>,
+  token: string,
+): Promise<{ resolved: ShareResolution; auditTarget: TransferAuditTarget | null }> {
+  const resolved = await deps.share.resolveByToken(token)
+  return { resolved, auditTarget: directShareDownloadAuditTarget(resolved) }
+}
+
+export async function resolveImageHostingRedirectTarget(
+  deps: Pick<RedirectDeps, 'imageHosting'>,
+  token: string,
+): Promise<{ resolved: ImageResolution | null; auditTarget: TransferAuditTarget | null }> {
+  const resolved = await deps.imageHosting.resolveActiveByToken(token)
+  return { resolved, auditTarget: imageHostingDownloadAuditTarget(resolved) }
 }
 
 // ─── Direct share ────────────────────────────────────────────────────────────
@@ -116,10 +112,10 @@ export type DirectShareOutcome =
 // before the error propagates (→ 500 at the http layer).
 export async function resolveDirectShareDownload(
   deps: RedirectDeps,
-  params: { token: string; cloudBaseUrl: string; now?: Date },
+  params: { resolved: ShareResolution; cloudBaseUrl: string; now?: Date },
 ): Promise<DirectShareOutcome> {
   const now = params.now ?? new Date()
-  const resolved = await deps.share.resolveByToken(params.token)
+  const resolved = params.resolved
   if (resolved.status !== 'ok') {
     if (resolved.status === 'matter_trashed') return { ok: false, error: expiredError('File no longer available') }
     return { ok: false, error: notFound('Share not found or revoked') }
@@ -224,9 +220,14 @@ export type ImageHostingOutcome =
 // the rejection paths.
 export async function resolveImageHostingDownload(
   deps: RedirectDeps,
-  params: { token: string; cloudBaseUrl: string; refererHeader: string | null; requestOrigin: string },
+  params: {
+    resolved: ImageResolution | null
+    cloudBaseUrl: string
+    refererHeader: string | null
+    requestOrigin: string
+  },
 ): Promise<ImageHostingOutcome> {
-  const resolved = await deps.imageHosting.resolveActiveByToken(params.token)
+  const resolved = params.resolved
   if (!resolved) return { ok: false, error: notFound() }
 
   const { image, refererAllowlist } = resolved

@@ -68,7 +68,7 @@ export const webdavLocks = sqliteTable(
   'webdav_locks',
   {
     id: text('id').primaryKey(),
-    token: text('token').notNull().unique(),
+    token: text('token').notNull().unique(), // WebDAV opaquelocktoken URI value
     orgId: text('org_id').notNull(),
     resourcePath: text('resource_path').notNull(),
     owner: text('owner').notNull().default(''),
@@ -687,7 +687,7 @@ export const imageHostings = sqliteTable(
     orgId: text('org_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
-    token: text('token').notNull().unique(), // 12-character Base62 public token
+    token: text('token').notNull().unique(), // i + 11 random Base62 characters
     path: text('path').notNull(), // virtual path e.g. "blog/2026/04/shot.png"
     storageId: text('storage_id')
       .notNull()

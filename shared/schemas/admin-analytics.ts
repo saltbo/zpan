@@ -1,5 +1,5 @@
 import { z } from '@hono/zod-openapi'
-import { opaqueIdSchema, opaqueTokenSchema } from './id'
+import { opaqueIdSchema, shareTokenSchema } from './id'
 
 const n = z.number()
 const ni = z.number().int()
@@ -227,7 +227,7 @@ export const adminAnalyticsSharingSchema = z
     topShares: z.array(
       z.object({
         id: opaqueIdSchema,
-        token: opaqueTokenSchema,
+        token: shareTokenSchema,
         name: z.string(),
         creatorId: opaqueIdSchema,
         creatorName: z.string(),

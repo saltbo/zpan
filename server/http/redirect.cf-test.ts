@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+import { generateImageToken } from '../../shared/ids'
 import { S3Service } from '../adapters/gateways/s3'
 import { createShareRepo } from '../adapters/repos/share'
 import { createApp } from '../app'
@@ -114,7 +115,7 @@ describe('[CF] /r/:token image hosting', () => {
     const { app, db } = await buildApp()
     const { orgId } = await signUpAndGetIds(app, db)
     await insertStorage(db)
-    const token = `ihcf${Date.now()}`
+    const token = generateImageToken()
     await insertImageHosting(db, orgId, { id: `cfih${Date.now()}`, token })
 
     const res = await app.request(`/r/${token}`, { redirect: 'manual' })
@@ -129,7 +130,7 @@ describe('[CF] /r/:token image hosting', () => {
     const { app, db } = await buildApp()
     const { orgId } = await signUpAndGetIds(app, db)
     await insertStorage(db)
-    const token = `ihcfext${Date.now()}`
+    const token = generateImageToken()
     await insertImageHosting(db, orgId, { id: `cfihext${Date.now()}`, token })
 
     const res = await app.request(`/r/${token}.jpg`, { redirect: 'manual' })

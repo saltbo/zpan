@@ -49,7 +49,7 @@ vi.mock('./save-to-drive-dialog', () => ({
 }))
 
 const share: ShareView = {
-  token: 'share-token',
+  token: 'sShareTok001',
   kind: 'landing',
   status: 'active',
   expiresAt: null,
@@ -104,7 +104,7 @@ describe('public share landing', () => {
 
     expect(screen.getAllByRole('link', { name: 'Alice' })[0].getAttribute('href')).toBe('/u/alice')
     expect(screen.getByRole('link', { name: /share.downloadFile/ }).getAttribute('href')).toContain(
-      '/api/shares/share-token/objects/root-ref',
+      '/api/shares/sShareTok001/objects/root-ref',
     )
     expect(screen.queryByRole('button', { name: /share.saveToDrive/ })).toBeNull()
   })
@@ -130,14 +130,14 @@ describe('public share landing', () => {
     expect(await screen.findByRole('heading', { name: 'Folder guide' })).toBeTruthy()
     expect(screen.getByText('Welcome.')).toBeTruthy()
     expect(screen.queryByText('share.information')).toBeNull()
-    expect(getShareReadme).toHaveBeenCalledWith('share-token')
+    expect(getShareReadme).toHaveBeenCalledWith('sShareTok001')
   })
 
   it('hides the README region from other visitors when the folder has no README', async () => {
     vi.mocked(getShareReadme).mockRejectedValue(notFoundError)
     renderLanding(folderShare)
 
-    await waitFor(() => expect(getShareReadme).toHaveBeenCalledWith('share-token'))
+    await waitFor(() => expect(getShareReadme).toHaveBeenCalledWith('sShareTok001'))
     expect(screen.queryByRole('heading', { name: 'README.md' })).toBeNull()
     expect(screen.queryByText('share.readmeOwnerHint')).toBeNull()
   })
