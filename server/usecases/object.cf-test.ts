@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers'
-import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirType } from '../../shared/constants'
+import { generateId } from '../../shared/ids'
 import type { CreateShareInput } from '../../shared/schemas/share'
 import { S3Service } from '../adapters/gateways/s3'
 import { createAuditRepo } from '../adapters/repos/audit'
@@ -46,9 +46,9 @@ async function seedStorage(db: ReturnType<typeof buildDb>, id: string) {
 
 async function seedStorageQuota(db: ReturnType<typeof buildDb>, orgId: string, bytes = 10_000_000) {
   const now = new Date()
-  await db.insert(orgQuotas).values({ id: nanoid(), orgId, quota: bytes })
+  await db.insert(orgQuotas).values({ id: generateId(), orgId, quota: bytes })
   await db.insert(orgQuotaEntitlements).values({
-    id: nanoid(),
+    id: generateId(),
     orgId,
     resourceType: 'storage',
     entitlementType: 'plan',
@@ -67,15 +67,15 @@ async function seedStorageQuota(db: ReturnType<typeof buildDb>, orgId: string, b
 async function seedMatter(db: ReturnType<typeof buildDb>, orgId: string, dirtype = DirType.FILE) {
   const now = new Date()
   const matter = {
-    id: nanoid(),
+    id: generateId(),
     orgId,
-    alias: nanoid(10),
-    name: `cf-file-${nanoid(6)}.pdf`,
+    alias: generateId(10),
+    name: `cf-file-${generateId(6)}.pdf`,
     type: dirtype !== DirType.FILE ? 'folder' : 'application/pdf',
     size: 1024,
     dirtype,
     parent: '',
-    object: dirtype !== DirType.FILE ? '' : `objects/${nanoid()}.pdf`,
+    object: dirtype !== DirType.FILE ? '' : `objects/${generateId()}.pdf`,
     storageId: 'cf-storage-1',
     status: 'active',
     trashedAt: null,
@@ -91,14 +91,14 @@ async function seedMatter(db: ReturnType<typeof buildDb>, orgId: string, dirtype
 describe('[CF] resolveShareByToken', () => {
   it('returns ok for an active landing share', async () => {
     const db = buildDb()
-    const orgId = `org-${nanoid(6)}`
+    const orgId = generateId()
     await seedStorage(db, 'cf-storage-1')
     const matter = await seedMatter(db, orgId)
 
     const share = await createShare(db, {
       matterId: matter.id,
       orgId,
-      creatorId: 'cf-user-1',
+      creatorId: 'cfUser1',
       kind: 'landing',
     })
 
@@ -110,12 +110,12 @@ describe('[CF] resolveShareByToken', () => {
 
   it('returns revoked when share is revoked', async () => {
     const db = buildDb()
-    const orgId = `org-${nanoid(6)}`
+    const orgId = generateId()
     await seedStorage(db, 'cf-storage-1')
     const matter = await seedMatter(db, orgId)
 
-    const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'cf-user-2', kind: 'landing' })
-    await revokeShareByToken(db, share.token, 'cf-user-2')
+    const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'cfUser2', kind: 'landing' })
+    await revokeShareByToken(db, share.token, 'cfUser2')
 
     const result = await resolveShareByToken(db, share.token)
     expect(result.status).toBe('revoked')
@@ -123,11 +123,11 @@ describe('[CF] resolveShareByToken', () => {
 
   it('returns matter_trashed when matter is trashed', async () => {
     const db = buildDb()
-    const orgId = `org-${nanoid(6)}`
+    const orgId = generateId()
     await seedStorage(db, 'cf-storage-1')
     const matter = await seedMatter(db, orgId)
 
-    const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'cf-user-3', kind: 'landing' })
+    const share = await createShare(db, { matterId: matter.id, orgId, creatorId: 'cfUser3', kind: 'landing' })
     // Trash = active row with trashedAt set (no 'trashed' status).
     await db.run(`UPDATE matters SET trashed_at = ${Date.now()} WHERE id = '${matter.id}'`)
 
@@ -146,20 +146,20 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
 
   it('saves a single file to the target org on D1', async () => {
     const db = buildDb()
-    const srcOrgId = `src-${nanoid(6)}`
-    const dstOrgId = `dst-${nanoid(6)}`
+    const srcOrgId = generateId()
+    const dstOrgId = generateId()
     await seedStorage(db, 'cf-storage-1')
     await seedStorageQuota(db, dstOrgId)
 
     const matter = await seedMatter(db, srcOrgId)
-    const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'cf-u1', kind: 'landing' })
+    const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'cfU1', kind: 'landing' })
 
     if (share.status === 'revoked') throw new Error('test setup failed')
 
     const result = await saveShareToDrive(db, {
       share,
       matter,
-      currentUserId: 'cf-u2',
+      currentUserId: 'cfU2',
       targetOrgId: dstOrgId,
       targetParent: '',
     })
@@ -168,17 +168,18 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     expect(result.skipped).toHaveLength(0)
     expect(result.saved[0].orgId).toBe(dstOrgId)
     expect(result.saved[0].status).toBe('active')
+    expect(result.saved[0].object).toMatch(new RegExp(`^${dstOrgId}/cfU2/\\d{8}/[A-Za-z0-9]{17}\\.pdf$`))
   })
 
   it('does not increment downloads counter after save', async () => {
     const db = buildDb()
-    const srcOrgId = `src-${nanoid(6)}`
-    const dstOrgId = `dst-${nanoid(6)}`
+    const srcOrgId = generateId()
+    const dstOrgId = generateId()
     await seedStorage(db, 'cf-storage-1')
     await seedStorageQuota(db, dstOrgId)
 
     const matter = await seedMatter(db, srcOrgId)
-    const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'cf-u3', kind: 'landing' })
+    const share = await createShare(db, { matterId: matter.id, orgId: srcOrgId, creatorId: 'cfU3', kind: 'landing' })
 
     if (share.status === 'revoked') throw new Error('test setup failed')
     const downloadsBefore = share.downloads
@@ -186,7 +187,7 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     await saveShareToDrive(db, {
       share,
       matter,
-      currentUserId: 'cf-u4',
+      currentUserId: 'cfU4',
       targetOrgId: dstOrgId,
       targetParent: '',
     })
@@ -203,17 +204,17 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
 
   it('recursively saves a folder tree on D1', async () => {
     const db = buildDb()
-    const srcOrgId = `src-${nanoid(6)}`
-    const dstOrgId = `dst-${nanoid(6)}`
+    const srcOrgId = generateId()
+    const dstOrgId = generateId()
     await seedStorage(db, 'cf-storage-1')
     await seedStorageQuota(db, dstOrgId)
 
     // Create folder structure
     const now = new Date()
     const folder = {
-      id: nanoid(),
+      id: generateId(),
       orgId: srcOrgId,
-      alias: nanoid(10),
+      alias: generateId(10),
       name: 'cf-album',
       type: 'folder',
       size: 0,
@@ -229,15 +230,15 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     await db.insert(matters).values(folder)
 
     const file1 = {
-      id: nanoid(),
+      id: generateId(),
       orgId: srcOrgId,
-      alias: nanoid(10),
+      alias: generateId(10),
       name: 'photo1.jpg',
       type: 'image/jpeg',
       size: 500,
       dirtype: DirType.FILE,
       parent: 'cf-album',
-      object: `objects/${nanoid()}.jpg`,
+      object: `objects/${generateId()}.jpg`,
       storageId: 'cf-storage-1',
       status: 'active',
       trashedAt: null,
@@ -246,14 +247,14 @@ describe('[CF] saveShareToDrive — stream copy via D1', () => {
     }
     await db.insert(matters).values(file1)
 
-    const share = await createShare(db, { matterId: folder.id, orgId: srcOrgId, creatorId: 'cf-u5', kind: 'landing' })
+    const share = await createShare(db, { matterId: folder.id, orgId: srcOrgId, creatorId: 'cfU5', kind: 'landing' })
 
     if (share.status === 'revoked') throw new Error('test setup failed')
 
     const result = await saveShareToDrive(db, {
       share,
       matter: folder,
-      currentUserId: 'cf-u6',
+      currentUserId: 'cfU6',
       targetOrgId: dstOrgId,
       targetParent: '',
     })

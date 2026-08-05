@@ -1,6 +1,6 @@
 import type { BackgroundJob, BackgroundJobStatus } from '@shared/types'
 import { and, count, desc, eq, inArray, lt, or, type SQL, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { generateId } from '../../../shared/ids'
 import { backgroundJobs } from '../../db/schema'
 import { executeWriteTransaction } from '../../db/transaction'
 import type { Database } from '../../platform/interface'
@@ -91,7 +91,7 @@ export function createBackgroundJobRepo(db: Database): BackgroundJobRepo {
     async create(input) {
       const now = new Date()
       const row: typeof backgroundJobs.$inferInsert = {
-        id: nanoid(),
+        id: generateId(),
         orgId: input.orgId,
         userId: input.userId,
         type: input.type,
@@ -239,7 +239,7 @@ export function createBackgroundJobRepo(db: Database): BackgroundJobRepo {
 
       const now = new Date()
       const retry: typeof backgroundJobs.$inferInsert = {
-        id: nanoid(),
+        id: generateId(),
         orgId: row.orgId,
         userId: row.userId,
         type: row.type,

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { nanoid } from 'nanoid'
+import { generateId } from '../shared/ids'
 
 export const PREVIEW_ADMIN_EMAIL = 'admin@zpan.space'
 export const CREDENTIAL_ACCOUNT_ISSUER = 'local:credential'
@@ -100,8 +100,8 @@ credential source. Do not commit or print it.`)
   const sql = buildPreviewAdminSeedSql({
     email: PREVIEW_ADMIN_EMAIL,
     passwordHash: hashPassword(password),
-    userId: `preview-admin-${nanoid(12)}`,
-    accountId: `preview-admin-account-${nanoid(12)}`,
+    userId: generateId(),
+    accountId: generateId(),
     now: Date.now(),
   })
 

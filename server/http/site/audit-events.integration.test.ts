@@ -16,7 +16,7 @@ type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const validStorage = {
-  id: 'st-audit-test',
+  id: 'StAuditTest',
   bucket: 'test-bucket',
   endpoint: 'https://s3.amazonaws.com',
   region: 'us-east-1',
@@ -162,9 +162,9 @@ describe('Object lifecycle audit events', () => {
     await insertStorage(db)
     const orgId = await getPersonalOrgId(db)
 
-    await insertFile(db, orgId, { id: 'src-file', name: 'original.txt' })
+    await insertFile(db, orgId, { id: 'SrcFile', name: 'original.txt' })
 
-    const copyRes = await app.request('/api/objects/src-file/copies', {
+    const copyRes = await app.request('/api/objects/SrcFile/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ parent: '' }),
@@ -184,10 +184,10 @@ describe('Object lifecycle audit events', () => {
     await insertStorage(db)
     const orgId = await getPersonalOrgId(db)
 
-    await insertFile(db, orgId, { id: 'trashed-file', name: 'trashed.txt', trashedAt: Date.now() })
+    await insertFile(db, orgId, { id: 'TrashedFile', name: 'trashed.txt', trashedAt: Date.now() })
 
     // Permanent purge of a trashed root → 204.
-    const deleteRes = await app.request('/api/trash/objects/trashed-file', {
+    const deleteRes = await app.request('/api/trash/objects/TrashedFile', {
       method: 'DELETE',
       headers,
     })
@@ -207,10 +207,10 @@ describe('Object lifecycle audit events', () => {
     await insertStorage(db)
     const orgId = await getPersonalOrgId(db)
 
-    await insertFile(db, orgId, { id: 'trash-file', name: 'file1.txt' })
+    await insertFile(db, orgId, { id: 'TrashFile', name: 'file1.txt' })
 
     // Soft delete moves the live object to trash → 204.
-    const res = await app.request('/api/objects/trash-file', { method: 'DELETE', headers })
+    const res = await app.request('/api/objects/TrashFile', { method: 'DELETE', headers })
     expect(res.status).toBe(204)
 
     const evt = await getLatestActivity(db, 'delete')
@@ -230,12 +230,12 @@ describe('Share lifecycle audit events', () => {
     await insertStorage(db)
     const orgId = await getPersonalOrgId(db)
 
-    await insertFile(db, orgId, { id: 'share-file', name: 'shared.pdf' })
+    await insertFile(db, orgId, { id: 'ShareFile', name: 'shared.pdf' })
 
     const res = await app.request('/api/shares', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matterId: 'share-file', kind: 'landing' }),
+      body: JSON.stringify({ matterId: 'ShareFile', kind: 'landing' }),
     })
     expect(res.status).toBe(201)
 
@@ -257,12 +257,12 @@ describe('Share lifecycle audit events', () => {
     await insertStorage(db)
     const orgId = await getPersonalOrgId(db)
 
-    await insertFile(db, orgId, { id: 'revoke-file', name: 'torevoke.pdf' })
+    await insertFile(db, orgId, { id: 'RevokeFile', name: 'torevoke.pdf' })
 
     const createRes = await app.request('/api/shares', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matterId: 'revoke-file', kind: 'landing' }),
+      body: JSON.stringify({ matterId: 'RevokeFile', kind: 'landing' }),
     })
     const { token } = (await createRes.json()) as { token: string }
 
@@ -551,8 +551,8 @@ describe('Share download audit events', () => {
     await insertStorage(db)
     const orgId = await getPersonalOrgId(db)
     const creatorId = (await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`))[0].id
-    await insertFile(db, orgId, { id: 'dl-audit-1', name: 'report.pdf' })
-    const share = await createShareRepo(db).create({ matterId: 'dl-audit-1', orgId, creatorId, kind: 'landing' })
+    await insertFile(db, orgId, { id: 'DlAudit1', name: 'report.pdf' })
+    const share = await createShareRepo(db).create({ matterId: 'DlAudit1', orgId, creatorId, kind: 'landing' })
 
     // Fetch rootRef from share metadata
     const metaRes = await app.request(`/api/shares/${share.token}`)
@@ -579,8 +579,8 @@ describe('Share download audit events', () => {
     await insertStorage(db)
     const orgId = await getPersonalOrgId(db)
     const creatorId = (await db.all<{ id: string }>(sql`SELECT id FROM user LIMIT 1`))[0].id
-    await insertFile(db, orgId, { id: 'dl-audit-2', name: 'anon.pdf' })
-    const share = await createShareRepo(db).create({ matterId: 'dl-audit-2', orgId, creatorId, kind: 'landing' })
+    await insertFile(db, orgId, { id: 'DlAudit2', name: 'anon.pdf' })
+    const share = await createShareRepo(db).create({ matterId: 'DlAudit2', orgId, creatorId, kind: 'landing' })
 
     const metaRes = await app.request(`/api/shares/${share.token}`)
     const meta = (await metaRes.json()) as { rootRef: string }
@@ -819,7 +819,7 @@ describe('Admin audit API with new event types', () => {
     const orgId = await getPersonalOrgId(db)
 
     // Create a folder (records 'create' event)
-    await insertFile(db, orgId, { id: 'legacy-file', name: 'legacy.txt' })
+    await insertFile(db, orgId, { id: 'LegacyFile', name: 'legacy.txt' })
 
     await app.request('/api/site/audit-events?action=upload', { headers: admin })
     // Upload events come from confirmUpload now but we can still filter on file create

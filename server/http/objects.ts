@@ -7,6 +7,7 @@ import {
   cursorPageQuerySchema,
   cursorPageSchema,
   objectUploadInstructionsSchema,
+  opaqueIdSchema,
   patchMatterSchema,
   presignObjectUploadPartsResponseSchema,
   presignObjectUploadPartsSchema,
@@ -45,8 +46,8 @@ import { decodeOptionalPageToken, directoryCursorCodec, encodeNextPageToken, pag
 // OpenAPI document and SDKs derive the `Matter` model from.
 const matterSchema = z
   .object({
-    id: z.string(),
-    orgId: z.string(),
+    id: opaqueIdSchema,
+    orgId: opaqueIdSchema,
     alias: z.string(),
     name: z.string(),
     type: z.string(),
@@ -56,7 +57,7 @@ const matterSchema = z
       .string()
       .describe('Slash-delimited parent folder path relative to the workspace root; empty for root objects.'),
     object: z.string(),
-    storageId: z.string(),
+    storageId: opaqueIdSchema,
     status: z.string(),
     trashedAt: z.number().int().nullable(),
     createdAt: z.string(),
@@ -156,11 +157,11 @@ const listObjectsQuerySchema = cursorPageQuerySchema.extend({
     .optional(),
   type: z.string().optional(),
   search: z.string().optional(),
-  orgId: z.string().optional(),
+  orgId: opaqueIdSchema.optional(),
 })
 
-const idParam = z.object({ id: z.string() })
-const sessionParams = z.object({ id: z.string(), uploadSessionId: z.string() })
+const idParam = z.object({ id: opaqueIdSchema })
+const sessionParams = z.object({ id: opaqueIdSchema, uploadSessionId: opaqueIdSchema })
 const abortUploadQuerySchema = z.object({
   strictStorageCleanup: z.enum(['1', 'true']).optional(),
 })

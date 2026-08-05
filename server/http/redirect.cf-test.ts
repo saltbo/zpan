@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { sql } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+import { generateImageToken } from '../../shared/ids'
 import { S3Service } from '../adapters/gateways/s3'
 import { createShareRepo } from '../adapters/repos/share'
 import { createApp } from '../app'
@@ -85,9 +86,9 @@ describe('[CF] /r/* routing — Worker handles these paths', () => {
   })
 })
 
-// ─── CF ds_ direct share tests ────────────────────────────────────────────────
+// ─── CF direct share tests ────────────────────────────────────────────────────
 
-describe('[CF] /r/:token ds_ direct shares', () => {
+describe('[CF] /r/:token direct shares', () => {
   it('returns 302 for valid direct share', async () => {
     vi.spyOn(S3Service.prototype, 'presignDownload').mockResolvedValue(MOCK_PRESIGN_URL)
     const { app, db } = await buildApp()
@@ -114,8 +115,8 @@ describe('[CF] /r/:token image hosting', () => {
     const { app, db } = await buildApp()
     const { orgId } = await signUpAndGetIds(app, db)
     await insertStorage(db)
-    const token = `ihcf${Date.now()}`
-    await insertImageHosting(db, orgId, { id: `cf-ih-${Date.now()}`, token })
+    const token = generateImageToken()
+    await insertImageHosting(db, orgId, { id: `cfih${Date.now()}`, token })
 
     const res = await app.request(`/r/${token}`, { redirect: 'manual' })
     expect(res.status).toBe(302)
@@ -124,13 +125,13 @@ describe('[CF] /r/:token image hosting', () => {
     vi.restoreAllMocks()
   })
 
-  it('strips extension from ih_ token and resolves correctly', async () => {
+  it('strips an extension from a Base62 image token and resolves correctly', async () => {
     vi.spyOn(S3Service.prototype, 'presignInline').mockResolvedValue(MOCK_INLINE_URL)
     const { app, db } = await buildApp()
     const { orgId } = await signUpAndGetIds(app, db)
     await insertStorage(db)
-    const token = `ih_cfext${Date.now()}`
-    await insertImageHosting(db, orgId, { id: `cf-ihext-${Date.now()}`, token })
+    const token = generateImageToken()
+    await insertImageHosting(db, orgId, { id: `cfihext${Date.now()}`, token })
 
     const res = await app.request(`/r/${token}.jpg`, { redirect: 'manual' })
     expect(res.status).toBe(302)

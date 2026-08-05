@@ -1,7 +1,7 @@
 import { DirType } from '@shared/constants'
 import type { CreateShareInput } from '@shared/schemas/share'
 import { and, count, desc, eq, isNotNull, isNull, like, lt, or, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { generateId, generateShareToken } from '../../../shared/ids'
 import { user } from '../../db/auth-schema'
 import { matters, shareRecipients, shares } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction } from '../../db/transaction'
@@ -45,9 +45,9 @@ export function createShareRepo(db: Database): ShareRepo {
       if (input.kind === 'direct' && matter.dirtype !== DirType.FILE) throw new CreateShareError('DIRECT_NO_FOLDER')
 
       const now = new Date()
-      const token = input.kind === 'direct' ? `ds_${nanoid(10)}` : nanoid(10)
+      const token = generateShareToken()
       const share: ShareRecord = {
-        id: nanoid(),
+        id: generateId(),
         token,
         kind: input.kind,
         matterId: input.matterId,
@@ -77,7 +77,7 @@ export function createShareRepo(db: Database): ShareRepo {
       ]
       if (input.recipients && input.recipients.length > 0) {
         const recipientRows = input.recipients.map((r) => ({
-          id: nanoid(),
+          id: generateId(),
           shareId: share.id,
           recipientUserId: r.recipientUserId ?? null,
           recipientEmail: r.recipientEmail ?? null,

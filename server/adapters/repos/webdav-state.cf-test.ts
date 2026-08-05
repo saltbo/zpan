@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
+import { generateId } from '../../../shared/ids'
 import { webdavLocks } from '../../db/schema'
 import { createCloudflarePlatform } from '../../platform/cloudflare'
 import { createWebDavStateRepo } from './webdav-state'
@@ -14,7 +14,7 @@ function buildRepo() {
 describe('[CF] WebDAV locks on D1', () => {
   it('matches depth-infinity lock scopes without D1 dynamic LIKE expressions', async () => {
     const { repo } = buildRepo()
-    const orgId = `org-${nanoid(8)}`
+    const orgId = generateId()
     const parent = await repo.createLock({
       orgId,
       resourcePath: 'Folder',
@@ -39,7 +39,7 @@ describe('[CF] WebDAV locks on D1', () => {
 
   it('filters expired locks on reads and removes them during scheduled cleanup', async () => {
     const { db, repo } = buildRepo()
-    const orgId = `org-${nanoid(8)}`
+    const orgId = generateId()
     const expired = await repo.createLock({
       orgId,
       resourcePath: 'expired.txt',
@@ -58,7 +58,7 @@ describe('[CF] WebDAV locks on D1', () => {
 
   it('atomically rejects conflicting lock creation', async () => {
     const { repo } = buildRepo()
-    const orgId = `org-${nanoid(8)}`
+    const orgId = generateId()
     const input = {
       orgId,
       resourcePath: 'Folder/file.txt',
@@ -75,7 +75,7 @@ describe('[CF] WebDAV locks on D1', () => {
 
   it('refreshes and removes a lock only when it applies to the request path', async () => {
     const { repo } = buildRepo()
-    const orgId = `org-${nanoid(8)}`
+    const orgId = generateId()
     const lock = await repo.createLock({
       orgId,
       resourcePath: 'Folder',

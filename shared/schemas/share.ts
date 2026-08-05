@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { opaqueIdSchema } from './id'
 import { cursorPageQuerySchema } from './pagination'
 
 export const shareKindSchema = z.enum(['landing', 'direct'])
@@ -6,22 +7,22 @@ export const shareKindSchema = z.enum(['landing', 'direct'])
 export type ShareKind = z.infer<typeof shareKindSchema>
 
 export const shareRecipientSchema = z.object({
-  recipientUserId: z.string().optional(),
+  recipientUserId: opaqueIdSchema.optional(),
   recipientEmail: z.string().email().optional(),
 })
 
 export const shareRecipientViewSchema = z.object({
-  id: z.string(),
-  shareId: z.string(),
-  recipientUserId: z.string().nullable(),
+  id: opaqueIdSchema,
+  shareId: opaqueIdSchema,
+  recipientUserId: opaqueIdSchema.nullable(),
   recipientEmail: z.string().nullable(),
   createdAt: z.string(),
 })
 
 export const createShareSchema = z.object({
-  matterId: z.string().min(1),
-  orgId: z.string().min(1),
-  creatorId: z.string().min(1),
+  matterId: opaqueIdSchema,
+  orgId: opaqueIdSchema,
+  creatorId: opaqueIdSchema,
   kind: shareKindSchema,
   password: z.string().optional(),
   expiresAt: z.date().optional(),
@@ -38,7 +39,7 @@ export const listSharesQuerySchema = cursorPageQuerySchema.extend({
 })
 
 export const createShareRequestSchema = z.object({
-  matterId: z.string().min(1),
+  matterId: opaqueIdSchema,
   kind: shareKindSchema,
   password: z.string().optional(),
   expiresAt: z.string().datetime({ offset: true }).optional(),
@@ -73,7 +74,7 @@ export const shareReadmeResponseSchema = z.object({
 export type ShareReadmeResponse = z.infer<typeof shareReadmeResponseSchema>
 
 export const saveShareRequestSchema = z.object({
-  targetOrgId: z.string().min(1),
+  targetOrgId: opaqueIdSchema,
   targetParent: z.string().default(''),
   targetSubpath: z.array(z.string()).optional(),
 })

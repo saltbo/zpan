@@ -55,7 +55,7 @@ vi.mock('@/lib/api', () => ({
 function share(overrides: Partial<ShareListItem>): ShareListItem {
   return {
     id: 'share-1',
-    token: 'share-token',
+    token: 'sShareTok001',
     kind: 'landing',
     matterId: 'matter-1',
     orgId: 'org-1',

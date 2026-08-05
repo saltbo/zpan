@@ -2,7 +2,8 @@ import type { CachePolicy, CacheService, ImageHostingRepo } from '../ports'
 
 export const IMAGE_DOMAIN_CACHE_POLICY: CachePolicy<string | null> = {
   namespace: 'image-domain',
-  version: 1,
+  // v2 isolates post-normalization host -> organization values from legacy KV entries.
+  version: 2,
   ttlMs: 60_000,
   negativeTtlMs: 30_000,
   maxEntries: 512,

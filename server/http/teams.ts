@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { pageQuerySchema, pageSchema } from '@shared/schemas'
+import { opaqueIdSchema, opaqueTokenSchema, pageQuerySchema, pageSchema } from '@shared/schemas'
 import type { Env } from '../middleware/platform'
 import {
   type AuditEventWithUser,
@@ -52,11 +52,13 @@ function toInviteLinkInfoDTO(i: InviteLinkInfo): z.infer<typeof inviteLinkInfoSc
   return { ...i, expiresAt: i.expiresAt ? i.expiresAt.toISOString() : null }
 }
 
-const inviteLinkCreatedSchema = z.object({ token: z.string(), expiresAt: z.string() }).openapi('TeamInviteLinkCreated')
+const inviteLinkCreatedSchema = z
+  .object({ token: opaqueTokenSchema, expiresAt: z.string() })
+  .openapi('TeamInviteLinkCreated')
 
 const pendingInvitationSchema = z
   .object({
-    id: z.string(),
+    id: opaqueIdSchema,
     email: z.string(),
     role: z.string(),
     expiresAt: z.string().nullable(),
@@ -72,9 +74,9 @@ const pendingInvitationListSchema = pageSchema(pendingInvitationSchema, 'TeamInv
 
 const activityEventSchema = z
   .object({
-    id: z.string(),
-    orgId: z.string(),
-    userId: z.string().nullable(),
+    id: opaqueIdSchema,
+    orgId: opaqueIdSchema,
+    userId: opaqueIdSchema.nullable(),
     actorType: z.enum(['user', 'api_key', 'oauth', 'agent', 'anonymous', 'system', 'downloader', 'task-upload']),
     actorRef: z.string().nullable(),
     actorIssuer: z.string().nullable(),
@@ -84,7 +86,7 @@ const activityEventSchema = z
     targetName: z.string(),
     metadata: z.string().nullable(),
     createdAt: z.string(),
-    user: z.object({ id: z.string().nullable(), name: z.string(), image: z.string().nullable() }),
+    user: z.object({ id: opaqueIdSchema.nullable(), name: z.string(), image: z.string().nullable() }),
   })
   .openapi('AuditEvent')
 
@@ -96,7 +98,7 @@ const activityPageSchema = pageSchema(activityEventSchema, 'ActivityPage')
 
 const teamSummarySchema = z
   .object({
-    id: z.string(),
+    id: opaqueIdSchema,
     name: z.string(),
     slug: z.string(),
     logo: z.string().nullable(),
@@ -115,7 +117,7 @@ const createLinkSchema = z.object({
   expiresIn: z.number().int().min(1).optional(),
 })
 
-const joinSchema = z.object({ token: z.string().min(1) })
+const joinSchema = z.object({ token: opaqueTokenSchema })
 
 const grantEntitlementSchema = z.object({
   resourceType: z.literal('storage'),
@@ -155,7 +157,7 @@ const inviteLinkInfoRoute = authRoute(
     tags: ['Teams'],
     method: 'get',
     path: '/invite-links/{token}',
-    request: { params: z.object({ token: z.string() }) },
+    request: { params: z.object({ token: opaqueTokenSchema }) },
     responses: {
       200: jsonContent(inviteLinkInfoSchema, 'Invite link info'),
       404: errorResponse('Invalid or expired invite link'),
@@ -178,7 +180,7 @@ const createInviteLinkRoute = authRoute(
     tags: ['Teams'],
     method: 'post',
     path: '/{teamId}/invite-links',
-    request: { params: z.object({ teamId: z.string() }), ...jsonBody(createLinkSchema) },
+    request: { params: z.object({ teamId: opaqueIdSchema }), ...jsonBody(createLinkSchema) },
     responses: {
       201: jsonContent(inviteLinkCreatedSchema, 'Created invite link'),
       403: errorResponse('Forbidden'),
@@ -194,7 +196,7 @@ const listInvitationsRoute = authRoute(
     tags: ['Teams'],
     method: 'get',
     path: '/{teamId}/invitations',
-    request: { params: z.object({ teamId: z.string() }) },
+    request: { params: z.object({ teamId: opaqueIdSchema }) },
     responses: {
       200: jsonContent(pendingInvitationListSchema, 'Pending invitations'),
       403: errorResponse('Forbidden'),
@@ -210,7 +212,7 @@ const joinTeamRoute = authRoute(
     tags: ['Teams'],
     method: 'post',
     path: '/{teamId}/members',
-    request: { params: z.object({ teamId: z.string() }), ...jsonBody(joinSchema) },
+    request: { params: z.object({ teamId: opaqueIdSchema }), ...jsonBody(joinSchema) },
     responses: {
       200: jsonContent(z.object({ ok: z.literal(true) }), 'Joined'),
       404: errorResponse('Invalid invite link'),
@@ -229,7 +231,7 @@ const activityRoute = authRoute(
     method: 'get',
     path: '/{teamId}/activity',
     request: {
-      params: z.object({ teamId: z.string() }),
+      params: z.object({ teamId: opaqueIdSchema }),
       query: pageQuerySchema,
     },
     responses: {
@@ -249,7 +251,7 @@ const setLogoRoute = authRoute(
     path: '/{teamId}/logo',
     // Body is multipart/form-data (a `file` field); parsed directly in the handler
     // rather than via a request schema (the form validator conflicts with formData()).
-    request: { params: z.object({ teamId: z.string() }) },
+    request: { params: z.object({ teamId: opaqueIdSchema }) },
     responses: {
       200: jsonContent(z.object({ url: z.string() }), 'Logo URL'),
       400: errorResponse('Bad request'),
@@ -269,7 +271,7 @@ const deleteLogoRoute = authRoute(
     tags: ['Teams'],
     method: 'delete',
     path: '/{teamId}/logo',
-    request: { params: z.object({ teamId: z.string() }) },
+    request: { params: z.object({ teamId: opaqueIdSchema }) },
     responses: {
       204: { description: 'Deleted' },
       403: errorResponse('Forbidden'),
@@ -370,7 +372,7 @@ const getTeamRoute = authRoute(
     tags: ['Teams'],
     method: 'get',
     path: '/{teamId}',
-    request: { params: z.object({ teamId: z.string() }) },
+    request: { params: z.object({ teamId: opaqueIdSchema }) },
     responses: {
       200: jsonContent(teamSummarySchema, 'Team'),
       404: errorResponse('Team not found'),
@@ -386,7 +388,7 @@ const listEntitlementsRoute = authRoute(
     tags: ['Teams'],
     method: 'get',
     path: '/{teamId}/entitlements',
-    request: { params: z.object({ teamId: z.string() }) },
+    request: { params: z.object({ teamId: opaqueIdSchema }) },
     responses: {
       200: jsonContent(entitlementListSchema, 'Entitlements'),
       400: errorResponse('Bad request'),
@@ -403,7 +405,7 @@ const grantEntitlementRoute = authRoute(
     tags: ['Teams'],
     method: 'post',
     path: '/{teamId}/entitlements',
-    request: { params: z.object({ teamId: z.string() }), ...jsonBody(grantEntitlementSchema) },
+    request: { params: z.object({ teamId: opaqueIdSchema }), ...jsonBody(grantEntitlementSchema) },
     responses: {
       201: jsonContent(entitlementResultSchema, 'Granted entitlement'),
       400: errorResponse('Bad request'),
@@ -420,7 +422,10 @@ const updateEntitlementRoute = authRoute(
     tags: ['Teams'],
     method: 'patch',
     path: '/{teamId}/entitlements/{eid}',
-    request: { params: z.object({ teamId: z.string(), eid: z.string() }), ...jsonBody(updateEntitlementSchema) },
+    request: {
+      params: z.object({ teamId: opaqueIdSchema, eid: opaqueIdSchema }),
+      ...jsonBody(updateEntitlementSchema),
+    },
     responses: {
       200: jsonContent(entitlementResultSchema, 'Updated entitlement'),
       400: errorResponse('Bad request'),
@@ -437,7 +442,7 @@ const revokeEntitlementRoute = authRoute(
     tags: ['Teams'],
     method: 'delete',
     path: '/{teamId}/entitlements/{eid}',
-    request: { params: z.object({ teamId: z.string(), eid: z.string() }) },
+    request: { params: z.object({ teamId: opaqueIdSchema, eid: opaqueIdSchema }) },
     responses: {
       204: { description: 'Revoked entitlement' },
       400: errorResponse('Bad request'),

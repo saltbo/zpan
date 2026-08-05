@@ -24,6 +24,7 @@ export type Env = {
     webDavMountPath: WebDavMountPath
     webDavTrace: string[]
     webDavDownloadAuditTarget: TransferAuditTarget | null
+    redirectDownloadAuditTarget: TransferAuditTarget | null
     webDavResolvedPutTarget: WebDavTarget | null
     webDavUploadAuditTarget: TransferAuditTarget | null
     webDavLocksByResource: Map<string, DavLock[]>

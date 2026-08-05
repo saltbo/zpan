@@ -1,17 +1,18 @@
 Feature: Public redirects
-  Short links resolve public assets: a direct-share token (ds_) streams a shared
-  file, and an image-hosting token (ih_) serves a hosted image. Both meter traffic
-  quota (refunding on failure) and enforce the image referer allowlist.
+  Short links validate a 12-character namespaced Base62 token before lookup.
+  Tokens starting with s select shares and tokens starting with i select images.
+  Direct shares stream files, while image-hosting links serve images.
+  Both meter traffic quota (refunding on failure), and images enforce the referer allowlist.
 
   @redirect/direct-share @api
   Scenario: A valid direct-share link redirects to the file
-    Given a valid ds_ token
+    Given a valid direct-share token
     When the link is followed
     Then it 302-redirects with attachment disposition and no-store cache
 
   @redirect/unknown-ds-token @api
   Scenario: An unknown direct-share token is not found
-    Given an unknown ds_ token
+    Given an unknown s-prefixed direct-share token
     When the link is followed
     Then the API responds 404
 
@@ -29,7 +30,7 @@ Feature: Public redirects
 
   @redirect/ds-consumes-quota @api
   Scenario: A successful direct share consumes traffic quota
-    Given a valid ds_ token within quota
+    Given a valid direct-share token within quota
     When the link is followed
     Then traffic quota is consumed
 
@@ -41,7 +42,7 @@ Feature: Public redirects
 
   @redirect/image @api
   Scenario: A valid image link serves the image
-    Given a valid ih_ token for an active image
+    Given a valid image token for an active image
     When the link is followed
     Then it 302-redirects with inline disposition and no-store cache
 
@@ -53,7 +54,7 @@ Feature: Public redirects
 
   @redirect/unknown-ih-token @api
   Scenario: An unknown image token is not found
-    Given an unknown ih_ token
+    Given an unknown i-prefixed image token
     When the link is followed
     Then the API responds 404
 

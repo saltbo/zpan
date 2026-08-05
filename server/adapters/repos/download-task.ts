@@ -1,4 +1,5 @@
 import { toDownloadTaskListItem } from '@shared/download-task'
+import { generateId } from '@shared/ids'
 import { downloadTaskRuntimeSchema } from '@shared/schemas'
 import type { DownloadTask, DownloadTaskRuntime } from '@shared/types'
 import {
@@ -87,7 +88,7 @@ function appendStatusEvent(
   },
 ): SQL {
   const appended = sql`json_insert(${events}, '$[#]', json_object(
-    'id', lower(hex(randomblob(16))),
+    'id', ${generateId()},
     'type', 'status_changed',
     'occurredAt', CAST(${input.now.getTime()} AS INTEGER),
     'attempt', CAST(${input.attempt} AS INTEGER),
@@ -122,7 +123,7 @@ function appendErrorEvent(
   },
 ): SQL {
   const appended = sql`json_insert(${events}, '$[#]', json_object(
-    'id', lower(hex(randomblob(16))),
+    'id', ${generateId()},
     'type', 'error_reported',
     'occurredAt', CAST(${input.now.getTime()} AS INTEGER),
     'attempt', CAST(${input.attempt} AS INTEGER),
@@ -143,7 +144,7 @@ function appendErrorEvent(
 
 function appendCleanupEvent(events: SQL, type: 'cleanup_requested' | 'cleanup_completed', now: Date): SQL {
   return sql`json_insert(${events}, '$[#]', json_object(
-    'id', lower(hex(randomblob(16))),
+    'id', ${generateId()},
     'type', ${type},
     'occurredAt', CAST(${now.getTime()} AS INTEGER),
     'attempt', CAST(${downloadTasks.attempt} AS INTEGER),

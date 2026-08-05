@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DirType } from '../../shared/constants'
+import { generateId } from '../../shared/ids'
 import type { CreateShareInput } from '../../shared/schemas/share'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { createMatterRepo } from '../adapters/repos/matter.js'
@@ -21,6 +21,8 @@ import {
   saveShareToDrive as saveShareToDriveUseCase,
 } from './object.js'
 import type { Matter } from './ports'
+
+const nanoid = generateId
 
 const createShare = (db: Database, input: CreateShareInput) => createShareRepo(db).create(input)
 const resolveShareByToken = (db: Database, token: string) => createShareRepo(db).resolveByToken(token)
@@ -569,7 +571,7 @@ describe('POST /api/shares/:token/objects', () => {
 
   it('returns 404 for unknown token', async () => {
     const { app, headers, personalOrgId } = await setup()
-    const res = await app.request('/api/shares/nonexistent-tok/objects', {
+    const res = await app.request('/api/shares/sMissing0001/objects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ targetOrgId: personalOrgId }),
@@ -669,9 +671,9 @@ describe('POST /api/shares/:token/objects', () => {
     const { app, db, share, headers } = await setup()
 
     // Create an org where the current user has viewer role
-    const viewerOrgId = nanoid()
+    const viewerOrgId = generateId()
     await db.run(sql`
-      INSERT INTO organization (id, name, slug, created_at) VALUES (${viewerOrgId}, 'Test Org', ${nanoid()}, ${Date.now()})
+      INSERT INTO organization (id, name, slug, created_at) VALUES (${viewerOrgId}, 'Test Org', ${generateId()}, ${Date.now()})
     `)
 
     // Get user ID
@@ -681,7 +683,7 @@ describe('POST /api/shares/:token/objects', () => {
 
     await db.run(sql`
       INSERT INTO member (id, organization_id, user_id, role, created_at)
-      VALUES (${nanoid()}, ${viewerOrgId}, ${userId}, 'viewer', ${Date.now()})
+      VALUES (${generateId()}, ${viewerOrgId}, ${userId}, 'viewer', ${Date.now()})
     `)
 
     const res = await app.request(`/api/shares/${share.token}/objects`, {
@@ -702,18 +704,18 @@ describe('POST /api/shares/:token/objects', () => {
     const userId: string = sessionData?.user?.id ?? ''
 
     // Create a fresh org with a tight quota (avoids the auto-created personal-org quota)
-    const quotaOrgId = nanoid()
+    const quotaOrgId = generateId()
     await db.run(sql`
       INSERT INTO organization (id, name, slug, created_at)
-      VALUES (${quotaOrgId}, 'Quota Org', ${nanoid()}, ${Date.now()})
+      VALUES (${quotaOrgId}, 'Quota Org', ${generateId()}, ${Date.now()})
     `)
     await db.run(sql`
       INSERT INTO member (id, organization_id, user_id, role, created_at)
-      VALUES (${nanoid()}, ${quotaOrgId}, ${userId}, 'editor', ${Date.now()})
+      VALUES (${generateId()}, ${quotaOrgId}, ${userId}, 'editor', ${Date.now()})
     `)
     // Insert a tight quota row for this org (only 100 bytes allowed)
     await db.insert(orgQuotas).values({
-      id: nanoid(),
+      id: generateId(),
       orgId: quotaOrgId,
       quota: 0,
       used: 0,
@@ -723,7 +725,7 @@ describe('POST /api/shares/:token/objects', () => {
     })
     const now = new Date()
     await db.insert(orgQuotaEntitlements).values({
-      id: nanoid(),
+      id: generateId(),
       orgId: quotaOrgId,
       resourceType: 'storage',
       entitlementType: 'plan',

@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { cursorPageSchema, listNotificationsQuerySchema } from '@shared/schemas'
+import { cursorPageSchema, listNotificationsQuerySchema, opaqueIdSchema } from '@shared/schemas'
 import type { Env } from '../middleware/platform'
 import {
   getUnreadCount,
@@ -19,8 +19,8 @@ import {
 
 const notificationSchema = z
   .object({
-    id: z.string(),
-    userId: z.string(),
+    id: opaqueIdSchema,
+    userId: opaqueIdSchema,
     type: z.string(),
     title: z.string(),
     body: z.string(),
@@ -88,7 +88,7 @@ const markReadRoute = authRoute(
     tags: ['Notifications'],
     method: 'patch',
     path: '/{id}',
-    request: { params: z.object({ id: z.string() }) },
+    request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       204: { description: 'Marked read' },
       404: errorResponse('Not found'),

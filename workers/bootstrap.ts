@@ -7,6 +7,7 @@ import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
 import { createAuth } from '../server/auth'
 import { createDeps } from '../server/composition'
+import { assertNormalizedIdentifiers } from '../server/db/id-normalization'
 import { isPotentialWebDavPublicRequest } from '../server/domain/webdav-public-url'
 import { isHandledError, standaloneJsonError } from '../server/middleware/error-handler'
 import { handleImageHostingDomainRequest } from '../server/middleware/image-hosting-domain'
@@ -45,6 +46,7 @@ interface WorkerRuntime {
   authBySlot: Map<AuthSlot, Auth>
   appBySlot: Map<AuthSlot, ReturnType<typeof createApp>>
   appInitBySlot: Map<AuthSlot, Promise<ReturnType<typeof createApp>>>
+  idNormalizationCheck: Promise<void>
 }
 
 let cachedRuntime: WorkerRuntime | undefined
@@ -73,6 +75,7 @@ function runtimeFor(env: Env): WorkerRuntime {
     authBySlot: new Map(),
     appBySlot: new Map(),
     appInitBySlot: new Map(),
+    idNormalizationCheck: assertNormalizedIdentifiers(platform.db),
   }
   return cachedRuntime
 }
@@ -83,6 +86,7 @@ async function appForRequest(
   env: Env,
 ): Promise<ReturnType<typeof createApp>> {
   const origin = new URL(request.url).origin
+  await runtime.idNormalizationCheck
   const webDavRequest = isPotentialWebDavPublicRequest(request.url)
   const inferredOrigin = origin
   const baseURL = env.BETTER_AUTH_URL || inferredOrigin
@@ -121,6 +125,7 @@ export default {
       throw new Error('BETTER_AUTH_SECRET is not configured for this deployment.')
     }
     const runtime = runtimeFor(env)
+    await runtime.idNormalizationCheck
     const imageDomainResponse = await handleImageDomainBeforeAuth(request, env, runtime)
     if (imageDomainResponse) return imageDomainResponse
     const edgeCached = await matchConfigzResponseCache(request, runtime.cache)
@@ -142,12 +147,14 @@ export default {
   },
 
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    await runtimeFor(env).idNormalizationCheck
     await handleScheduled(event, env)
   },
 
   async queue(batch: MessageBatch<ArchiveJobMessage>, env: Env): Promise<void> {
-    const platform = createCloudflarePlatform(env)
-    const archiveJobs = createArchiveJobsGateway(platform)
+    const runtime = runtimeFor(env)
+    await runtime.idNormalizationCheck
+    const archiveJobs = createArchiveJobsGateway(runtime.platform)
     for (const message of batch.messages) {
       await archiveJobs.runMessage(message.body)
       message.ack()

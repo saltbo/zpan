@@ -3474,7 +3474,7 @@ describe('api', () => {
     it('calls POST /api/image-hosting/images/presign with JSON body', async () => {
       const draft = {
         id: 'd1',
-        token: 'ih_abc',
+        token: 'iImageTok001',
         path: 'foo/bar.png',
         uploadUrl: 'https://s3/...',
         storageKey: 'ih/...',
@@ -3495,7 +3495,7 @@ describe('api', () => {
     it('resolves with draft object', async () => {
       const draft = {
         id: 'd1',
-        token: 'ih_abc',
+        token: 'iImageTok001',
         path: 'foo/bar.png',
         uploadUrl: 'https://s3/...',
         storageKey: 'ih/...',
@@ -3529,7 +3529,7 @@ describe('api', () => {
     })
 
     it('resolves with confirmed image', async () => {
-      const image = { id: 'img-1', status: 'active', token: 'ih_x' }
+      const image = { id: 'img-1', status: 'active', token: 'iImageTok00X' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(image))
 
       const result = await confirmIhostImage('img-1')

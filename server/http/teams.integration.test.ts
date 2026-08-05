@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { generateId } from '../../shared/ids.js'
 import { createTeamInviteRepo } from '../adapters/repos/team-invite.js'
 import * as authSchema from '../db/auth-schema.js'
 import { createTestApp, seedBusinessLicense } from '../test/setup.js'
@@ -9,7 +10,7 @@ type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
 
 async function insertUser(db: TestDb, overrides: Partial<{ id: string; email: string }> = {}) {
-  const id = overrides.id ?? nanoid()
+  const id = overrides.id ?? generateId()
   await db.insert(authSchema.user).values({
     id,
     name: 'Test User',
@@ -22,7 +23,7 @@ async function insertUser(db: TestDb, overrides: Partial<{ id: string; email: st
 }
 
 async function insertOrg(db: TestDb, overrides: Partial<{ id: string; name: string }> = {}) {
-  const id = overrides.id ?? nanoid()
+  const id = overrides.id ?? generateId()
   await db.insert(authSchema.organization).values({
     id,
     name: overrides.name ?? 'Test Org',
@@ -34,7 +35,7 @@ async function insertOrg(db: TestDb, overrides: Partial<{ id: string; name: stri
 
 async function insertMember(db: TestDb, organizationId: string, userId: string, role = 'owner') {
   await db.insert(authSchema.member).values({
-    id: nanoid(),
+    id: generateId(),
     organizationId,
     userId,
     role,
@@ -168,7 +169,7 @@ describe('GET /api/teams/:teamId/invitations', () => {
 describe('POST /api/teams/:teamId/members', () => {
   it('returns 401 without auth', async () => {
     const { app } = await createTestApp()
-    const res = await app.request('/api/teams/some-team/members', {
+    const res = await app.request('/api/teams/SomeTeam1/members', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: 'some-token' }),
@@ -181,10 +182,10 @@ describe('POST /api/teams/:teamId/members', () => {
     const email = `joiner-${nanoid()}@example.com`
     const { headers } = await signUpAndGetUser(app, email)
 
-    const res = await app.request('/api/teams/some-team/members', {
+    const res = await app.request('/api/teams/SomeTeam1/members', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: 'invalid-token' }),
+      body: JSON.stringify({ token: 'InvalidToken1' }),
     })
     expect(res.status).toBe(404)
   })
@@ -296,10 +297,10 @@ describe('GET /api/teams/:teamId/activity — access control', () => {
     // Create a non-personal team org and add only user1 as a member
     const now = Date.now()
     await db.run(
-      sql`INSERT INTO organization (id, name, slug, metadata, created_at) VALUES ('team-org-1', 'Team One', 'team-one', '{"type":"team"}', ${now})`,
+      sql`INSERT INTO organization (id, name, slug, metadata, created_at) VALUES ('TeamOrg1', 'Team One', 'team-one', '{"type":"team"}', ${now})`,
     )
     await db.run(
-      sql`INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES ('mem-1', 'team-org-1', ${userId1}, 'owner', ${now})`,
+      sql`INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES ('Member1', 'TeamOrg1', ${userId1}, 'owner', ${now})`,
     )
 
     // Sign up user2 (not a member of the team org) and try to access it
@@ -308,7 +309,7 @@ describe('GET /api/teams/:teamId/activity — access control', () => {
     // Suppress unused variable warning
     void headers1
 
-    const res = await app.request('/api/teams/team-org-1/activity', { headers: headers2 })
+    const res = await app.request('/api/teams/TeamOrg1/activity', { headers: headers2 })
     expect(res.status).toBe(403)
   })
 
@@ -353,13 +354,13 @@ describe('GET /api/teams/:teamId/activity — access control', () => {
 
     const now = Date.now()
     await db.run(
-      sql`INSERT INTO organization (id, name, slug, metadata, created_at) VALUES ('team-org-2', 'My Team', 'my-team', '{"type":"team"}', ${now})`,
+      sql`INSERT INTO organization (id, name, slug, metadata, created_at) VALUES ('TeamOrg2', 'My Team', 'my-team', '{"type":"team"}', ${now})`,
     )
     await db.run(
-      sql`INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES ('mem-t2', 'team-org-2', ${userId}, 'member', ${now})`,
+      sql`INSERT INTO member (id, organization_id, user_id, role, created_at) VALUES ('MemberT2', 'TeamOrg2', ${userId}, 'member', ${now})`,
     )
 
-    const res = await app.request('/api/teams/team-org-2/activity', { headers })
+    const res = await app.request('/api/teams/TeamOrg2/activity', { headers })
     expect(res.status).toBe(200)
   })
 })
@@ -964,12 +965,12 @@ describe('Admin Teams API', () => {
   it('returns a single team detail [spec: teams-admin/detail]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    await seedTeam(db, { id: 'team-x', name: 'Detail', quota: 10485760 })
+    await seedTeam(db, { id: 'TeamX', name: 'Detail', quota: 10485760 })
 
-    const res = await app.request('/api/teams/team-x', { headers })
+    const res = await app.request('/api/teams/TeamX', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { id: string; name: string; quotaTotal: number }
-    expect(body.id).toBe('team-x')
+    expect(body.id).toBe('TeamX')
     expect(body.name).toBe('Detail')
     expect(body.quotaTotal).toBe(10485760)
   })
@@ -995,19 +996,19 @@ describe('Admin Team Entitlements API', () => {
   it('grants, lists, and revokes a storage entitlement for a team [spec: teams-admin/entitlement-lifecycle]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    await seedTeam(db, { id: 'team-q1', name: 'Quota Team' })
+    await seedTeam(db, { id: 'TeamQ1', name: 'Quota Team' })
 
-    const grant = await app.request('/api/teams/team-q1/entitlements', {
+    const grant = await app.request('/api/teams/TeamQ1/entitlements', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'storage', bytes: 1024, note: 'starter' }),
     })
     expect(grant.status).toBe(201)
     const granted = (await grant.json()) as { orgId: string; entitlement: { id: string; bytes: number } }
-    expect(granted.orgId).toBe('team-q1')
+    expect(granted.orgId).toBe('TeamQ1')
     expect(granted.entitlement.bytes).toBe(1024)
 
-    const list = await app.request('/api/teams/team-q1/entitlements', { headers })
+    const list = await app.request('/api/teams/TeamQ1/entitlements', { headers })
     expect(list.status).toBe(200)
     const listed = (await list.json()) as { items: Array<{ id: string; status: string }> }
     expect(listed.items).toHaveLength(1)
@@ -1016,14 +1017,14 @@ describe('Admin Team Entitlements API', () => {
     // Effective quota (overview endpoint) reflects the grant
     const quotas = await app.request('/api/quotas', { headers })
     const quotasBody = (await quotas.json()) as { items: Array<{ orgId: string; entitlementQuota: number }> }
-    expect(quotasBody.items.find((item) => item.orgId === 'team-q1')?.entitlementQuota).toBe(1024)
+    expect(quotasBody.items.find((item) => item.orgId === 'TeamQ1')?.entitlementQuota).toBe(1024)
 
-    const revoke = await app.request(`/api/teams/team-q1/entitlements/${granted.entitlement.id}`, {
+    const revoke = await app.request(`/api/teams/TeamQ1/entitlements/${granted.entitlement.id}`, {
       method: 'DELETE',
       headers,
     })
     expect(revoke.status).toBe(204)
-    const afterRevoke = await app.request('/api/teams/team-q1/entitlements', { headers })
+    const afterRevoke = await app.request('/api/teams/TeamQ1/entitlements', { headers })
     const afterBody = (await afterRevoke.json()) as { items: Array<{ status: string }> }
     expect(afterBody.items[0].status).toBe('revoked')
   })
@@ -1031,16 +1032,16 @@ describe('Admin Team Entitlements API', () => {
   it('updates an admin grant bytes [spec: teams-admin/update-entitlement]', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    await seedTeam(db, { id: 'team-q2', name: 'Quota Team 2' })
+    await seedTeam(db, { id: 'TeamQ2', name: 'Quota Team 2' })
 
-    const grant = await app.request('/api/teams/team-q2/entitlements', {
+    const grant = await app.request('/api/teams/TeamQ2/entitlements', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resourceType: 'storage', bytes: 1024 }),
     })
     const granted = (await grant.json()) as { entitlement: { id: string } }
 
-    const update = await app.request(`/api/teams/team-q2/entitlements/${granted.entitlement.id}`, {
+    const update = await app.request(`/api/teams/TeamQ2/entitlements/${granted.entitlement.id}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ bytes: 4096 }),
@@ -1053,7 +1054,7 @@ describe('Admin Team Entitlements API', () => {
   it('returns 404 for an unknown org and 403 for non-admin callers [spec: teams-admin/entitlement-guards]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
-    const missing = await app.request('/api/teams/no-such-org/entitlements', { headers })
+    const missing = await app.request('/api/teams/NoSuchOrg/entitlements', { headers })
     expect(missing.status).toBe(404)
 
     await authedHeaders(app, 'plain@example.com')
@@ -1063,7 +1064,7 @@ describe('Admin Team Entitlements API', () => {
       body: JSON.stringify({ email: 'plain@example.com', password: 'password123456' }),
     })
     const plainHeaders = { Cookie: signIn.headers.getSetCookie().join('; ') }
-    const forbidden = await app.request('/api/teams/no-such-org/entitlements', { headers: plainHeaders })
+    const forbidden = await app.request('/api/teams/NoSuchOrg/entitlements', { headers: plainHeaders })
     expect(forbidden.status).toBe(403)
   })
 })

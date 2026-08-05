@@ -202,7 +202,7 @@ describe('Admin Site Invitations API — resend/revoke guards', () => {
     await seedEmailOptions(ctx)
     const headers = await adminHeaders(ctx.app)
 
-    const res = await ctx.app.request('/api/site/invitations/does-not-exist/deliveries', {
+    const res = await ctx.app.request('/api/site/invitations/DoesNotExist/deliveries', {
       method: 'POST',
       headers,
     })
@@ -255,7 +255,7 @@ describe('Admin Site Invitations API — resend/revoke guards', () => {
     await seedEmailOptions(ctx)
     const headers = await adminHeaders(ctx.app)
 
-    const res = await ctx.app.request('/api/site/invitations/does-not-exist', { method: 'DELETE', headers })
+    const res = await ctx.app.request('/api/site/invitations/DoesNotExist', { method: 'DELETE', headers })
 
     expect(res.status).toBe(404)
     const body = (await res.json()) as { error: { message: string; status: string } }
@@ -333,7 +333,7 @@ describe('Public Site Invitations API', () => {
 
   it('returns 404 for an unknown invitation token', async () => {
     const ctx = await createTestApp()
-    const res = await ctx.app.request('/api/site/invitations/no-such-token')
+    const res = await ctx.app.request('/api/site/invitations/NoSuchToken1')
     expect(res.status).toBe(404)
     const body = (await res.json()) as { error: { code: number; message: string; status: string } }
     expect(body.error.code).toBe(404)

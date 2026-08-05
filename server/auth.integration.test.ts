@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { AuthorizationScope } from '@shared/authorization'
+import { BASE62_PATTERN } from '@shared/ids'
 import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import { deriveDpopAth } from 'better-auth/oauth2'
@@ -74,6 +75,83 @@ async function personalOrgForUser(ctx: TestCtx, userId: string): Promise<string>
 }
 
 describe('registration gate — first user always allowed', () => {
+  it('Better Auth persists only Base62 database IDs and session tokens', async () => {
+    const ctx = await createTestApp()
+    const response = await signUp(ctx, 'base62-contract@example.com')
+    expect(response.status).toBe(200)
+    const cookie = response.headers.getSetCookie().join('; ')
+    expect(cookie).toBeTruthy()
+    const createdOrganization = await ctx.app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie!, Origin: 'http://localhost:3000' },
+      body: JSON.stringify({ name: 'Base62 Team', slug: 'base62-team', metadata: { type: 'team' } }),
+    })
+    expect(createdOrganization.status).toBe(200)
+    const organization = (await createdOrganization.json()) as { id: string }
+    const createdInvitation = await ctx.app.request('/api/auth/organization/invite-member', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie!, Origin: 'http://localhost:3000' },
+      body: JSON.stringify({
+        email: 'base62-invitee@example.com',
+        role: 'member',
+        organizationId: organization.id,
+      }),
+    })
+    expect(createdInvitation.status).toBe(200)
+    const [invitation] = await ctx.db.select({ id: authSchema.invitation.id }).from(authSchema.invitation)
+    expect(invitation).toBeTruthy()
+
+    const inviteeResponse = await signUp(ctx, 'base62-invitee@example.com')
+    expect(inviteeResponse.status).toBe(200)
+    const invitee = (await inviteeResponse.clone().json()) as { user: { id: string } }
+    await ctx.db.update(authSchema.user).set({ emailVerified: true }).where(eq(authSchema.user.id, invitee.user.id))
+    const inviteeSignIn = await ctx.app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'base62-invitee@example.com', password: 'password123456' }),
+    })
+    expect(inviteeSignIn.status).toBe(200)
+    const inviteeCookie = inviteeSignIn.headers.getSetCookie().join('; ')
+    const acceptedInvitation = await ctx.app.request('/api/auth/organization/accept-invitation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: inviteeCookie, Origin: 'http://localhost:3000' },
+      body: JSON.stringify({ invitationId: invitation.id }),
+    })
+    expect(acceptedInvitation.status).toBe(200)
+
+    const values = [
+      ...(await ctx.db.select({ id: authSchema.user.id }).from(authSchema.user)),
+      ...(await ctx.db.select({ id: authSchema.account.id }).from(authSchema.account)),
+      ...(await ctx.db.select({ id: authSchema.organization.id }).from(authSchema.organization)),
+      ...(await ctx.db.select({ id: authSchema.member.id }).from(authSchema.member)),
+      ...(await ctx.db.select({ id: authSchema.invitation.id }).from(authSchema.invitation)),
+      ...(await ctx.db.select({ id: authSchema.session.id }).from(authSchema.session)),
+    ]
+    expect(values.length).toBeGreaterThan(0)
+    for (const { id } of values) expect(id).toMatch(BASE62_PATTERN)
+    for (const { token } of await ctx.db.select({ token: authSchema.session.token }).from(authSchema.session)) {
+      expect(token).toMatch(BASE62_PATTERN)
+    }
+  })
+
+  it('creates only Base62 API keys and rejects punctuation in caller prefixes', async () => {
+    const ctx = await createTestApp()
+    await signUp(ctx, 'base62-api-key@example.com')
+    const [user] = await ctx.db.select({ id: authSchema.user.id }).from(authSchema.user)
+    const api = ctx.auth.api as unknown as {
+      createApiKey(input: { body: Record<string, unknown> }): Promise<{ key: string }>
+    }
+
+    const created = await api.createApiKey({
+      body: { configId: 'webdav', userId: user.id, prefix: 'ZPan' },
+    })
+    expect(created.key).toMatch(BASE62_PATTERN)
+    expect(created.key).toHaveLength(68)
+    await expect(
+      api.createApiKey({ body: { configId: 'webdav', userId: user.id, prefix: 'zpan_key-' } }),
+    ).rejects.toThrow('API key prefixes must contain only ASCII letters and digits')
+  })
+
   it('first user can register when auth_signup_mode is closed', async () => {
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'closed' })
@@ -233,7 +311,7 @@ describe('registration gate — invite_only mode', () => {
     const ctx = await createTestApp()
     await ctx.db.insert(schema.systemOptions).values({ key: 'auth_signup_mode', value: 'invite_only' })
     await signUp(ctx, 'first@example.com')
-    const res = await signUp(ctx, 'badinvite@example.com', { inviteCode: 'BADCODE1' })
+    const res = await signUp(ctx, 'badinvite@example.com', { inviteCode: 'BADCODE001' })
     expect(res.status).not.toBe(200)
   })
 
@@ -875,7 +953,7 @@ describe('OAuth consent guards', () => {
     expect(body).toMatchObject({
       client_id: expect.any(String),
       client_secret: expect.any(String),
-      registration_access_token: expect.stringMatching(/^zpr_/),
+      registration_access_token: expect.stringMatching(/^[A-Za-z0-9]{43}$/),
       registration_client_uri: expect.stringMatching(/^http:\/\/localhost:3000\/api\/auth\/oauth2\/register\//),
       token_endpoint_auth_method: 'client_secret_basic',
       authorization_details_types: [WORKSPACE_AUTHORIZATION_DETAIL_TYPE],

@@ -90,8 +90,8 @@ beforeEach(() => {
 describe('capacity purchase challenges', () => {
   it('creates a fresh request hash for repeated identical uploads', async () => {
     const input = { name: 'same.bin', type: 'application/octet-stream', size: 1024 }
-    const first = await createCapacityRequestHash('org-1', input)
-    const second = await createCapacityRequestHash('org-1', input)
+    const first = await createCapacityRequestHash('Org1', input)
+    const second = await createCapacityRequestHash('Org1', input)
 
     expect(first).toMatch(/^[0-9a-f]{64}$/)
     expect(second).toMatch(/^[0-9a-f]{64}$/)
@@ -104,7 +104,7 @@ afterEach(() => {
 })
 
 const validStorage = {
-  id: 'st-1',
+  id: 'St1',
   bucket: 'test-bucket',
   endpoint: 'https://s3.amazonaws.com',
   region: 'us-east-1',
@@ -236,11 +236,11 @@ describe('Objects API', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
 
-    await insertFolder(db, orgId, { id: 'parent-folder', name: 'Parent' })
-    await insertFolder(db, orgId, { id: 'leaf-folder', name: 'Leaf' })
-    await insertFolder(db, orgId, { id: 'child-folder', name: 'Child', parent: 'Parent' })
-    await insertFile(db, orgId, { id: 'root-file', name: 'root.txt' })
-    await insertFile(db, orgId, { id: 'child-file', name: 'child.txt', parent: 'Leaf' })
+    await insertFolder(db, orgId, { id: 'ParentFolder', name: 'Parent' })
+    await insertFolder(db, orgId, { id: 'LeafFolder', name: 'Leaf' })
+    await insertFolder(db, orgId, { id: 'ChildFolder', name: 'Child', parent: 'Parent' })
+    await insertFile(db, orgId, { id: 'RootFile', name: 'root.txt' })
+    await insertFile(db, orgId, { id: 'ChildFile', name: 'child.txt', parent: 'Leaf' })
 
     const res = await app.request('/api/objects?path=&type=folder&page=1&pageSize=100', { headers })
     expect(res.status).toBe(200)
@@ -252,8 +252,8 @@ describe('Objects API', () => {
     expect(body.nextPageToken).toBeNull()
     expect(body.items).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'parent-folder', hasChildren: true }),
-        expect.objectContaining({ id: 'leaf-folder', hasChildren: false }),
+        expect.objectContaining({ id: 'ParentFolder', hasChildren: true }),
+        expect.objectContaining({ id: 'LeafFolder', hasChildren: false }),
       ]),
     )
   })
@@ -264,14 +264,14 @@ describe('Objects API', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
 
-    await insertFolder(db, orgId, { id: 'reports-folder', name: 'Reports' })
-    await insertFile(db, orgId, { id: 'reports-file', name: 'Reports.txt' })
+    await insertFolder(db, orgId, { id: 'ReportsFolder', name: 'Reports' })
+    await insertFile(db, orgId, { id: 'ReportsFile', name: 'Reports.txt' })
 
     const res = await app.request('/api/objects?type=folder&search=Reports', { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: Array<{ id: string }> }
     expect(body.items).toHaveLength(1)
-    expect(body.items.map((item) => item.id)).toEqual(['reports-folder'])
+    expect(body.items.map((item) => item.id)).toEqual(['ReportsFolder'])
   })
 
   it('POST /api/objects creates a folder [spec: objects/create-folder]', async () => {
@@ -651,17 +651,17 @@ describe('Objects API', () => {
     const orgId = await getOrgId(db)
     const folderName = 'Project Hail Mary (2026) [IMAX] [1080p] [WEBRip] [5.1] [YTS.BZ]'
     const trashedAt = Date.now()
-    await insertFolder(db, orgId, { id: 'movie-folder', name: folderName, trashedAt })
-    await insertFile(db, orgId, { id: 'movie-file', name: 'movie.mkv', parent: folderName, trashedAt })
+    await insertFolder(db, orgId, { id: 'MovieFolder', name: folderName, trashedAt })
+    await insertFile(db, orgId, { id: 'MovieFile', name: 'movie.mkv', parent: folderName, trashedAt })
 
-    const res = await app.request('/api/trash/objects/movie-folder', { method: 'DELETE', headers })
+    const res = await app.request('/api/trash/objects/MovieFolder', { method: 'DELETE', headers })
     expect(res.status).toBe(204)
 
-    expect(await getMatter(db, 'movie-folder', orgId)).toBeNull()
-    expect(await getMatter(db, 'movie-file', orgId)).toBeNull()
+    expect(await getMatter(db, 'MovieFolder', orgId)).toBeNull()
+    expect(await getMatter(db, 'MovieFile', orgId)).toBeNull()
     const tombstones = await db.all<{ id: string; purgedAt: number | null }>(sql`
       SELECT id, purged_at AS purgedAt FROM matters
-      WHERE id IN ('movie-folder', 'movie-file')
+      WHERE id IN ('MovieFolder', 'MovieFile')
       ORDER BY id
     `)
     expect(tombstones).toHaveLength(2)
@@ -730,7 +730,7 @@ describe('Objects API', () => {
   it('POST .../completions returns 404 for a missing upload session', async () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app)
-    const res = await app.request('/api/objects/nonexistent/uploads/no-session/completions', {
+    const res = await app.request('/api/objects/nonexistent/uploads/NoSession/completions', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
@@ -818,22 +818,22 @@ describe('Objects API', () => {
   it('POST /api/objects with storageId uses that exact eligible storage', async () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
-    await insertStorage(db, { id: 'st-oldest' })
-    await insertStorage(db, { id: 'st-target' })
+    await insertStorage(db, { id: 'Stoldest' })
+    await insertStorage(db, { id: 'Sttarget' })
 
     const res = await app.request('/api/objects', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'target.txt', type: 'text/plain', size: 1, storageId: 'st-target' }),
+      body: JSON.stringify({ name: 'target.txt', type: 'text/plain', size: 1, storageId: 'Sttarget' }),
     })
 
     expect(res.status).toBe(201)
     const body = (await res.json()) as { id: string; storageId: string }
-    expect(body.storageId).toBe('st-target')
+    expect(body.storageId).toBe('Sttarget')
     const rows = await db.all<{ storageId: string }>(
       sql`SELECT storage_id as storageId FROM matters WHERE id = ${body.id}`,
     )
-    expect(rows[0].storageId).toBe('st-target')
+    expect(rows[0].storageId).toBe('Sttarget')
   })
 
   it('POST /api/objects with ineligible storageId fails before draft/session creation', async () => {
@@ -864,12 +864,12 @@ describe('Objects API', () => {
     const { app, db } = await createTestApp()
     await adminHeaders(app)
     const headers = await authedHeaders(app, 'editor@example.com')
-    await insertStorage(db, { id: 'st-target' })
+    await insertStorage(db, { id: 'Sttarget' })
 
     const res = await app.request('/api/objects', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'target.txt', type: 'text/plain', size: 1, storageId: 'st-target' }),
+      body: JSON.stringify({ name: 'target.txt', type: 'text/plain', size: 1, storageId: 'Sttarget' }),
     })
 
     expect(res.status).toBe(403)
@@ -1066,7 +1066,7 @@ describe('Matter service', () => {
     `)
 
     const matter = await createMatter(db, {
-      orgId: 'org-1',
+      orgId: 'Org1',
       name: 'test.txt',
       type: 'text/plain',
       object: 'key.txt',
@@ -1089,7 +1089,7 @@ describe('Matter service', () => {
     `)
 
     const matter = await createMatter(db, {
-      orgId: 'org-1',
+      orgId: 'Org1',
       name: 'doc.pdf',
       type: 'application/pdf',
       size: 1024,
@@ -1113,7 +1113,7 @@ describe('Matter service', () => {
     `)
 
     await createMatter(db, {
-      orgId: 'org-1',
+      orgId: 'Org1',
       name: 'a.txt',
       type: 'text/plain',
       object: 'a',
@@ -1121,7 +1121,7 @@ describe('Matter service', () => {
       status: 'active',
     })
     await createMatter(db, {
-      orgId: 'org-1',
+      orgId: 'Org1',
       name: 'b.txt',
       type: 'text/plain',
       object: 'b',
@@ -1129,11 +1129,11 @@ describe('Matter service', () => {
       status: 'active',
     })
 
-    const page1 = await listMatters(db, 'org-1', { parent: '', pageSize: 1 })
+    const page1 = await listMatters(db, 'Org1', { parent: '', pageSize: 1 })
     expect(page1.items).toHaveLength(1)
     expect(page1.nextBoundary).not.toBeNull()
 
-    const page2 = await listMatters(db, 'org-1', {
+    const page2 = await listMatters(db, 'Org1', {
       parent: '',
       pageSize: 1,
       after: page1.nextBoundary ?? undefined,
@@ -1143,19 +1143,19 @@ describe('Matter service', () => {
 
   it('getMatter returns null for missing record', async () => {
     const { db } = await createTestApp()
-    const result = await getMatter(db, 'nonexistent', 'org-1')
+    const result = await getMatter(db, 'nonexistent', 'Org1')
     expect(result).toBeNull()
   })
 
   it('updateMatter returns null for missing record', async () => {
     const { db } = await createTestApp()
-    const result = await updateMatter(db, 'nonexistent', 'org-1', { name: 'new' })
+    const result = await updateMatter(db, 'nonexistent', 'Org1', { name: 'new' })
     expect(result).toBeNull()
   })
 
   it('confirmUpload returns null for missing record', async () => {
     const { db } = await createTestApp()
-    const { matter } = await confirmUpload(db, 'nonexistent', 'org-1')
+    const { matter } = await confirmUpload(db, 'nonexistent', 'Org1')
     expect(matter).toBeNull()
   })
 
@@ -1167,14 +1167,14 @@ describe('Matter service', () => {
       VALUES ('s1', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
     `)
     const matter = await createMatter(db, {
-      orgId: 'org-1',
+      orgId: 'Org1',
       name: 'a.txt',
       type: 'text/plain',
       object: 'a',
       storageId: 's1',
       status: 'active',
     })
-    const { matter: result } = await confirmUpload(db, matter.id, 'org-1')
+    const { matter: result } = await confirmUpload(db, matter.id, 'Org1')
     expect(result).toBeNull()
   })
 
@@ -1186,7 +1186,7 @@ describe('Matter service', () => {
       VALUES ('s1', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
     `)
     const matter = await createMatter(db, {
-      orgId: 'org-1',
+      orgId: 'Org1',
       name: 'a.txt',
       type: 'text/plain',
       object: 'a',
@@ -1194,11 +1194,11 @@ describe('Matter service', () => {
       status: 'active',
     })
 
-    const deleted = await deleteMatter(db, matter.id, 'org-1')
+    const deleted = await deleteMatter(db, matter.id, 'Org1')
     expect(deleted).not.toBeNull()
     expect(deleted!.id).toBe(matter.id)
 
-    const check = await getMatter(db, matter.id, 'org-1')
+    const check = await getMatter(db, matter.id, 'Org1')
     expect(check).toBeNull()
     const retained = await db.all<{ purgedAt: number | null }>(
       sql`SELECT purged_at AS purgedAt FROM matters WHERE id = ${matter.id}`,
@@ -1208,7 +1208,7 @@ describe('Matter service', () => {
 
   it('deleteMatter returns null for missing record', async () => {
     const { db } = await createTestApp()
-    const result = await deleteMatter(db, 'nonexistent', 'org-1')
+    const result = await deleteMatter(db, 'nonexistent', 'Org1')
     expect(result).toBeNull()
   })
 
@@ -1220,7 +1220,7 @@ describe('Matter service', () => {
       VALUES ('s1', 'b', 'https://s3.example.com', 'us-east-1', 'k', 's', '$UID/$RAW_NAME', '', 0, 0, 'active', ${now}, ${now})
     `)
     const source = await createMatter(db, {
-      orgId: 'org-1',
+      orgId: 'Org1',
       name: 'a.txt',
       type: 'text/plain',
       size: 42,
@@ -1241,7 +1241,7 @@ describe('Matter service', () => {
 
   it('getMatters returns empty array for empty ids list', async () => {
     const { db } = await createTestApp()
-    const result = await getMatters(db, 'org-1', [])
+    const result = await getMatters(db, 'Org1', [])
     expect(result).toEqual([])
   })
 })
@@ -1254,7 +1254,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFolder(db, orgId, { id: 'f-exist', name: 'Duplicates' })
+    await insertFolder(db, orgId, { id: 'FExist', name: 'Duplicates' })
 
     const res = await app.request('/api/objects', {
       method: 'POST',
@@ -1276,7 +1276,7 @@ describe('Objects API — name conflict (409 responses)', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFolder(db, orgId, { id: 'f-exist2', name: 'Reports' })
+    await insertFolder(db, orgId, { id: 'FExist2', name: 'Reports' })
 
     const res = await app.request('/api/objects', {
       method: 'POST',
@@ -1551,19 +1551,19 @@ describe('POST /api/objects/:id/transfers', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    await insertFile(db, orgId, { id: 'api-key-read', name: 'readme.txt' })
+    await insertFile(db, orgId, { id: 'ApiKeyRead', name: 'readme.txt' })
     const key = await createWorkspaceApiKey(auth, orgId, userId, { objects: ['read', 'create'] })
     const headers = { Authorization: `Bearer ${key}` }
 
     const list = await app.request('/api/objects', { headers })
     expect(list.status).toBe(200)
     const listBody = (await list.json()) as { items: Array<{ id: string }> }
-    expect(listBody.items.map((item) => item.id)).toContain('api-key-read')
+    expect(listBody.items.map((item) => item.id)).toContain('ApiKeyRead')
 
-    const read = await app.request('/api/objects/api-key-read', { headers })
+    const read = await app.request('/api/objects/ApiKeyRead', { headers })
     expect(read.status).toBe(200)
     const readBody = (await read.json()) as { id: string; name: string }
-    expect(readBody).toMatchObject({ id: 'api-key-read', name: 'readme.txt' })
+    expect(readBody).toMatchObject({ id: 'ApiKeyRead', name: 'readme.txt' })
 
     const create = await app.request('/api/objects', {
       method: 'POST',
@@ -1594,12 +1594,12 @@ describe('POST /api/objects/:id/transfers', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    await insertTeamOrg(db, 'team-api-override')
-    await insertMember(db, 'team-api-override', userId, 'viewer')
-    await insertFile(db, 'team-api-override', { id: 'team-api-file', name: 'team.txt' })
+    await insertTeamOrg(db, 'Teamapioverride')
+    await insertMember(db, 'Teamapioverride', userId, 'viewer')
+    await insertFile(db, 'Teamapioverride', { id: 'Teamapifile', name: 'team.txt' })
     const key = await createWorkspaceApiKey(auth, orgId, userId, { objects: ['read'] })
 
-    const res = await app.request('/api/objects?orgId=team-api-override', {
+    const res = await app.request('/api/objects?orgId=Teamapioverride', {
       headers: { Authorization: `Bearer ${key}` },
     })
     expect(res.status).toBe(403)
@@ -1611,14 +1611,14 @@ describe('POST /api/objects/:id/transfers', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    await insertTeamOrg(db, 'team-api-transfer')
-    await insertMember(db, 'team-api-transfer', userId, 'editor')
-    await insertStorageEntitlement(db, 'team-api-transfer', 10_000_000)
-    await insertFile(db, orgId, { id: 'src-api-transfer', name: 'doc.txt' })
+    await insertTeamOrg(db, 'Teamapitransfer')
+    await insertMember(db, 'Teamapitransfer', userId, 'editor')
+    await insertStorageEntitlement(db, 'Teamapitransfer', 10_000_000)
+    await insertFile(db, orgId, { id: 'Srcapitransfer', name: 'doc.txt' })
     const key = await createWorkspaceApiKey(auth, orgId, userId, { objects: ['update'] })
 
-    const res = await transferRequest(app, { Authorization: `Bearer ${key}` }, 'src-api-transfer', {
-      targetOrgId: 'team-api-transfer',
+    const res = await transferRequest(app, { Authorization: `Bearer ${key}` }, 'Srcapitransfer', {
+      targetOrgId: 'Teamapitransfer',
       mode: 'copy',
     })
     expect(res.status).toBe(403)
@@ -1630,20 +1630,20 @@ describe('POST /api/objects/:id/transfers', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    await insertTeamOrg(db, 'team-a')
-    await insertMember(db, 'team-a', userId, 'editor')
-    await insertStorageEntitlement(db, 'team-a', 10_000_000)
-    await insertFile(db, orgId, { id: 'src-copy', name: 'doc.txt' })
+    await insertTeamOrg(db, 'Teama')
+    await insertMember(db, 'Teama', userId, 'editor')
+    await insertStorageEntitlement(db, 'Teama', 10_000_000)
+    await insertFile(db, orgId, { id: 'Srccopy', name: 'doc.txt' })
 
-    const res = await transferRequest(app, headers, 'src-copy', { targetOrgId: 'team-a', mode: 'copy' })
+    const res = await transferRequest(app, headers, 'Srccopy', { targetOrgId: 'Teama', mode: 'copy' })
 
     expect(res.status).toBe(201)
     const body = (await res.json()) as { saved: Array<{ orgId: string; name: string }>; sourceDeleted: boolean }
     expect(body.saved).toHaveLength(1)
-    expect(body.saved[0].orgId).toBe('team-a')
+    expect(body.saved[0].orgId).toBe('Teama')
     expect(body.sourceDeleted).toBe(false)
     expect(S3Service.prototype.copyObject).toHaveBeenCalled()
-    const source = await getMatter(db, 'src-copy', orgId)
+    const source = await getMatter(db, 'Srccopy', orgId)
     expect(source?.status).toBe('active')
   })
 
@@ -1653,26 +1653,26 @@ describe('POST /api/objects/:id/transfers', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    await insertTeamOrg(db, 'team-b')
-    await insertMember(db, 'team-b', userId, 'owner')
-    await insertStorageEntitlement(db, 'team-b', 10_000_000)
-    await insertFile(db, orgId, { id: 'src-move', name: 'photo.jpg', size: 1024 })
+    await insertTeamOrg(db, 'Teamb')
+    await insertMember(db, 'Teamb', userId, 'owner')
+    await insertStorageEntitlement(db, 'Teamb', 10_000_000)
+    await insertFile(db, orgId, { id: 'Srcmove', name: 'photo.jpg', size: 1024 })
     await db.run(sql`
       UPDATE org_quotas
       SET quota = ${1024 * 1024}, used = 1024, traffic_quota = 0, traffic_used = 0, traffic_period = '1970-01'
       WHERE org_id = ${orgId}
     `)
 
-    const res = await transferRequest(app, headers, 'src-move', { targetOrgId: 'team-b', mode: 'move' })
+    const res = await transferRequest(app, headers, 'Srcmove', { targetOrgId: 'Teamb', mode: 'move' })
 
     expect(res.status).toBe(201)
     const body = (await res.json()) as { saved: Array<{ orgId: string }>; sourceDeleted: boolean }
     expect(body.sourceDeleted).toBe(true)
     // Source is purged, not trashed — its quota must be released, not double-counted.
-    const source = await getMatter(db, 'src-move', orgId)
+    const source = await getMatter(db, 'Srcmove', orgId)
     expect(source).toBeNull()
     expect((await getOrgQuota(db, orgId))?.used ?? 0).toBe(0)
-    const targetList = await listMatters(db, 'team-b', { parent: '', pageSize: 10 })
+    const targetList = await listMatters(db, 'Teamb', { parent: '', pageSize: 10 })
     expect(targetList.items.map((m) => m.name)).toContain('photo.jpg')
   })
 
@@ -1682,13 +1682,13 @@ describe('POST /api/objects/:id/transfers', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    await insertTeamOrg(db, 'team-c')
-    await insertMember(db, 'team-c', userId, 'editor')
-    await insertStorageEntitlement(db, 'team-c', 10_000_000)
-    await insertFolder(db, orgId, { id: 'fold-1', name: 'Album' })
-    await insertFile(db, orgId, { id: 'in-fold', name: 'pic.png', parent: 'Album' })
+    await insertTeamOrg(db, 'Teamc')
+    await insertMember(db, 'Teamc', userId, 'editor')
+    await insertStorageEntitlement(db, 'Teamc', 10_000_000)
+    await insertFolder(db, orgId, { id: 'Fold1', name: 'Album' })
+    await insertFile(db, orgId, { id: 'InFold', name: 'pic.png', parent: 'Album' })
 
-    const res = await transferRequest(app, headers, 'fold-1', { targetOrgId: 'team-c', mode: 'copy' })
+    const res = await transferRequest(app, headers, 'Fold1', { targetOrgId: 'Teamc', mode: 'copy' })
 
     expect(res.status).toBe(201)
     const body = (await res.json()) as { saved: Array<{ name: string }> }
@@ -1700,10 +1700,10 @@ describe('POST /api/objects/:id/transfers', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertTeamOrg(db, 'team-strange')
-    await insertFile(db, orgId, { id: 'src-403', name: 'doc.txt' })
+    await insertTeamOrg(db, 'Teamstrange')
+    await insertFile(db, orgId, { id: 'Src403', name: 'doc.txt' })
 
-    const res = await transferRequest(app, headers, 'src-403', { targetOrgId: 'team-strange', mode: 'copy' })
+    const res = await transferRequest(app, headers, 'Src403', { targetOrgId: 'Teamstrange', mode: 'copy' })
     expect(res.status).toBe(403)
   })
 
@@ -1722,9 +1722,9 @@ describe('POST /api/objects/:id/transfers', () => {
         AND (o.slug LIKE 'personal-%' OR COALESCE(o.metadata, '') LIKE '%"type":"personal"%')
       LIMIT 1
     `)
-    await insertFile(db, orgId, { id: 'src-victim', name: 'doc.txt' })
+    await insertFile(db, orgId, { id: 'Srcvictim', name: 'doc.txt' })
 
-    const res = await transferRequest(app, headers, 'src-victim', { targetOrgId: victimOrgs[0].id, mode: 'copy' })
+    const res = await transferRequest(app, headers, 'Srcvictim', { targetOrgId: victimOrgs[0].id, mode: 'copy' })
     expect(res.status).toBe(403)
   })
 
@@ -1734,12 +1734,12 @@ describe('POST /api/objects/:id/transfers', () => {
     await insertStorage(db)
     const orgId = await getOrgId(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    await insertTeamOrg(db, 'team-small')
-    await insertMember(db, 'team-small', userId, 'editor')
-    await insertStorageEntitlement(db, 'team-small', 10)
-    await insertFile(db, orgId, { id: 'src-big', name: 'big.bin' })
+    await insertTeamOrg(db, 'Teamsmall')
+    await insertMember(db, 'Teamsmall', userId, 'editor')
+    await insertStorageEntitlement(db, 'Teamsmall', 10)
+    await insertFile(db, orgId, { id: 'Srcbig', name: 'big.bin' })
 
-    const res = await transferRequest(app, headers, 'src-big', { targetOrgId: 'team-small', mode: 'copy' })
+    const res = await transferRequest(app, headers, 'Srcbig', { targetOrgId: 'Teamsmall', mode: 'copy' })
     expect(res.status).toBe(422)
     const body = (await res.json()) as { error: { details: Array<{ reason: string }> } }
     expect(body.error.details[0].reason).toBe('QUOTA_EXCEEDED')
@@ -1750,9 +1750,9 @@ describe('POST /api/objects/:id/transfers', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'src-same', name: 'doc.txt' })
+    await insertFile(db, orgId, { id: 'Srcsame', name: 'doc.txt' })
 
-    const res = await transferRequest(app, headers, 'src-same', { targetOrgId: orgId, mode: 'copy' })
+    const res = await transferRequest(app, headers, 'Srcsame', { targetOrgId: orgId, mode: 'copy' })
     expect(res.status).toBe(400)
   })
 })
@@ -1763,7 +1763,7 @@ describe('POST /api/objects/:id/transfers', () => {
 
 describe('Objects API — quota enforcement', () => {
   const validStorage = {
-    id: 'st-quota',
+    id: 'Stquota',
     bucket: 'test-bucket',
     endpoint: 'https://s3.amazonaws.com',
     region: 'us-east-1',
@@ -1937,9 +1937,9 @@ describe('Objects API — quota enforcement', () => {
       const orgId = await getOrgId(db)
       // quota = 500, used = 450, file size = 100 → copy would exceed
       await setOrgQuota(db, orgId, 500, 450)
-      await insertFile(db, orgId, { id: 'm-copy-over', name: 'big.txt', size: 100 })
+      await insertFile(db, orgId, { id: 'Mcopyover', name: 'big.txt', size: 100 })
 
-      const res = await app.request('/api/objects/m-copy-over/copies', {
+      const res = await app.request('/api/objects/Mcopyover/copies', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ parent: '' }),
@@ -1957,9 +1957,9 @@ describe('Objects API — quota enforcement', () => {
       const orgId = await getOrgId(db)
       // quota = 1000, used = 100, file size = 100 → copy is fine
       await setOrgQuota(db, orgId, 1000, 100)
-      await insertFile(db, orgId, { id: 'm-copy-ok', name: 'doc.txt', size: 100 })
+      await insertFile(db, orgId, { id: 'Mcopyok', name: 'doc.txt', size: 100 })
 
-      const res = await app.request('/api/objects/m-copy-ok/copies', {
+      const res = await app.request('/api/objects/Mcopyok/copies', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ parent: '' }),
@@ -1976,9 +1976,9 @@ describe('Objects API — quota enforcement', () => {
       await insertStorage(db, 50)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 10000, 50)
-      await insertFile(db, orgId, { id: 'm-copy-st', name: 'img.png', size: 150 })
+      await insertFile(db, orgId, { id: 'Mcopyst', name: 'img.png', size: 150 })
 
-      await app.request('/api/objects/m-copy-st/copies', {
+      await app.request('/api/objects/Mcopyst/copies', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ parent: '' }),
@@ -1994,10 +1994,10 @@ describe('Objects API — quota enforcement', () => {
       await insertStorage(db, 100)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 1000, 100)
-      await insertFile(db, orgId, { id: 'm-copy-s3-fail', name: 'fail.txt', size: 200 })
+      await insertFile(db, orgId, { id: 'Mcopys3fail', name: 'fail.txt', size: 200 })
       vi.mocked(S3Service.prototype.copyObject).mockRejectedValueOnce(new Error('copy failed'))
 
-      const res = await app.request('/api/objects/m-copy-s3-fail/copies', {
+      const res = await app.request('/api/objects/Mcopys3fail/copies', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ parent: 'Archive' }),
@@ -2016,9 +2016,9 @@ describe('Objects API — quota enforcement', () => {
       await insertStorage(db, 100)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 1000, 100)
-      await insertFile(db, orgId, { id: 'm-copy-conflict', name: 'conflict.txt', size: 200 })
+      await insertFile(db, orgId, { id: 'Mcopyconflict', name: 'conflict.txt', size: 200 })
 
-      const res = await app.request('/api/objects/m-copy-conflict/copies', {
+      const res = await app.request('/api/objects/Mcopyconflict/copies', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ parent: '', onConflict: 'fail' }),
@@ -2041,11 +2041,11 @@ describe('Objects API — quota enforcement', () => {
       const now = Date.now()
       await db.run(sql`
         INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
-        VALUES ('m-zero', ${orgId}, 'm-zero-alias', 'empty.txt', 'text/plain', 0, 0, '', '',
+        VALUES ('Mzero', ${orgId}, 'Mzeroalias', 'empty.txt', 'text/plain', 0, 0, '', '',
                 ${validStorage.id}, 'active', ${now}, ${now})
       `)
 
-      const res = await app.request('/api/objects/m-zero/copies', {
+      const res = await app.request('/api/objects/Mzero/copies', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ parent: '' }),
@@ -2063,9 +2063,9 @@ describe('Objects API — quota enforcement', () => {
       const orgId = await getOrgId(db)
       await db.delete(orgQuotaEntitlements).where(eq(orgQuotaEntitlements.orgId, orgId))
       await db.delete(orgQuotas).where(eq(orgQuotas.orgId, orgId))
-      await insertFile(db, orgId, { id: 'm-copy-nolimit', name: 'nolimit.txt', size: 100 })
+      await insertFile(db, orgId, { id: 'Mcopynolimit', name: 'nolimit.txt', size: 100 })
 
-      const res = await app.request('/api/objects/m-copy-nolimit/copies', {
+      const res = await app.request('/api/objects/Mcopynolimit/copies', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ parent: '' }),
@@ -2079,9 +2079,9 @@ describe('Objects API — quota enforcement', () => {
       await insertStorage(db)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 0, 99999)
-      await insertFile(db, orgId, { id: 'm-copy-qlimit', name: 'large.bin', size: 1000000 })
+      await insertFile(db, orgId, { id: 'Mcopyqlimit', name: 'large.bin', size: 1000000 })
 
-      const res = await app.request('/api/objects/m-copy-qlimit/copies', {
+      const res = await app.request('/api/objects/Mcopyqlimit/copies', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ parent: '' }),
@@ -2109,10 +2109,10 @@ describe('Objects API — quota enforcement', () => {
       await insertStorage(db, 300)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 1000, 300)
-      await insertFile(db, orgId, { id: 'm-trash-usage', name: 'keep-accounted.txt', size: 300 })
+      await insertFile(db, orgId, { id: 'Mtrashusage', name: 'keep-accounted.txt', size: 300 })
 
       // Soft delete keeps trashed bytes counted (they still occupy storage).
-      const res = await app.request('/api/objects/m-trash-usage', { method: 'DELETE', headers })
+      const res = await app.request('/api/objects/Mtrashusage', { method: 'DELETE', headers })
 
       expect(res.status).toBe(204)
       const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
@@ -2127,10 +2127,10 @@ describe('Objects API — quota enforcement', () => {
       await insertStorage(db, 500)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 1000, 500)
-      await insertFile(db, orgId, { id: 'm-active-after-empty', name: 'active.txt', size: 300 })
-      await insertFile(db, orgId, { id: 'm-trashed-empty', name: 'trashed.txt', size: 200, trashedAt: Date.now() })
+      await insertFile(db, orgId, { id: 'Mactiveafterempty', name: 'active.txt', size: 300 })
+      await insertFile(db, orgId, { id: 'Mtrashedempty', name: 'trashed.txt', size: 200, trashedAt: Date.now() })
 
-      const res = await app.request('/api/trash/objects/m-trashed-empty', { method: 'DELETE', headers })
+      const res = await app.request('/api/trash/objects/Mtrashedempty', { method: 'DELETE', headers })
 
       expect(res.status).toBe(204)
       const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
@@ -2145,10 +2145,10 @@ describe('Objects API — quota enforcement', () => {
       await insertStorage(db, 200)
       const orgId = await getOrgId(db)
       await setOrgQuota(db, orgId, 1000, 200)
-      await insertFile(db, orgId, { id: 'm-active-drift', name: 'active.txt', size: 300 })
-      await insertFile(db, orgId, { id: 'm-trashed-drift', name: 'trashed.txt', size: 200, trashedAt: Date.now() })
+      await insertFile(db, orgId, { id: 'Mactivedrift', name: 'active.txt', size: 300 })
+      await insertFile(db, orgId, { id: 'Mtrasheddrift', name: 'trashed.txt', size: 200, trashedAt: Date.now() })
 
-      const res = await app.request('/api/trash/objects/m-trashed-drift', { method: 'DELETE', headers })
+      const res = await app.request('/api/trash/objects/Mtrasheddrift', { method: 'DELETE', headers })
 
       expect(res.status).toBe(204)
       const storageRows = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${validStorage.id}`)
@@ -2164,7 +2164,7 @@ describe('Objects API — quota enforcement', () => {
       const headers = await authedHeaders(app)
       await insertStorage(db)
       const orgId = await getOrgId(db)
-      await insertFile(db, orgId, { id: 'm-download-ok', name: 'download.txt', size: 100 })
+      await insertFile(db, orgId, { id: 'Mdownloadok', name: 'download.txt', size: 100 })
       const trafficPeriod = currentTrafficPeriod()
       await db.run(sql`
         UPDATE org_quotas
@@ -2172,7 +2172,7 @@ describe('Objects API — quota enforcement', () => {
         WHERE org_id = ${orgId}
       `)
 
-      const res = await app.request('/api/objects/m-download-ok', { headers })
+      const res = await app.request('/api/objects/Mdownloadok', { headers })
       expect(res.status).toBe(200)
       const body = (await res.json()) as Record<string, unknown>
       expect(body.downloadUrl).toBe('https://presigned-download.example.com')
@@ -2188,7 +2188,7 @@ describe('Objects API — quota enforcement', () => {
       const headers = await authedHeaders(app)
       await insertStorage(db)
       const orgId = await getOrgId(db)
-      await insertFile(db, orgId, { id: 'm-download-reset', name: 'download.txt', size: 100 })
+      await insertFile(db, orgId, { id: 'Mdownloadreset', name: 'download.txt', size: 100 })
       const trafficPeriod = currentTrafficPeriod()
       await db.run(sql`
         UPDATE org_quotas
@@ -2196,7 +2196,7 @@ describe('Objects API — quota enforcement', () => {
         WHERE org_id = ${orgId}
       `)
 
-      const res = await app.request('/api/objects/m-download-reset', { headers })
+      const res = await app.request('/api/objects/Mdownloadreset', { headers })
       expect(res.status).toBe(200)
       const body = (await res.json()) as Record<string, unknown>
       expect(body.downloadUrl).toBe('https://presigned-download.example.com')
@@ -2212,7 +2212,7 @@ describe('Objects API — quota enforcement', () => {
       const headers = await authedHeaders(app)
       await insertStorage(db)
       const orgId = await getOrgId(db)
-      await insertFile(db, orgId, { id: 'm-download-sign-fail', name: 'download.txt', size: 100 })
+      await insertFile(db, orgId, { id: 'Mdownloadsignfail', name: 'download.txt', size: 100 })
       const trafficPeriod = currentTrafficPeriod()
       await db.run(sql`
         UPDATE org_quotas
@@ -2221,7 +2221,7 @@ describe('Objects API — quota enforcement', () => {
       `)
       vi.mocked(S3Service.prototype.presignDownload).mockRejectedValueOnce(new Error('sign failed'))
 
-      const res = await app.request('/api/objects/m-download-sign-fail', { headers })
+      const res = await app.request('/api/objects/Mdownloadsignfail', { headers })
       expect(res.status).toBe(500)
 
       const rows = await db.all<{ trafficUsed: number }>(
@@ -2235,7 +2235,7 @@ describe('Objects API — quota enforcement', () => {
       const headers = await authedHeaders(app)
       await insertStorage(db)
       const orgId = await getOrgId(db)
-      await insertFile(db, orgId, { id: 'm-download-over', name: 'download.txt', size: 100 })
+      await insertFile(db, orgId, { id: 'Mdownloadover', name: 'download.txt', size: 100 })
       const trafficPeriod = currentTrafficPeriod()
       await db.run(sql`
         UPDATE org_quotas
@@ -2258,7 +2258,7 @@ describe('Objects API — quota enforcement', () => {
           (${nanoid()}, ${orgId}, 'traffic', 'plan', 'test', ${`test-traffic-plan:${orgId}`}, 50, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
       `)
 
-      const res = await app.request('/api/objects/m-download-over', { headers })
+      const res = await app.request('/api/objects/Mdownloadover', { headers })
       expect(res.status).toBe(422)
       const body = (await res.json()) as {
         error: { message: string; status: string; details: Array<{ reason: string }> }
@@ -2277,7 +2277,7 @@ describe('Objects API — quota enforcement', () => {
           json_extract(metadata, '$.reason') AS reason,
           json_extract(metadata, '$.source') AS source
         FROM audit_events
-        WHERE action = 'download_failed' AND target_id = 'm-download-over'
+        WHERE action = 'download_failed' AND target_id = 'Mdownloadover'
       `)
       expect(failures).toEqual([{ bytes: 100, reason: 'quota_exceeded', source: 'object_download' }])
     })
@@ -2843,11 +2843,11 @@ describe('Objects API — error branches', () => {
     await authedHeaders(app)
     const userId = await getUserIdByEmail(db, 'test@example.com')
     const orgId = await getOrgId(db)
-    await insertTeamOrg(db, 'team-fixed-list')
-    await insertMember(db, 'team-fixed-list', userId, 'owner')
+    await insertTeamOrg(db, 'Teamfixedlist')
+    await insertMember(db, 'Teamfixedlist', userId, 'owner')
     const key = await createUserApiKey(auth, userId, { orgId, permissions: { objects: ['read'] } })
 
-    const res = await app.request('/api/objects?orgId=team-fixed-list', { headers: { Authorization: `Bearer ${key}` } })
+    const res = await app.request('/api/objects?orgId=Teamfixedlist', { headers: { Authorization: `Bearer ${key}` } })
 
     expect(res.status).toBe(403)
   })
@@ -2858,21 +2858,21 @@ describe('Objects API — error branches', () => {
     await insertStorage(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'fixed-copy-source', name: 'copy.txt' })
-    await insertTeamOrg(db, 'team-fixed-transfer')
-    await insertMember(db, 'team-fixed-transfer', userId, 'editor')
+    await insertFile(db, orgId, { id: 'FixedCopySource', name: 'copy.txt' })
+    await insertTeamOrg(db, 'Teamfixedtransfer')
+    await insertMember(db, 'Teamfixedtransfer', userId, 'editor')
     const key = await createUserApiKey(auth, userId, { orgId, permissions: { objects: ['update'] } })
     const headers = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }
 
-    const copy = await app.request('/api/objects/fixed-copy-source/copies', {
+    const copy = await app.request('/api/objects/FixedCopySource/copies', {
       method: 'POST',
       headers,
       body: JSON.stringify({ parent: '' }),
     })
     expect(copy.status).toBe(201)
 
-    const transfer = await transferRequest(app, headers, 'fixed-copy-source', {
-      targetOrgId: 'team-fixed-transfer',
+    const transfer = await transferRequest(app, headers, 'FixedCopySource', {
+      targetOrgId: 'Teamfixedtransfer',
       mode: 'copy',
     })
     expect(transfer.status).toBe(403)
@@ -2882,9 +2882,9 @@ describe('Objects API — error branches', () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     await insertStorage(db)
-    await insertTeamOrg(db, 'team-foreign')
+    await insertTeamOrg(db, 'Teamforeign')
 
-    const res = await app.request('/api/objects?orgId=team-foreign', { headers })
+    const res = await app.request('/api/objects?orgId=Teamforeign', { headers })
     expect(res.status).toBe(403)
     const body = (await res.json()) as { error: { message: string; status: string } }
     expect(body.error.message).toBe('Forbidden')
@@ -2896,9 +2896,9 @@ describe('Objects API — error branches', () => {
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
     // File with a non-empty object key but no matching storage row.
-    await insertFile(db, orgId, { id: 'm-no-storage', name: 'orphan.txt' })
+    await insertFile(db, orgId, { id: 'Mnostorage', name: 'orphan.txt' })
 
-    const res = await app.request('/api/objects/m-no-storage', { headers })
+    const res = await app.request('/api/objects/Mnostorage', { headers })
     expect(res.status).toBe(404)
     const body = (await res.json()) as { error: { message: string } }
     expect(body.error.message).toBe('Storage not found')
@@ -2908,9 +2908,9 @@ describe('Objects API — error branches', () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, { id: 'm-copy-orphan', name: 'orphan.txt' })
+    await insertFile(db, orgId, { id: 'Mcopyorphan', name: 'orphan.txt' })
 
-    const res = await app.request('/api/objects/m-copy-orphan/copies', {
+    const res = await app.request('/api/objects/Mcopyorphan/copies', {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({ parent: '' }),
@@ -2925,10 +2925,10 @@ describe('Objects API — error branches', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const userId = await getUserIdByEmail(db, 'test@example.com')
-    await insertTeamOrg(db, 'team-dest')
-    await insertMember(db, 'team-dest', userId, 'editor')
+    await insertTeamOrg(db, 'Teamdest')
+    await insertMember(db, 'Teamdest', userId, 'editor')
 
-    const res = await transferRequest(app, headers, 'does-not-exist', { targetOrgId: 'team-dest', mode: 'copy' })
+    const res = await transferRequest(app, headers, 'DoesNotExist', { targetOrgId: 'Teamdest', mode: 'copy' })
     expect(res.status).toBe(404)
     const body = (await res.json()) as { error: { message: string } }
     expect(body.error.message).toBe('Not found')
@@ -2938,11 +2938,11 @@ describe('Objects API — error branches', () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
-    await insertFile(db, orgId, { id: 'm-task-trash', name: 'file.txt', parent: 'Remote' })
+    await insertFile(db, orgId, { id: 'Mtasktrash', name: 'file.txt', parent: 'Remote' })
 
     // DELETE /objects/:id requires objects:delete; a download-task-upload token
     // is authenticated but only carries upload lifecycle scopes.
-    const res = await app.request('/api/objects/m-task-trash', {
+    const res = await app.request('/api/objects/Mtasktrash', {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${uploadToken}` },
     })
@@ -2955,9 +2955,9 @@ describe('Objects API — error branches', () => {
     const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
     // Draft sits outside the token's authorized folder, so the completion guard denies
     // before any session lookup.
-    await insertFile(db, orgId, { id: 'm-task-outside', name: 'file.txt', parent: 'Elsewhere', status: 'draft' })
+    await insertFile(db, orgId, { id: 'Mtaskoutside', name: 'file.txt', parent: 'Elsewhere', status: 'draft' })
 
-    const res = await app.request('/api/objects/m-task-outside/uploads/any-session/completions', {
+    const res = await app.request('/api/objects/Mtaskoutside/uploads/AnySession/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
@@ -2972,13 +2972,13 @@ describe('Objects API — error branches', () => {
     await insertStorage(db)
     const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
     await insertFile(db, orgId, {
-      id: 'm-task-presign-outside',
+      id: 'Mtaskpresignoutside',
       name: 'file.txt',
       parent: 'Elsewhere',
       status: 'draft',
     })
 
-    const res = await app.request('/api/objects/m-task-presign-outside/uploads/any-session/parts', {
+    const res = await app.request('/api/objects/Mtaskpresignoutside/uploads/AnySession/parts', {
       method: 'POST',
       headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ partNumbers: [1] }),
@@ -3025,9 +3025,9 @@ describe('Objects API — error branches', () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
     const { uploadToken, orgId } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
-    await insertFile(db, orgId, { id: 'm-task-abort-outside', name: 'file.txt', parent: 'Elsewhere', status: 'draft' })
+    await insertFile(db, orgId, { id: 'Mtaskabortoutside', name: 'file.txt', parent: 'Elsewhere', status: 'draft' })
 
-    const res = await app.request('/api/objects/m-task-abort-outside/uploads/any-session', {
+    const res = await app.request('/api/objects/Mtaskabortoutside/uploads/AnySession', {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${uploadToken}` },
     })

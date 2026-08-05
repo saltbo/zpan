@@ -5,7 +5,7 @@ import type { Database } from '../../platform/interface'
 import { createCloudTrafficReportRepo, trafficLedgerExactFrom } from './cloud-traffic-report'
 
 const OPENING_SOURCE_ID = 'v3-authoritative-sources'
-const OPENING_EVENT_ID = `audit:statistics_source_initialized:${OPENING_SOURCE_ID}`
+const OPENING_EVENT_KEY = `audit:statistics_source_initialized:${OPENING_SOURCE_ID}`
 const OPENING_OPTION_KEY = 'stats_integrity_exact_from_v3'
 
 export interface AdminStatsSourceIntegrity {
@@ -31,14 +31,14 @@ export async function ensureAdminStatsIntegrityOpening(db: Database, now = new D
   const legacy = await db
     .select({ createdAt: auditEvents.createdAt })
     .from(auditEvents)
-    .where(eq(auditEvents.id, OPENING_EVENT_ID))
+    .where(eq(auditEvents.eventKey, OPENING_EVENT_KEY))
     .limit(1)
   const exactFrom = legacy[0]?.createdAt ?? new Date((Math.floor(now.getTime() / 1000) + 1) * 1000)
   await db
     .insert(systemOptions)
     .values({ key: OPENING_OPTION_KEY, value: exactFrom.toISOString() })
     .onConflictDoNothing({ target: systemOptions.key })
-  await db.delete(auditEvents).where(eq(auditEvents.id, OPENING_EVENT_ID))
+  await db.delete(auditEvents).where(eq(auditEvents.eventKey, OPENING_EVENT_KEY))
 
   const rows = await db
     .select({ value: systemOptions.value })
@@ -115,7 +115,7 @@ export async function inspectAdminStatsSourceIntegrity(
               json_valid(metadata) = 0
               OR target_id IS NULL
               OR user_id <> target_id
-              OR id <> 'event:user_register:' || target_id
+              OR event_key <> 'event:user_register:' || target_id
               OR COALESCE(json_type(metadata, '$.provider') = 'text', 0) = 0
               OR COALESCE(length(json_extract(metadata, '$.provider')), 0) = 0
             ))
@@ -166,7 +166,7 @@ export async function inspectAdminStatsSourceIntegrity(
            SELECT 1
            FROM audit_events registration_event
            WHERE registration_event.action = 'user_register'
-             AND registration_event.id = 'event:user_register:' || registered_user.id
+             AND registration_event.event_key = 'event:user_register:' || registered_user.id
              AND registration_event.user_id = registered_user.id
              AND registration_event.target_id = registered_user.id
              AND registration_event.created_at = CAST(registered_user.created_at / 1000 AS INTEGER)

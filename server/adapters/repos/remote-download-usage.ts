@@ -1,5 +1,5 @@
 import { asc, eq, inArray } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { generateId } from '../../../shared/ids'
 import { remoteDownloadUsageReports } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import type {
@@ -39,7 +39,7 @@ export function createRemoteDownloadUsageRepo(db: Database): RemoteDownloadUsage
 
     async insert(input: InsertRemoteDownloadUsageReportInput) {
       await db.insert(remoteDownloadUsageReports).values({
-        id: nanoid(),
+        id: generateId(),
         orgId: input.orgId,
         downloaderId: input.downloaderId,
         taskId: input.taskId,

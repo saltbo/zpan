@@ -151,7 +151,7 @@ async function getLiveUserSummary(db: Database, now: Date): Promise<{ total: num
           eq(auditEvents.action, 'user_register'),
           sql`${auditEvents.targetId} IS NOT NULL`,
           sql`${auditEvents.userId} = ${auditEvents.targetId}`,
-          sql`${auditEvents.id} = 'event:user_register:' || ${auditEvents.targetId}`,
+          sql`${auditEvents.eventKey} = 'event:user_register:' || ${auditEvents.targetId}`,
           gte(auditEvents.createdAt, new Date(fromMs)),
           lte(auditEvents.createdAt, new Date(nowMs)),
           sql`json_valid(${auditEvents.metadata}) = 1`,

@@ -1,5 +1,5 @@
 import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { generateId } from '../../../shared/ids'
 import { x402CapacityPurchaseIntents } from '../../db/schema'
 import { executeWriteTransactionWithResults } from '../../db/transaction'
 import type { Database } from '../../platform/interface'
@@ -30,7 +30,7 @@ export function createX402CapacityPurchaseRepo(db: Database): X402CapacityPurcha
     async create(input) {
       const now = new Date()
       const nowMs = now.getTime()
-      const id = nanoid()
+      const id = generateId()
       const abandonedBefore = new Date(nowMs - PENDING_INTENT_TTL_MS)
       const creationWindowStart = new Date(nowMs - INTENT_CREATION_WINDOW_MS)
       const retentionBefore = new Date(nowMs - ABANDONED_INTENT_RETENTION_MS)

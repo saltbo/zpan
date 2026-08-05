@@ -35,10 +35,6 @@ export interface ImageUrlConfig {
   domainVerifiedAt: Date | null
 }
 
-export function isImageHostingToken(token: string): boolean {
-  return token.startsWith('ih')
-}
-
 export function buildImageUrl(config: ImageUrlConfig | null, path: string, tokenUrl: string): string {
   if (config?.customDomain && config.domainVerifiedAt) {
     return `https://${config.customDomain}/${path}`

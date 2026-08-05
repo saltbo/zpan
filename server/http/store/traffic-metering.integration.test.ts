@@ -9,7 +9,7 @@ import type { Database } from '../../platform/interface'
 import { authedHeaders, createTestApp, seedBusinessLicense } from '../../test/setup'
 import { encodeChildRef } from '../share-utils'
 
-const STORAGE_ID = 'st-cloud-traffic-test'
+const STORAGE_ID = 'StCloudTrafficTest'
 
 beforeEach(() => {
   vi.restoreAllMocks()
@@ -111,10 +111,10 @@ describe('object download cloud traffic reporting', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, 'm-cloud-report-ok')
+    await insertFile(db, orgId, 'MCloudReportOk')
     await setTrafficQuota(db, orgId)
 
-    const res = await app.request('/api/objects/m-cloud-report-ok', { headers })
+    const res = await app.request('/api/objects/MCloudReportOk', { headers })
 
     expect(res.status).toBe(200)
     expect(fetch).toHaveBeenCalledTimes(1)
@@ -122,7 +122,7 @@ describe('object download cloud traffic reporting', () => {
       {
         orgId,
         source: 'object_download',
-        sourceId: 'm-cloud-report-ok',
+        sourceId: 'MCloudReportOk',
         bytes: 100,
         status: 'reported',
         issuedAt: expect.any(Date),
@@ -145,7 +145,7 @@ describe('object download cloud traffic reporting', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, 'm-cloud-report-atomic')
+    await insertFile(db, orgId, 'MCloudReportAtomic')
     await setTrafficQuota(db, orgId)
     await db.run(sql`
       CREATE TRIGGER reject_download_fact
@@ -156,14 +156,14 @@ describe('object download cloud traffic reporting', () => {
       END
     `)
 
-    const res = await app.request('/api/objects/m-cloud-report-atomic', { headers })
+    const res = await app.request('/api/objects/MCloudReportAtomic', { headers })
 
     expect(res.status).toBe(200)
     await expect(trafficReports(db)).resolves.toMatchObject([{ status: 'reported', issuedAt: expect.any(Date) }])
     const issuedEvents = await db.all(sql`
       SELECT 1 FROM audit_events
       WHERE action = 'object_download'
-        AND target_id = 'm-cloud-report-atomic'
+        AND target_id = 'MCloudReportAtomic'
     `)
     expect(issuedEvents).toHaveLength(0)
     const quotaRows = await db.all<{ trafficUsed: number }>(
@@ -182,10 +182,10 @@ describe('object download cloud traffic reporting', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, 'm-cloud-report-blocked')
+    await insertFile(db, orgId, 'MCloudReportBlocked')
     await setTrafficQuota(db, orgId)
 
-    const res = await app.request('/api/objects/m-cloud-report-blocked', { headers })
+    const res = await app.request('/api/objects/MCloudReportBlocked', { headers })
 
     expect(res.status).toBe(402)
     await expect(res.json()).resolves.toMatchObject({
@@ -215,10 +215,10 @@ describe('object download cloud traffic reporting', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, 'm-cloud-report-mismatch')
+    await insertFile(db, orgId, 'MCloudReportMismatch')
     await setTrafficQuota(db, orgId)
 
-    const res = await app.request('/api/objects/m-cloud-report-mismatch', { headers })
+    const res = await app.request('/api/objects/MCloudReportMismatch', { headers })
 
     expect(res.status).toBe(200)
     expect(fetch).toHaveBeenCalledTimes(1)
@@ -237,10 +237,10 @@ describe('object download cloud traffic reporting', () => {
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertFile(db, orgId, 'm-cloud-report-presign-fail')
+    await insertFile(db, orgId, 'MCloudReportPresignFail')
     await setTrafficQuota(db, orgId)
 
-    const res = await app.request('/api/objects/m-cloud-report-presign-fail', { headers })
+    const res = await app.request('/api/objects/MCloudReportPresignFail', { headers })
 
     expect(res.status).toBe(500)
     expect(fetch).toHaveBeenCalledTimes(1)
@@ -429,10 +429,10 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-token', 'ih_cloudtoken')
+    await insertImage(db, orgId, 'ih-cloud-token', 'i10000000001')
     await insertImageConfig(db, orgId)
 
-    const res = await app.request('/r/ih_cloudtoken', { redirect: 'manual' })
+    const res = await app.request('/r/i10000000001', { redirect: 'manual' })
 
     expect(res.status).toBe(302)
     await expect(trafficReports(db)).resolves.toMatchObject([
@@ -448,11 +448,11 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-log-fail', 'ih_cloudlogfail')
+    await insertImage(db, orgId, 'ih-cloud-log-fail', 'i10000000002')
     await insertImageConfig(db, orgId)
     vi.spyOn(db, 'run').mockRejectedValue(new Error('access failed'))
 
-    const res = await app.request('/r/ih_cloudlogfail', { redirect: 'manual' })
+    const res = await app.request('/r/i10000000002', { redirect: 'manual' })
 
     expect(res.status).toBe(302)
     expect(consoleError).toHaveBeenCalled()
@@ -466,10 +466,10 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-presign-fail', 'ih_cloudpresignfail')
+    await insertImage(db, orgId, 'ih-cloud-presign-fail', 'i10000000003')
     await insertImageConfig(db, orgId)
 
-    const res = await app.request('/r/ih_cloudpresignfail', { redirect: 'manual' })
+    const res = await app.request('/r/i10000000003', { redirect: 'manual' })
 
     expect(res.status).toBe(500)
     expect(fetch).not.toHaveBeenCalled()
@@ -483,7 +483,7 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-domain', 'ih_clouddomain', 'blog/domain.png')
+    await insertImage(db, orgId, 'ih-cloud-domain', 'ihClouddomain', 'blog/domain.png')
     await insertImageConfig(db, orgId, 'img.example.com')
 
     const res = await app.request('https://img.example.com/blog/domain.png', {
@@ -507,7 +507,7 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-domain-blocked', 'ih_clouddomainblocked', 'blog/domain-blocked.png')
+    await insertImage(db, orgId, 'ih-cloud-domain-blocked', 'ihClouddomainblocked', 'blog/domain-blocked.png')
     await insertImageConfig(db, orgId, 'img-blocked.example.com')
     await setTrafficQuota(db, orgId)
 
@@ -542,7 +542,7 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-domain-confirm-fail', 'ih_clouddomainconfirmfail', 'blog/confirm-fail.png')
+    await insertImage(db, orgId, 'ih-cloud-domain-confirm-fail', 'ihClouddomainconfirmfail', 'blog/confirm-fail.png')
     await insertImageConfig(db, orgId, 'img-confirm-fail.example.com')
     await setTrafficQuota(db, orgId)
     vi.spyOn(deps.cloudTrafficReports, 'markIssued').mockRejectedValueOnce(new Error('confirm failed'))
@@ -574,7 +574,7 @@ describe('public redirect cloud traffic reporting', () => {
     await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)
-    await insertImage(db, orgId, 'ih-cloud-domain-log-fail', 'ih_clouddomainlogfail', 'blog/domain-log-fail.png')
+    await insertImage(db, orgId, 'ih-cloud-domain-log-fail', 'ihClouddomainlogfail', 'blog/domain-log-fail.png')
     await insertImageConfig(db, orgId, 'img.example.com')
     vi.spyOn(db, 'run').mockRejectedValue(new Error('access failed'))
 

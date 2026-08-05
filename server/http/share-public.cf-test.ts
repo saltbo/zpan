@@ -29,7 +29,7 @@ describe('[CF] Routing regression — share routes must be under /api/* or /r/*'
     const auth = await createAuth(platform.db, env.BETTER_AUTH_SECRET, 'http://localhost')
     const app = createApp(platform, auth)
 
-    const res = await app.request('/api/shares/nonexistent')
+    const res = await app.request('/api/shares/sNotFound001')
     expect(res.status).toBe(404)
     const ct = res.headers.get('content-type') ?? ''
     expect(ct).toContain('application/json')

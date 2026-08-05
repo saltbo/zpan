@@ -61,7 +61,7 @@ async function insertGrant(
 ) {
   const now = new Date('2026-07-29T12:00:00.000Z')
   await db.insert(authSchema.oauthConsent).values({
-    id: 'grant-1',
+    id: 'Grant1',
     clientId: CLIENT_ID,
     userId: input.userId,
     authorizationDetails: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: input.orgId }],
@@ -203,7 +203,7 @@ describe('OAuth grants API integration', () => {
     await expect(list.json()).resolves.toEqual({
       items: [
         {
-          id: 'grant-1',
+          id: 'Grant1',
           clientId: CLIENT_ID,
           clientName: CLIENT_NAME,
           userId,
@@ -216,7 +216,7 @@ describe('OAuth grants API integration', () => {
       ],
     })
 
-    const revoke = await app.request('/api/oauth-grants/grant-1', { method: 'DELETE', headers })
+    const revoke = await app.request('/api/oauth-grants/Grant1', { method: 'DELETE', headers })
     expect(revoke.status).toBe(204)
     expect(await db.select().from(authSchema.oauthConsent)).toHaveLength(0)
     expect(await db.select().from(authSchema.oauthAccessToken)).toHaveLength(0)
@@ -228,7 +228,7 @@ describe('OAuth grants API integration', () => {
     const { app } = await createTestApp()
     const headers = await authedHeaders(app, 'agent-missing-grant@example.com')
 
-    const revoke = await app.request('/api/oauth-grants/missing-grant', { method: 'DELETE', headers })
+    const revoke = await app.request('/api/oauth-grants/MissingGrant', { method: 'DELETE', headers })
 
     expect(revoke.status).toBe(404)
     await expect(revoke.json()).resolves.toMatchObject({ error: { message: 'OAuth grant not found' } })

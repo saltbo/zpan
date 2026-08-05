@@ -380,7 +380,11 @@ describe('Download tasks API integration', () => {
     const rows = await db.all<{ objectKey: string }>(
       sql`SELECT object AS objectKey FROM matters WHERE id = ${object.id}`,
     )
-    expect(rows[0]?.objectKey).toMatch(new RegExp(`^${identity.orgId}/${identity.userId}/\\d{8}/`))
+    expect(identity.orgId).toMatch(/^[A-Za-z0-9]+$/)
+    expect(identity.userId).toMatch(/^[A-Za-z0-9]+$/)
+    expect(rows[0]?.objectKey).toMatch(
+      new RegExp(`^${identity.orgId}/${identity.userId}/\\d{8}/[A-Za-z0-9]{17}\\.txt$`),
+    )
     expect(rows[0]?.objectKey).not.toContain('api-key:')
   })
 

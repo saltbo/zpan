@@ -1,5 +1,5 @@
 import type { PutIhostConfigInput } from '@shared/schemas'
-import { nanoid } from 'nanoid'
+import { generateToken } from '../../../shared/ids'
 import { hasFeature } from '../../domain/licensing'
 import {
   AppError,
@@ -168,8 +168,8 @@ export async function putImageHostingConfig(
     verificationToken:
       newDomain && provider?.settings.provider === 'manual'
         ? newDomain === oldDomain
-          ? (existing?.verificationToken ?? nanoid(32))
-          : nanoid(32)
+          ? (existing?.verificationToken ?? generateToken(33))
+          : generateToken(33)
         : null,
   } as const
 

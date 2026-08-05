@@ -41,8 +41,8 @@ function archiveDeps(db: TestDb): ArchiveProcessingDeps {
   }
 }
 
-const ORG_ID = 'archive-org'
-const USER_ID = 'archive-user'
+const ORG_ID = 'archiveOrg'
+const USER_ID = 'archiveUser'
 const STORAGE_ID = 'archive-storage'
 
 async function seedStoragePlanEntitlement(db: TestDb, orgId: string, bytes: number, id: string) {
@@ -240,6 +240,9 @@ describe('archive processing', () => {
       ]),
     )
     expect(s3.putKeys).toHaveLength(1)
+    const extractedFile = rows.find((row) => row.name === 'hello.txt')
+    expect(extractedFile?.object).toMatch(/^archiveOrg\/archiveUser\/\d{8}\/[A-Za-z0-9]{17}\.txt$/)
+    expect(s3.putKeys[0]).toBe(extractedFile?.object)
   })
 
   it('prevalidates then streams extraction for a 128 MiB ZIP entry', async () => {
@@ -269,10 +272,11 @@ describe('archive processing', () => {
   it('compresses selected matters into a ZIP matter and object', async () => {
     const { db } = await createTestApp()
     await seedStorage(db)
-    await seedMatter(db, { id: 'file-a', name: 'a.txt', object: 'objects/a.txt', size: 5 })
+    const sourceKey = 'legacy_/archive-source-.txt'
+    await seedMatter(db, { id: 'file-a', name: 'a.txt', object: sourceKey, size: 5 })
 
     const s3 = new MemoryS3()
-    s3.objects.set('objects/a.txt', bytes('hello'))
+    s3.objects.set(sourceKey, bytes('hello'))
 
     const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
@@ -289,7 +293,9 @@ describe('archive processing', () => {
     `)
     expect(zipMatter).toHaveLength(1)
     expect(zipMatter[0].type).toBe('application/zip')
+    expect(zipMatter[0].object).toMatch(/^archiveOrg\/archiveUser\/\d{8}\/[A-Za-z0-9]{17}\.zip$/)
     expect(s3.objects.get(zipMatter[0].object)?.length).toBe(zipMatter[0].size)
+    expect(s3.objects.get(sourceKey)).toEqual(bytes('hello'))
   })
 
   it('streams compression for a 128 MiB source without buffering the source object', async () => {

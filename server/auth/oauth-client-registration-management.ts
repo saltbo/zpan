@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { generateToken } from '../../shared/ids'
 import {
   JWT_BEARER_GRANT_TYPE,
   OAUTH_SCOPES,
@@ -488,8 +489,7 @@ function mergedHeaders(...inputs: Array<HeadersInit | undefined>): Headers {
 }
 
 function registrationToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32))
-  return `zpr_${base64Url(bytes)}`
+  return generateToken(43)
 }
 
 function configurationUrl(clientId: string, baseUrl: string): URL {

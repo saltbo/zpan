@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
+import { generateId } from '../../shared/ids'
 import { createShareRepo } from '../adapters/repos/share'
 import { createApp } from '../app'
 import { createAuth } from '../auth'
@@ -17,7 +17,7 @@ async function buildApp() {
 }
 
 async function signUp(app: TestApp, db: TestDb, username: string) {
-  const emailLocalPart = `${username}-${nanoid(6)}`.toLowerCase()
+  const emailLocalPart = `${username}-${generateId(6)}`.toLowerCase()
   const email = `${emailLocalPart}@example.com`
   const response = await app.request('/api/auth/sign-up/email', {
     method: 'POST',
@@ -56,7 +56,7 @@ async function insertMatter(
   name: string,
   options: { dirtype?: number; status?: string } = {},
 ) {
-  const id = `matter-${nanoid()}`
+  const id = generateId()
   const now = Date.now()
   const dirtype = options.dirtype ?? 0
   await db.run(sql`
@@ -66,7 +66,7 @@ async function insertMatter(
       (
         ${id},
         ${orgId},
-        ${`alias-${nanoid()}`},
+        ${generateId(10)},
         ${name},
         ${dirtype === 0 ? 'text/plain' : 'folder'},
         ${dirtype === 0 ? 128 : 0},
@@ -93,7 +93,7 @@ function createShare(app: TestApp, headers: Record<string, string>, body: Record
 describe('[CF] public profile shares', () => {
   it('lists a landing share by default and making it private leaves the share usable', async () => {
     const { app, db } = await buildApp()
-    const owner = await signUp(app, db, `profile-owner-${nanoid(5)}`)
+    const owner = await signUp(app, db, `profile-owner-${generateId(5)}`)
     const matterId = await insertMatter(db, owner.orgId, 'Public guide.txt')
 
     const creation = await createShare(app, owner.headers, {
@@ -135,8 +135,8 @@ describe('[CF] public profile shares', () => {
 
   it('requires authentication and ownership to change share privacy', async () => {
     const { app, db } = await buildApp()
-    const owner = await signUp(app, db, `profile-owner-${nanoid(5)}`)
-    const other = await signUp(app, db, `profile-other-${nanoid(5)}`)
+    const owner = await signUp(app, db, `profile-owner-${generateId(5)}`)
+    const other = await signUp(app, db, `profile-other-${generateId(5)}`)
     const matterId = await insertMatter(db, owner.orgId, 'Owner only.txt')
     const share = await createShareRepo(db).create({
       matterId,
@@ -174,7 +174,7 @@ describe('[CF] public profile shares', () => {
 
   it('rejects ineligible privacy requests and never exposes direct or recipient-targeted shares', async () => {
     const { app, db } = await buildApp()
-    const owner = await signUp(app, db, `profile-owner-${nanoid(5)}`)
+    const owner = await signUp(app, db, `profile-owner-${generateId(5)}`)
     const matterId = await insertMatter(db, owner.orgId, 'Privacy boundary.txt')
     const repo = createShareRepo(db)
     const visible = await repo.create({
@@ -227,7 +227,7 @@ describe('[CF] public profile shares', () => {
 
   it('filters private, revoked, expired, exhausted, trashed, inactive, and missing targets at read time', async () => {
     const { app, db } = await buildApp()
-    const owner = await signUp(app, db, `profile-owner-${nanoid(5)}`)
+    const owner = await signUp(app, db, `profile-owner-${generateId(5)}`)
     const repo = createShareRepo(db)
 
     async function listedShare(name: string, options: { expiresAt?: Date; downloadLimit?: number } = {}) {

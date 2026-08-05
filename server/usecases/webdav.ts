@@ -14,7 +14,7 @@
 
 import { DirType, ObjectStatus } from '@shared/constants'
 import { joinMatterPath } from '../domain/webdav'
-import { buildObjectKey, fileExt } from '../lib/path-template'
+import { assertObjectKeyOwner, buildObjectKey, fileExt } from '../lib/path-template'
 import type { Database } from '../platform/interface'
 import type { Deps } from './deps'
 import { assertFolderNotUsedByDownload } from './downloads/download-folders'
@@ -312,6 +312,7 @@ export async function putWebDavFile(
   },
 ): Promise<PutWebDavOutcome> {
   const { orgId, userId, target, fileName, parent, contentType, contentLength, body } = params
+  assertObjectKeyOwner({ orgId, uid: userId })
   let startedAt = performance.now()
   const storage = target.matter ? await deps.storages.get(target.matter.storageId) : await deps.storages.select()
   params.onTiming?.('storage', performance.now() - startedAt)

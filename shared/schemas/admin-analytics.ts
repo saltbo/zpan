@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi'
+import { opaqueIdSchema, shareTokenSchema } from './id'
 
 const n = z.number()
 const ni = z.number().int()
@@ -44,7 +45,7 @@ export const adminOverviewSchema = z
       trend: z.array(dated.extend({ totalUsers: nn, activeUsers: nn, newUsers: nn })),
       topUsage: z.array(
         z.object({
-          userId: z.string(),
+          userId: opaqueIdSchema,
           name: z.string(),
           email: z.string(),
           usedBytes: n,
@@ -62,7 +63,7 @@ export const adminOverviewSchema = z
       trend: z.array(dated.extend({ usedBytes: nn, writtenBytes: nn, releasedBytes: nn })),
       items: z.array(
         z.object({
-          id: z.string(),
+          id: opaqueIdSchema,
           provider: z.string(),
           bucket: z.string(),
           enabled: z.boolean(),
@@ -83,7 +84,7 @@ export const adminOverviewSchema = z
       uploadBps: n,
       items: z.array(
         z.object({
-          id: z.string(),
+          id: opaqueIdSchema,
           name: z.string(),
           status: z.enum(['online', 'offline', 'disabled']),
           currentTasks: ni,
@@ -178,7 +179,7 @@ export const adminAnalyticsStorageSchema = z
     ageBreakdown: z.array(z.object({ name: z.string(), bytes: n, files: n, percent: n })),
     topSpaces: z.array(
       z.object({
-        orgId: z.string(),
+        orgId: opaqueIdSchema,
         orgName: z.string(),
         orgType: z.string(),
         usedBytes: n,
@@ -225,10 +226,10 @@ export const adminAnalyticsSharingSchema = z
     sourceBreakdown: z.array(nameValuePercent),
     topShares: z.array(
       z.object({
-        id: z.string(),
-        token: z.string(),
+        id: opaqueIdSchema,
+        token: shareTokenSchema,
         name: z.string(),
-        creatorId: z.string(),
+        creatorId: opaqueIdSchema,
         creatorName: z.string(),
         views: n,
         downloads: n,

@@ -6,6 +6,7 @@ import {
   oauthConsentResultSchema,
   oauthConsentSubmitSchema,
   oauthGrantListSchema,
+  opaqueIdSchema,
 } from '@shared/schemas'
 import type { Env } from '../middleware/platform'
 import { getOAuthConsentContext } from '../usecases/oauth-consent'
@@ -13,7 +14,7 @@ import { listOAuthGrants, revokeOAuthGrant } from '../usecases/oauth-grants'
 import { badRequest } from '../usecases/ports'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 
-const paramsSchema = z.object({ grantId: z.string().min(1) })
+const paramsSchema = z.object({ grantId: opaqueIdSchema })
 const consentContextQuerySchema = z.object({ oauthQuery: z.string().min(1) })
 
 const consentContextRoute = authRoute(

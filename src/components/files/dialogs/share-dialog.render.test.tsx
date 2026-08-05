@@ -70,9 +70,9 @@ function renderDialog() {
 
 beforeEach(() => {
   vi.mocked(createShare).mockResolvedValue({
-    token: 'share-token',
+    token: 'sShareTok001',
     kind: 'landing',
-    urls: { landing: '/s/share-token' },
+    urls: { landing: '/s/sShareTok001' },
     expiresAt: null,
     downloadLimit: null,
     private: false,

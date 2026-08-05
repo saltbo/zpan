@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { generateId } from '../../../shared/ids'
 import { licenseBindings } from '../../db/schema'
 import { executeWriteTransaction } from '../../db/transaction'
 import type { Database } from '../../platform/interface'
@@ -54,7 +54,7 @@ async function createLicenseBinding(db: Database, input: CreateLicenseBindingInp
       })
       .where(eq(licenseBindings.status, 'active')),
     db.insert(licenseBindings).values({
-      id: nanoid(),
+      id: generateId(),
       cloudBindingId: input.cloudBindingId,
       cloudStoreId: input.cloudStoreId ?? null,
       instanceId: input.instanceId,

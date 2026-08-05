@@ -1,6 +1,6 @@
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { generateId } from '../../../shared/ids'
 import { member, organization, user } from '../../db/auth-schema'
 import { orgQuotaEntitlements } from '../../db/schema'
 import type { Database } from '../../platform/interface'
@@ -142,12 +142,12 @@ async function grantOrgEntitlement(
   if ('error' in org) return org
   const now = new Date()
   const entitlement = {
-    id: nanoid(),
+    id: generateId(),
     orgId: input.orgId,
     resourceType: input.resourceType,
     entitlementType: 'grant',
     source: 'admin_grant',
-    sourceId: `admin_grant:${nanoid()}`,
+    sourceId: `admin_grant:${generateId()}`,
     bytes: input.bytes,
     startsAt: now,
     expiresAt: input.expiresAt ?? null,
