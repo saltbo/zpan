@@ -198,9 +198,10 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     return c.json({
       resource: `${origin}/api`,
       authorization_servers: [authorizationServer],
-      bearer_methods_supported: ['header'],
+      bearer_methods_supported: [],
       scopes_supported: OAUTH_RESOURCE_SCOPES,
       dpop_signing_alg_values_supported: ['ES256', 'EdDSA'],
+      dpop_bound_access_tokens_required: true,
       resource_name: 'ZPan API',
     })
   })
@@ -283,26 +284,6 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       'x-zpan-discovery': {
         oauthAuthorizationServer: '/.well-known/oauth-authorization-server/api/auth',
         oauthProtectedResource: '/.well-known/oauth-protected-resource/api',
-      },
-      'x-cli-config': {
-        profiles: {
-          default: {
-            credentials: {
-              oauth2: {
-                auth: {
-                  type: 'api-key',
-                  params: {
-                    in: 'header',
-                    name: 'Authorization',
-                    value: 'DPoP',
-                    provider: 'realmroot-target',
-                    scopes: OAUTH_RESOURCE_SCOPES.join(' '),
-                  },
-                },
-              },
-            },
-          },
-        },
       },
     })
     addRequestIdOpenApi(doc)
@@ -471,7 +452,10 @@ function getCorsOrigins(platform: Platform): Set<string> {
 }
 
 function agentScopeDescriptions(): Record<string, string> {
-  return { ...OAUTH_SCOPE_DESCRIPTIONS }
+  return {
+    ...OAUTH_SCOPE_DESCRIPTIONS,
+    [AuthorizationScope.WORKSPACES_DISCOVER]: 'Discover workspaces available to the connected account',
+  }
 }
 
 export type AppType = ReturnType<typeof createApp>

@@ -240,7 +240,7 @@ describe('global OpenAPI document', () => {
     expect(await headResponse.text()).toBe('')
   })
 
-  it('publishes the external OAuth scope catalog with delegated CLI authentication', async () => {
+  it('publishes the external OAuth scope catalog without client-owned credential configuration', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
     const doc = (await res.json()) as {
@@ -250,17 +250,7 @@ describe('global OpenAPI document', () => {
           { type?: string; scheme?: string; flows?: { authorizationCode?: { scopes?: Record<string, string> } } }
         >
       }
-      'x-cli-config'?: {
-        profiles?: Record<
-          string,
-          {
-            credentials?: Record<
-              string,
-              { auth?: { params?: Record<string, unknown> }; params?: Record<string, unknown> }
-            >
-          }
-        >
-      }
+      'x-cli-config'?: unknown
     }
 
     expect(doc.components?.securitySchemes?.oauth2).toMatchObject({
@@ -271,6 +261,7 @@ describe('global OpenAPI document', () => {
           tokenUrl: '/api/auth/oauth2/token',
           refreshUrl: '/api/auth/oauth2/token',
           scopes: expect.objectContaining({
+            [AuthorizationScope.WORKSPACES_DISCOVER]: 'Discover workspaces available to the connected account',
             [AuthorizationScope.OBJECTS_READ]: 'List, inspect, and download objects',
             [AuthorizationScope.OBJECTS_CREATE]: 'Create folders and upload objects',
             [AuthorizationScope.SHARES_CREATE]: 'Create public shares',
@@ -280,22 +271,7 @@ describe('global OpenAPI document', () => {
       },
     })
     expect(doc.components?.securitySchemes?.agentApiKey).toBeUndefined()
-    expect(doc['x-cli-config']?.profiles?.default?.credentials?.oauth2).toEqual({
-      auth: {
-        type: 'api-key',
-        params: {
-          in: 'header',
-          name: 'Authorization',
-          value: 'DPoP',
-          provider: 'realmroot-target',
-          scopes: expect.stringContaining(AuthorizationScope.OBJECTS_CREATE),
-        },
-      },
-    })
-    expect(doc['x-cli-config']?.profiles?.default?.credentials?.oauth2.auth?.params?.scopes).toContain(
-      AuthorizationScope.OBJECTS_PURGE,
-    )
-    expect(Object.keys(doc['x-cli-config']?.profiles ?? {})).toEqual(['default'])
+    expect(doc['x-cli-config']).toBeUndefined()
   })
 
   it('publishes scopes through authorization-server metadata without a duplicate catalog endpoint', async () => {
@@ -345,7 +321,9 @@ describe('global OpenAPI document', () => {
     expect(await protectedResource.json()).toMatchObject({
       resource: 'http://localhost/api',
       authorization_servers: ['http://localhost:3000/api/auth'],
+      bearer_methods_supported: [],
       scopes_supported: expect.arrayContaining([AuthorizationScope.OBJECTS_READ]),
+      dpop_bound_access_tokens_required: true,
     })
 
     const protectedHead = await app.request('/.well-known/oauth-protected-resource/api', { method: 'HEAD' })
