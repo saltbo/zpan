@@ -255,6 +255,7 @@ describe('global OpenAPI document', () => {
 
     expect(doc.components?.securitySchemes?.oauth2).toMatchObject({
       type: 'oauth2',
+      'x-dpop-required': true,
       flows: {
         authorizationCode: {
           authorizationUrl: '/api/auth/oauth2/authorize',

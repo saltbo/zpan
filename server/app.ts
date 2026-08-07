@@ -259,6 +259,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
       bearerAuth: { type: 'http', scheme: 'bearer' },
       oauth2: {
         type: 'oauth2',
+        'x-dpop-required': true,
         flows: {
           authorizationCode: {
             authorizationUrl: '/api/auth/oauth2/authorize',
