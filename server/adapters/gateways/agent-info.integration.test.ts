@@ -13,6 +13,7 @@ describe('Agent Info gateway', () => {
   it('discovers and caches an Agent profile for a trusted issuer', async () => {
     let discoveryRequests = 0
     let agentInfoRequests = 0
+    const redirects: RequestRedirect[] = []
     const { origin } = await listen((request, response) => {
       if (request.url === '/api/auth/.well-known/openid-configuration') {
         discoveryRequests += 1
@@ -41,7 +42,10 @@ describe('Agent Info gateway', () => {
       response.statusCode = 404
       response.end()
     })
-    const gateway = createAgentInfoGateway()
+    const gateway = createAgentInfoGateway((input, init) => {
+      if (init?.redirect) redirects.push(init.redirect)
+      return fetch(input, init)
+    })
     const identity = { type: 'oauth', ref: 'agt_1', issuer: `${origin}/api/auth` } as const
     const secondIdentity = { type: 'oauth', ref: 'agt_2', issuer: `${origin}/api/auth` } as const
     const trustedOrigins = new Set([origin])
@@ -57,6 +61,7 @@ describe('Agent Info gateway', () => {
     expect(second).toEqual(first)
     expect(discoveryRequests).toBe(1)
     expect(agentInfoRequests).toBe(2)
+    expect(redirects).toEqual(['manual', 'manual', 'manual'])
   })
 
   it('does not contact an untrusted issuer', async () => {

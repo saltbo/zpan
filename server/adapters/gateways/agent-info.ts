@@ -85,7 +85,7 @@ async function loadAgentProfile(
     url.searchParams.set('sub', subject)
     const response = await request(url, {
       headers: { Accept: 'application/json' },
-      redirect: 'error',
+      redirect: 'manual',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
     if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return null
@@ -127,7 +127,7 @@ async function loadAgentInfoEndpoint(
   const discoveryUrl = new URL(`${issuerValue}/.well-known/openid-configuration`)
   const response = await request(discoveryUrl, {
     headers: { Accept: 'application/json' },
-    redirect: 'error',
+    redirect: 'manual',
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
   if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return null
