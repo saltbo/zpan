@@ -1065,6 +1065,18 @@ describe('Download tasks API integration', () => {
     expect(confirmRes.status).toBe(200)
     const confirmed = (await confirmRes.json()) as { id: string; status: string }
     expect(confirmed.status).toBe('active')
+    const uploadAudit = await db.all<{ actorType: string; actorRef: string | null; userId: string | null }>(sql`
+      SELECT actor_type AS actorType, actor_ref AS actorRef, user_id AS userId
+      FROM audit_events
+      WHERE action = 'upload_confirm' AND target_id = ${object.id}
+    `)
+    expect(uploadAudit).toEqual([
+      {
+        actorType: 'device',
+        actorRef: createdDownloader.downloader.id,
+        userId: createdTask.createdBy,
+      },
+    ])
 
     const uploadingRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, {
       method: 'PATCH',

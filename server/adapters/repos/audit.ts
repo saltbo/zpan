@@ -4,7 +4,7 @@ import { organization, user } from '../../db/auth-schema'
 import { auditEvents } from '../../db/schema'
 import { assertAuditEvent } from '../../domain/audit-events'
 import type { Database } from '../../platform/interface'
-import type { AuditActorType, AuditRepo, RecordAuditEventInput } from '../../usecases/ports'
+import type { AuditActorProfile, AuditActorType, AuditRepo, RecordAuditEventInput } from '../../usecases/ports'
 
 export function auditEventValues(event: RecordAuditEventInput): typeof auditEvents.$inferInsert {
   assertAuditEvent(event)
@@ -60,13 +60,16 @@ export function idempotentSystemEventValues(input: {
 function normalizeActorType(value: string | null, userId?: string | null): AuditActorType {
   // Audit rows written before OAuth was generalized used the old compound actor type.
   if (value === ['agent', 'oauth'].join('_')) return 'oauth'
+  // Downloader records represent device identities. Keep the storage vocabulary
+  // compatible while exposing the product-level actor consistently.
+  if (value === 'downloader') return 'device'
   if (
     value === 'api_key' ||
     value === 'oauth' ||
     value === 'agent' ||
     value === 'anonymous' ||
     value === 'system' ||
-    value === 'downloader' ||
+    value === 'device' ||
     value === 'task-upload'
   )
     return value
@@ -80,9 +83,31 @@ function actorDisplayName(actorType: AuditActorType, actorRef: string | null): s
   if (actorType === 'oauth') return actorRef ? `OAuth:${actorRef}` : 'OAuth'
   if (actorType === 'agent') return actorRef ? `Agent:${actorRef}` : 'Agent'
   if (actorType === 'system') return actorRef ? `System:${actorRef}` : 'System'
-  if (actorType === 'downloader') return actorRef ? `Downloader:${actorRef}` : 'Downloader'
+  if (actorType === 'device') return actorRef ? `Device · ${actorRef}` : 'Device'
   if (actorType === 'task-upload') return actorRef ? `Task upload:${actorRef}` : 'Task upload'
   return ''
+}
+
+function actorProfile(
+  actorType: AuditActorType,
+  actorRef: string | null,
+  userId: string | null,
+  userName: string | null,
+  userImage: string | null,
+): AuditActorProfile {
+  if (actorType === 'user') {
+    return { name: userName ?? userId ?? 'User', image: userImage, resolved: userName !== null }
+  }
+  if (actorType === 'api_key') {
+    return { name: actorRef ? `API key · ${actorRef}` : 'API key', image: null, resolved: false }
+  }
+  if (actorType === 'oauth' || actorType === 'agent') {
+    return { name: actorRef ? `Agent · ${actorRef}` : 'Agent', image: null, resolved: false }
+  }
+  if (actorType === 'device') {
+    return { name: actorRef ? `Device · ${actorRef}` : 'Device', image: null, resolved: false }
+  }
+  return { name: actorDisplayName(actorType, actorRef), image: null, resolved: true }
 }
 
 export function createAuditRepo(db: Database): AuditRepo {
@@ -156,6 +181,7 @@ export function createAuditRepo(db: Database): AuditRepo {
             name: row.userName ?? actorDisplayName(actorType, row.actorRef),
             image: row.userImage ?? null,
           },
+          actor: actorProfile(actorType, row.actorRef, row.userId, row.userName, row.userImage),
         }
       })
 
@@ -229,6 +255,7 @@ export function createAuditRepo(db: Database): AuditRepo {
             name: row.userName ?? actorDisplayName(actorType, row.actorRef),
             image: row.userImage ?? null,
           },
+          actor: actorProfile(actorType, row.actorRef, row.userId, row.userName, row.userImage),
           orgName: row.orgName ?? null,
         }
       })

@@ -39,4 +39,24 @@ describe('auditActor', () => {
       actorIssuer: null,
     })
   })
+
+  it('records a device as the actor behind a task upload credential', () => {
+    const principal: AuthPrincipal = {
+      kind: 'download-task-upload',
+      downloaderId: 'device-1',
+      taskId: 'task-1',
+      orgId: 'org-1',
+      targetFolder: 'Downloads',
+      createdByUserId: 'user-1',
+      scopes: ['objects:create'],
+      authMethod: 'bearer',
+    }
+
+    expect(auditActor(principal)).toEqual({
+      userId: 'user-1',
+      actorType: 'device',
+      actorRef: 'device-1',
+      actorIssuer: null,
+    })
+  })
 })

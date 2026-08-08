@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../../test/setup.js'
+import { auditActorIdentityKey } from '../../usecases/ports.js'
 
 describe('GET /api/site/audit-events — auth guards', () => {
   it('returns 401 without auth [spec: audit/auth-required]', async () => {
@@ -50,8 +51,153 @@ describe('GET /api/site/audit-events — licensed admin', () => {
 
     const res = await app.request('/api/site/audit-events?action=objects_list', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<{ actorType: string; user: { name: string } }> }
-    expect(body.items[0]).toMatchObject({ actorType: 'oauth', user: { name: 'OAuth:controller-1' } })
+    const body = (await res.json()) as {
+      items: Array<{ actorType: string; user: { name: string }; actor: { name: string; resolved: boolean } }>
+    }
+    expect(body.items[0]).toMatchObject({
+      actorType: 'oauth',
+      user: { name: 'OAuth:controller-1' },
+      actor: { name: 'Agent · controller-1', resolved: false },
+    })
+  })
+
+  it('returns the API key name as the actor instead of the delegated user', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    const { apikey } = await import('../../db/auth-schema.js')
+    const { auditEvents } = await import('../../db/schema.js')
+    await db.insert(apikey).values({
+      id: 'key-cme',
+      configId: 'remote-download',
+      name: 'CME downloader',
+      referenceId: 'admin-user',
+      key: 'hashed-secret',
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+    })
+    await db.insert(auditEvents).values({
+      id: 'evt-api-key',
+      orgId: 'org-cme',
+      userId: 'admin-user',
+      actorType: 'api_key',
+      actorRef: 'key-cme',
+      action: 'download_task_created',
+      targetType: 'download_task',
+      targetId: 'task-1',
+      targetName: 'task-1',
+      createdAt: new Date(),
+    })
+
+    const res = await app.request('/api/site/audit-events?action=download_task_created', { headers })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      items: Array<{ user: { name: string }; actor: { name: string; image: string | null; resolved: boolean } }>
+    }
+    expect(body.items[0].actor).toEqual({ name: 'API key · CME downloader', image: null, resolved: true })
+    expect(body.items[0].user.name).not.toBe(body.items[0].actor.name)
+  })
+
+  it('returns the registered device name and normalizes the legacy downloader actor type', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    const { auditEvents, downloaders } = await import('../../db/schema.js')
+    await db.insert(downloaders).values({
+      id: 'device-office-mac',
+      name: 'Office Mac',
+      tokenHash: 'hashed-device-token',
+      tokenJti: 'device-token-jti',
+      createdBy: 'admin-user',
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+    })
+    await db.insert(auditEvents).values({
+      id: 'evt-device-upload',
+      orgId: 'org-device',
+      userId: 'admin-user',
+      actorType: 'downloader',
+      actorRef: 'device-office-mac',
+      action: 'upload_confirm',
+      targetType: 'file',
+      targetId: 'file-device-upload',
+      targetName: 'downloaded.txt',
+      createdAt: new Date(),
+    })
+
+    const res = await app.request('/api/site/audit-events?action=upload_confirm', { headers })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      items: Array<{
+        actorType: string
+        actorRef: string
+        actor: { name: string; image: string | null; resolved: boolean }
+      }>
+    }
+    expect(body.items[0]).toMatchObject({
+      actorType: 'device',
+      actorRef: 'device-office-mac',
+      actor: { name: 'Device · Office Mac', image: null, resolved: true },
+    })
+
+    await db.delete(downloaders)
+    const missingDeviceRes = await app.request('/api/site/audit-events?action=upload_confirm', { headers })
+    const missingDeviceBody = (await missingDeviceRes.json()) as {
+      items: Array<{ actor: { name: string; resolved: boolean } }>
+    }
+    expect(missingDeviceBody.items[0].actor).toEqual({
+      name: 'Device · device-office-mac',
+      image: null,
+      resolved: false,
+    })
+  })
+
+  it('returns the resolved Agent name and image while retaining the delegated user', async () => {
+    const { app, db, deps } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    const { auditEvents } = await import('../../db/schema.js')
+    const identity = { type: 'oauth', ref: 'agt_1', issuer: 'https://id.realmroot.dev/api/auth' } as const
+    deps.auditActorDirectory.listTrustedAgentIssuerOrigins = async () => new Set(['https://id.realmroot.dev'])
+    deps.agentInfo.resolve = async () =>
+      new Map([
+        [
+          auditActorIdentityKey(identity),
+          {
+            name: 'Mac Agent',
+            image: 'https://id.realmroot.dev/agent-picture-v1.svg',
+            resolved: true,
+          },
+        ],
+      ])
+    await db.insert(auditEvents).values({
+      id: 'evt-agent',
+      orgId: 'org-agent',
+      userId: 'admin-user',
+      actorType: 'oauth',
+      actorRef: identity.ref,
+      actorIssuer: identity.issuer,
+      action: 'upload',
+      targetType: 'file',
+      targetId: 'file-1',
+      targetName: 'agent.txt',
+      createdAt: new Date(),
+    })
+
+    const res = await app.request('/api/site/audit-events?action=upload', { headers })
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      items: Array<{ user: { name: string }; actor: { name: string; image: string | null; resolved: boolean } }>
+    }
+    expect(body.items[0].actor).toEqual({
+      name: 'Mac Agent',
+      image: 'https://id.realmroot.dev/agent-picture-v1.svg',
+      resolved: true,
+    })
+    expect(body.items[0].user.name).not.toBe(body.items[0].actor.name)
   })
 
   it('returns an empty list when no events match the filter [spec: audit/empty]', async () => {
@@ -406,6 +552,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     const item = body.items[0]
     expect(item).toHaveProperty('user')
     expect((item.user as Record<string, unknown>).name).toBeTruthy()
+    expect(item).toHaveProperty('actor')
+    expect(item.actor).toEqual({ name: 'Test User', image: null, resolved: true })
     expect(item).toHaveProperty('orgName')
   })
 })

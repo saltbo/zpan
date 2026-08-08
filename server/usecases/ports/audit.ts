@@ -1,14 +1,6 @@
 // Plain, framework-free DTOs and the repository port for audit events.
 
-export type AuditActorType =
-  | 'user'
-  | 'api_key'
-  | 'oauth'
-  | 'agent'
-  | 'anonymous'
-  | 'system'
-  | 'downloader'
-  | 'task-upload'
+export type AuditActorType = 'user' | 'api_key' | 'oauth' | 'agent' | 'anonymous' | 'system' | 'device' | 'task-upload'
 
 export interface RecordAuditEventInput {
   orgId: string
@@ -40,6 +32,7 @@ export interface AuditEvent {
 
 export interface AuditEventWithUser extends AuditEvent {
   user: { id: string | null; name: string; image: string | null }
+  actor: AuditActorProfile
 }
 
 export interface AdminAuditEventWithOrg extends AuditEventWithUser {
@@ -78,4 +71,35 @@ export interface AuditRepo {
   listByTarget(
     opts: ListAuditByTargetOpts,
   ): Promise<{ items: AuditEvent[]; total: number; page: number; pageSize: number }>
+}
+
+export interface AuditActorIdentity {
+  type: AuditActorType
+  ref: string | null
+  issuer: string | null
+}
+
+export interface AuditActorProfile {
+  name: string
+  image: string | null
+  resolved: boolean
+}
+
+export interface AuditActorDirectory {
+  findApiKeyNames(keyIds: readonly string[]): Promise<ReadonlyMap<string, string>>
+  findDeviceNames(deviceIds: readonly string[]): Promise<ReadonlyMap<string, string>>
+  listTrustedAgentIssuerOrigins(): Promise<ReadonlySet<string>>
+}
+
+export interface AgentInfoGateway {
+  // Profiles are display-only and never authoritative. An omitted identity
+  // tells the caller to retain the stable issuer/subject fallback.
+  resolve(
+    actors: readonly AuditActorIdentity[],
+    trustedIssuerOrigins: ReadonlySet<string>,
+  ): Promise<ReadonlyMap<string, AuditActorProfile>>
+}
+
+export function auditActorIdentityKey(actor: AuditActorIdentity): string {
+  return JSON.stringify([actor.type, actor.issuer, actor.ref])
 }

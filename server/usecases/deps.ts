@@ -4,10 +4,12 @@
 
 import type {
   AdminStatsRepo,
+  AgentInfoGateway,
   AnnouncementRepo,
   ApiKeyGateway,
   ArchiveJobsGateway,
   ArchiveTargetFolderRepo,
+  AuditActorDirectory,
   AuditRepo,
   BackgroundJobRepo,
   CacheService,
@@ -57,6 +59,8 @@ import type {
 
 export interface Deps {
   audit: AuditRepo
+  auditActorDirectory: AuditActorDirectory
+  agentInfo: AgentInfoGateway
   adminStats: AdminStatsRepo
   oauth: OAuthGateway
   announcements: AnnouncementRepo

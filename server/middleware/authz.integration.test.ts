@@ -460,7 +460,7 @@ describe('evaluateAuthorization', () => {
       userId: null,
       workspace: { mode: 'none' as const, orgId: null },
       grantedScopes: new Set([AuthorizationScope.DOWNLOADERS_UPDATE]),
-      actor: { type: 'downloader' as const, ref: 'downloader-1' },
+      actor: { type: 'device' as const, ref: 'downloader-1' },
       state: {},
     }
     const bootstrapContext = {
@@ -527,7 +527,7 @@ describe('evaluateAuthorization', () => {
       userId: 'user-1',
       workspace: { mode: 'bound' as const, orgId: 'org-1' },
       grantedScopes: new Set([AuthorizationScope.OBJECTS_CREATE]),
-      actor: { type: 'task-upload' as const, ref: 'task-1' },
+      actor: { type: 'device' as const, ref: 'downloader-1' },
       state: { downloaderId: 'downloader-1', taskId: 'task-1' },
     }
 

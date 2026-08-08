@@ -1068,34 +1068,34 @@ func (e AdminDashboardDownloadersItemsStatus) Valid() bool {
 
 // Defines values for AuditEventActorType.
 const (
-	AuditEventActorTypeAgent      AuditEventActorType = "agent"
-	AuditEventActorTypeAnonymous  AuditEventActorType = "anonymous"
-	AuditEventActorTypeApiKey     AuditEventActorType = "api_key"
-	AuditEventActorTypeDownloader AuditEventActorType = "downloader"
-	AuditEventActorTypeOauth      AuditEventActorType = "oauth"
-	AuditEventActorTypeSystem     AuditEventActorType = "system"
-	AuditEventActorTypeTaskUpload AuditEventActorType = "task-upload"
-	AuditEventActorTypeUser       AuditEventActorType = "user"
+	Agent      AuditEventActorType = "agent"
+	Anonymous  AuditEventActorType = "anonymous"
+	ApiKey     AuditEventActorType = "api_key"
+	Device     AuditEventActorType = "device"
+	Oauth      AuditEventActorType = "oauth"
+	System     AuditEventActorType = "system"
+	TaskUpload AuditEventActorType = "task-upload"
+	User       AuditEventActorType = "user"
 )
 
 // Valid indicates whether the value is a known member of the AuditEventActorType enum.
 func (e AuditEventActorType) Valid() bool {
 	switch e {
-	case AuditEventActorTypeAgent:
+	case Agent:
 		return true
-	case AuditEventActorTypeAnonymous:
+	case Anonymous:
 		return true
-	case AuditEventActorTypeApiKey:
+	case ApiKey:
 		return true
-	case AuditEventActorTypeDownloader:
+	case Device:
 		return true
-	case AuditEventActorTypeOauth:
+	case Oauth:
 		return true
-	case AuditEventActorTypeSystem:
+	case System:
 		return true
-	case AuditEventActorTypeTaskUpload:
+	case TaskUpload:
 		return true
-	case AuditEventActorTypeUser:
+	case User:
 		return true
 	default:
 		return false
@@ -4895,7 +4895,12 @@ type AnnouncementList struct {
 
 // AuditEvent defines model for AuditEvent.
 type AuditEvent struct {
-	Action      string              `json:"action"`
+	Action string `json:"action"`
+	Actor  struct {
+		Image    *string `json:"image"`
+		Name     string  `json:"name"`
+		Resolved bool    `json:"resolved"`
+	} `json:"actor"`
 	ActorIssuer *string             `json:"actorIssuer"`
 	ActorRef    *string             `json:"actorRef"`
 	ActorType   AuditEventActorType `json:"actorType"`

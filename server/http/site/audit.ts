@@ -13,7 +13,7 @@ const auditEventSchema = z
     id: opaqueIdSchema,
     orgId: opaqueIdSchema.or(z.literal('')),
     userId: opaqueIdSchema.nullable(),
-    actorType: z.enum(['user', 'api_key', 'oauth', 'agent', 'anonymous', 'system', 'downloader', 'task-upload']),
+    actorType: z.enum(['user', 'api_key', 'oauth', 'agent', 'anonymous', 'system', 'device', 'task-upload']),
     actorRef: z.string().nullable(),
     actorIssuer: z.string().nullable(),
     action: z.string(),
@@ -23,6 +23,7 @@ const auditEventSchema = z
     metadata: z.string().nullable(),
     createdAt: z.string(),
     user: z.object({ id: opaqueIdSchema.nullable(), name: z.string(), image: z.string().nullable() }),
+    actor: z.object({ name: z.string(), image: z.string().nullable(), resolved: z.boolean() }),
     orgName: z.string().nullable(),
   })
   .openapi('AuditEvent')
