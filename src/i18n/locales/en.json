@@ -291,7 +291,7 @@
   "downloads.detail.errorMessage": "Error",
   "downloads.detail.eventsLoading": "Loading events...",
   "downloads.detail.noEvents": "No events yet",
-  "actors.notRecorded": "Not recorded",
+  "actors.notRecorded": "-",
   "downloads.events.download_task_created": "Task created",
   "downloads.events.download_task_assigned": "Assigned to downloader",
   "downloads.events.download_task_queued": "Queued",

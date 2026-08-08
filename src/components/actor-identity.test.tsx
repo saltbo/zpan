@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ActorIdentity } from './actor-identity'
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => (key === 'actors.notRecorded' ? 'Not recorded' : key) }),
+  useTranslation: () => ({ t: (key: string) => (key === 'actors.notRecorded' ? '-' : key) }),
 }))
 
 afterEach(cleanup)
@@ -26,10 +26,10 @@ describe('ActorIdentity', () => {
     expect(screen.getByTitle('Research Agent')).toBeTruthy()
   })
 
-  it('uses explicit text for missing historical attribution', () => {
+  it('uses a dash for missing historical attribution', () => {
     render(<ActorIdentity actor={null} />)
 
-    expect(screen.getByText('Not recorded')).toBeTruthy()
+    expect(screen.getByText('-')).toBeTruthy()
   })
 
   it('renders machine identities without inventing user initials', () => {

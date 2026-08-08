@@ -291,7 +291,7 @@
   "downloads.detail.errorMessage": "错误",
   "downloads.detail.eventsLoading": "正在加载事件...",
   "downloads.detail.noEvents": "暂无事件",
-  "actors.notRecorded": "未记录",
+  "actors.notRecorded": "-",
   "downloads.events.download_task_created": "任务已创建",
   "downloads.events.download_task_assigned": "已分配给下载器",
   "downloads.events.download_task_queued": "已排队",
