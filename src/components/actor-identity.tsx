@@ -50,19 +50,6 @@ function ActorAvatar({ actor, size = 'sm' }: { actor: ActorAttribution; size?: '
   )
 }
 
-function compactIdentity(value: string): string {
-  if (value.length <= 18) return value
-  return `${value.slice(0, 8)}…${value.slice(-6)}`
-}
-
-function issuerLabel(issuer: string): string {
-  try {
-    return new URL(issuer).hostname
-  } catch {
-    return compactIdentity(issuer)
-  }
-}
-
 export function ActorIdentity({ actor, compact = false, className }: ActorIdentityProps) {
   const { t } = useTranslation()
   if (!actor) {
@@ -101,29 +88,35 @@ export function ActorAvatarHoverCard({ actor, className }: Pick<ActorIdentityPro
           <ActorAvatar actor={actor} size="default" />
         </button>
       </HoverCardTrigger>
-      <HoverCardContent align="end" className="w-64">
-        <div className="flex min-w-0 items-center gap-3">
+      <HoverCardContent align="end" className="w-64 max-w-[calc(100vw-2rem)] overflow-hidden">
+        <div className="flex w-full min-w-0 items-center gap-3 overflow-hidden">
           <ActorAvatar actor={actor} size="lg" />
-          <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
-            <span className="max-w-full truncate text-sm font-semibold">{actor.name}</span>
-            <Badge variant="secondary">{t(`actors.type.${actor.type}`)}</Badge>
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-1 overflow-hidden">
+            <span className="block w-full min-w-0 whitespace-normal break-words text-sm font-semibold" data-actor-field>
+              {actor.name}
+            </span>
+            <Badge variant="secondary" className="max-w-full min-w-0">
+              <span className="min-w-0 truncate" data-actor-field>
+                {t(`actors.type.${actor.type}`)}
+              </span>
+            </Badge>
           </div>
         </div>
         {(actor.ref || actor.issuer) && <Separator className="my-3" />}
-        <dl className="flex flex-col gap-2 text-xs">
+        <dl className="flex min-w-0 flex-col gap-2 overflow-hidden text-xs">
           {actor.ref && (
-            <div className="flex min-w-0 items-center justify-between gap-4">
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
               <dt className="shrink-0 text-muted-foreground">{t('actors.ref')}</dt>
-              <dd className="min-w-0 truncate font-mono" title={actor.ref}>
-                {compactIdentity(actor.ref)}
+              <dd className="min-w-0 whitespace-normal break-all text-right font-mono" data-actor-field>
+                {actor.ref}
               </dd>
             </div>
           )}
           {actor.issuer && (
-            <div className="flex min-w-0 items-center justify-between gap-4">
+            <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
               <dt className="shrink-0 text-muted-foreground">{t('actors.issuer')}</dt>
-              <dd className="min-w-0 truncate" title={actor.issuer}>
-                {issuerLabel(actor.issuer)}
+              <dd className="min-w-0 whitespace-normal break-all text-right" data-actor-field>
+                {actor.issuer}
               </dd>
             </div>
           )}

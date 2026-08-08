@@ -5,16 +5,8 @@ import type { Row, Table as TanstackTable } from '@tanstack/react-table'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu'
+import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
+import { FileActionsContextContent } from './file-actions-menu'
 import { FileIcon } from './file-icon'
 import type { FileActionHandlers } from './types'
 
@@ -62,11 +54,9 @@ function DraggableGridCard({
   allItems: StorageObject[]
   getThumbnailUrl?: (item: StorageObject) => string | null
 }) {
-  const { t } = useTranslation()
   const item = row.original
   const selected = row.getIsSelected()
   const isFolder = item.dirtype !== DirType.FILE
-  const isFile = item.dirtype === DirType.FILE
   const folderPath = isFolder ? buildPath(currentPath, item.name) : ''
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
@@ -121,54 +111,7 @@ function DraggableGridCard({
           <span className="w-full truncate text-center text-sm font-medium">{item.name}</span>
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
-        {handlers.onDetails && (
-          <ContextMenuItem onClick={() => handlers.onDetails?.(item)}>{t('files.details')}</ContextMenuItem>
-        )}
-        <ContextMenuItem onClick={() => handlers.onOpen(item)}>
-          {isFile ? t('files.preview') : t('files.open')}
-        </ContextMenuItem>
-        {isFile && handlers.onDownload && (
-          <ContextMenuItem onClick={() => handlers.onDownload?.(item)}>{t('files.download')}</ContextMenuItem>
-        )}
-        {handlers.onCopyUrl && (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>{t('ihost.copy.url')}</ContextMenuSubTrigger>
-            <ContextMenuSubContent>
-              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'raw')}>{t('ihost.copy.raw')}</ContextMenuItem>
-              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'markdown')}>
-                {t('ihost.copy.markdown')}
-              </ContextMenuItem>
-              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'html')}>
-                {t('ihost.copy.html')}
-              </ContextMenuItem>
-              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'bbcode')}>
-                {t('ihost.copy.bbcode')}
-              </ContextMenuItem>
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-        )}
-        <ContextMenuSeparator />
-        {handlers.onRename && (
-          <ContextMenuItem onClick={() => handlers.onRename?.(item)}>{t('files.rename')}</ContextMenuItem>
-        )}
-        {handlers.onCopy && (
-          <ContextMenuItem onClick={() => handlers.onCopy?.(item)}>{t('files.copy')}</ContextMenuItem>
-        )}
-        {handlers.onMove && (
-          <ContextMenuItem onClick={() => handlers.onMove?.(item)}>{t('files.moveTo')}</ContextMenuItem>
-        )}
-        {handlers.onTrash && (
-          <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
-            {t('files.moveToTrash')}
-          </ContextMenuItem>
-        )}
-        {handlers.onDelete && (
-          <ContextMenuItem className="text-destructive" onClick={() => handlers.onDelete?.(item)}>
-            {t('common.delete')}
-          </ContextMenuItem>
-        )}
-      </ContextMenuContent>
+      <FileActionsContextContent item={item} handlers={handlers} />
     </ContextMenu>
   )
 }
@@ -182,16 +125,7 @@ function PlainGridCard({
   handlers: FileActionHandlers
   getThumbnailUrl?: (item: StorageObject) => string | null
 }) {
-  const { t } = useTranslation()
   const item = row.original
-  const isFile = item.dirtype === DirType.FILE
-  const showWriteActions = !!(
-    handlers.onRename ||
-    handlers.onCopy ||
-    handlers.onMove ||
-    handlers.onTrash ||
-    handlers.onDelete
-  )
   const thumbnailUrl = getThumbnailUrl && item.type?.startsWith('image/') ? getThumbnailUrl(item) : null
 
   return (
@@ -212,57 +146,7 @@ function PlainGridCard({
           <span className="w-full truncate text-center text-sm font-medium">{item.name}</span>
         </button>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
-        {handlers.onDetails && (
-          <ContextMenuItem onClick={() => handlers.onDetails?.(item)}>{t('files.details')}</ContextMenuItem>
-        )}
-        <ContextMenuItem onClick={() => handlers.onOpen(item)}>
-          {isFile ? t('files.preview') : t('files.open')}
-        </ContextMenuItem>
-        {isFile && handlers.onDownload && (
-          <ContextMenuItem onClick={() => handlers.onDownload?.(item)}>{t('files.download')}</ContextMenuItem>
-        )}
-        {handlers.onCopyUrl && (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>{t('ihost.copy.url')}</ContextMenuSubTrigger>
-            <ContextMenuSubContent>
-              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'raw')}>{t('ihost.copy.raw')}</ContextMenuItem>
-              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'markdown')}>
-                {t('ihost.copy.markdown')}
-              </ContextMenuItem>
-              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'html')}>
-                {t('ihost.copy.html')}
-              </ContextMenuItem>
-              <ContextMenuItem onClick={() => handlers.onCopyUrl?.(item, 'bbcode')}>
-                {t('ihost.copy.bbcode')}
-              </ContextMenuItem>
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-        )}
-        {showWriteActions && <ContextMenuSeparator />}
-        {handlers.onRename && (
-          <ContextMenuItem onClick={() => handlers.onRename?.(item)}>{t('files.rename')}</ContextMenuItem>
-        )}
-        {handlers.onCopy && (
-          <ContextMenuItem onClick={() => handlers.onCopy?.(item)}>{t('files.copy')}</ContextMenuItem>
-        )}
-        {handlers.onMove && (
-          <ContextMenuItem onClick={() => handlers.onMove?.(item)}>{t('files.moveTo')}</ContextMenuItem>
-        )}
-        {handlers.onTrash && (
-          <>
-            {(handlers.onRename || handlers.onCopy || handlers.onMove) && <ContextMenuSeparator />}
-            <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
-              {t('files.moveToTrash')}
-            </ContextMenuItem>
-          </>
-        )}
-        {handlers.onDelete && (
-          <ContextMenuItem className="text-destructive" onClick={() => handlers.onDelete?.(item)}>
-            {t('common.delete')}
-          </ContextMenuItem>
-        )}
-      </ContextMenuContent>
+      <FileActionsContextContent item={item} handlers={handlers} />
     </ContextMenu>
   )
 }

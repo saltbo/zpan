@@ -5,6 +5,7 @@ import type { StorageObject } from '@shared/types'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { FileActionsContextContent } from './file-actions-menu'
 import { FileRowActions } from './file-row-actions'
 import type { FileActionHandlers } from './types'
 
@@ -21,11 +22,14 @@ vi.mock('lucide-react', () => ({
   Copy: () => null,
   Download: () => null,
   EllipsisVertical: () => null,
+  Eye: () => null,
   FileArchive: () => null,
   FolderInput: () => null,
+  FolderOpen: () => null,
   Link: () => null,
   Info: () => null,
   Pencil: () => null,
+  ArrowRightLeft: () => null,
   Share2: () => null,
   Trash2: () => null,
 }))
@@ -52,7 +56,30 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenuSeparator: () => <hr />,
   DropdownMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuSubContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuSubTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuSubTrigger: ({ children }: { children: React.ReactNode }) => (
+    <div role="menuitem" tabIndex={0}>
+      {children}
+    </div>
+  ),
+}))
+
+vi.mock('@/components/ui/context-menu', () => ({
+  ContextMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ContextMenuItem: ({ children, onClick }: { children: React.ReactNode; onClick?: React.MouseEventHandler }) => (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: test mock
+    // biome-ignore lint/a11y/useFocusableInteractive: test mock
+    <div role="menuitem" onClick={onClick}>
+      {children}
+    </div>
+  ),
+  ContextMenuSeparator: () => <hr />,
+  ContextMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ContextMenuSubContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ContextMenuSubTrigger: ({ children }: { children: React.ReactNode }) => (
+    <div role="menuitem" tabIndex={0}>
+      {children}
+    </div>
+  ),
 }))
 
 // ---------------------------------------------------------------------------
@@ -85,11 +112,16 @@ function makeObject(dirtype: DirType = DirType.FILE): StorageObject {
 afterEach(cleanup)
 
 describe('FileRowActions — component rendering', () => {
-  it('renders nothing when no action handlers provided (only onOpen)', () => {
+  it('includes open in the row action menu so it matches the context menu', () => {
     const item = makeObject()
-    const handlers = { onOpen: vi.fn() } as unknown as FileActionHandlers
-    const { container } = render(<FileRowActions item={item} handlers={handlers} />)
-    expect(container.firstChild).toBeNull()
+    const onOpen = vi.fn()
+    const handlers = { onOpen } as unknown as FileActionHandlers
+    const { getByRole } = render(<FileRowActions item={item} handlers={handlers} />)
+
+    const openItem = getByRole('menuitem', { name: 'files.preview' })
+    fireEvent.click(openItem)
+
+    expect(onOpen).toHaveBeenCalledWith(item)
   })
 
   it('renders dropdown when onCopyUrl is provided', () => {
@@ -97,6 +129,53 @@ describe('FileRowActions — component rendering', () => {
     const handlers = { onOpen: vi.fn(), onCopyUrl: vi.fn() } as unknown as FileActionHandlers
     const { container } = render(<FileRowActions item={item} handlers={handlers} />)
     expect(container.firstChild).not.toBeNull()
+  })
+
+  it('renders the same complete action set in row and context menus', () => {
+    const item = { ...makeObject(), name: 'archive.zip' }
+    const handlers: FileActionHandlers = {
+      onOpen: vi.fn(),
+      onDetails: vi.fn(),
+      onDownload: vi.fn(),
+      onCopyUrl: vi.fn(),
+      onRename: vi.fn(),
+      onCopy: vi.fn(),
+      onMove: vi.fn(),
+      onTransfer: vi.fn(),
+      onShare: vi.fn(),
+      onCompress: vi.fn(),
+      onExtract: vi.fn(),
+      onTrash: vi.fn(),
+      onDelete: vi.fn(),
+    }
+
+    const rowView = render(<FileRowActions item={item} handlers={handlers} />)
+    const rowActions = rowView.getAllByRole('menuitem').map((element) => element.textContent)
+    cleanup()
+
+    const contextView = render(<FileActionsContextContent item={item} handlers={handlers} />)
+    const contextActions = contextView.getAllByRole('menuitem').map((element) => element.textContent)
+
+    expect(contextActions).toEqual(rowActions)
+    expect(contextActions).toEqual([
+      'files.details',
+      'files.preview',
+      'files.download',
+      'ihost.copy.url',
+      'ihost.copy.raw',
+      'ihost.copy.markdown',
+      'ihost.copy.html',
+      'ihost.copy.bbcode',
+      'files.rename',
+      'files.copy',
+      'files.moveTo',
+      'files.transferToSpace',
+      'share.menuItem',
+      'files.compress',
+      'files.extract',
+      'files.moveToTrash',
+      'common.delete',
+    ])
   })
 
   it('renders dropdown when onDelete is provided', () => {
