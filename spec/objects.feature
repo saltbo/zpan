@@ -41,6 +41,18 @@ Feature: Objects
     When they create a folder
     Then the folder is created
 
+  @objects/creator-attribution @api
+  Scenario: Object creation records the authenticated actor
+    Given an authenticated user, API key, agent, or device
+    When that actor creates an object
+    Then the object stores the stable actor identity and returns its display profile
+
+  @objects/legacy-creator @api
+  Scenario: Historical objects do not impersonate the workspace owner
+    Given an object created before actor attribution was recorded
+    When the object is listed or inspected
+    Then its creator is reported as not recorded
+
   @objects/create-invalid @api
   Scenario: Invalid create input is rejected
     Given invalid object input

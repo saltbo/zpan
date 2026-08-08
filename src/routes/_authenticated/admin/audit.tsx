@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ActorIdentity, auditEventActor } from '@/components/actor-identity'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import {
   AUDIT_DEFAULT_PAGE_SIZE,
@@ -15,7 +16,6 @@ import {
 } from '@/components/admin/audit-log-controls'
 import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { type AdminAuditFilter, listAdminAuditLogs } from '@/lib/api'
@@ -37,15 +37,6 @@ function relativeTime(timestamp: string | Date): string {
   if (diffDay === 1) return 'yesterday'
   if (diffDay < 30) return `${diffDay}d ago`
   return date.toLocaleDateString()
-}
-
-function userInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
 }
 
 function metaDetail(event: AdminAuditEvent, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -70,19 +61,13 @@ function metaDetail(event: AdminAuditEvent, t: (key: string, opts?: Record<strin
 function AuditRow({ event }: { event: AdminAuditEvent }) {
   const { t } = useTranslation()
   const createdAt = new Date(event.createdAt as unknown as string | number)
-  const actorLabel = event.actor.name
-  const actorImage = event.actor.image
   return (
     <div className="flex items-start gap-3 py-3">
-      <Avatar className="h-8 w-8 flex-shrink-0">
-        {actorImage && <AvatarImage src={actorImage} alt={actorLabel} />}
-        <AvatarFallback className="text-xs">{userInitials(actorLabel)}</AvatarFallback>
-      </Avatar>
       <div className="min-w-0 flex-1">
-        <p className="text-sm">
-          <span className="font-medium">{actorLabel}</span>{' '}
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <ActorIdentity actor={auditEventActor(event)} />
           <span className="text-muted-foreground">{metaDetail(event, t)}</span>
-        </p>
+        </div>
         <p className="text-xs text-muted-foreground">
           {event.orgName && <span className="mr-1">{event.orgName} ·</span>}
           {relativeTime(createdAt)}

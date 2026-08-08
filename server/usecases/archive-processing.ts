@@ -3,6 +3,7 @@ import type { CreateBackgroundJobRequest } from '@shared/schemas'
 import type { BackgroundJob } from '@shared/types'
 import { buildObjectKey } from '../lib/path-template'
 import type {
+  ActorIdentity,
   ArchiveTargetFolderRepo,
   BackgroundJobRepo,
   MatterRepo,
@@ -36,6 +37,7 @@ export type ArchiveProcessingDeps = {
 export interface CreateArchiveJobInput {
   orgId: string
   userId: string
+  createdBy?: ActorIdentity
   request: CreateBackgroundJobRequest
   // Overrides deps.s3 for tests; production paths use the wired gateway.
   s3?: S3Gateway
@@ -74,12 +76,13 @@ export async function processArchiveJob(
   input: CreateArchiveJobInput & { jobId: string },
 ): Promise<BackgroundJob> {
   const s3 = input.s3 ?? deps.s3
+  const createdBy = input.createdBy ?? { type: 'user', ref: input.userId, issuer: null }
   try {
     await deps.backgroundJobs.update(input.orgId, input.jobId, { status: 'running', startedAt: new Date() })
     const finished =
       input.request.type === 'archive_compress'
-        ? await runCompressionJob(deps, s3, input.jobId, input.orgId, input.userId, input.request)
-        : await runExtractionJob(deps, s3, input.jobId, input.orgId, input.userId, input.request)
+        ? await runCompressionJob(deps, s3, input.jobId, input.orgId, input.userId, createdBy, input.request)
+        : await runExtractionJob(deps, s3, input.jobId, input.orgId, input.userId, createdBy, input.request)
     await notifyArchiveJobFinished(deps, finished)
     return finished
   } catch (error) {
@@ -100,6 +103,7 @@ async function runCompressionJob(
   jobId: string,
   orgId: string,
   userId: string,
+  createdBy: ActorIdentity,
   request: Extract<CreateBackgroundJobRequest, { type: 'archive_compress' }>,
 ): Promise<BackgroundJob> {
   if (request.targetFolder !== undefined)
@@ -153,6 +157,9 @@ async function runCompressionJob(
           storageId: targetStorage.id,
           status: 'active',
           onConflict: 'rename',
+          createdByActorType: createdBy.type,
+          createdByActorRef: createdBy.ref,
+          createdByActorIssuer: createdBy.issuer,
         })
 
         return deps.backgroundJobs.update(orgId, jobId, {
@@ -184,6 +191,7 @@ async function runExtractionJob(
   jobId: string,
   orgId: string,
   userId: string,
+  createdBy: ActorIdentity,
   request: Extract<CreateBackgroundJobRequest, { type: 'archive_extract' }>,
 ): Promise<BackgroundJob> {
   const zipMatter = await deps.matter.get(request.matterId, orgId)
@@ -243,6 +251,9 @@ async function runExtractionJob(
             storageId: targetStorage.id,
             status: 'active',
             onConflict: 'rename',
+            createdByActorType: createdBy.type,
+            createdByActorRef: createdBy.ref,
+            createdByActorIssuer: createdBy.issuer,
           })
           createdMatterIds.push(matter.id)
         })
@@ -284,6 +295,9 @@ async function runExtractionJob(
       storageId: targetStorage.id,
       status: 'active',
       onConflict: 'rename',
+      createdByActorType: createdBy.type,
+      createdByActorRef: createdBy.ref,
+      createdByActorIssuer: createdBy.issuer,
     })
     createdMatterIds.push(folder.id)
     const matterPath = buildMatterPath(folder.parent, folder.name)

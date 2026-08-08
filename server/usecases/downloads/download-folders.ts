@@ -1,6 +1,7 @@
 import { DirType, ObjectStatus } from '@shared/constants'
 import { formatError } from '../../lib/errors'
 import type { Deps } from '../deps'
+import type { ActorIdentity } from '../ports'
 import { AppError, type Matter, NameConflictError } from '../ports'
 
 function joinPath(parent: string, name: string): string {
@@ -16,7 +17,7 @@ function targetIsFile(path: string): AppError {
 
 export async function ensureDownloadFolderPath(
   deps: Pick<Deps, 'matter' | 'storages'>,
-  params: { orgId: string; folderPath: string },
+  params: { orgId: string; folderPath: string; createdBy?: ActorIdentity },
 ): Promise<string> {
   const parts = params.folderPath.split('/').filter(Boolean)
   if (parts.length === 0) return ''
@@ -39,6 +40,9 @@ export async function ensureDownloadFolderPath(
           object: '',
           storageId,
           status: ObjectStatus.ACTIVE,
+          createdByActorType: params.createdBy?.type,
+          createdByActorRef: params.createdBy?.ref,
+          createdByActorIssuer: params.createdBy?.issuer,
         })
       } catch (error) {
         if (!(error instanceof NameConflictError) && !formatError(error).includes('UNIQUE constraint failed'))

@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi'
 import { isSafeHttpUrl } from '../url-safety'
+import { actorAttributionSchema } from './actors'
 import { opaqueIdSchema } from './id'
 
 export const downloaderStatusSchema = z.enum(['online', 'offline', 'disabled'])
@@ -125,6 +126,7 @@ export const downloadTaskSchema = z
     id: opaqueIdSchema,
     orgId: opaqueIdSchema.optional(),
     createdBy: opaqueIdSchema.optional(),
+    requestedBy: actorAttributionSchema.nullable().optional(),
     spec: z.object({
       source: z.object({
         type: downloadSourceTypeSchema,
@@ -147,6 +149,7 @@ export const downloadTaskSchema = z
           downloaderId: opaqueIdSchema,
           assignedAt: z.string().nullable().optional(),
           uploadToken: z.string().optional(),
+          executor: actorAttributionSchema.optional(),
         })
         .nullable(),
       progress: downloadTaskProgressSchema,

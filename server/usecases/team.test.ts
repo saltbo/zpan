@@ -87,6 +87,7 @@ function makeDeps(
   const deps: TeamDeps = {
     audit: { record: async () => {}, list: async () => ({ items: [], total: 0 }) } as unknown as AuditRepo,
     auditActorDirectory: {
+      findUserProfiles: async () => new Map(),
       findApiKeyNames: async () => new Map(),
       findDeviceNames: async () => new Map(),
       listTrustedAgentIssuerOrigins: async () => new Set(),

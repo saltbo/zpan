@@ -13,7 +13,7 @@ import {
   shareRecipientViewSchema,
 } from '../../shared/schemas/share'
 import { transferAuditActor } from '../middleware/audit-transfers'
-import { boundWorkspaceOrgId, type Env } from '../middleware/platform'
+import { authzActorIdentity, boundWorkspaceOrgId, type Env } from '../middleware/platform'
 import type { Matter, ShareListItem } from '../usecases/ports'
 import { notFound } from '../usecases/ports'
 import {
@@ -577,6 +577,8 @@ export const authedShares = authedApp
   .openapi(saveShareRoute, async (c) => {
     const token = c.req.valid('param').token
     const { targetOrgId, targetParent } = c.req.valid('json')
+    const createdBy = authzActorIdentity(c.get('authzContext'))
+    if (!createdBy) throw new Error('authenticated_actor_missing')
     const out = await saveShare(c.get('deps'), {
       token,
       currentUserId: c.get('userId')!,
@@ -584,6 +586,7 @@ export const authedShares = authedApp
       boundTargetOrgId: boundWorkspaceOrgId(c.get('authzContext')),
       targetParent,
       accessCookie: getCookie(c, cookieName(token)),
+      createdBy,
     })
     if (out.ok) return c.json({ saved: out.result.saved.map(toSavedMatterDTO), skipped: out.result.skipped }, 201)
     throw out.error

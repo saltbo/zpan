@@ -1,4 +1,7 @@
+import { fallbackActorProfile } from '../domain/actor-attribution'
 import {
+  type ActorAttribution,
+  type ActorIdentity,
   type AgentInfoGateway,
   type AuditActorDirectory,
   type AuditActorIdentity,
@@ -14,7 +17,7 @@ export async function resolveAuditActorProfiles<T extends AuditEventWithUser>(
   const identities = uniqueResolvableIdentities(events)
   if (identities.length === 0) return events
 
-  const profiles = await resolveProfiles(deps, identities)
+  const profiles = await resolveActorProfiles(deps, identities)
   return events.map((event) => {
     const profile = profiles.get(
       auditActorIdentityKey({ type: event.actorType, ref: event.actorRef, issuer: event.actorIssuer }),
@@ -23,11 +26,21 @@ export async function resolveAuditActorProfiles<T extends AuditEventWithUser>(
   })
 }
 
-async function resolveProfiles(
+export async function resolveActorProfiles(
   deps: { auditActorDirectory: AuditActorDirectory; agentInfo: AgentInfoGateway },
-  identities: readonly AuditActorIdentity[],
+  identities: readonly ActorIdentity[],
 ): Promise<ReadonlyMap<string, AuditActorProfile>> {
   const profiles = new Map<string, AuditActorProfile>()
+  const userActors = identities.flatMap((identity) =>
+    identity.type === 'user' && identity.ref ? [{ identity, ref: identity.ref }] : [],
+  )
+  if (userActors.length > 0) {
+    const users = await deps.auditActorDirectory.findUserProfiles(userActors.map((actor) => actor.ref))
+    for (const actor of userActors) {
+      const profile = users.get(actor.ref)
+      if (profile) profiles.set(auditActorIdentityKey(actor.identity), profile)
+    }
+  }
   const apiKeyActors = identities.flatMap((identity) =>
     identity.type === 'api_key' && identity.ref ? [{ identity, ref: identity.ref }] : [],
   )
@@ -69,6 +82,20 @@ async function resolveProfiles(
     for (const [key, profile] of agentProfiles) profiles.set(key, profile)
   }
   return profiles
+}
+
+export async function resolveActorAttributions(
+  deps: { auditActorDirectory: AuditActorDirectory; agentInfo: AgentInfoGateway },
+  identities: readonly ActorIdentity[],
+): Promise<ReadonlyMap<string, ActorAttribution>> {
+  const unique = new Map(identities.map((identity) => [auditActorIdentityKey(identity), identity]))
+  const profiles = await resolveActorProfiles(deps, [...unique.values()])
+  return new Map(
+    [...unique].map(([key, identity]) => {
+      const profile = profiles.get(key) ?? fallbackActorProfile(identity)
+      return [key, { ...identity, ...profile }] as const
+    }),
+  )
 }
 
 function uniqueResolvableIdentities(events: readonly AuditEventWithUser[]): AuditActorIdentity[] {

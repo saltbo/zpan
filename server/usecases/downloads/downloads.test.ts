@@ -1,6 +1,7 @@
 import type { CreateDownloaderInput } from '@shared/schemas'
-import type { BindingState, Downloader } from '@shared/types'
+import type { BindingState, Downloader, DownloadTask } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Platform } from '../../platform/interface'
 import type { DownloaderRecord, DownloaderRepo } from '../ports'
 import { type AppError, DownloadError } from '../ports'
 import { loadBindingState } from '../site/licensing'
@@ -8,6 +9,7 @@ import {
   createDownloaderWithBootstrapCredential,
   type DownloadsDeps,
   downloaderHeartbeatPersistence,
+  listDownloadTasks,
   updateDownloaderCreditBilling,
 } from './downloads'
 
@@ -202,6 +204,80 @@ describe('updateDownloaderCreditBilling', () => {
       }),
     ).rejects.toMatchObject({ name: 'DownloadError', code: 'not_found' })
     expect(update).not.toHaveBeenCalled()
+  })
+})
+
+describe('listDownloadTasks', () => {
+  it('resolves every requester and executor in one batch for the page', async () => {
+    const requestedBy = (ref: string) => ({
+      type: 'api_key' as const,
+      ref,
+      issuer: null,
+      name: `API key · ${ref}`,
+      image: null,
+      resolved: false,
+    })
+    const tasks = ['key-1', 'key-2'].map(
+      (ref, index) =>
+        ({
+          id: `task-${index + 1}`,
+          requestedBy: requestedBy(ref),
+          status: {
+            assignment: {
+              downloaderId: `device-${index + 1}`,
+              assignedAt: null,
+              executor: {
+                type: 'device',
+                ref: `device-${index + 1}`,
+                issuer: null,
+                name: `Device · device-${index + 1}`,
+                image: null,
+                resolved: false,
+              },
+            },
+          },
+        }) as DownloadTask,
+    )
+    const findApiKeyNames = vi.fn(
+      async () =>
+        new Map([
+          ['key-1', 'zme'],
+          ['key-2', 'automation'],
+        ]),
+    )
+    const findDeviceNames = vi.fn(
+      async () =>
+        new Map([
+          ['device-1', 'Living room'],
+          ['device-2', 'Office'],
+        ]),
+    )
+    const listTrustedAgentIssuerOrigins = vi.fn(async () => new Set<string>())
+    const agentResolve = vi.fn(async () => new Map())
+    const deps = {
+      downloadTasks: { list: vi.fn(async () => ({ items: tasks, rows: [], nextBoundary: null })) },
+      auditActorDirectory: {
+        findUserProfiles: vi.fn(async () => new Map()),
+        findApiKeyNames,
+        findDeviceNames,
+        listTrustedAgentIssuerOrigins,
+      },
+      agentInfo: { resolve: agentResolve },
+    } as unknown as DownloadsDeps
+
+    const result = await listDownloadTasks(deps, {} as Platform, { pageSize: 20 })
+
+    expect(findApiKeyNames).toHaveBeenCalledTimes(1)
+    expect(findApiKeyNames).toHaveBeenCalledWith(['key-1', 'key-2'])
+    expect(findDeviceNames).toHaveBeenCalledTimes(1)
+    expect(findDeviceNames).toHaveBeenCalledWith(['device-1', 'device-2'])
+    expect(listTrustedAgentIssuerOrigins).not.toHaveBeenCalled()
+    expect(agentResolve).not.toHaveBeenCalled()
+    expect(result.items.map((task) => task.requestedBy?.name)).toEqual(['API key · zme', 'API key · automation'])
+    expect(result.items.map((task) => task.status.assignment?.executor?.name)).toEqual([
+      'Device · Living room',
+      'Device · Office',
+    ])
   })
 })
 

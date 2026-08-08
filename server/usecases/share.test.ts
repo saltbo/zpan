@@ -1110,6 +1110,7 @@ describe('saveShare', () => {
     targetOrgId: 'o-2',
     targetParent: '',
     accessCookie: undefined,
+    createdBy: { type: 'oauth' as const, ref: 'agent-1', issuer: 'https://realm.example.com' },
   }
 
   it('returns matter_trashed when the share target was trashed', async () => {
@@ -1183,6 +1184,7 @@ describe('saveShare', () => {
       currentUserId: 'u1',
       targetOrgId: 'o-2',
       targetParent: 'dest',
+      createdBy: { type: 'oauth', ref: 'agent-1', issuer: 'https://realm.example.com' },
     })
   })
 })

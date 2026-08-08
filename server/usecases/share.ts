@@ -18,6 +18,7 @@ import { verifyPassword as verifyPasswordHash } from '../lib/password'
 import type { Platform } from '../platform/interface'
 import { type SaveToDriveDeps, saveShareToDrive } from './object'
 import {
+  type ActorIdentity,
   AppError,
   badRequest,
   CreateShareError,
@@ -641,6 +642,7 @@ export type SaveShareParams = {
   boundTargetOrgId?: string | null
   targetParent: string
   accessCookie: string | undefined
+  createdBy: ActorIdentity
 }
 
 export type SaveShareOutcome =
@@ -674,7 +676,13 @@ export async function saveShare(deps: ShareDeps, params: SaveShareParams): Promi
   const totalBytes = await deps.share.computeSourceBytes(matter)
   if (!(await deps.share.hasQuotaForBytes(targetOrgId, totalBytes))) return { ok: false, error: quotaExceeded() }
 
-  const result = await saveShareToDrive(deps, { matter, currentUserId, targetOrgId, targetParent })
+  const result = await saveShareToDrive(deps, {
+    matter,
+    currentUserId,
+    targetOrgId,
+    targetParent,
+    createdBy: params.createdBy,
+  })
   return { ok: true, result }
 }
 

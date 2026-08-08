@@ -12,6 +12,7 @@
 
 import { DirType } from '@shared/constants'
 import type {
+  ActorAttribution,
   CompleteObjectUploadInput,
   ConflictStrategy,
   CreateMatterInput,
@@ -21,11 +22,14 @@ import type {
 } from '@shared/schemas'
 import type { ObjectUploadInstructions } from '@shared/types'
 import { buildObjectKey, fileExt } from '../lib/path-template'
+import { resolveActorAttributions } from './audit-actors'
 import type { Deps } from './deps'
 import { assertFolderNotUsedByDownload, ensureDownloadFolderPath } from './downloads/download-folders'
 import { assertTaskUploadAllowed } from './downloads/downloads'
 import {
+  type ActorIdentity,
   type AppError,
+  actorIdentityKey,
   badRequest,
   forbidden,
   insufficientCredits,
@@ -61,13 +65,14 @@ export interface CopyObjectInput {
 // upload token acts on behalf of the task creator but is logged as the
 // downloader and is constrained to its authorized target folder.
 export type ObjectActor =
-  | { kind: 'user'; userId: string }
+  | { kind: 'user'; userId: string; identity?: ActorIdentity }
   | {
       kind: 'download-task-upload'
       downloaderId: string
       taskId: string
       targetFolder: string
       createdByUserId: string
+      identity?: ActorIdentity
     }
 
 // The user id used to build object keys (whose owner is the task creator for
@@ -79,6 +84,13 @@ function ownerUserId(actor: ObjectActor): string {
 // The id recorded in the matter/activity log.
 function actorLogId(actor: ObjectActor): string {
   return actor.kind === 'download-task-upload' ? `downloader:${actor.downloaderId}` : actor.userId
+}
+
+function creatorIdentity(actor: ObjectActor): ActorIdentity {
+  if (actor.identity) return actor.identity
+  return actor.kind === 'download-task-upload'
+    ? { type: 'device', ref: actor.downloaderId, issuer: null }
+    : { type: 'user', ref: actor.userId, issuer: null }
 }
 
 const ROLE_LEVELS: Record<string, number> = { owner: 3, admin: 3, editor: 2, viewer: 1, member: 1 }
@@ -164,6 +176,7 @@ export async function createObject(
   params: { orgId: string; actor: ObjectActor; input: CreateMatterInput },
 ): Promise<CreateObjectOutcome> {
   const { orgId, actor, input } = params
+  const createdBy = creatorIdentity(actor)
   const { name, type, dirtype, onConflict } = input
   let { parent } = input
   const isFolder = dirtype !== DirType.FILE
@@ -180,6 +193,7 @@ export async function createObject(
     parent = await ensureDownloadFolderPath(deps, {
       orgId,
       folderPath: parent,
+      createdBy,
     })
   }
 
@@ -224,6 +238,9 @@ export async function createObject(
     object: objectKey,
     storageId: storage.id,
     status: isFolder ? 'active' : 'draft',
+    createdByActorType: createdBy.type,
+    createdByActorRef: createdBy.ref,
+    createdByActorIssuer: createdBy.issuer,
     onConflict,
   })
 
@@ -240,6 +257,36 @@ export async function createObject(
     actorId: actorLogId(actor),
   })
   return { ok: true, matter, upload }
+}
+
+export async function resolveMatterCreators(
+  deps: Pick<Deps, 'auditActorDirectory' | 'agentInfo'>,
+  matters: readonly Matter[],
+): Promise<ReadonlyMap<string, ActorAttribution>> {
+  const identities = matters.flatMap((matter) =>
+    matter.createdByActorType && matter.createdByActorRef
+      ? [
+          {
+            type: matter.createdByActorType as ActorIdentity['type'],
+            ref: matter.createdByActorRef,
+            issuer: matter.createdByActorIssuer ?? null,
+          } satisfies ActorIdentity,
+        ]
+      : [],
+  )
+  const actors = await resolveActorAttributions(deps, identities)
+  return new Map(
+    matters.flatMap((matter) => {
+      if (!matter.createdByActorType || !matter.createdByActorRef) return []
+      const identity = {
+        type: matter.createdByActorType as ActorIdentity['type'],
+        ref: matter.createdByActorRef,
+        issuer: matter.createdByActorIssuer ?? null,
+      }
+      const actor = actors.get(actorIdentityKey(identity))
+      return actor ? [[matter.id, actor] as const] : []
+    }),
+  )
 }
 
 // Decides the S3 mechanism, presigns every URL up front, and records the upload
@@ -860,9 +907,10 @@ export type CopyObjectOutcome = { ok: true; matter: Matter } | { ok: false; erro
 
 export async function copyObject(
   deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'quota' | 'storageUsage'>,
-  params: { orgId: string; userId: string; input: CopyObjectInput },
+  params: { orgId: string; userId: string; actor?: ObjectActor; input: CopyObjectInput },
 ): Promise<CopyObjectOutcome> {
   const { orgId, userId, input } = params
+  const identity = params.actor ? creatorIdentity(params.actor) : { type: 'user' as const, ref: userId, issuer: null }
   const { copyFrom, parent, onConflict } = input
   const source = await deps.matter.get(copyFrom, orgId)
   if (!source || source.trashedAt != null) return { ok: false, error: notFound() }
@@ -884,7 +932,12 @@ export async function copyObject(
         await deps.s3.copyObject(objectStorage, source.object, objectStorage, newObject)
         ctx.onRollback(() => deps.s3.deleteObject(objectStorage, newObject))
       }
-      return deps.matter.copy(source, parent, newObject, { onConflict })
+      return deps.matter.copy(source, parent, newObject, {
+        onConflict,
+        createdByActorType: identity.type,
+        createdByActorRef: identity.ref,
+        createdByActorIssuer: identity.issuer,
+      })
     },
   )
   return { ok: true, matter: copy }
@@ -898,7 +951,7 @@ export type TransferObjectOutcome = { ok: true; result: TransferObjectResult } |
 
 export async function transferObject(
   deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'quota' | 'storageUsage' | 'share' | 'org' | 'downloadTasks'>,
-  params: { orgId: string; userId: string; objectId: string; input: TransferMatterInput },
+  params: { orgId: string; userId: string; actor?: ObjectActor; objectId: string; input: TransferMatterInput },
 ): Promise<TransferObjectOutcome> {
   const { orgId, userId, objectId, input } = params
   const { targetOrgId, targetParent, mode } = input
@@ -927,6 +980,7 @@ export async function transferObject(
     currentUserId: userId,
     targetOrgId,
     targetParent,
+    createdBy: params.actor ? creatorIdentity(params.actor) : undefined,
   })
 
   // Move = copy + delete source. Only delete when every file copied — a partial
@@ -1130,6 +1184,7 @@ export interface SaveShareInput {
   targetOrgId: string
   targetParent: string
   teamQuotaEnabled?: boolean
+  createdBy?: ActorIdentity
 }
 
 export interface SaveShareResult {
@@ -1143,6 +1198,7 @@ export interface CopyMatterToOrgInput {
   targetOrgId: string
   targetParent: string
   teamQuotaEnabled?: boolean
+  createdBy?: ActorIdentity
 }
 
 function buildPath(parent: string, name: string): string {
@@ -1158,6 +1214,7 @@ async function saveFile(
   targetOrgId: string,
   targetParent: string,
   teamQuotaEnabled = true,
+  createdBy: ActorIdentity = { type: 'user', ref: currentUserId, issuer: null },
 ): Promise<Matter> {
   const bytes = sourceMatter.size ?? 0
   const dstKey = buildObjectKey({ uid: currentUserId, orgId: targetOrgId, rawExt: fileExt(sourceMatter.name) })
@@ -1184,6 +1241,9 @@ async function saveFile(
         storageId: targetStorage.id,
         status: 'active',
         onConflict: 'rename',
+        createdByActorType: createdBy.type,
+        createdByActorRef: createdBy.ref,
+        createdByActorIssuer: createdBy.issuer,
       })
 
       return newMatter
@@ -1200,6 +1260,7 @@ async function saveFolderRecursive(
   targetOrgId: string,
   targetParent: string,
   teamQuotaEnabled = true,
+  createdBy: ActorIdentity = { type: 'user', ref: currentUserId, issuer: null },
 ): Promise<SaveShareResult> {
   const saved: Matter[] = []
   const skipped: Array<{ name: string; reason: string }> = []
@@ -1215,6 +1276,9 @@ async function saveFolderRecursive(
     storageId: targetStorage.id,
     status: 'active',
     onConflict: 'rename',
+    createdByActorType: createdBy.type,
+    createdByActorRef: createdBy.ref,
+    createdByActorIssuer: createdBy.issuer,
   })
   saved.push(rootFolder)
 
@@ -1241,6 +1305,7 @@ async function saveFolderRecursive(
             targetOrgId,
             targetPath,
             teamQuotaEnabled,
+            createdBy,
           )
           saved.push(newFile)
         } catch (e) {
@@ -1258,6 +1323,9 @@ async function saveFolderRecursive(
           storageId: targetStorage.id,
           status: 'active',
           onConflict: 'rename',
+          createdByActorType: createdBy.type,
+          createdByActorRef: createdBy.ref,
+          createdByActorIssuer: createdBy.issuer,
         })
         saved.push(newFolder)
         queue.push({
@@ -1275,7 +1343,7 @@ async function saveFolderRecursive(
 // target org per file; files that fail (e.g. quota) are reported in `skipped`
 // rather than failing the whole operation.
 export async function copyMatterToOrg(deps: SaveToDriveDeps, input: CopyMatterToOrgInput): Promise<SaveShareResult> {
-  const { sourceMatter, currentUserId, targetOrgId, targetParent, teamQuotaEnabled = true } = input
+  const { sourceMatter, currentUserId, targetOrgId, targetParent, teamQuotaEnabled = true, createdBy } = input
 
   const sourceStorage = await deps.storages.get(sourceMatter.storageId)
   if (!sourceStorage) throw new Error('Source storage not found')
@@ -1292,6 +1360,7 @@ export async function copyMatterToOrg(deps: SaveToDriveDeps, input: CopyMatterTo
       targetOrgId,
       targetParent,
       teamQuotaEnabled,
+      createdBy,
     )
     return { saved: [newMatter], skipped: [] }
   }
@@ -1305,6 +1374,7 @@ export async function copyMatterToOrg(deps: SaveToDriveDeps, input: CopyMatterTo
     targetOrgId,
     targetParent,
     teamQuotaEnabled,
+    createdBy,
   )
 }
 

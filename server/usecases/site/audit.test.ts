@@ -8,12 +8,13 @@ describe('audit usecase', () => {
     const listAdminAudit = vi.fn(async () => result)
     const resolve = vi.fn(async () => new Map())
     const findApiKeyNames = vi.fn(async () => new Map())
+    const findUserProfiles = vi.fn(async () => new Map())
     const findDeviceNames = vi.fn(async () => new Map())
     const listTrustedAgentIssuerOrigins = vi.fn(async () => new Set<string>())
     const out = await listAuditEvents(
       {
         audit: { listAdminAudit } as Pick<AuditRepo, 'listAdminAudit'>,
-        auditActorDirectory: { findApiKeyNames, findDeviceNames, listTrustedAgentIssuerOrigins },
+        auditActorDirectory: { findUserProfiles, findApiKeyNames, findDeviceNames, listTrustedAgentIssuerOrigins },
         agentInfo: { resolve } as AgentInfoGateway,
       },
       {
@@ -56,6 +57,7 @@ describe('audit usecase', () => {
       {
         audit: { listAdminAudit: async () => ({ items: [event], total: 1, page: 1, pageSize: 20 }) },
         auditActorDirectory: {
+          findUserProfiles: async () => new Map(),
           findApiKeyNames: async () => new Map(),
           findDeviceNames: async () => new Map(),
           listTrustedAgentIssuerOrigins: async () => new Set(['https://id.realmroot.dev']),
@@ -93,6 +95,7 @@ describe('audit usecase', () => {
       {
         audit: { listAdminAudit: async () => ({ items: [event], total: 1, page: 1, pageSize: 20 }) },
         auditActorDirectory: {
+          findUserProfiles: async () => new Map(),
           findApiKeyNames: async () => new Map([['key-1', 'CME downloader']]),
           findDeviceNames: async () => new Map(),
           listTrustedAgentIssuerOrigins: async () => new Set(),
@@ -132,6 +135,7 @@ describe('audit usecase', () => {
       {
         audit: { listAdminAudit: async () => ({ items: [event], total: 1, page: 1, pageSize: 20 }) },
         auditActorDirectory: {
+          findUserProfiles: async () => new Map(),
           findApiKeyNames: async () => new Map(),
           findDeviceNames: async () => new Map([['device-1', 'Office Mac']]),
           listTrustedAgentIssuerOrigins: async () => new Set(),
