@@ -143,6 +143,7 @@ describe('background jobs API', () => {
     const created = (await res.json()) as { id: string; status: string }
     expect(created.status).toBe('queued')
     expect(messages).toHaveLength(1)
+    expect(messages[0].createdBy).toMatchObject({ type: 'user', issuer: null })
     await expect(createBackgroundJobRepo(db).get(orgId, created.id)).resolves.toMatchObject({ status: 'queued' })
 
     await createArchiveJobsGateway(platform).runMessage(messages[0])

@@ -479,6 +479,7 @@ describe('webdav usecase', () => {
       contentType: 'text/plain',
       contentLength: 9 as number | null,
       body: new Uint8Array(9),
+      createdBy: { type: 'api_key' as const, ref: 'key-1', issuer: null },
       ...overrides,
     })
 
@@ -503,6 +504,9 @@ describe('webdav usecase', () => {
           dirtype: DirType.FILE,
           status: 'active',
           object: storageKey,
+          createdByActorType: 'api_key',
+          createdByActorRef: 'key-1',
+          createdByActorIssuer: null,
         }),
       )
     })
@@ -607,7 +611,13 @@ describe('webdav usecase', () => {
     it('creates a folder matter under the selected private storage', async () => {
       const create = vi.fn(async () => folder('Projects'))
       const deps = makeDeps({ matter: { create } })
-      await createWebDavCollection(deps, { orgId: 'ws-1', userId: 'u1', name: 'Projects', parent: 'Docs' })
+      await createWebDavCollection(deps, {
+        orgId: 'ws-1',
+        userId: 'u1',
+        name: 'Projects',
+        parent: 'Docs',
+        createdBy: { type: 'api_key', ref: 'key-1', issuer: null },
+      })
       expect(create).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'Projects',
@@ -616,6 +626,8 @@ describe('webdav usecase', () => {
           parent: 'Docs',
           object: '',
           status: 'active',
+          createdByActorType: 'api_key',
+          createdByActorRef: 'key-1',
         }),
       )
     })
@@ -720,6 +732,7 @@ describe('webdav usecase', () => {
       targetResourcePath: 'dst.txt',
       replacedMatterId: null,
       replacingTarget: false,
+      createdBy: { type: 'api_key' as const, ref: 'key-1', issuer: null },
       ...overrides,
     })
 
@@ -737,6 +750,12 @@ describe('webdav usecase', () => {
       expect(sourceMatter.object).toBe('legacy_/webdav-source-.txt')
       expect(destinationKey).toMatch(/^ws1\/u1\/\d{8}\/[A-Za-z0-9]{17}\.txt$/)
       expect(copyObject).toHaveBeenCalledWith(storage, sourceMatter.object, storage, destinationKey)
+      expect(copy).toHaveBeenCalledWith(expect.any(Object), '', destinationKey, {
+        onConflict: 'fail',
+        createdByActorType: 'api_key',
+        createdByActorRef: 'key-1',
+        createdByActorIssuer: null,
+      })
       expect(copyDeadProperties).toHaveBeenCalledWith('ws1', 'src.txt', 'dst.txt')
     })
 
@@ -794,6 +813,7 @@ describe('webdav usecase', () => {
       targetMatter: null,
       replacingTarget: false,
       depth: 'infinity' as const,
+      createdBy: { type: 'api_key' as const, ref: 'key-1', issuer: null },
       ...overrides,
     })
 
@@ -823,6 +843,12 @@ describe('webdav usecase', () => {
           object: expect.stringMatching(/^ws1\/u1\/\d{8}\/[A-Za-z0-9]{17}\.txt$/),
         },
       ])
+      expect(copy).toHaveBeenCalledWith(expect.any(Object), '', '', {
+        onConflict: 'fail',
+        createdByActorType: 'api_key',
+        createdByActorRef: 'key-1',
+        createdByActorIssuer: null,
+      })
     })
 
     it('copies only the root when depth=0', async () => {
@@ -881,6 +907,7 @@ describe('webdav usecase', () => {
         owner: 'tester',
         depth: '0',
         timeoutSeconds: 600,
+        createdBy: { type: 'api_key', ref: 'key-1', issuer: null },
       })
       expect(out).toEqual({ lock, created: false })
       expect(create).not.toHaveBeenCalled()
@@ -906,6 +933,7 @@ describe('webdav usecase', () => {
         owner: 'tester',
         depth: 'infinity',
         timeoutSeconds: 3600,
+        createdBy: { type: 'api_key', ref: 'key-1', issuer: null },
       })
       expect(out).not.toBeNull()
       if (!out) throw new Error('Expected lock to be created')
@@ -920,6 +948,8 @@ describe('webdav usecase', () => {
           dirtype: DirType.FILE,
           status: 'active',
           object: storageKey,
+          createdByActorType: 'api_key',
+          createdByActorRef: 'key-1',
         }),
       )
     })

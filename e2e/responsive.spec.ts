@@ -87,13 +87,42 @@ test.describe('Toolbar responsive layout', () => {
 // Table: secondary columns hidden on small screens
 // ---------------------------------------------------------------------------
 test.describe('File table responsive columns', () => {
-  test('desktop: all columns visible (name, size, modified, actions) @desktop', async ({ page }) => {
+  test('desktop: creator uses an avatar-only column with identity details on hover @desktop', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     await createFolder(page, 'test-folder')
 
     await expect(page.getByRole('columnheader', { name: /size/i })).toBeVisible()
     await expect(page.getByRole('columnheader', { name: /modified/i })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: /creator/i })).toBeVisible()
+
+    const row = page.getByRole('row', { name: /test-folder/ })
+    const creatorCell = row.getByRole('cell').nth(4)
+    const creatorTrigger = creatorCell.getByRole('button', { name: /created by:/i })
+    await expect(creatorTrigger).toBeVisible()
+    const creatorLabel = await creatorTrigger.getAttribute('aria-label')
+    const creatorName = creatorLabel?.replace(/^Created by:\s*/i, '')
+    expect(creatorName).toBeTruthy()
+    await expect(creatorTrigger).not.toContainText(creatorName!)
+
+    await creatorTrigger.hover()
+    const identityCard = page.locator('[data-slot="hover-card-content"]')
+    await expect(identityCard).toBeVisible()
+    await expect(identityCard.getByText(creatorName!, { exact: true })).toBeVisible()
+    await expect(identityCard.getByText('User', { exact: true })).toBeVisible()
+
+    await page.getByLabel('Grid view').click()
+    const gridCard = page.getByRole('button', { name: /test-folder/ })
+    await expect(gridCard).toBeVisible()
+    await expect(gridCard).not.toContainText(creatorName!)
+
+    await page.getByLabel('List view').click()
+
+    await row.getByRole('button').last().click()
+    await page.getByRole('menuitem', { name: /details/i }).click()
+    const details = page.getByRole('dialog', { name: 'test-folder' })
+    await expect(details.getByText(/created by/i)).toBeVisible()
+    await expect(details.getByTitle(creatorName!)).toBeVisible()
   })
 
   test('mobile: size and modified columns are hidden @mobile', async ({ page }) => {

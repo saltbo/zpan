@@ -2,6 +2,7 @@ import type { StorageObject } from '@shared/types'
 
 export interface FileActionHandlers {
   onOpen: (item: StorageObject) => void
+  onDetails?: (item: StorageObject) => void
   onRename?: (item: StorageObject) => void
   onTrash?: (item: StorageObject) => void
   onDelete?: (item: StorageObject) => void

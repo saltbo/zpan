@@ -1,9 +1,11 @@
 import type { CreateBackgroundJobRequest } from '@shared/schemas'
+import type { ActorIdentity } from './audit'
 
 export interface ArchiveJobMessage {
   jobId: string
   orgId: string
   userId: string
+  createdBy: ActorIdentity
   request: CreateBackgroundJobRequest
 }
 

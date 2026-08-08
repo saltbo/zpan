@@ -1,3 +1,4 @@
+import type { ActorType } from '@shared/schemas'
 import type { Downloader, DownloadTask, DownloadTaskListItem } from '@shared/types'
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
@@ -51,6 +52,9 @@ export interface DownloadTaskRecord {
   id: string
   orgId: string
   createdByUserId: string
+  requestedByActorType?: ActorType | null
+  requestedByActorRef?: string | null
+  requestedByActorIssuer?: string | null
   sourceType: string
   sourceUri: string
   displayName: string | null
@@ -145,6 +149,9 @@ export interface CreateDownloadTaskRecordInput {
   id: string
   orgId: string
   createdByUserId: string
+  requestedByActorType?: ActorType
+  requestedByActorRef?: string
+  requestedByActorIssuer?: string | null
   sourceType: string
   sourceUri: string
   displayName: string | null

@@ -18,6 +18,9 @@ export const matters = sqliteTable(
     status: text('status').notNull().default('draft'), // draft, active
     trashedAt: integer('trashed_at'), // null = live, epoch ms = in trash (soft delete)
     purgedAt: integer('purged_at'), // null = retained/billable, epoch ms = content permanently removed
+    createdByActorType: text('created_by_actor_type'),
+    createdByActorRef: text('created_by_actor_ref'),
+    createdByActorIssuer: text('created_by_actor_issuer'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
   },
@@ -412,6 +415,9 @@ export const downloadTasks = sqliteTable(
     id: text('id').primaryKey(),
     orgId: text('org_id').notNull(),
     createdByUserId: text('created_by_user_id').notNull(),
+    requestedByActorType: text('requested_by_actor_type'),
+    requestedByActorRef: text('requested_by_actor_ref'),
+    requestedByActorIssuer: text('requested_by_actor_issuer'),
     sourceType: text('source_type').notNull(),
     sourceUri: text('source_uri').notNull(),
     displayName: text('display_name'),

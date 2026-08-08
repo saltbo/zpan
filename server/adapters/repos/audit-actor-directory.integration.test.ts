@@ -1,10 +1,41 @@
 import { describe, expect, it } from 'vitest'
-import { apikey, oauthClient } from '../../db/auth-schema'
+import { apikey, oauthClient, user } from '../../db/auth-schema'
 import { downloaders } from '../../db/schema'
 import { createTestApp } from '../../test/setup'
 import { createAuditActorDirectoryRepo } from './audit-actor-directory'
 
 describe('audit actor directory repository', () => {
+  it('resolves user display profiles in one local lookup', async () => {
+    const { db } = await createTestApp()
+    await db.insert(user).values({
+      id: 'user-profile-1',
+      name: 'Amber',
+      email: 'amber-profile@example.com',
+      image: 'https://example.com/amber.png',
+    })
+    const directory = createAuditActorDirectoryRepo(db)
+
+    await expect(directory.findUserProfiles(['user-profile-1', 'missing'])).resolves.toEqual(
+      new Map([['user-profile-1', { name: 'Amber', image: 'https://example.com/amber.png', resolved: true }]]),
+    )
+  })
+
+  it('falls back to the username when a user has no profile name', async () => {
+    const { db } = await createTestApp()
+    await db.insert(user).values({
+      id: 'username-only-profile',
+      name: '',
+      username: 'amber',
+      displayUsername: 'Amber',
+      email: 'username-only@example.com',
+    })
+    const directory = createAuditActorDirectoryRepo(db)
+
+    await expect(directory.findUserProfiles(['username-only-profile'])).resolves.toEqual(
+      new Map([['username-only-profile', { name: 'Amber', image: null, resolved: true }]]),
+    )
+  })
+
   it('resolves API key names in one local lookup', async () => {
     const { db } = await createTestApp()
     await db.insert(apikey).values({
@@ -89,5 +120,6 @@ describe('audit actor directory repository', () => {
 
     await expect(directory.findApiKeyNames([])).resolves.toEqual(new Map())
     await expect(directory.findDeviceNames([])).resolves.toEqual(new Map())
+    await expect(directory.findUserProfiles([])).resolves.toEqual(new Map())
   })
 })

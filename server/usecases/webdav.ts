@@ -19,6 +19,7 @@ import type { Database } from '../platform/interface'
 import type { Deps } from './deps'
 import { assertFolderNotUsedByDownload } from './downloads/download-folders'
 import {
+  type ActorIdentity,
   type ApiKeyAuth,
   ApiKeyRateLimitError,
   type DavDeadProperty,
@@ -308,6 +309,7 @@ export async function putWebDavFile(
     contentType: string
     contentLength: number | null
     body: ReadableStream | Uint8Array
+    createdBy: ActorIdentity
     onTiming?: (phase: 'storage' | 's3' | 'persist', durationMs: number) => void
   },
 ): Promise<PutWebDavOutcome> {
@@ -351,6 +353,7 @@ export async function putWebDavFile(
               objectKey,
               contentType,
               uploadedSize,
+              createdBy: params.createdBy,
             }),
           ),
         )
@@ -366,6 +369,7 @@ export async function putWebDavFile(
           objectKey,
           contentType,
           uploadedSize,
+          createdBy: params.createdBy,
         }),
       )
       if (sizeDelta < 0) await deps.storageUsage.reconcile(orgId, [storage.id])
@@ -402,6 +406,7 @@ async function persistWebDavUpload(
     objectKey: string
     contentType: string
     uploadedSize: number
+    createdBy: ActorIdentity
   },
 ): Promise<{ status: 201 | 204; matterId: string; bytes: number }> {
   const { orgId, target, fileName, parent, storage, objectKey, contentType, uploadedSize } = params
@@ -421,6 +426,9 @@ async function persistWebDavUpload(
     object: objectKey,
     storageId: storage.id,
     status: ObjectStatus.ACTIVE,
+    createdByActorType: params.createdBy.type,
+    createdByActorRef: params.createdBy.ref,
+    createdByActorIssuer: params.createdBy.issuer,
   })
   return { status: 201, matterId: matter.id, bytes: uploadedSize }
 }
@@ -429,7 +437,7 @@ async function persistWebDavUpload(
 
 export async function createWebDavCollection(
   deps: Pick<Deps, 'matter' | 'storages'>,
-  params: { orgId: string; userId: string; name: string; parent: string },
+  params: { orgId: string; userId: string; name: string; parent: string; createdBy: ActorIdentity },
 ): Promise<void> {
   const storage = await deps.storages.select()
   await deps.matter.create({
@@ -442,6 +450,9 @@ export async function createWebDavCollection(
     object: '',
     storageId: storage.id,
     status: ObjectStatus.ACTIVE,
+    createdByActorType: params.createdBy.type,
+    createdByActorRef: params.createdBy.ref,
+    createdByActorIssuer: params.createdBy.issuer,
   })
 }
 
@@ -514,6 +525,7 @@ export async function copyWebDavFile(
     targetResourcePath: string
     replacedMatterId: string | null
     replacingTarget: boolean
+    createdBy: ActorIdentity
   },
 ): Promise<CopyWebDavFileOutcome> {
   const { orgId, userId, sourceMatter } = params
@@ -540,6 +552,9 @@ export async function copyWebDavFile(
     }
     const copy = await deps.matter.copy({ ...sourceMatter, name: params.targetName }, params.targetParent, newObject, {
       onConflict: 'fail',
+      createdByActorType: params.createdBy.type,
+      createdByActorRef: params.createdBy.ref,
+      createdByActorIssuer: params.createdBy.issuer,
     })
     const copyPath = joinMatterPath(copy.parent, copy.name)
     await deps.webdavState.copyDeadProperties(orgId, params.sourceResourcePath, copyPath)
@@ -575,6 +590,7 @@ export async function copyWebDavCollection(
     targetMatter: Matter | null
     replacingTarget: boolean
     depth: '0' | 'infinity'
+    createdBy: ActorIdentity
   },
 ): Promise<CopyWebDavCollectionOutcome> {
   const { orgId, userId, sourceMatter, sourceRoot, targetMatter } = params
@@ -627,6 +643,9 @@ export async function copyWebDavCollection(
 
       const rootCopy = await deps.matter.copy({ ...sourceMatter, name: params.targetName }, params.targetParent, '', {
         onConflict: 'fail',
+        createdByActorType: params.createdBy.type,
+        createdByActorRef: params.createdBy.ref,
+        createdByActorIssuer: params.createdBy.issuer,
       })
       createdIds.push(rootCopy.id)
       await deps.webdavState.copyDeadProperties(orgId, sourceRoot, joinMatterPath(rootCopy.parent, rootCopy.name))
@@ -634,6 +653,9 @@ export async function copyWebDavCollection(
       for (const prepared of preparedCopies) {
         const copy = await deps.matter.copy(prepared.item, prepared.targetParent, prepared.objectKey, {
           onConflict: 'fail',
+          createdByActorType: params.createdBy.type,
+          createdByActorRef: params.createdBy.ref,
+          createdByActorIssuer: params.createdBy.issuer,
         })
         createdIds.push(copy.id)
         await deps.webdavState.copyDeadProperties(
@@ -698,6 +720,7 @@ export async function createWebDavLock(
     owner: string
     depth: string
     timeoutSeconds: number
+    createdBy: ActorIdentity
   },
 ): Promise<{ lock: DavLock; created: boolean } | null> {
   const { orgId, userId, target } = params
@@ -729,6 +752,9 @@ export async function createWebDavLock(
     object: objectKey,
     storageId: storage.id,
     status: ObjectStatus.ACTIVE,
+    createdByActorType: params.createdBy.type,
+    createdByActorRef: params.createdBy.ref,
+    createdByActorIssuer: params.createdBy.issuer,
   })
   const lock = await deps.webdavState.createLock({
     orgId,

@@ -122,6 +122,9 @@ function DraggableGridCard({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
+        {handlers.onDetails && (
+          <ContextMenuItem onClick={() => handlers.onDetails?.(item)}>{t('files.details')}</ContextMenuItem>
+        )}
         <ContextMenuItem onClick={() => handlers.onOpen(item)}>
           {isFile ? t('files.preview') : t('files.open')}
         </ContextMenuItem>
@@ -210,6 +213,9 @@ function PlainGridCard({
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
+        {handlers.onDetails && (
+          <ContextMenuItem onClick={() => handlers.onDetails?.(item)}>{t('files.details')}</ContextMenuItem>
+        )}
         <ContextMenuItem onClick={() => handlers.onOpen(item)}>
           {isFile ? t('files.preview') : t('files.open')}
         </ContextMenuItem>

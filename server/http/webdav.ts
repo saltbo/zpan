@@ -99,6 +99,10 @@ type DavAuth = {
   permissions: Record<string, string[]> | null
 }
 
+function webDavActor(auth: DavAuth) {
+  return { type: 'api_key' as const, ref: auth.keyId, issuer: null }
+}
+
 interface NativeRateLimiter {
   limit(options: { key: string }): Promise<{ success: boolean }>
 }
@@ -1278,6 +1282,7 @@ async function putFile(c: DavContext, auth: DavAuth): Promise<Response> {
         contentType,
         contentLength,
         body,
+        createdBy: webDavActor(auth),
         onTiming: (phase, durationMs) => c.get('webDavTrace').push(`${phase}:${Math.round(durationMs)}`),
       })
       c.get('webDavTrace').push(`upload:${Math.round(performance.now() - startedAt)}`)
@@ -1322,6 +1327,7 @@ async function makeCollection(c: DavContext, auth: DavAuth): Promise<Response> {
       userId: auth.userId,
       name: target.name,
       parent: target.parent,
+      createdBy: webDavActor(auth),
     })
     return new Response(null, { status: 201 })
   } catch (e) {
@@ -1441,6 +1447,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
           targetMatter: target.matter,
           replacingTarget,
           depth,
+          createdBy: webDavActor(auth),
         })
         if (!result.ok) return c.text('Storage not found', 404)
         c.header('Location', matterLocation(c, targetWorkspace.pathSegment, result.location))
@@ -1463,6 +1470,7 @@ async function copyMatterRoute(c: DavContext, auth: DavAuth): Promise<Response> 
         targetResourcePath: resourcePath(target),
         replacedMatterId: target.matter?.id ?? null,
         replacingTarget,
+        createdBy: webDavActor(auth),
       })
       if (!result.ok) return c.text('Storage not found', 404)
       c.header('Location', matterLocation(c, targetWorkspace.pathSegment, result.location))
@@ -1520,6 +1528,7 @@ async function lockMatter(c: DavContext, auth: DavAuth): Promise<Response> {
       owner: lockInfo.owner,
       depth,
       timeoutSeconds: parseTimeout(c.req.header('Timeout')),
+      createdBy: webDavActor(auth),
     })
     c.get('webDavTrace').push(`lock:${Math.round(performance.now() - startedAt)}`)
     if (!acquired) return xmlResponse(errorXml('no-conflicting-lock'), 423)

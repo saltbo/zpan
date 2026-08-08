@@ -1,4 +1,5 @@
 import type {
+  ActorAttribution,
   CreateDownloaderInput,
   CreateDownloadTaskInput,
   DownloaderHeartbeatInput,
@@ -19,10 +20,15 @@ import type {
 } from '@shared/types'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import { generateId } from '../../../shared/ids'
+import { fallbackActorAttribution } from '../../domain/actor-attribution'
 import { parseDownloadTaskEvents } from '../../domain/download-task-events'
 import { hasFeature } from '../../domain/licensing'
 import type { Platform } from '../../platform/interface'
+import { resolveActorAttributions } from '../audit-actors'
 import type {
+  ActorIdentity,
+  AgentInfoGateway,
+  AuditActorDirectory,
   AuditEvent,
   AuditRepo,
   DownloaderBootstrapCredentialRepo,
@@ -39,7 +45,7 @@ import type {
   StorageRepo,
   UpdateDownloadTaskFields,
 } from '../ports'
-import { DownloadError, featureBlocked, unauthorized } from '../ports'
+import { actorIdentityKey, DownloadError, featureBlocked, unauthorized } from '../ports'
 import { loadBindingState } from '../site/licensing'
 import { ensureDownloadFolderPath } from './download-folders'
 import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from './remote-download-usage'
@@ -51,6 +57,8 @@ import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from './r
 // is platform-per-call, mirroring auth.ts).
 
 export type DownloadsDeps = {
+  auditActorDirectory: AuditActorDirectory
+  agentInfo: AgentInfoGateway
   downloaders: DownloaderRepo
   downloaderBootstrapCredentials: DownloaderBootstrapCredentialRepo
   downloadTasks: DownloadTaskRepo
@@ -311,10 +319,12 @@ export async function createDownloadTask(
   orgId: string,
   userId: string,
   input: CreateDownloadTaskInput,
+  requestedBy: ActorIdentity = { type: 'user', ref: userId, issuer: null },
 ): Promise<DownloadTask> {
   const targetFolder = await ensureDownloadFolderPath(deps, {
     orgId,
     folderPath: input.targetFolder,
+    createdBy: requestedBy,
   })
   const now = new Date()
   const id = generateId()
@@ -322,6 +332,9 @@ export async function createDownloadTask(
     id,
     orgId,
     createdByUserId: userId,
+    requestedByActorType: requestedBy.type,
+    requestedByActorRef: requestedBy.ref ?? userId,
+    requestedByActorIssuer: requestedBy.issuer,
     sourceType: input.source.type,
     sourceUri: input.source.uri,
     displayName: input.name ?? null,
@@ -333,7 +346,7 @@ export async function createDownloadTask(
     assignedAt: null,
     now,
   })
-  return deps.downloadTasks.get(orgId, id)
+  return decorateDownloadTaskActors(deps, await deps.downloadTasks.get(orgId, id))
 }
 
 export async function listDownloadTasks(
@@ -345,10 +358,13 @@ export async function listDownloadTasks(
   nextBoundary: { createdAt: Date; id: string } | null
 }> {
   const { items, rows, nextBoundary } = await deps.downloadTasks.list(opts)
-  if (!opts.includeUploadToken) return { items, nextBoundary }
-  const decorated = await Promise.all(
+  if (!opts.includeUploadToken) {
+    return { items: await decorateDownloadTasksActors(deps, items), nextBoundary }
+  }
+  const tasksWithUploadTokens = await Promise.all(
     items.map((task, index) => decorateWithUploadToken(deps, platform, task, rows[index])),
   )
+  const decorated = await decorateDownloadTasksActors(deps, tasksWithUploadTokens)
   return { items: decorated, nextBoundary }
 }
 
@@ -362,8 +378,39 @@ export async function listDownloadTaskItems(
   return deps.downloadTasks.listItems(opts)
 }
 
-export function getDownloadTask(deps: DownloadsDeps, orgId: string, id: string): Promise<DownloadTask> {
-  return deps.downloadTasks.get(orgId, id)
+export async function getDownloadTask(deps: DownloadsDeps, orgId: string, id: string): Promise<DownloadTask> {
+  return decorateDownloadTaskActors(deps, await deps.downloadTasks.get(orgId, id))
+}
+
+async function decorateDownloadTaskActors(deps: DownloadsDeps, task: DownloadTask): Promise<DownloadTask> {
+  return (await decorateDownloadTasksActors(deps, [task]))[0]
+}
+
+async function decorateDownloadTasksActors(
+  deps: DownloadsDeps,
+  tasks: readonly DownloadTask[],
+): Promise<DownloadTask[]> {
+  const identities = tasks
+    .flatMap((task) => [
+      task.requestedBy && { type: task.requestedBy.type, ref: task.requestedBy.ref, issuer: task.requestedBy.issuer },
+      task.status.assignment && { type: 'device' as const, ref: task.status.assignment.downloaderId, issuer: null },
+    ])
+    .filter((identity): identity is ActorIdentity => identity !== null)
+  const actors = await resolveActorAttributions(deps, identities)
+  return tasks.map((task) => decorateDownloadTaskActor(task, actors))
+}
+
+function decorateDownloadTaskActor(task: DownloadTask, actors: ReadonlyMap<string, ActorAttribution>): DownloadTask {
+  const requestedBy = task.requestedBy ? (actors.get(actorIdentityKey(task.requestedBy)) ?? task.requestedBy) : null
+  const assignment = task.status.assignment
+    ? {
+        ...task.status.assignment,
+        executor:
+          actors.get(actorIdentityKey({ type: 'device', ref: task.status.assignment.downloaderId, issuer: null })) ??
+          task.status.assignment.executor,
+      }
+    : null
+  return { ...task, requestedBy, status: { ...task.status, assignment } }
 }
 
 export async function getDownloadTaskTimeline(
@@ -1038,10 +1085,19 @@ function actionSeverity(action: string): DownloadTaskTimelineItem['severity'] {
 
 function downloadTaskFromRecord(row: DownloadTaskRecord): DownloadTask {
   const runtime = parseTaskRuntime(row.runtime)
+  const requestedBy =
+    row.requestedByActorType && row.requestedByActorRef
+      ? fallbackActorAttribution({
+          type: row.requestedByActorType,
+          ref: row.requestedByActorRef,
+          issuer: row.requestedByActorIssuer ?? null,
+        })
+      : null
   return {
     id: row.id,
     orgId: row.orgId,
     createdBy: row.createdByUserId,
+    requestedBy,
     spec: {
       source: {
         type: row.sourceType as DownloadTask['spec']['source']['type'],
@@ -1060,7 +1116,11 @@ function downloadTaskFromRecord(row: DownloadTaskRecord): DownloadTask {
       state: row.status as DownloadTask['status']['state'],
       attempt: row.attempt,
       assignment: row.assignedDownloaderId
-        ? { downloaderId: row.assignedDownloaderId, assignedAt: row.assignedAt?.toISOString() ?? null }
+        ? {
+            downloaderId: row.assignedDownloaderId,
+            assignedAt: row.assignedAt?.toISOString() ?? null,
+            executor: fallbackActorAttribution({ type: 'device', ref: row.assignedDownloaderId, issuer: null }),
+          }
         : null,
       progress: runtime?.progress ?? {
         download: { bytes: 0, totalBytes: null, bytesPerSecond: 0 },

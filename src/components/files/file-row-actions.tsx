@@ -8,6 +8,7 @@ import {
   EllipsisVertical,
   FileArchive,
   FolderInput,
+  Info,
   Link,
   Pencil,
   Share2,
@@ -36,6 +37,7 @@ export function computeHasActions(item: StorageObject, handlers: Partial<FileAct
   const isFile = item.dirtype === DirType.FILE
   return !!(
     (isFile && handlers.onDownload) ||
+    handlers.onDetails ||
     handlers.onCompress ||
     (isZipFile(item) && handlers.onExtract) ||
     handlers.onRename ||
@@ -84,6 +86,12 @@ export function FileRowActions({ item, handlers }: FileRowActionsProps) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
+        {handlers.onDetails && (
+          <DropdownMenuItem onClick={() => handlers.onDetails?.(item)}>
+            <Info />
+            {t('files.details')}
+          </DropdownMenuItem>
+        )}
         {isFile && handlers.onDownload && (
           <DropdownMenuItem onClick={() => handlers.onDownload?.(item)}>
             <Download className="mr-2 h-4 w-4" />

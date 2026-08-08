@@ -19,6 +19,42 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for ActorAttributionType.
+const (
+	ActorAttributionTypeAgent      ActorAttributionType = "agent"
+	ActorAttributionTypeAnonymous  ActorAttributionType = "anonymous"
+	ActorAttributionTypeApiKey     ActorAttributionType = "api_key"
+	ActorAttributionTypeDevice     ActorAttributionType = "device"
+	ActorAttributionTypeOauth      ActorAttributionType = "oauth"
+	ActorAttributionTypeSystem     ActorAttributionType = "system"
+	ActorAttributionTypeTaskUpload ActorAttributionType = "task-upload"
+	ActorAttributionTypeUser       ActorAttributionType = "user"
+)
+
+// Valid indicates whether the value is a known member of the ActorAttributionType enum.
+func (e ActorAttributionType) Valid() bool {
+	switch e {
+	case ActorAttributionTypeAgent:
+		return true
+	case ActorAttributionTypeAnonymous:
+		return true
+	case ActorAttributionTypeApiKey:
+		return true
+	case ActorAttributionTypeDevice:
+		return true
+	case ActorAttributionTypeOauth:
+		return true
+	case ActorAttributionTypeSystem:
+		return true
+	case ActorAttributionTypeTaskUpload:
+		return true
+	case ActorAttributionTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminAnalyticsGrowthComparisonCoverageQuality.
 const (
 	AdminAnalyticsGrowthComparisonCoverageQualityExact      AdminAnalyticsGrowthComparisonCoverageQuality = "exact"
@@ -1068,34 +1104,34 @@ func (e AdminDashboardDownloadersItemsStatus) Valid() bool {
 
 // Defines values for AuditEventActorType.
 const (
-	Agent      AuditEventActorType = "agent"
-	Anonymous  AuditEventActorType = "anonymous"
-	ApiKey     AuditEventActorType = "api_key"
-	Device     AuditEventActorType = "device"
-	Oauth      AuditEventActorType = "oauth"
-	System     AuditEventActorType = "system"
-	TaskUpload AuditEventActorType = "task-upload"
-	User       AuditEventActorType = "user"
+	AuditEventActorTypeAgent      AuditEventActorType = "agent"
+	AuditEventActorTypeAnonymous  AuditEventActorType = "anonymous"
+	AuditEventActorTypeApiKey     AuditEventActorType = "api_key"
+	AuditEventActorTypeDevice     AuditEventActorType = "device"
+	AuditEventActorTypeOauth      AuditEventActorType = "oauth"
+	AuditEventActorTypeSystem     AuditEventActorType = "system"
+	AuditEventActorTypeTaskUpload AuditEventActorType = "task-upload"
+	AuditEventActorTypeUser       AuditEventActorType = "user"
 )
 
 // Valid indicates whether the value is a known member of the AuditEventActorType enum.
 func (e AuditEventActorType) Valid() bool {
 	switch e {
-	case Agent:
+	case AuditEventActorTypeAgent:
 		return true
-	case Anonymous:
+	case AuditEventActorTypeAnonymous:
 		return true
-	case ApiKey:
+	case AuditEventActorTypeApiKey:
 		return true
-	case Device:
+	case AuditEventActorTypeDevice:
 		return true
-	case Oauth:
+	case AuditEventActorTypeOauth:
 		return true
-	case System:
+	case AuditEventActorTypeSystem:
 		return true
-	case TaskUpload:
+	case AuditEventActorTypeTaskUpload:
 		return true
-	case User:
+	case AuditEventActorTypeUser:
 		return true
 	default:
 		return false
@@ -4071,6 +4107,19 @@ type ActivityPage struct {
 	Total    int          `json:"total"`
 }
 
+// ActorAttribution defines model for ActorAttribution.
+type ActorAttribution struct {
+	Image    *string              `json:"image"`
+	Issuer   *string              `json:"issuer"`
+	Name     string               `json:"name"`
+	Ref      *string              `json:"ref"`
+	Resolved bool                 `json:"resolved"`
+	Type     ActorAttributionType `json:"type"`
+}
+
+// ActorAttributionType defines model for ActorAttribution.Type.
+type ActorAttributionType string
+
 // AdminAnalyticsGrowth defines model for AdminAnalyticsGrowth.
 type AdminAnalyticsGrowth struct {
 	ActiveUserTrend []struct {
@@ -5166,11 +5215,12 @@ type DownloadTask struct {
 		Action      DownloadTaskControlAction `json:"action"`
 		RequestedAt string                    `json:"requestedAt"`
 	} `json:"control,omitempty"`
-	CreatedAt string  `json:"createdAt"`
-	CreatedBy *string `json:"createdBy,omitempty"`
-	Id        string  `json:"id"`
-	OrgId     *string `json:"orgId,omitempty"`
-	Spec      struct {
+	CreatedAt   string            `json:"createdAt"`
+	CreatedBy   *string           `json:"createdBy,omitempty"`
+	Id          string            `json:"id"`
+	OrgId       *string           `json:"orgId,omitempty"`
+	RequestedBy *ActorAttribution `json:"requestedBy,omitempty"`
+	Spec        struct {
 		Destination struct {
 			Folder string  `json:"folder"`
 			Name   *string `json:"name"`
@@ -5186,9 +5236,10 @@ type DownloadTask struct {
 	} `json:"spec"`
 	Status struct {
 		Assignment *struct {
-			AssignedAt   *string `json:"assignedAt,omitempty"`
-			DownloaderId string  `json:"downloaderId"`
-			UploadToken  *string `json:"uploadToken,omitempty"`
+			AssignedAt   *string           `json:"assignedAt,omitempty"`
+			DownloaderId string            `json:"downloaderId"`
+			Executor     *ActorAttribution `json:"executor,omitempty"`
+			UploadToken  *string           `json:"uploadToken,omitempty"`
 		} `json:"assignment"`
 		Attempt int `json:"attempt"`
 		Billing struct {
@@ -5763,13 +5814,14 @@ type ManualImageDomainSettingsProvider string
 
 // Matter defines model for Matter.
 type Matter struct {
-	Alias     string `json:"alias"`
-	CreatedAt string `json:"createdAt"`
-	Dirtype   *int   `json:"dirtype"`
-	Id        string `json:"id"`
-	Name      string `json:"name"`
-	Object    string `json:"object"`
-	OrgId     string `json:"orgId"`
+	Alias     string            `json:"alias"`
+	CreatedAt string            `json:"createdAt"`
+	CreatedBy *ActorAttribution `json:"createdBy"`
+	Dirtype   *int              `json:"dirtype"`
+	Id        string            `json:"id"`
+	Name      string            `json:"name"`
+	Object    string            `json:"object"`
+	OrgId     string            `json:"orgId"`
 
 	// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 	Parent    string `json:"parent"`
@@ -5803,9 +5855,10 @@ type NotificationPage struct {
 
 // ObjectListItem defines model for ObjectListItem.
 type ObjectListItem struct {
-	Alias     string `json:"alias"`
-	CreatedAt string `json:"createdAt"`
-	Dirtype   *int   `json:"dirtype"`
+	Alias     string            `json:"alias"`
+	CreatedAt string            `json:"createdAt"`
+	CreatedBy *ActorAttribution `json:"createdBy"`
+	Dirtype   *int              `json:"dirtype"`
 
 	// HasChildren Whether this folder contains at least one child folder.
 	HasChildren bool   `json:"hasChildren"`
@@ -23386,13 +23439,14 @@ type CreateObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *struct {
-		Alias     string `json:"alias"`
-		CreatedAt string `json:"createdAt"`
-		Dirtype   *int   `json:"dirtype"`
-		Id        string `json:"id"`
-		Name      string `json:"name"`
-		Object    string `json:"object"`
-		OrgId     string `json:"orgId"`
+		Alias     string            `json:"alias"`
+		CreatedAt string            `json:"createdAt"`
+		CreatedBy *ActorAttribution `json:"createdBy"`
+		Dirtype   *int              `json:"dirtype"`
+		Id        string            `json:"id"`
+		Name      string            `json:"name"`
+		Object    string            `json:"object"`
+		OrgId     string            `json:"orgId"`
 
 		// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 		Parent    string `json:"parent"`
@@ -23517,14 +23571,15 @@ type GetObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Alias       string  `json:"alias"`
-		CreatedAt   string  `json:"createdAt"`
-		Dirtype     *int    `json:"dirtype"`
-		DownloadUrl *string `json:"downloadUrl,omitempty"`
-		Id          string  `json:"id"`
-		Name        string  `json:"name"`
-		Object      string  `json:"object"`
-		OrgId       string  `json:"orgId"`
+		Alias       string            `json:"alias"`
+		CreatedAt   string            `json:"createdAt"`
+		CreatedBy   *ActorAttribution `json:"createdBy"`
+		Dirtype     *int              `json:"dirtype"`
+		DownloadUrl *string           `json:"downloadUrl,omitempty"`
+		Id          string            `json:"id"`
+		Name        string            `json:"name"`
+		Object      string            `json:"object"`
+		OrgId       string            `json:"orgId"`
 
 		// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 		Parent    string `json:"parent"`
@@ -31035,13 +31090,14 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest struct {
-			Alias     string `json:"alias"`
-			CreatedAt string `json:"createdAt"`
-			Dirtype   *int   `json:"dirtype"`
-			Id        string `json:"id"`
-			Name      string `json:"name"`
-			Object    string `json:"object"`
-			OrgId     string `json:"orgId"`
+			Alias     string            `json:"alias"`
+			CreatedAt string            `json:"createdAt"`
+			CreatedBy *ActorAttribution `json:"createdBy"`
+			Dirtype   *int              `json:"dirtype"`
+			Id        string            `json:"id"`
+			Name      string            `json:"name"`
+			Object    string            `json:"object"`
+			OrgId     string            `json:"orgId"`
 
 			// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 			Parent    string `json:"parent"`
@@ -31200,14 +31256,15 @@ func ParseGetObjectResponse(rsp *http.Response) (*GetObjectResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Alias       string  `json:"alias"`
-			CreatedAt   string  `json:"createdAt"`
-			Dirtype     *int    `json:"dirtype"`
-			DownloadUrl *string `json:"downloadUrl,omitempty"`
-			Id          string  `json:"id"`
-			Name        string  `json:"name"`
-			Object      string  `json:"object"`
-			OrgId       string  `json:"orgId"`
+			Alias       string            `json:"alias"`
+			CreatedAt   string            `json:"createdAt"`
+			CreatedBy   *ActorAttribution `json:"createdBy"`
+			Dirtype     *int              `json:"dirtype"`
+			DownloadUrl *string           `json:"downloadUrl,omitempty"`
+			Id          string            `json:"id"`
+			Name        string            `json:"name"`
+			Object      string            `json:"object"`
+			OrgId       string            `json:"orgId"`
 
 			// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 			Parent    string `json:"parent"`

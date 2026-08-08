@@ -75,6 +75,7 @@ export function createArchiveJobsGateway(platform: Platform): ArchiveJobsGateway
     await processArchiveJob(deps, {
       orgId: message.orgId,
       userId: message.userId,
+      createdBy: message.createdBy,
       request: message.request,
       jobId: message.jobId,
     })

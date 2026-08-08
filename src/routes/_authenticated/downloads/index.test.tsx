@@ -153,4 +153,40 @@ describe('DownloadsPage task selection', () => {
     expect(getDownloadTask).toHaveBeenCalledTimes(3)
     expect(renderCount).toBeLessThan(30)
   })
+
+  it('shows the requester and executing device in task details', async () => {
+    const attributed = task('task-attributed', 'Attributed task')
+    attributed.requestedBy = {
+      type: 'agent',
+      ref: 'agent-1',
+      issuer: 'https://realm.example.com',
+      name: 'Media Agent',
+      image: null,
+      resolved: true,
+    }
+    attributed.status.assignment = {
+      downloaderId: 'downloader-1',
+      assignedAt: '2026-07-27T12:00:00.000Z',
+      executor: {
+        type: 'device',
+        ref: 'downloader-1',
+        issuer: null,
+        name: 'Device · living-room-mac',
+        image: null,
+        resolved: true,
+      },
+    }
+    vi.mocked(listDownloadTasks).mockResolvedValue({
+      items: [toDownloadTaskListItem(attributed)],
+      nextPageToken: null,
+    })
+    vi.mocked(getDownloadTask).mockResolvedValue(attributed)
+
+    renderDownloadsPage(() => undefined)
+
+    expect(await screen.findByText('Media Agent')).toBeTruthy()
+    expect(screen.getByText('Device · living-room-mac')).toBeTruthy()
+    expect(screen.getByText('downloads.detail.requestedBy')).toBeTruthy()
+    expect(screen.getByText('downloads.detail.executingDevice')).toBeTruthy()
+  })
 })

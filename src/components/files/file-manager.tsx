@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils'
 import { getColumns } from './columns'
 import type { OperationProgressState } from './dialogs/operation-progress'
 import { DndWrapper } from './dnd-wrapper'
+import { FileDetailsSheet } from './file-details-sheet'
 import { FileManagerDialogs } from './file-manager-dialogs'
 import { FilesGrid } from './files-grid'
 import { FilesTable } from './files-table'
@@ -221,6 +222,7 @@ export function FileManager({
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [shareTarget, setShareTarget] = useState<StorageObject | null>(null)
   const [transferTarget, setTransferTarget] = useState<StorageObject | null>(null)
+  const [detailsTarget, setDetailsTarget] = useState<StorageObject | null>(null)
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false)
@@ -349,6 +351,7 @@ export function FileManager({
   const handlers: FileActionHandlers = useMemo(
     () => ({
       onOpen: handleOpen,
+      onDetails: setDetailsTarget,
       onRename: resolvedCapabilities.rename ? (item) => setRenameTarget(item) : undefined,
       onTrash: resolvedCapabilities.trash ? (item) => setDeleteTargetIds([item.id]) : undefined,
       onDelete: resolvedCapabilities.delete && onDeleteItems ? (item) => onDeleteItems([item.id]) : undefined,
@@ -748,6 +751,12 @@ export function FileManager({
       />
 
       <FilePreviewDialog file={previewFile} open={previewOpen} onOpenChange={setPreviewOpen} />
+      <FileDetailsSheet
+        item={detailsTarget}
+        onOpenChange={(open) => {
+          if (!open) setDetailsTarget(null)
+        }}
+      />
     </div>
   )
 

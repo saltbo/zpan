@@ -53,10 +53,10 @@ const t = (key: string) => key
 // ---------------------------------------------------------------------------
 
 describe('getColumns — column definitions', () => {
-  it('returns five columns', () => {
+  it('returns six columns', () => {
     const cols = getColumns(noopHandlers, t)
 
-    expect(cols).toHaveLength(5)
+    expect(cols).toHaveLength(6)
   })
 
   it('first column id is select', () => {
@@ -89,7 +89,7 @@ describe('getColumns — column definitions', () => {
   it('last column id is actions', () => {
     const cols = getColumns(noopHandlers, t)
 
-    expect(cols[4].id).toBe('actions')
+    expect(cols[5].id).toBe('actions')
   })
 })
 
@@ -114,6 +114,19 @@ describe('getColumns — modified column meta.className', () => {
 
     expect(modifiedCol.meta).toBeDefined()
     expect((modifiedCol.meta as { className: string }).className).toBe('hidden md:table-cell')
+  })
+})
+
+describe('getColumns — creator column', () => {
+  it('shows creator only on large screens and does not sort display profiles', () => {
+    const cols = getColumns(noopHandlers, t)
+    const creatorCol = cols[4]
+
+    expect(creatorCol.id).toBe('createdBy')
+    expect(creatorCol.header).toBe('files.colCreatedBy')
+    expect(creatorCol.size).toBe(72)
+    expect((creatorCol.meta as { className: string }).className).toBe('hidden text-center lg:table-cell')
+    expect(creatorCol.enableSorting).toBe(false)
   })
 })
 
@@ -367,7 +380,7 @@ describe('getColumns — sorting flags', () => {
   it('actions column has enableSorting false', () => {
     const cols = getColumns(noopHandlers, t)
 
-    expect(cols[4].enableSorting).toBe(false)
+    expect(cols[5].enableSorting).toBe(false)
   })
 })
 

@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { opaqueIdSchema } from './id'
 
+export type { ActorAttribution, ActorType } from './actors'
+export { actorAttributionSchema, actorTypeSchema } from './actors'
+
 export {
   adminAnalyticsGrowthSchema,
   adminAnalyticsOperationsSchema,

@@ -222,21 +222,51 @@ describe('archive processing', () => {
     const job = await createArchiveJob(archiveDeps(db), {
       orgId: ORG_ID,
       userId: USER_ID,
+      createdBy: { type: 'oauth', ref: 'agent-1', issuer: 'https://realm.example.com' },
       request: { type: 'archive_extract', matterId: 'zip-matter' },
       s3: s3 as unknown as S3Gateway,
     })
 
     expect(job).toMatchObject({ status: 'completed', type: 'archive_extract' })
     expect(job.progress).toMatchObject({ outputBytes: 5, fileCount: 1 })
-    const rows = await db.all<{ name: string; parent: string; dirtype: number; size: number; object: string }>(sql`
-      SELECT name, parent, dirtype, size, object FROM matters
+    const rows = await db.all<{
+      name: string
+      parent: string
+      dirtype: number
+      size: number
+      object: string
+      createdByActorType: string | null
+      createdByActorRef: string | null
+      createdByActorIssuer: string | null
+    }>(sql`
+      SELECT name, parent, dirtype, size, object,
+        created_by_actor_type AS createdByActorType,
+        created_by_actor_ref AS createdByActorRef,
+        created_by_actor_issuer AS createdByActorIssuer
+      FROM matters
       WHERE org_id = ${ORG_ID} AND status = 'active'
       ORDER BY dirtype DESC, name ASC
     `)
     expect(rows).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: 'docs', parent: '', dirtype: 1, size: 0 }),
-        expect.objectContaining({ name: 'hello.txt', parent: 'docs', dirtype: 0, size: 5 }),
+        expect.objectContaining({
+          name: 'docs',
+          parent: '',
+          dirtype: 1,
+          size: 0,
+          createdByActorType: 'oauth',
+          createdByActorRef: 'agent-1',
+          createdByActorIssuer: 'https://realm.example.com',
+        }),
+        expect.objectContaining({
+          name: 'hello.txt',
+          parent: 'docs',
+          dirtype: 0,
+          size: 5,
+          createdByActorType: 'oauth',
+          createdByActorRef: 'agent-1',
+          createdByActorIssuer: 'https://realm.example.com',
+        }),
       ]),
     )
     expect(s3.putKeys).toHaveLength(1)

@@ -22,6 +22,7 @@ const sampleJob = {
 } as BackgroundJob
 
 const extractRequest: CreateBackgroundJobRequest = { type: 'archive_extract', matterId: 'm-1' }
+const agent = { type: 'oauth' as const, ref: 'agent-1', issuer: 'https://realm.example.com' }
 
 // Fake ports as plain objects. backgroundJobs.create is what enqueueArchiveJob
 // (the real composed function) drives on create; everything else is forwarded.
@@ -105,7 +106,12 @@ describe('background-job usecase', () => {
     it('enqueues the request then dispatches the job, and returns it', async () => {
       const create = vi.fn(async () => sampleJob)
       const { deps, dispatch } = makeDeps({ backgroundJobs: { create } })
-      const job = await createBackgroundJob(deps, { orgId: 'org-1', userId: 'user-1', request: extractRequest })
+      const job = await createBackgroundJob(deps, {
+        orgId: 'org-1',
+        userId: 'user-1',
+        createdBy: agent,
+        request: extractRequest,
+      })
 
       expect(job).toBe(sampleJob)
       // enqueueArchiveJob maps the request onto the create input.
@@ -120,6 +126,7 @@ describe('background-job usecase', () => {
       expect(dispatch).toHaveBeenCalledWith({
         orgId: 'org-1',
         userId: 'user-1',
+        createdBy: agent,
         request: extractRequest,
         jobId: 'job-1',
       } satisfies ArchiveJobMessage)
@@ -135,7 +142,12 @@ describe('background-job usecase', () => {
         calls.push('dispatch')
       })
       const { deps } = makeDeps({ backgroundJobs: { create }, dispatch })
-      await createBackgroundJob(deps, { orgId: 'org-1', userId: 'user-1', request: extractRequest })
+      await createBackgroundJob(deps, {
+        orgId: 'org-1',
+        userId: 'user-1',
+        createdBy: agent,
+        request: extractRequest,
+      })
       expect(calls).toEqual(['create', 'dispatch'])
     })
 
@@ -143,7 +155,7 @@ describe('background-job usecase', () => {
       const create = vi.fn(async () => sampleJob)
       const { deps } = makeDeps({ backgroundJobs: { create } })
       const request: CreateBackgroundJobRequest = { type: 'archive_extract', matterId: 'm-1', targetFolder: 'dest' }
-      await createBackgroundJob(deps, { orgId: 'org-1', userId: 'user-1', request })
+      await createBackgroundJob(deps, { orgId: 'org-1', userId: 'user-1', createdBy: agent, request })
       expect(create).toHaveBeenCalledWith(expect.objectContaining({ targetFolder: 'dest', metadata: request }))
     })
   })
@@ -154,7 +166,7 @@ describe('background-job usecase', () => {
       const retry = vi.fn(async () => retriedJob)
       const { deps, dispatch } = makeDeps({ backgroundJobs: { retry } })
 
-      const out = await retryBackgroundJob(deps, 'org-1', 'job-1')
+      const out = await retryBackgroundJob(deps, 'org-1', 'job-1', agent)
 
       expect(out).toBe(retriedJob)
       expect(retry).toHaveBeenCalledWith('org-1', 'job-1')
@@ -162,6 +174,7 @@ describe('background-job usecase', () => {
       expect(dispatch).toHaveBeenCalledWith({
         orgId: 'org-1',
         userId: 'owner-9',
+        createdBy: agent,
         request: extractRequest,
         jobId: 'job-2',
       } satisfies ArchiveJobMessage)
@@ -172,7 +185,7 @@ describe('background-job usecase', () => {
       const retry = vi.fn(async () => retriedJob)
       const { deps, dispatch } = makeDeps({ backgroundJobs: { retry } })
 
-      const out = await retryBackgroundJob(deps, 'org-1', 'job-1')
+      const out = await retryBackgroundJob(deps, 'org-1', 'job-1', agent)
 
       expect(out).toBe(retriedJob)
       expect(dispatch).not.toHaveBeenCalled()
@@ -181,7 +194,7 @@ describe('background-job usecase', () => {
     it('does not dispatch when the stored metadata is null', async () => {
       const retry = vi.fn(async () => ({ ...sampleJob, metadata: null }) as BackgroundJob)
       const { deps, dispatch } = makeDeps({ backgroundJobs: { retry } })
-      await retryBackgroundJob(deps, 'org-1', 'job-1')
+      await retryBackgroundJob(deps, 'org-1', 'job-1', agent)
       expect(dispatch).not.toHaveBeenCalled()
     })
 
@@ -190,7 +203,7 @@ describe('background-job usecase', () => {
         throw new BackgroundJobError('not_retryable')
       })
       const { deps, dispatch } = makeDeps({ backgroundJobs: { retry } })
-      await expect(retryBackgroundJob(deps, 'org-1', 'job-1')).rejects.toMatchObject({ code: 'not_retryable' })
+      await expect(retryBackgroundJob(deps, 'org-1', 'job-1', agent)).rejects.toMatchObject({ code: 'not_retryable' })
       expect(dispatch).not.toHaveBeenCalled()
     })
   })
