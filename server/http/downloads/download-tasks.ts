@@ -283,7 +283,16 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     if (!orgId) throw unauthorized()
     // API keys carry their owning user's UID in userId, so downloader uploads
     // build the same org/uid object path as browser-created tasks.
-    return c.json(await createDownloadTask(c.get('deps'), orgId, c.get('userId') as string, c.req.valid('json')), 201)
+    const actor = c.get('authzContext').actor
+    if (!actor) throw unauthorized()
+    return c.json(
+      await createDownloadTask(c.get('deps'), orgId, c.get('userId') as string, c.req.valid('json'), {
+        type: actor.type,
+        ref: actor.ref,
+        issuer: 'issuer' in actor ? actor.issuer : null,
+      }),
+      201,
+    )
   })
   .openapi(getRoute, async (c) => {
     const orgId = c.get('orgId')

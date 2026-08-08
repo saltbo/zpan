@@ -24,6 +24,7 @@ vi.mock('lucide-react', () => ({
   FileArchive: () => null,
   FolderInput: () => null,
   Link: () => null,
+  Info: () => null,
   Pencil: () => null,
   Share2: () => null,
   Trash2: () => null,

@@ -4,6 +4,7 @@ import type { StorageObject } from '@shared/types'
 import type { Row, Table as TanstackTable } from '@tanstack/react-table'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ActorIdentity } from '@/components/actor-identity'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   ContextMenu,
@@ -119,9 +120,13 @@ function DraggableGridCard({
             <FileIcon item={item} size="lg" />
           )}
           <span className="w-full truncate text-center text-sm font-medium">{item.name}</span>
+          <ActorIdentity actor={item.createdBy} compact className="max-w-full" />
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
+        {handlers.onDetails && (
+          <ContextMenuItem onClick={() => handlers.onDetails?.(item)}>{t('files.details')}</ContextMenuItem>
+        )}
         <ContextMenuItem onClick={() => handlers.onOpen(item)}>
           {isFile ? t('files.preview') : t('files.open')}
         </ContextMenuItem>
@@ -207,9 +212,13 @@ function PlainGridCard({
             <FileIcon item={item} size="lg" />
           )}
           <span className="w-full truncate text-center text-sm font-medium">{item.name}</span>
+          <ActorIdentity actor={item.createdBy} compact className="max-w-full" />
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-48">
+        {handlers.onDetails && (
+          <ContextMenuItem onClick={() => handlers.onDetails?.(item)}>{t('files.details')}</ContextMenuItem>
+        )}
         <ContextMenuItem onClick={() => handlers.onOpen(item)}>
           {isFile ? t('files.preview') : t('files.open')}
         </ContextMenuItem>

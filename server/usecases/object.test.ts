@@ -397,6 +397,29 @@ describe('object usecase', () => {
       expect(presignUpload).not.toHaveBeenCalled()
     })
 
+    it('persists the stable OAuth agent identity on a created object', async () => {
+      const create = vi.fn(async () => folder('agent-folder', { name: 'Agent Folder' }))
+      const { deps } = makeDeps({ matter: { create } })
+
+      await createObject(deps, {
+        orgId: 'o1',
+        actor: {
+          kind: 'user',
+          userId: 'owner-1',
+          identity: { type: 'oauth', ref: 'agent-1', issuer: 'https://realm.example.com' },
+        },
+        input: { name: 'Agent Folder', type: 'folder', dirtype: DirType.USER_FOLDER, parent: '' },
+      })
+
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          createdByActorType: 'oauth',
+          createdByActorRef: 'agent-1',
+          createdByActorIssuer: 'https://realm.example.com',
+        }),
+      )
+    })
+
     it('creates a small file draft and returns single-PUT upload instructions', async () => {
       const create = vi.fn(async (input: Parameters<MatterRepo['create']>[0]) => file('d1', input as Partial<Matter>))
       const presignUpload = vi.fn(async () => 'https://up')
@@ -1664,7 +1687,12 @@ describe('object usecase', () => {
       expect(source.object).toBe('legacy_/source-file-.txt')
       expect(destinationKey).toMatch(/^o1\/u1\/\d{8}\/[A-Za-z0-9]{17}\.txt$/)
       expect(copyObjectS3).toHaveBeenCalledWith(storage, source.object, storage, destinationKey)
-      expect(copy).toHaveBeenCalledWith(source, 'Dest', destinationKey, { onConflict: undefined })
+      expect(copy).toHaveBeenCalledWith(source, 'Dest', destinationKey, {
+        onConflict: undefined,
+        createdByActorType: 'user',
+        createdByActorRef: 'u1',
+        createdByActorIssuer: null,
+      })
     })
 
     it('returns not_found for a missing source', async () => {

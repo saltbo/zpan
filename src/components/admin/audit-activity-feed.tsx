@@ -1,8 +1,7 @@
 import type { AdminAuditEvent } from '@shared/types'
 import { useTranslation } from 'react-i18next'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { ActorIdentity, auditEventActor } from '@/components/actor-identity'
 import { Badge } from '@/components/ui/badge'
-import { getInitials } from '@/lib/format'
 
 export function AdminAuditActivityFeed({
   events,
@@ -64,15 +63,10 @@ function AdminAuditActivityItem({ event }: { event: AdminAuditEvent }) {
     ? Object.entries(metadata).filter(([key, value]) => !['status', 'result', 'from', 'to'].includes(key) && value)
     : []
   const targetName = event.targetName || event.targetId || event.targetType
-  const actorLabel = event.actor.name
-  const actorImage = event.actor.image
 
   return (
     <div className="flex items-start gap-3 py-3">
-      <Avatar className="h-8 w-8 flex-shrink-0">
-        {actorImage && <AvatarImage src={actorImage} alt={actorLabel} />}
-        <AvatarFallback className="text-xs">{getInitials(actorLabel)}</AvatarFallback>
-      </Avatar>
+      <ActorIdentity actor={auditEventActor(event)} compact className="max-w-48 shrink-0" />
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{t(`activity.action.${event.action}`, { defaultValue: event.action })}</Badge>
@@ -83,7 +77,6 @@ function AdminAuditActivityItem({ event }: { event: AdminAuditEvent }) {
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span>{formatTimestamp(event.createdAt)}</span>
-          <span>{actorLabel}</span>
           {event.orgName && <span>{event.orgName}</span>}
           {event.targetId && <span>{event.targetId}</span>}
         </div>

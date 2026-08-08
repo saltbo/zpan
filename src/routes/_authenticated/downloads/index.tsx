@@ -60,6 +60,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { ActorIdentity } from '@/components/actor-identity'
 import { useFilesQuery } from '@/components/files/hooks/use-files-query'
 import { PageHeader } from '@/components/layout/page-header'
 import { Button } from '@/components/ui/button'
@@ -1456,6 +1457,14 @@ function OverviewPanel({ task }: { task: DownloadTask }) {
       </div>
 
       <div className="grid gap-x-5 gap-y-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
+        <InspectorField
+          label={t('downloads.detail.requestedBy')}
+          value={<ActorIdentity actor={task.requestedBy} compact />}
+        />
+        <InspectorField
+          label={t('downloads.detail.executingDevice')}
+          value={<ActorIdentity actor={task.status.assignment?.executor} compact />}
+        />
         <InspectorField label={t('downloads.detail.progress')} value={`${progress.overall}%`} />
         <InspectorField label={t('downloads.detail.engine')} value={detail?.engine || t('downloads.unknown')} />
         <InspectorField label={t('downloads.detail.phase')} value={formatPhase(detail?.phase, t)} />
@@ -1914,7 +1923,7 @@ function InspectorMetric({ icon, label, value }: { icon: ReactNode; label: strin
   )
 }
 
-function InspectorField({ label, value }: { label: string; value: string }) {
+function InspectorField({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="min-w-0">
       <div className="text-xs text-muted-foreground">{label}</div>

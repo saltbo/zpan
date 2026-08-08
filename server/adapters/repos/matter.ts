@@ -310,6 +310,9 @@ export function createMatterRepo(db: Database): MatterRepo {
         status: input.status,
         trashedAt: null,
         purgedAt: null,
+        createdByActorType: input.createdByActorType ?? null,
+        createdByActorRef: input.createdByActorRef ?? null,
+        createdByActorIssuer: input.createdByActorIssuer ?? null,
         createdAt: now,
         updatedAt: now,
       }
@@ -521,6 +524,9 @@ export function createMatterRepo(db: Database): MatterRepo {
         status: 'active',
         trashedAt: null,
         purgedAt: null,
+        createdByActorType: opts.createdByActorType ?? null,
+        createdByActorRef: opts.createdByActorRef ?? null,
+        createdByActorIssuer: opts.createdByActorIssuer ?? null,
         createdAt: now,
         updatedAt: now,
       }

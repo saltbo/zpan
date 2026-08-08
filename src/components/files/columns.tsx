@@ -1,6 +1,7 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
 import type { ColumnDef, Row } from '@tanstack/react-table'
+import { ActorIdentity } from '@/components/actor-identity'
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatDate, formatSize } from '@/lib/format'
 import { FileIcon } from './file-icon'
@@ -21,6 +22,7 @@ interface ColumnOptions {
 function hasRowActions(handlers: FileActionHandlers) {
   return !!(
     handlers.onDownload ||
+    handlers.onDetails ||
     handlers.onRename ||
     handlers.onCopy ||
     handlers.onMove ||
@@ -101,6 +103,14 @@ export function getColumns(
       },
       size: 160,
       meta: { className: 'hidden md:table-cell' },
+    },
+    {
+      id: 'createdBy',
+      header: t('files.colCreatedBy'),
+      cell: ({ row }) => <ActorIdentity actor={row.original.createdBy} compact />,
+      size: 180,
+      meta: { className: 'hidden lg:table-cell' },
+      enableSorting: false,
     },
   ]
 

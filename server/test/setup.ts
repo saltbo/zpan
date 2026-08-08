@@ -318,6 +318,9 @@ const APP_SCHEMA_SQL = `
     status TEXT NOT NULL DEFAULT 'draft',
     trashed_at INTEGER,
     purged_at INTEGER,
+    created_by_actor_type TEXT,
+    created_by_actor_ref TEXT,
+    created_by_actor_issuer TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
@@ -698,6 +701,9 @@ const APP_SCHEMA_SQL = `
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
     created_by_user_id TEXT NOT NULL,
+    requested_by_actor_type TEXT,
+    requested_by_actor_ref TEXT,
+    requested_by_actor_issuer TEXT,
     source_type TEXT NOT NULL,
     source_uri TEXT NOT NULL,
     display_name TEXT,

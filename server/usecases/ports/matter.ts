@@ -1,4 +1,4 @@
-import type { ConflictStrategy } from '@shared/schemas'
+import type { ActorType, ConflictStrategy } from '@shared/schemas'
 
 export type { ConflictStrategy } from '@shared/schemas'
 
@@ -20,6 +20,9 @@ export interface Matter {
   status: string
   trashedAt: number | null
   purgedAt: number | null
+  createdByActorType?: string | null
+  createdByActorRef?: string | null
+  createdByActorIssuer?: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -34,6 +37,9 @@ export interface CreateMatterInput {
   object: string
   storageId: string
   status: string
+  createdByActorType?: ActorType | null
+  createdByActorRef?: string | null
+  createdByActorIssuer?: string | null
   /** How to handle name collision with an existing active sibling. Default 'fail'. */
   onConflict?: ConflictStrategy
 }
@@ -69,6 +75,9 @@ export interface UpdateMatterInput {
 
 export interface CopyMatterOptions {
   onConflict?: ConflictStrategy
+  createdByActorType?: ActorType | null
+  createdByActorRef?: string | null
+  createdByActorIssuer?: string | null
 }
 
 export interface ConflictResolveOptions {

@@ -2689,6 +2689,7 @@ async function createUserApiKey(
   const result = (await (auth.api as any).createApiKey({
     body: {
       configId: opts.orgId ? 'ihost' : 'webdav',
+      name: 'test-api-key',
       userId,
       ...(opts.orgId ? { organizationId: opts.orgId } : {}),
       permissions: opts.permissions,
@@ -2803,10 +2804,11 @@ describe('Objects API — error branches', () => {
     await expect(res.json()).resolves.toMatchObject({
       name: '藏.mp3',
       parent: targetFolder,
+      createdBy: { type: 'device', resolved: true },
     })
   })
 
-  it('creates a folder with a workspace API key that has objects:create', async () => {
+  it('creates a folder with a workspace API key that has objects:create [spec: objects/creator-attribution]', async () => {
     const { app, db, auth } = await createTestApp()
     await authedHeaders(app)
     await insertStorage(db)
@@ -2820,7 +2822,24 @@ describe('Objects API — error branches', () => {
       body: JSON.stringify({ name: 'api-key-folder', type: 'folder', dirtype: 1, parent: '' }),
     })
     expect(res.status).toBe(201)
-    await expect(res.json()).resolves.toMatchObject({ name: 'api-key-folder', orgId })
+    await expect(res.json()).resolves.toMatchObject({
+      name: 'api-key-folder',
+      orgId,
+      createdBy: { type: 'api_key', name: 'API key · test-api-key', resolved: true },
+    })
+  })
+
+  it('returns null instead of attributing a legacy object to the workspace owner [spec: objects/legacy-creator]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    await insertFile(db, orgId, { id: 'legacy-creator-file', name: 'legacy.txt' })
+
+    const res = await app.request('/api/objects/legacy-creator-file', { headers })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({ id: 'legacy-creator-file', createdBy: null })
   })
 
   it('returns 403 when an object API key is missing the route scope', async () => {

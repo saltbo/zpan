@@ -94,6 +94,19 @@ test.describe('File table responsive columns', () => {
 
     await expect(page.getByRole('columnheader', { name: /size/i })).toBeVisible()
     await expect(page.getByRole('columnheader', { name: /modified/i })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: /created by/i })).toBeVisible()
+
+    const row = page.getByRole('row', { name: /test-folder/ })
+    const creatorCell = row.getByRole('cell').nth(4)
+    await expect(creatorCell).not.toBeEmpty()
+    const creatorName = await creatorCell.locator('[title]').getAttribute('title')
+    expect(creatorName).toBeTruthy()
+
+    await row.getByRole('button').last().click()
+    await page.getByRole('menuitem', { name: /details/i }).click()
+    const details = page.getByRole('dialog', { name: 'test-folder' })
+    await expect(details.getByText(/created by/i)).toBeVisible()
+    await expect(details.getByTitle(creatorName!)).toBeVisible()
   })
 
   test('mobile: size and modified columns are hidden @mobile', async ({ page }) => {

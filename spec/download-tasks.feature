@@ -129,6 +129,12 @@ Feature: Remote download tasks
     When a user lists tasks and then opens one task
     Then the list returns only its required fields and the detail returns the full runtime
 
+  @download-tasks/actor-attribution @api
+  Scenario: Task detail identifies the requester and executing device
+    Given a task created by an authenticated actor and assigned to a downloader
+    When a user opens the task detail
+    Then the requester and executing device display profiles are returned separately
+
   @download-tasks/events @api
   Scenario: Task events expose lifecycle and audit history
     Given a task with lifecycle timestamps and audit events
