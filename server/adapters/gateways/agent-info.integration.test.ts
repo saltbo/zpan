@@ -9,32 +9,38 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve()))))
 })
 
-describe('Agent Info gateway', () => {
+describe('Agent profile gateway', () => {
   it('discovers and caches an Agent profile for a trusted issuer', async () => {
     let discoveryRequests = 0
-    let agentInfoRequests = 0
+    let profileRequests = 0
     const redirects: RequestRedirect[] = []
     const { origin } = await listen((request, response) => {
-      if (request.url === '/api/auth/.well-known/openid-configuration') {
+      if (request.url === '/.well-known/oauth-authorization-server/api/auth') {
         discoveryRequests += 1
         response.setHeader('content-type', 'application/json')
         response.end(
-          JSON.stringify({ issuer: `${origin}/api/auth`, agentinfo_endpoint: `${origin}/api/auth/agentinfo` }),
+          JSON.stringify({
+            issuer: `${origin}/api/auth`,
+            agent_profile_uri_template: `${origin}/api/public/agents/{subject}`,
+          }),
         )
         return
       }
-      if (request.url?.startsWith('/api/auth/agentinfo?')) {
-        agentInfoRequests += 1
-        const subject = new URL(request.url, origin).searchParams.get('sub')
+      if (request.url?.startsWith('/api/public/agents/')) {
+        profileRequests += 1
+        const subject = decodeURIComponent(request.url.slice('/api/public/agents/'.length))
         response.setHeader('content-type', 'application/json')
         response.setHeader('cache-control', 'public, max-age=300')
         response.end(
           JSON.stringify({
-            iss: `${origin}/api/auth`,
-            sub: subject,
+            type: 'agent',
+            view: 'summary',
+            issuer: `${origin}/api/auth`,
+            subject,
             name: subject === 'agt_1' ? 'Mac Agent' : 'Second Agent',
             picture: `${origin}/agent.svg`,
-            updated_at: 1,
+            createdAt: '2026-08-08T12:00:00.000Z',
+            updatedAt: '2026-08-08T12:00:00.000Z',
           }),
         )
         return
@@ -56,11 +62,12 @@ describe('Agent Info gateway', () => {
     expect(first.get(auditActorIdentityKey(identity))).toEqual({
       name: 'Mac Agent',
       image: `${origin}/agent.svg`,
+      profileUrl: `${origin}/agents/agt_1`,
       resolved: true,
     })
     expect(second).toEqual(first)
     expect(discoveryRequests).toBe(1)
-    expect(agentInfoRequests).toBe(2)
+    expect(profileRequests).toBe(2)
     expect(redirects).toEqual(['manual', 'manual', 'manual'])
   })
 
@@ -79,21 +86,108 @@ describe('Agent Info gateway', () => {
     expect(requests).toBe(0)
   })
 
-  it('rejects an Agent Info response for a different subject', async () => {
+  it('URL-encodes the verified Agent subject into the discovered profile template', async () => {
     const { origin } = await listen((request, response) => {
       response.setHeader('content-type', 'application/json')
-      if (request.url === '/api/auth/.well-known/openid-configuration') {
+      if (request.url === '/.well-known/oauth-authorization-server/api/auth') {
         response.end(
-          JSON.stringify({ issuer: `${origin}/api/auth`, agentinfo_endpoint: `${origin}/api/auth/agentinfo` }),
+          JSON.stringify({
+            issuer: `${origin}/api/auth`,
+            agent_profile_uri_template: `${origin}/api/public/agents/{subject}`,
+          }),
         )
         return
       }
-      response.end(JSON.stringify({ iss: `${origin}/api/auth`, sub: 'agt_other', name: 'Wrong Agent' }))
+      if (request.url !== '/api/public/agents/agt_encoded%2Fvalue') {
+        response.statusCode = 404
+        response.end()
+        return
+      }
+      response.end(
+        JSON.stringify({
+          type: 'agent',
+          view: 'summary',
+          issuer: `${origin}/api/auth`,
+          subject: 'agt_encoded/value',
+          name: 'Encoded Agent',
+          picture: `${origin}/agent.svg`,
+          createdAt: '2026-08-08T12:00:00.000Z',
+          updatedAt: '2026-08-08T12:00:00.000Z',
+        }),
+      )
+    })
+    const gateway = createAgentInfoGateway()
+    const identity = { type: 'agent', ref: 'agt_encoded/value', issuer: `${origin}/api/auth` } as const
+
+    const profiles = await gateway.resolve([identity], new Set([origin]))
+
+    expect(profiles.get(auditActorIdentityKey(identity))?.name).toBe('Encoded Agent')
+  })
+
+  it('rejects an Agent profile response for a different subject', async () => {
+    const { origin } = await listen((request, response) => {
+      response.setHeader('content-type', 'application/json')
+      if (request.url === '/.well-known/oauth-authorization-server/api/auth') {
+        response.end(
+          JSON.stringify({
+            issuer: `${origin}/api/auth`,
+            agent_profile_uri_template: `${origin}/api/public/agents/{subject}`,
+          }),
+        )
+        return
+      }
+      response.end(
+        JSON.stringify({
+          type: 'agent',
+          view: 'summary',
+          issuer: `${origin}/api/auth`,
+          subject: 'agt_other',
+          name: 'Wrong Agent',
+          picture: `${origin}/agent.svg`,
+          createdAt: '2026-08-08T12:00:00.000Z',
+          updatedAt: '2026-08-08T12:00:00.000Z',
+        }),
+      )
     })
     const gateway = createAgentInfoGateway()
     const identity = { type: 'oauth', ref: 'agt_1', issuer: `${origin}/api/auth` } as const
 
     const profiles = await gateway.resolve([identity], new Set([origin]))
+
+    expect(profiles.size).toBe(0)
+  })
+
+  it('rejects an Agent profile response for a different issuer', async () => {
+    const { origin } = await listen((request, response) => {
+      response.setHeader('content-type', 'application/json')
+      if (request.url === '/.well-known/oauth-authorization-server/api/auth') {
+        response.end(
+          JSON.stringify({
+            issuer: `${origin}/api/auth`,
+            agent_profile_uri_template: `${origin}/api/public/agents/{subject}`,
+          }),
+        )
+        return
+      }
+      response.end(
+        JSON.stringify({
+          type: 'agent',
+          view: 'summary',
+          issuer: 'https://other.example/api/auth',
+          subject: 'agt_1',
+          name: 'Wrong Issuer Agent',
+          picture: `${origin}/agent.svg`,
+          createdAt: '2026-08-08T12:00:00.000Z',
+          updatedAt: '2026-08-08T12:00:00.000Z',
+        }),
+      )
+    })
+    const gateway = createAgentInfoGateway()
+
+    const profiles = await gateway.resolve(
+      [{ type: 'oauth', ref: 'agt_1', issuer: `${origin}/api/auth` }],
+      new Set([origin]),
+    )
 
     expect(profiles.size).toBe(0)
   })
@@ -121,11 +215,34 @@ describe('Agent Info gateway', () => {
     expect(requests).toBe(1)
   })
 
-  it('rejects Agent Info endpoints on a different origin', async () => {
+  it('rejects Agent profile templates on a different origin', async () => {
     const { origin } = await listen((_request, response) => {
       response.setHeader('content-type', 'application/json')
       response.end(
-        JSON.stringify({ issuer: `${origin}/api/auth`, agentinfo_endpoint: 'https://untrusted.example/agentinfo' }),
+        JSON.stringify({
+          issuer: `${origin}/api/auth`,
+          agent_profile_uri_template: 'https://untrusted.example/agents/{subject}',
+        }),
+      )
+    })
+    const gateway = createAgentInfoGateway()
+
+    const profiles = await gateway.resolve(
+      [{ type: 'agent', ref: 'agt-1', issuer: `${origin}/api/auth` }],
+      new Set([origin]),
+    )
+
+    expect(profiles.size).toBe(0)
+  })
+
+  it('rejects profile templates without exactly one subject expression', async () => {
+    const { origin } = await listen((_request, response) => {
+      response.setHeader('content-type', 'application/json')
+      response.end(
+        JSON.stringify({
+          issuer: `${origin}/api/auth`,
+          agent_profile_uri_template: `${origin}/api/public/agents/static`,
+        }),
       )
     })
     const gateway = createAgentInfoGateway()

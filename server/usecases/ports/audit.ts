@@ -84,6 +84,7 @@ export interface ActorIdentity {
 export interface ActorProfile {
   name: string
   image: string | null
+  profileUrl?: string | null
   resolved: boolean
 }
 

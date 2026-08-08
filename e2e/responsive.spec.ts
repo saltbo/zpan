@@ -171,6 +171,7 @@ test.describe('File table responsive columns', () => {
           issuer: actorIssuer,
           name: actorName,
           image: null,
+          profileUrl: 'https://identity.example.com/agents/agent-0123456789abcdef0123456789abcdef',
           resolved: true,
         }
       }
@@ -182,6 +183,10 @@ test.describe('File table responsive columns', () => {
     await row.getByRole('button', { name: `Created by: ${actorName}` }).hover()
     const card = page.locator('[data-slot="hover-card-content"]')
     await expect(card).toBeVisible()
+    await expect(card.getByRole('link')).toHaveAttribute(
+      'href',
+      'https://identity.example.com/agents/agent-0123456789abcdef0123456789abcdef',
+    )
 
     const contained = await card.evaluate((element) => {
       const cardRect = element.getBoundingClientRect()

@@ -4109,12 +4109,13 @@ type ActivityPage struct {
 
 // ActorAttribution defines model for ActorAttribution.
 type ActorAttribution struct {
-	Image    *string              `json:"image"`
-	Issuer   *string              `json:"issuer"`
-	Name     string               `json:"name"`
-	Ref      *string              `json:"ref"`
-	Resolved bool                 `json:"resolved"`
-	Type     ActorAttributionType `json:"type"`
+	Image      *string              `json:"image"`
+	Issuer     *string              `json:"issuer"`
+	Name       string               `json:"name"`
+	ProfileUrl *string              `json:"profileUrl,omitempty"`
+	Ref        *string              `json:"ref"`
+	Resolved   bool                 `json:"resolved"`
+	Type       ActorAttributionType `json:"type"`
 }
 
 // ActorAttributionType defines model for ActorAttribution.Type.

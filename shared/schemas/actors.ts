@@ -18,6 +18,7 @@ export const actorAttributionSchema = z
     issuer: z.string().nullable(),
     name: z.string(),
     image: z.string().nullable(),
+    profileUrl: z.string().url().nullable().optional(),
     resolved: z.boolean(),
   })
   .openapi('ActorAttribution')

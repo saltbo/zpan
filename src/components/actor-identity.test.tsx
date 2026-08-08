@@ -17,6 +17,7 @@ describe('ActorIdentity', () => {
       issuer: 'https://realm.example.com',
       name: 'Research Agent',
       image: 'https://example.com/agent.png',
+      profileUrl: 'https://realm.example.com/agents/agent-1',
       resolved: true,
     }
 
@@ -59,6 +60,7 @@ describe('ActorAvatarHoverCard', () => {
       issuer: 'https://realm.example.com',
       name: 'Research Agent',
       image: 'https://example.com/agent.png',
+      profileUrl: 'https://realm.example.com/agents/agent-1',
       resolved: true,
     }
 
@@ -72,6 +74,9 @@ describe('ActorAvatarHoverCard', () => {
     expect(screen.getByText('actors.type.oauth')).toBeTruthy()
     expect(screen.getByText('agent-1')).toBeTruthy()
     expect(screen.getByText('https://realm.example.com')).toBeTruthy()
+    const profileLink = screen.getByRole('link')
+    expect(profileLink.getAttribute('href')).toBe('https://realm.example.com/agents/agent-1')
+    expect(profileLink.getAttribute('target')).toBe('_blank')
   })
 
   it('wraps long stable identifiers without hiding the full value', async () => {

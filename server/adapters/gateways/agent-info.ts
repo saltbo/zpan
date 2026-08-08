@@ -14,15 +14,18 @@ const MAX_CONCURRENT_REQUESTS = 8
 
 const discoverySchema = z.object({
   issuer: z.string().url(),
-  agentinfo_endpoint: z.string().url(),
+  agent_profile_uri_template: z.string().min(1),
 })
 
-const agentInfoSchema = z.object({
-  iss: z.string().url(),
-  sub: z.string().min(1),
+const agentProfileSchema = z.object({
+  type: z.literal('agent'),
+  view: z.literal('summary'),
+  issuer: z.string().url(),
+  subject: z.string().min(1),
   name: z.string().min(1),
-  picture: z.string().url().nullable().optional(),
-  updated_at: z.number().optional(),
+  picture: z.union([z.string().url(), z.string().regex(/^\/api\/assets\/[A-Za-z0-9_-]+$/)]),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 })
 
 type CacheEntry<T> = { value: T; expiresAt: number }
@@ -79,26 +82,31 @@ async function loadAgentProfile(
   discoveryInflight: Map<string, Promise<string | null>>,
 ): Promise<AuditActorProfile | null> {
   try {
-    const endpoint = await agentInfoEndpoint(request, issuer, discoveryCache, discoveryInflight)
-    if (!endpoint) return null
-    const url = new URL(endpoint)
-    url.searchParams.set('sub', subject)
+    const template = await agentProfileUriTemplate(request, issuer, discoveryCache, discoveryInflight)
+    if (!template) return null
+    const url = expandAgentProfileUriTemplate(template, subject)
+    if (!url || url.origin !== issuer.origin) return null
     const response = await request(url, {
       headers: { Accept: 'application/json' },
       redirect: 'manual',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
     if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return null
-    const parsed = agentInfoSchema.safeParse(await response.json())
-    if (!parsed.success || parsed.data.iss !== issuer.href.replace(/\/$/, '') || parsed.data.sub !== subject)
+    const parsed = agentProfileSchema.safeParse(await response.json())
+    if (!parsed.success || parsed.data.issuer !== issuer.href.replace(/\/$/, '') || parsed.data.subject !== subject)
       return null
-    return { name: parsed.data.name, image: parsed.data.picture ?? null, resolved: true }
+    return {
+      name: parsed.data.name,
+      image: new URL(parsed.data.picture, url).href,
+      profileUrl: new URL(`/agents/${encodeURIComponent(subject)}`, url).href,
+      resolved: true,
+    }
   } catch {
     return null
   }
 }
 
-async function agentInfoEndpoint(
+async function agentProfileUriTemplate(
   request: typeof fetch,
   issuer: URL,
   cache: Map<string, CacheEntry<string>>,
@@ -109,7 +117,7 @@ async function agentInfoEndpoint(
   if (cached) return cached
   const existing = inflight.get(issuerValue)
   if (existing) return existing
-  const requestPromise = loadAgentInfoEndpoint(request, issuer, issuerValue, cache)
+  const requestPromise = loadAgentProfileUriTemplate(request, issuer, issuerValue, cache)
   inflight.set(issuerValue, requestPromise)
   try {
     return await requestPromise
@@ -118,13 +126,14 @@ async function agentInfoEndpoint(
   }
 }
 
-async function loadAgentInfoEndpoint(
+async function loadAgentProfileUriTemplate(
   request: typeof fetch,
   issuer: URL,
   issuerValue: string,
   cache: Map<string, CacheEntry<string>>,
 ): Promise<string | null> {
-  const discoveryUrl = new URL(`${issuerValue}/.well-known/openid-configuration`)
+  const issuerPath = issuer.pathname === '/' ? '' : issuer.pathname.replace(/\/$/, '')
+  const discoveryUrl = new URL(`/.well-known/oauth-authorization-server${issuerPath}`, issuer.origin)
   const response = await request(discoveryUrl, {
     headers: { Accept: 'application/json' },
     redirect: 'manual',
@@ -133,10 +142,17 @@ async function loadAgentInfoEndpoint(
   if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return null
   const parsed = discoverySchema.safeParse(await response.json())
   if (!parsed.success || parsed.data.issuer !== issuerValue) return null
-  const endpoint = parseSecureUrl(parsed.data.agentinfo_endpoint)
+  const template = parsed.data.agent_profile_uri_template
+  const endpoint = expandAgentProfileUriTemplate(template, 'subject')
   if (!endpoint || endpoint.origin !== issuer.origin) return null
-  writeCache(cache, issuerValue, endpoint.href, DISCOVERY_TTL_MS)
-  return endpoint.href
+  writeCache(cache, issuerValue, template, DISCOVERY_TTL_MS)
+  return template
+}
+
+function expandAgentProfileUriTemplate(template: string, subject: string): URL | null {
+  const parts = template.split('{subject}')
+  if (parts.length !== 2 || parts.some((part) => part.includes('{') || part.includes('}'))) return null
+  return parseSecureUrl(`${parts[0]}${encodeURIComponent(subject)}${parts[1]}`)
 }
 
 function parseSecureUrl(value: string): URL | null {

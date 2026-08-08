@@ -1,6 +1,6 @@
 import type { ActorAttribution } from '@shared/schemas'
 import type { AuditEvent } from '@shared/types'
-import { Bot, CircleHelp, KeyRound, Monitor, UserRound } from 'lucide-react'
+import { Bot, CircleHelp, ExternalLink, KeyRound, Monitor, UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -89,19 +89,7 @@ export function ActorAvatarHoverCard({ actor, className }: Pick<ActorIdentityPro
         </button>
       </HoverCardTrigger>
       <HoverCardContent align="end" className="w-64 max-w-[calc(100vw-2rem)] overflow-hidden">
-        <div className="flex w-full min-w-0 items-center gap-3 overflow-hidden">
-          <ActorAvatar actor={actor} size="lg" />
-          <div className="flex min-w-0 flex-1 flex-col items-start gap-1 overflow-hidden">
-            <span className="block w-full min-w-0 whitespace-normal break-words text-sm font-semibold" data-actor-field>
-              {actor.name}
-            </span>
-            <Badge variant="secondary" className="max-w-full min-w-0">
-              <span className="min-w-0 truncate" data-actor-field>
-                {t(`actors.type.${actor.type}`)}
-              </span>
-            </Badge>
-          </div>
-        </div>
+        <ActorProfileCardHeader actor={actor} />
         {(actor.ref || actor.issuer) && <Separator className="my-3" />}
         <dl className="flex min-w-0 flex-col gap-2 overflow-hidden text-xs">
           {actor.ref && (
@@ -123,5 +111,41 @@ export function ActorAvatarHoverCard({ actor, className }: Pick<ActorIdentityPro
         </dl>
       </HoverCardContent>
     </HoverCard>
+  )
+}
+
+function ActorProfileCardHeader({ actor }: { actor: ActorAttribution }) {
+  const { t } = useTranslation()
+  const content = (
+    <>
+      <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
+        <ActorAvatar actor={actor} size="lg" />
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-1 overflow-hidden">
+          <span className="block w-full min-w-0 whitespace-normal break-words text-sm font-semibold" data-actor-field>
+            {actor.name}
+          </span>
+          <Badge variant="secondary" className="max-w-full min-w-0">
+            <span className="min-w-0 truncate" data-actor-field>
+              {t(`actors.type.${actor.type}`)}
+            </span>
+          </Badge>
+        </div>
+      </div>
+      {actor.profileUrl && <ExternalLink aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />}
+    </>
+  )
+
+  if (!actor.profileUrl) return <div className="flex w-full min-w-0 items-center gap-3 overflow-hidden">{content}</div>
+
+  return (
+    <a
+      href={actor.profileUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {content}
+    </a>
   )
 }
