@@ -94,7 +94,7 @@ test.describe('File table responsive columns', () => {
 
     await expect(page.getByRole('columnheader', { name: /size/i })).toBeVisible()
     await expect(page.getByRole('columnheader', { name: /modified/i })).toBeVisible()
-    await expect(page.getByRole('columnheader', { name: /created by/i })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: /creator/i })).toBeVisible()
 
     const row = page.getByRole('row', { name: /test-folder/ })
     const creatorCell = row.getByRole('cell').nth(4)
@@ -110,6 +110,13 @@ test.describe('File table responsive columns', () => {
     await expect(identityCard).toBeVisible()
     await expect(identityCard.getByText(creatorName!, { exact: true })).toBeVisible()
     await expect(identityCard.getByText('User', { exact: true })).toBeVisible()
+
+    await page.getByLabel('Grid view').click()
+    const gridCard = page.getByRole('button', { name: /test-folder/ })
+    await expect(gridCard).toBeVisible()
+    await expect(gridCard).not.toContainText(creatorName!)
+
+    await page.getByLabel('List view').click()
 
     await row.getByRole('button').last().click()
     await page.getByRole('menuitem', { name: /details/i }).click()

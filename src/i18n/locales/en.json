@@ -99,7 +99,7 @@
   "files.colName": "Name",
   "files.colSize": "Size",
   "files.colModified": "Modified",
-  "files.colCreatedBy": "Created by",
+  "files.colCreatedBy": "Creator",
   "files.details": "Details",
   "files.createdBy": "Created by",
   "files.createdAt": "Created",

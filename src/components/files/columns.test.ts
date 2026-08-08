@@ -123,7 +123,8 @@ describe('getColumns — creator column', () => {
     const creatorCol = cols[4]
 
     expect(creatorCol.id).toBe('createdBy')
-    expect(creatorCol.size).toBe(56)
+    expect(creatorCol.header).toBe('files.colCreatedBy')
+    expect(creatorCol.size).toBe(72)
     expect((creatorCol.meta as { className: string }).className).toBe('hidden text-center lg:table-cell')
     expect(creatorCol.enableSorting).toBe(false)
   })

@@ -71,7 +71,29 @@ describe('ActorAvatarHoverCard', () => {
     await waitFor(() => expect(screen.getByText('Research Agent')).toBeTruthy())
     expect(screen.getByText('actors.type.oauth')).toBeTruthy()
     expect(screen.getByText('agent-1')).toBeTruthy()
-    expect(screen.getByText('https://realm.example.com')).toBeTruthy()
+    expect(screen.getByText('realm.example.com')).toBeTruthy()
+  })
+
+  it('shortens long stable identifiers without losing the full value', async () => {
+    const ref = 'agent-0123456789abcdef0123456789abcdef'
+    render(
+      <ActorAvatarHoverCard
+        actor={{
+          type: 'agent',
+          ref,
+          issuer: null,
+          name: 'Research Agent',
+          image: null,
+          resolved: true,
+        }}
+      />,
+    )
+
+    fireEvent.pointerEnter(screen.getByLabelText('files.createdBy: Research Agent'))
+
+    await waitFor(() => expect(screen.getByText('agent-01…abcdef')).toBeTruthy())
+    expect(screen.getByTitle(ref)).toBeTruthy()
+    expect(screen.queryByText(ref)).toBeNull()
   })
 
   it('uses a dash when attribution was not recorded', () => {

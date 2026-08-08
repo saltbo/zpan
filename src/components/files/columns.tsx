@@ -106,9 +106,9 @@ export function getColumns(
     },
     {
       id: 'createdBy',
-      header: () => <span className="sr-only">{t('files.colCreatedBy')}</span>,
+      header: t('files.colCreatedBy'),
       cell: ({ row }) => <ActorAvatarHoverCard actor={row.original.createdBy} />,
-      size: 56,
+      size: 72,
       meta: { className: 'hidden text-center lg:table-cell' },
       enableSorting: false,
     },

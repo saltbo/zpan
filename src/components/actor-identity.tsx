@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
+import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 
 interface ActorIdentityProps {
@@ -38,7 +39,7 @@ function ActorFallback({ actor }: { actor: ActorAttribution }) {
   return <CircleHelp aria-hidden="true" />
 }
 
-function ActorAvatar({ actor, size = 'sm' }: { actor: ActorAttribution; size?: 'sm' | 'default' }) {
+function ActorAvatar({ actor, size = 'sm' }: { actor: ActorAttribution; size?: 'sm' | 'default' | 'lg' }) {
   return (
     <Avatar size={size}>
       {actor.image && <AvatarImage src={actor.image} alt="" />}
@@ -47,6 +48,19 @@ function ActorAvatar({ actor, size = 'sm' }: { actor: ActorAttribution; size?: '
       </AvatarFallback>
     </Avatar>
   )
+}
+
+function compactIdentity(value: string): string {
+  if (value.length <= 18) return value
+  return `${value.slice(0, 8)}…${value.slice(-6)}`
+}
+
+function issuerLabel(issuer: string): string {
+  try {
+    return new URL(issuer).hostname
+  } catch {
+    return compactIdentity(issuer)
+  }
 }
 
 export function ActorIdentity({ actor, compact = false, className }: ActorIdentityProps) {
@@ -77,40 +91,43 @@ export function ActorAvatarHoverCard({ actor, className }: Pick<ActorIdentityPro
         <button
           type="button"
           className={cn(
-            'inline-flex cursor-default rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'inline-flex cursor-help rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring',
             className,
           )}
           aria-label={`${t('files.createdBy')}: ${actor.name}`}
           onClick={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          <ActorAvatar actor={actor} />
+          <ActorAvatar actor={actor} size="default" />
         </button>
       </HoverCardTrigger>
-      <HoverCardContent align="end" className="w-72">
-        <div className="flex items-start gap-3">
-          <ActorAvatar actor={actor} size="default" />
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="min-w-0 flex-1 truncate font-medium">{actor.name}</span>
-              <Badge variant="secondary">{t(`actors.type.${actor.type}`)}</Badge>
-            </div>
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
-              {actor.ref && (
-                <>
-                  <dt className="text-muted-foreground">{t('actors.ref')}</dt>
-                  <dd className="min-w-0 break-all">{actor.ref}</dd>
-                </>
-              )}
-              {actor.issuer && (
-                <>
-                  <dt className="text-muted-foreground">{t('actors.issuer')}</dt>
-                  <dd className="min-w-0 break-all">{actor.issuer}</dd>
-                </>
-              )}
-            </dl>
+      <HoverCardContent align="end" className="w-64">
+        <div className="flex min-w-0 items-center gap-3">
+          <ActorAvatar actor={actor} size="lg" />
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+            <span className="max-w-full truncate text-sm font-semibold">{actor.name}</span>
+            <Badge variant="secondary">{t(`actors.type.${actor.type}`)}</Badge>
           </div>
         </div>
+        {(actor.ref || actor.issuer) && <Separator className="my-3" />}
+        <dl className="flex flex-col gap-2 text-xs">
+          {actor.ref && (
+            <div className="flex min-w-0 items-center justify-between gap-4">
+              <dt className="shrink-0 text-muted-foreground">{t('actors.ref')}</dt>
+              <dd className="min-w-0 truncate font-mono" title={actor.ref}>
+                {compactIdentity(actor.ref)}
+              </dd>
+            </div>
+          )}
+          {actor.issuer && (
+            <div className="flex min-w-0 items-center justify-between gap-4">
+              <dt className="shrink-0 text-muted-foreground">{t('actors.issuer')}</dt>
+              <dd className="min-w-0 truncate" title={actor.issuer}>
+                {issuerLabel(actor.issuer)}
+              </dd>
+            </div>
+          )}
+        </dl>
       </HoverCardContent>
     </HoverCard>
   )
