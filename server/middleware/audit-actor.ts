@@ -20,15 +20,15 @@ export function auditActor(principal: AuthPrincipal | null): AuditActor {
     }
   }
   if (principal.kind === 'downloader') {
-    return { userId: null, actorType: 'downloader', actorRef: principal.downloaderId, actorIssuer: null }
+    return { userId: null, actorType: 'device', actorRef: principal.downloaderId, actorIssuer: null }
   }
   if (principal.kind === 'downloader-bootstrap') {
     return { userId: principal.userId, actorType: 'user', actorRef: null, actorIssuer: null }
   }
   return {
     userId: principal.createdByUserId,
-    actorType: 'task-upload',
-    actorRef: principal.taskId,
+    actorType: 'device',
+    actorRef: principal.downloaderId,
     actorIssuer: null,
   }
 }

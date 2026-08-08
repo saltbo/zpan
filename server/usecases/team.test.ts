@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
+  AgentInfoGateway,
+  AuditActorDirectory,
   AuditRepo,
   EntitlementResult,
   ImageUpload,
@@ -84,6 +86,12 @@ function makeDeps(
 ) {
   const deps: TeamDeps = {
     audit: { record: async () => {}, list: async () => ({ items: [], total: 0 }) } as unknown as AuditRepo,
+    auditActorDirectory: {
+      findApiKeyNames: async () => new Map(),
+      findDeviceNames: async () => new Map(),
+      listTrustedAgentIssuerOrigins: async () => new Set(),
+    } as AuditActorDirectory,
+    agentInfo: { resolve: async () => new Map() } as AgentInfoGateway,
     org: {
       listUserOrgs: async () => [],
       listUserWorkspaceCatalog: async () => [],

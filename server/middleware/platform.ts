@@ -129,7 +129,7 @@ export type AuthzContext =
       userId: null
       workspace: { mode: 'none'; orgId: null }
       grantedScopes: ReadonlySet<AuthorizationScope>
-      actor: { type: 'downloader'; ref: string }
+      actor: { type: 'device'; ref: string }
       state: Record<string, unknown>
     }
   | {
@@ -145,7 +145,7 @@ export type AuthzContext =
       userId: string
       workspace: { mode: 'bound'; orgId: string }
       grantedScopes: ReadonlySet<AuthorizationScope>
-      actor: { type: 'task-upload'; ref: string }
+      actor: { type: 'device'; ref: string }
       state: { downloaderId: string; taskId: string }
     }
 

@@ -391,7 +391,12 @@ describe('GET /api/teams/:teamId/activity — happy path', () => {
     const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
-      items: Array<{ id: string; targetName: string; user: { id: string; name: string; image: string | null } }>
+      items: Array<{
+        id: string
+        targetName: string
+        user: { id: string; name: string; image: string | null }
+        actor: { name: string; image: string | null; resolved: boolean }
+      }>
       total: number
     }
     expect(body.total).toBe(1)
@@ -399,6 +404,7 @@ describe('GET /api/teams/:teamId/activity — happy path', () => {
     expect(body.items[0].id).toBe('evt-1')
     expect(body.items[0].targetName).toBe('document.pdf')
     expect(body.items[0].user).toMatchObject({ id: userId, name: 'Test User' })
+    expect(body.items[0].actor).toEqual({ name: 'Test User', image: null, resolved: true })
   })
 
   it('includes all expected activity event fields in each item', async () => {

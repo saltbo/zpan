@@ -98,7 +98,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
         userId: taskUpload.createdByUserId,
         workspace: { mode: 'bound', orgId: taskUpload.orgId },
         grantedScopes: new Set(taskUpload.scopes.filter(isAuthorizationScope)),
-        actor: { type: 'task-upload', ref: taskUpload.taskId },
+        actor: { type: 'device', ref: taskUpload.downloaderId },
         state: { downloaderId: taskUpload.downloaderId, taskId: taskUpload.taskId },
       })
       c.set('userId', null)
@@ -119,7 +119,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
           AuthorizationScope.DOWNLOAD_TASKS_CANCEL,
           AuthorizationScope.DOWNLOADERS_UPDATE,
         ]),
-        actor: { type: 'downloader', ref: downloader.downloaderId },
+        actor: { type: 'device', ref: downloader.downloaderId },
         state: {},
       })
       c.set('userId', null)

@@ -177,6 +177,7 @@ function auditEvent(overrides: Partial<AdminAuditEvent> = {}): AdminAuditEvent {
       name: 'Ava Stone',
       image: null,
     },
+    actor: { name: 'Ava Stone', image: null, resolved: true },
     ...overrides,
   }
 }

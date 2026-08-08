@@ -91,6 +91,7 @@ function auditEvent(overrides: Partial<AdminAuditEvent> = {}): AdminAuditEvent {
       name: 'Ava Stone',
       image: null,
     },
+    actor: { name: 'Ava Stone', image: null, resolved: true },
     ...overrides,
   }
 }
@@ -134,13 +135,35 @@ describe('AuditLogsPage filters and pagination', () => {
           actorType: 'oauth',
           actorRef: 'agt_agent-1',
           actorIssuer: 'https://id.realmroot.dev/api/auth',
+          actor: {
+            name: 'Mac Agent',
+            image: 'https://id.realmroot.dev/agent-picture-v1.svg',
+            resolved: true,
+          },
         }),
       ]),
     )
 
     renderAuditPage()
 
-    expect(await screen.findByText('Agent:agt_agent-1 · https://id.realmroot.dev/api/auth')).toBeTruthy()
+    expect(await screen.findByText('Mac Agent')).toBeTruthy()
+    expect(screen.queryByText('Ava Stone')).toBeNull()
+  })
+
+  it('shows the API key name instead of the key owner', async () => {
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(
+      auditPage(1, [
+        auditEvent({
+          actorType: 'api_key',
+          actorRef: 'key-1',
+          actor: { name: 'API key · CME downloader', image: null, resolved: true },
+        }),
+      ]),
+    )
+
+    renderAuditPage()
+
+    expect(await screen.findByText('API key · CME downloader')).toBeTruthy()
     expect(screen.queryByText('Ava Stone')).toBeNull()
   })
 

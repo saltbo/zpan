@@ -64,8 +64,8 @@ function AdminAuditActivityItem({ event }: { event: AdminAuditEvent }) {
     ? Object.entries(metadata).filter(([key, value]) => !['status', 'result', 'from', 'to'].includes(key) && value)
     : []
   const targetName = event.targetName || event.targetId || event.targetType
-  const actorLabel = formatActor(event)
-  const actorImage = event.actorType === 'user' ? event.user.image : null
+  const actorLabel = event.actor.name
+  const actorImage = event.actor.image
 
   return (
     <div className="flex items-start gap-3 py-3">
@@ -83,6 +83,7 @@ function AdminAuditActivityItem({ event }: { event: AdminAuditEvent }) {
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span>{formatTimestamp(event.createdAt)}</span>
+          <span>{actorLabel}</span>
           {event.orgName && <span>{event.orgName}</span>}
           {event.targetId && <span>{event.targetId}</span>}
         </div>
@@ -108,22 +109,6 @@ function AdminAuditActivityItem({ event }: { event: AdminAuditEvent }) {
       </div>
     </div>
   )
-}
-
-function formatActor(event: AdminAuditEvent): string {
-  if (event.actorType === 'oauth') {
-    const identity = event.actorRef ?? 'unknown'
-    return event.actorIssuer ? `Agent:${identity} · ${event.actorIssuer}` : `Agent:${identity}`
-  }
-  if (event.user.name) return event.user.name
-  if (event.userId) return event.userId
-  if (event.actorType === 'api_key') return event.actorRef ? `API key:${event.actorRef}` : 'API key'
-  if (event.actorType === 'agent') return event.actorRef ? `Agent:${event.actorRef}` : 'Agent'
-  if (event.actorType === 'anonymous') return 'Anonymous'
-  if (event.actorType === 'system') return event.actorRef ? `System:${event.actorRef}` : 'System'
-  if (event.actorType === 'downloader') return event.actorRef ? `Downloader:${event.actorRef}` : 'Downloader'
-  if (event.actorType === 'task-upload') return event.actorRef ? `Task upload:${event.actorRef}` : 'Task upload'
-  return 'Unknown'
 }
 
 function parseActivityMetadata(metadata: string | null): Record<string, string> | null {

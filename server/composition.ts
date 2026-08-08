@@ -6,6 +6,7 @@
 
 import { type CloudflareKvNamespaceLike, createCloudflareKvBackend } from './adapters/cache/cloudflare-kv'
 import { createRuntimeCache, resolveCacheMode } from './adapters/cache/runtime-cache'
+import { createAgentInfoGateway } from './adapters/gateways/agent-info'
 import { createArchiveJobsGateway } from './adapters/gateways/archive-jobs'
 import { createEmailGateway } from './adapters/gateways/email'
 import { createImageUploadGateway } from './adapters/gateways/image-upload'
@@ -19,6 +20,7 @@ import { createAnnouncementRepo } from './adapters/repos/announcement'
 import { createApiKeyGateway } from './adapters/repos/api-keys'
 import { createArchiveTargetFolderRepo } from './adapters/repos/archive-target-folder'
 import { createAuditRepo } from './adapters/repos/audit'
+import { createAuditActorDirectoryRepo } from './adapters/repos/audit-actor-directory'
 import { createBackgroundJobRepo } from './adapters/repos/background-job'
 import { createCloudStoreRepo } from './adapters/repos/cloud-store'
 import { createCloudTrafficReportRepo } from './adapters/repos/cloud-traffic-report'
@@ -81,6 +83,8 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
   const downloadTokens = createDownloadTokenGateway()
   return {
     audit: createAuditRepo(db),
+    auditActorDirectory: createAuditActorDirectoryRepo(db),
+    agentInfo: createAgentInfoGateway(),
     adminStats: createAdminStatsRepo(db),
     oauth: createOAuthGateway(),
     announcements: createAnnouncementRepo(db),

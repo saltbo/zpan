@@ -16,7 +16,10 @@
 //     failure outward unchanged so the http layer maps {status} directly.
 
 import type { Platform } from '../platform/interface'
+import { resolveAuditActorProfiles } from './audit-actors'
 import {
+  type AgentInfoGateway,
+  type AuditActorDirectory,
   type AuditEventWithUser,
   type AuditRepo,
   type EntitlementResult,
@@ -39,6 +42,8 @@ export type TeamDeps = {
   teamInvites: TeamInviteRepo
   org: OrgRepo
   audit: AuditRepo
+  auditActorDirectory: AuditActorDirectory
+  agentInfo: AgentInfoGateway
   imageUpload: ImageUpload
   userAdmin: UserAdminRepo
 }
@@ -105,7 +110,7 @@ export type ListActivityOutcome =
   | { ok: false; reason: 'forbidden' }
 
 export async function listActivity(
-  deps: Pick<TeamDeps, 'org' | 'audit'>,
+  deps: Pick<TeamDeps, 'org' | 'audit' | 'auditActorDirectory' | 'agentInfo'>,
   params: { teamId: string; userId: string; page: number; pageSize: number },
 ): Promise<ListActivityOutcome> {
   const { teamId, userId, page, pageSize } = params
@@ -114,7 +119,10 @@ export async function listActivity(
     return { ok: false, reason: 'forbidden' }
   }
   const result = await deps.audit.list(teamId, { page, pageSize })
-  return { ok: true, result }
+  return {
+    ok: true,
+    result: { ...result, items: await resolveAuditActorProfiles(deps, result.items) },
+  }
 }
 
 // ─── User-facing: org logo ───────────────────────────────────────────────────
