@@ -4,15 +4,10 @@ import type { StorageObject } from '@shared/types'
 import { flexRender, type Row, type Table as TanstackTable } from '@tanstack/react-table'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu'
+import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { FileActionsContextContent } from './file-actions-menu'
 import type { FileActionHandlers } from './types'
 
 interface FilesTableProps {
@@ -50,10 +45,8 @@ function DraggableDroppableRow({
   currentPath: string
   allItems: StorageObject[]
 }) {
-  const { t } = useTranslation()
   const item = row.original
   const isFolder = item.dirtype !== DirType.FILE
-  const isFile = item.dirtype === DirType.FILE
   const folderPath = isFolder ? buildPath(currentPath, item.name) : ''
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
@@ -95,29 +88,13 @@ function DraggableDroppableRow({
           ))}
         </TableRow>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
-        <ContextMenuItem onClick={() => handlers.onOpen(item)}>
-          {isFile ? t('files.preview') : t('files.open')}
-        </ContextMenuItem>
-        {isFile && <ContextMenuItem onClick={() => handlers.onDownload?.(item)}>{t('files.download')}</ContextMenuItem>}
-        <ContextMenuSeparator />
-        <ContextMenuItem onClick={() => handlers.onRename?.(item)}>{t('files.rename')}</ContextMenuItem>
-        <ContextMenuItem onClick={() => handlers.onCopy?.(item)}>{t('files.copy')}</ContextMenuItem>
-        <ContextMenuItem onClick={() => handlers.onMove?.(item)}>{t('files.moveTo')}</ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
-          {t('files.moveToTrash')}
-        </ContextMenuItem>
-      </ContextMenuContent>
+      <FileActionsContextContent item={item} handlers={handlers} />
     </ContextMenu>
   )
 }
 
 function PlainRow({ row, handlers }: { row: Row<StorageObject>; handlers: FileActionHandlers }) {
-  const { t } = useTranslation()
   const item = row.original
-  const isFile = item.dirtype === DirType.FILE
-  const showWriteActions = !!(handlers.onRename || handlers.onCopy || handlers.onMove || handlers.onTrash)
 
   return (
     <ContextMenu>
@@ -130,32 +107,7 @@ function PlainRow({ row, handlers }: { row: Row<StorageObject>; handlers: FileAc
           ))}
         </TableRow>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-48">
-        <ContextMenuItem onClick={() => handlers.onOpen(item)}>
-          {isFile ? t('files.preview') : t('files.open')}
-        </ContextMenuItem>
-        {isFile && handlers.onDownload && (
-          <ContextMenuItem onClick={() => handlers.onDownload?.(item)}>{t('files.download')}</ContextMenuItem>
-        )}
-        {showWriteActions && <ContextMenuSeparator />}
-        {handlers.onRename && (
-          <ContextMenuItem onClick={() => handlers.onRename?.(item)}>{t('files.rename')}</ContextMenuItem>
-        )}
-        {handlers.onCopy && (
-          <ContextMenuItem onClick={() => handlers.onCopy?.(item)}>{t('files.copy')}</ContextMenuItem>
-        )}
-        {handlers.onMove && (
-          <ContextMenuItem onClick={() => handlers.onMove?.(item)}>{t('files.moveTo')}</ContextMenuItem>
-        )}
-        {handlers.onTrash && (
-          <>
-            {(handlers.onRename || handlers.onCopy || handlers.onMove) && <ContextMenuSeparator />}
-            <ContextMenuItem className="text-destructive" onClick={() => handlers.onTrash?.(item)}>
-              {t('files.moveToTrash')}
-            </ContextMenuItem>
-          </>
-        )}
-      </ContextMenuContent>
+      <FileActionsContextContent item={item} handlers={handlers} />
     </ContextMenu>
   )
 }

@@ -71,10 +71,10 @@ describe('ActorAvatarHoverCard', () => {
     await waitFor(() => expect(screen.getByText('Research Agent')).toBeTruthy())
     expect(screen.getByText('actors.type.oauth')).toBeTruthy()
     expect(screen.getByText('agent-1')).toBeTruthy()
-    expect(screen.getByText('realm.example.com')).toBeTruthy()
+    expect(screen.getByText('https://realm.example.com')).toBeTruthy()
   })
 
-  it('shortens long stable identifiers without losing the full value', async () => {
+  it('wraps long stable identifiers without hiding the full value', async () => {
     const ref = 'agent-0123456789abcdef0123456789abcdef'
     render(
       <ActorAvatarHoverCard
@@ -91,9 +91,34 @@ describe('ActorAvatarHoverCard', () => {
 
     fireEvent.pointerEnter(screen.getByLabelText('files.createdBy: Research Agent'))
 
-    await waitFor(() => expect(screen.getByText('agent-01…abcdef')).toBeTruthy())
-    expect(screen.getByTitle(ref)).toBeTruthy()
-    expect(screen.queryByText(ref)).toBeNull()
+    const visibleRef = await waitFor(() => screen.getByText(ref))
+    expect(visibleRef.className).toContain('break-all')
+  })
+
+  it('contains long identity fields within the hover card', async () => {
+    const name = 'A very long automated actor identity name that must stay inside the card'
+    const issuer = `https://${'identity-segment-'.repeat(8)}example.com`
+    render(
+      <ActorAvatarHoverCard
+        actor={{
+          type: 'agent',
+          ref: 'agent-1',
+          issuer,
+          name,
+          image: null,
+          resolved: true,
+        }}
+      />,
+    )
+
+    fireEvent.pointerEnter(screen.getByLabelText(`files.createdBy: ${name}`))
+
+    await waitFor(() => expect(screen.getByText(name)).toBeTruthy())
+    const card = document.querySelector('[data-slot="hover-card-content"]')
+    expect(card).toBeTruthy()
+    expect(card!.className).toContain('overflow-hidden')
+    expect(screen.getByText(name).className).toContain('break-words')
+    expect(screen.getByText(issuer).className).toContain('break-all')
   })
 
   it('uses a dash when attribution was not recorded', () => {
