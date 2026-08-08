@@ -92,6 +92,46 @@ describe('Agent Info gateway', () => {
 
     expect(profiles.size).toBe(0)
   })
+
+  it('rejects invalid discovery documents and ignores incomplete actor identities', async () => {
+    let requests = 0
+    const { origin } = await listen((_request, response) => {
+      requests += 1
+      response.statusCode = 503
+      response.end()
+    })
+    const gateway = createAgentInfoGateway()
+
+    const profiles = await gateway.resolve(
+      [
+        { type: 'user', ref: 'user-1', issuer: origin },
+        { type: 'agent', ref: null, issuer: origin },
+        { type: 'agent', ref: 'agt-1', issuer: null },
+        { type: 'agent', ref: 'agt-1', issuer: `${origin}/api/auth` },
+      ],
+      new Set([origin]),
+    )
+
+    expect(profiles.size).toBe(0)
+    expect(requests).toBe(1)
+  })
+
+  it('rejects Agent Info endpoints on a different origin', async () => {
+    const { origin } = await listen((_request, response) => {
+      response.setHeader('content-type', 'application/json')
+      response.end(
+        JSON.stringify({ issuer: `${origin}/api/auth`, agentinfo_endpoint: 'https://untrusted.example/agentinfo' }),
+      )
+    })
+    const gateway = createAgentInfoGateway()
+
+    const profiles = await gateway.resolve(
+      [{ type: 'agent', ref: 'agt-1', issuer: `${origin}/api/auth` }],
+      new Set([origin]),
+    )
+
+    expect(profiles.size).toBe(0)
+  })
 })
 
 async function listen(handler: RequestListener): Promise<{ origin: string }> {

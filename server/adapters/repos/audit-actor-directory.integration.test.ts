@@ -63,9 +63,31 @@ describe('audit actor directory repository', () => {
         redirectUris: '[]',
         jwksUri: 'http://issuer.example/jwks',
       },
+      {
+        id: 'oauth-client-local',
+        clientId: 'local',
+        redirectUris: '[]',
+        jwksUri: 'http://127.0.0.1:8787/jwks',
+      },
+      {
+        id: 'oauth-client-invalid',
+        clientId: 'invalid',
+        redirectUris: '[]',
+        jwksUri: 'not a URL',
+      },
     ])
     const directory = createAuditActorDirectoryRepo(db)
 
-    await expect(directory.listTrustedAgentIssuerOrigins()).resolves.toEqual(new Set(['https://id.realmroot.dev']))
+    await expect(directory.listTrustedAgentIssuerOrigins()).resolves.toEqual(
+      new Set(['https://id.realmroot.dev', 'http://127.0.0.1:8787']),
+    )
+  })
+
+  it('skips database queries for empty identity lists', async () => {
+    const { db } = await createTestApp()
+    const directory = createAuditActorDirectoryRepo(db)
+
+    await expect(directory.findApiKeyNames([])).resolves.toEqual(new Map())
+    await expect(directory.findDeviceNames([])).resolves.toEqual(new Map())
   })
 })
