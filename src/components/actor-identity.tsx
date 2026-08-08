@@ -95,7 +95,7 @@ export function ActorAvatarHoverCard({ actor, className }: Pick<ActorIdentityPro
           {actor.ref && (
             <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
               <dt className="shrink-0 text-muted-foreground">{t('actors.ref')}</dt>
-              <dd className="min-w-0 whitespace-normal break-all text-right font-mono" data-actor-field>
+              <dd className="min-w-0 truncate text-right font-mono" title={actor.ref} data-actor-field>
                 {actor.ref}
               </dd>
             </div>
@@ -103,7 +103,7 @@ export function ActorAvatarHoverCard({ actor, className }: Pick<ActorIdentityPro
           {actor.issuer && (
             <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
               <dt className="shrink-0 text-muted-foreground">{t('actors.issuer')}</dt>
-              <dd className="min-w-0 whitespace-normal break-all text-right" data-actor-field>
+              <dd className="min-w-0 truncate text-right" title={actor.issuer} data-actor-field>
                 {actor.issuer}
               </dd>
             </div>

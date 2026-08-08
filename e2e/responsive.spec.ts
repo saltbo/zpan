@@ -152,7 +152,7 @@ test.describe('File table responsive columns', () => {
     await expect(details.getByTitle(creatorName!)).toBeVisible()
   })
 
-  test('desktop: creator hover card contains long identity fields @desktop', async ({ page }) => {
+  test('desktop: creator hover card truncates long identity metadata @desktop', async ({ page }) => {
     await signUpAndGoToFiles(page)
     await createFolder(page, 'long-actor-folder')
 
@@ -200,6 +200,13 @@ test.describe('File table responsive columns', () => {
       )
     })
     expect(contained).toBe(true)
+
+    for (const value of ['agent-0123456789abcdef0123456789abcdef', actorIssuer]) {
+      const field = card.getByTitle(value)
+      await expect(field).toHaveCSS('white-space', 'nowrap')
+      await expect(field).toHaveCSS('text-overflow', 'ellipsis')
+      expect(await field.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
+    }
   })
 
   test('mobile: size and modified columns are hidden @mobile', async ({ page }) => {

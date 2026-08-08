@@ -79,7 +79,7 @@ describe('ActorAvatarHoverCard', () => {
     expect(profileLink.getAttribute('target')).toBe('_blank')
   })
 
-  it('wraps long stable identifiers without hiding the full value', async () => {
+  it('truncates long stable identifiers without wrapping the card', async () => {
     const ref = 'agent-0123456789abcdef0123456789abcdef'
     render(
       <ActorAvatarHoverCard
@@ -97,7 +97,8 @@ describe('ActorAvatarHoverCard', () => {
     fireEvent.pointerEnter(screen.getByLabelText('files.createdBy: Research Agent'))
 
     const visibleRef = await waitFor(() => screen.getByText(ref))
-    expect(visibleRef.className).toContain('break-all')
+    expect(visibleRef.className).toContain('truncate')
+    expect(visibleRef.getAttribute('title')).toBe(ref)
   })
 
   it('contains long identity fields within the hover card', async () => {
@@ -123,7 +124,8 @@ describe('ActorAvatarHoverCard', () => {
     expect(card).toBeTruthy()
     expect(card!.className).toContain('overflow-hidden')
     expect(screen.getByText(name).className).toContain('break-words')
-    expect(screen.getByText(issuer).className).toContain('break-all')
+    expect(screen.getByText(issuer).className).toContain('truncate')
+    expect(screen.getByText(issuer).getAttribute('title')).toBe(issuer)
   })
 
   it('uses a dash when attribution was not recorded', () => {
