@@ -82,7 +82,7 @@
     "drizzle-orm": "^0.45.2",
     "echarts": "^6.1.0",
     "fflate": "^0.8.2",
-    "hono": "^4.12.27",
+    "hono": "^4.12.34",
     "i18next": "^26.0.3",
     "i18next-browser-languagedetector": "^8.2.1",
     "jose": "6.2.3",
