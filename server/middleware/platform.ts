@@ -5,7 +5,7 @@ import type { DavLock } from '../domain/webdav'
 import type { WebDavMountPath } from '../domain/webdav-public-url'
 import type { Platform } from '../platform/interface'
 import type { Deps } from '../usecases/deps'
-import type { WebDavTarget } from '../usecases/ports'
+import type { ActorIdentity, WebDavTarget } from '../usecases/ports'
 import type { TransferAuditTarget } from '../usecases/transfer-activity'
 
 export type Env = {
@@ -155,6 +155,15 @@ export function workspaceOrgId(context: AuthzContext): string | null {
 
 export function boundWorkspaceOrgId(context: AuthzContext): string | null {
   return context.workspace.mode === 'bound' ? context.workspace.orgId : null
+}
+
+export function authzActorIdentity(context: AuthzContext): ActorIdentity | null {
+  if (!context.actor) return null
+  return {
+    type: context.actor.type,
+    ref: context.actor.ref,
+    issuer: 'issuer' in context.actor ? context.actor.issuer : null,
+  }
 }
 
 export const anonymousAuthzContext = (): AuthzContext => ({

@@ -15,7 +15,7 @@ import { enqueueArchiveJob } from './archive-processing'
 // create dispatches on top of enqueueArchiveJob, which reaches across the archive
 // ports, so it forwards the whole Deps; the reads need only the narrow ports.
 import type { Deps } from './deps'
-import type { ListBackgroundJobsOptions } from './ports'
+import type { ActorIdentity, ListBackgroundJobsOptions } from './ports'
 
 export function listBackgroundJobs(deps: Pick<Deps, 'backgroundJobs'>, orgId: string, opts: ListBackgroundJobsOptions) {
   return deps.backgroundJobs.list(orgId, opts)
@@ -43,11 +43,11 @@ export function cancelBackgroundJob(
 
 export async function createBackgroundJob(
   deps: Deps,
-  params: { orgId: string; userId: string; request: CreateBackgroundJobRequest },
+  params: { orgId: string; userId: string; createdBy: ActorIdentity; request: CreateBackgroundJobRequest },
 ): Promise<BackgroundJob> {
-  const { orgId, userId, request } = params
+  const { orgId, userId, createdBy, request } = params
   const job = await enqueueArchiveJob(deps, { orgId, userId, request })
-  await deps.archiveJobs.dispatch({ orgId, userId, request, jobId: job.id })
+  await deps.archiveJobs.dispatch({ orgId, userId, createdBy, request, jobId: job.id })
   return job
 }
 
@@ -55,11 +55,12 @@ export async function retryBackgroundJob(
   deps: Pick<Deps, 'backgroundJobs' | 'archiveJobs'>,
   orgId: string,
   id: string,
+  createdBy: ActorIdentity,
 ): Promise<BackgroundJob> {
   const job = await deps.backgroundJobs.retry(orgId, id)
   const request = createBackgroundJobRequestSchema.safeParse(job.metadata)
   if (request.success) {
-    await deps.archiveJobs.dispatch({ orgId, userId: job.userId, request: request.data, jobId: job.id })
+    await deps.archiveJobs.dispatch({ orgId, userId: job.userId, createdBy, request: request.data, jobId: job.id })
   }
   return job
 }

@@ -1,7 +1,7 @@
 import type { ActorAttribution } from '@shared/schemas'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ActorIdentity } from './actor-identity'
+import { ActorAvatarHoverCard, ActorIdentity } from './actor-identity'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => (key === 'actors.notRecorded' ? '-' : key) }),
@@ -48,5 +48,34 @@ describe('ActorIdentity', () => {
 
     expect(screen.getByText('Device · downloader')).toBeTruthy()
     expect(document.querySelector('svg')).toBeTruthy()
+  })
+})
+
+describe('ActorAvatarHoverCard', () => {
+  it('keeps the file-list cell avatar-only and reveals the detailed identity card on hover', async () => {
+    const actor: ActorAttribution = {
+      type: 'oauth',
+      ref: 'agent-1',
+      issuer: 'https://realm.example.com',
+      name: 'Research Agent',
+      image: 'https://example.com/agent.png',
+      resolved: true,
+    }
+
+    render(<ActorAvatarHoverCard actor={actor} />)
+
+    const trigger = screen.getByLabelText('files.createdBy: Research Agent')
+    expect(trigger.textContent).toBe('')
+    fireEvent.pointerEnter(trigger)
+
+    await waitFor(() => expect(screen.getByText('Research Agent')).toBeTruthy())
+    expect(screen.getByText('actors.type.oauth')).toBeTruthy()
+    expect(screen.getByText('agent-1')).toBeTruthy()
+    expect(screen.getByText('https://realm.example.com')).toBeTruthy()
+  })
+
+  it('uses a dash when attribution was not recorded', () => {
+    render(<ActorAvatarHoverCard actor={null} />)
+    expect(screen.getByText('-')).toBeTruthy()
   })
 })

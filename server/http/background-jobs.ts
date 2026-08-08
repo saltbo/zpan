@@ -6,7 +6,7 @@ import {
   listBackgroundJobsQuerySchema,
   opaqueIdSchema,
 } from '../../shared/schemas'
-import type { Env } from '../middleware/platform'
+import { authzActorIdentity, type Env } from '../middleware/platform'
 import {
   cancelBackgroundJob,
   createBackgroundJob,
@@ -203,7 +203,12 @@ const backgroundJobs = app
     const orgId = requireOrg(c)
     const userId = c.get('userId')
     if (!userId) throw new BackgroundJobError('not_found')
-    return c.json(await createBackgroundJob(c.get('deps'), { orgId, userId, request: c.req.valid('json') }), 201)
+    const createdBy = authzActorIdentity(c.get('authzContext'))
+    if (!createdBy) throw new Error('authenticated_actor_missing')
+    return c.json(
+      await createBackgroundJob(c.get('deps'), { orgId, userId, createdBy, request: c.req.valid('json') }),
+      201,
+    )
   })
   .openapi(getJobRoute, async (c) =>
     c.json(await getBackgroundJob(c.get('deps'), requireOrg(c), c.req.valid('param').id), 200),
@@ -211,8 +216,10 @@ const backgroundJobs = app
   .openapi(cancelJobRoute, async (c) =>
     c.json(await cancelBackgroundJob(c.get('deps'), requireOrg(c), c.req.valid('param').id), 200),
   )
-  .openapi(retryJobRoute, async (c) =>
-    c.json(await retryBackgroundJob(c.get('deps'), requireOrg(c), c.req.valid('param').id), 201),
-  )
+  .openapi(retryJobRoute, async (c) => {
+    const createdBy = authzActorIdentity(c.get('authzContext'))
+    if (!createdBy) throw new Error('authenticated_actor_missing')
+    return c.json(await retryBackgroundJob(c.get('deps'), requireOrg(c), c.req.valid('param').id, createdBy), 201)
+  })
 
 export default backgroundJobs

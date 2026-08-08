@@ -1,7 +1,7 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
 import type { ColumnDef, Row } from '@tanstack/react-table'
-import { ActorIdentity } from '@/components/actor-identity'
+import { ActorAvatarHoverCard } from '@/components/actor-identity'
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatDate, formatSize } from '@/lib/format'
 import { FileIcon } from './file-icon'
@@ -106,10 +106,10 @@ export function getColumns(
     },
     {
       id: 'createdBy',
-      header: t('files.colCreatedBy'),
-      cell: ({ row }) => <ActorIdentity actor={row.original.createdBy} compact />,
-      size: 180,
-      meta: { className: 'hidden lg:table-cell' },
+      header: () => <span className="sr-only">{t('files.colCreatedBy')}</span>,
+      cell: ({ row }) => <ActorAvatarHoverCard actor={row.original.createdBy} />,
+      size: 56,
+      meta: { className: 'hidden text-center lg:table-cell' },
       enableSorting: false,
     },
   ]

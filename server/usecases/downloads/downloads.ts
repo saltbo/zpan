@@ -1,4 +1,5 @@
 import type {
+  ActorAttribution,
   CreateDownloaderInput,
   CreateDownloadTaskInput,
   DownloaderHeartbeatInput,
@@ -358,13 +359,12 @@ export async function listDownloadTasks(
 }> {
   const { items, rows, nextBoundary } = await deps.downloadTasks.list(opts)
   if (!opts.includeUploadToken) {
-    return { items: await Promise.all(items.map((task) => decorateDownloadTaskActors(deps, task))), nextBoundary }
+    return { items: await decorateDownloadTasksActors(deps, items), nextBoundary }
   }
-  const decorated = await Promise.all(
-    items.map(async (task, index) =>
-      decorateDownloadTaskActors(deps, await decorateWithUploadToken(deps, platform, task, rows[index])),
-    ),
+  const tasksWithUploadTokens = await Promise.all(
+    items.map((task, index) => decorateWithUploadToken(deps, platform, task, rows[index])),
   )
+  const decorated = await decorateDownloadTasksActors(deps, tasksWithUploadTokens)
   return { items: decorated, nextBoundary }
 }
 
@@ -383,11 +383,24 @@ export async function getDownloadTask(deps: DownloadsDeps, orgId: string, id: st
 }
 
 async function decorateDownloadTaskActors(deps: DownloadsDeps, task: DownloadTask): Promise<DownloadTask> {
-  const identities = [
-    task.requestedBy && { type: task.requestedBy.type, ref: task.requestedBy.ref, issuer: task.requestedBy.issuer },
-    task.status.assignment && { type: 'device' as const, ref: task.status.assignment.downloaderId, issuer: null },
-  ].filter((identity): identity is ActorIdentity => identity !== null)
+  return (await decorateDownloadTasksActors(deps, [task]))[0]
+}
+
+async function decorateDownloadTasksActors(
+  deps: DownloadsDeps,
+  tasks: readonly DownloadTask[],
+): Promise<DownloadTask[]> {
+  const identities = tasks
+    .flatMap((task) => [
+      task.requestedBy && { type: task.requestedBy.type, ref: task.requestedBy.ref, issuer: task.requestedBy.issuer },
+      task.status.assignment && { type: 'device' as const, ref: task.status.assignment.downloaderId, issuer: null },
+    ])
+    .filter((identity): identity is ActorIdentity => identity !== null)
   const actors = await resolveActorAttributions(deps, identities)
+  return tasks.map((task) => decorateDownloadTaskActor(task, actors))
+}
+
+function decorateDownloadTaskActor(task: DownloadTask, actors: ReadonlyMap<string, ActorAttribution>): DownloadTask {
   const requestedBy = task.requestedBy ? (actors.get(actorIdentityKey(task.requestedBy)) ?? task.requestedBy) : null
   const assignment = task.status.assignment
     ? {

@@ -87,7 +87,7 @@ test.describe('Toolbar responsive layout', () => {
 // Table: secondary columns hidden on small screens
 // ---------------------------------------------------------------------------
 test.describe('File table responsive columns', () => {
-  test('desktop: all columns visible (name, size, modified, actions) @desktop', async ({ page }) => {
+  test('desktop: creator uses an avatar-only column with identity details on hover @desktop', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
     await createFolder(page, 'test-folder')
@@ -98,9 +98,18 @@ test.describe('File table responsive columns', () => {
 
     const row = page.getByRole('row', { name: /test-folder/ })
     const creatorCell = row.getByRole('cell').nth(4)
-    await expect(creatorCell).not.toBeEmpty()
-    const creatorName = await creatorCell.locator('[title]').getAttribute('title')
+    const creatorTrigger = creatorCell.getByRole('button', { name: /created by:/i })
+    await expect(creatorTrigger).toBeVisible()
+    const creatorLabel = await creatorTrigger.getAttribute('aria-label')
+    const creatorName = creatorLabel?.replace(/^Created by:\s*/i, '')
     expect(creatorName).toBeTruthy()
+    await expect(creatorTrigger).not.toContainText(creatorName!)
+
+    await creatorTrigger.hover()
+    const identityCard = page.locator('[data-slot="hover-card-content"]')
+    await expect(identityCard).toBeVisible()
+    await expect(identityCard.getByText(creatorName!, { exact: true })).toBeVisible()
+    await expect(identityCard.getByText('User', { exact: true })).toBeVisible()
 
     await row.getByRole('button').last().click()
     await page.getByRole('menuitem', { name: /details/i }).click()
