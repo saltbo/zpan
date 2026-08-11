@@ -1,6 +1,6 @@
 export type CacheMode = 'off' | 'memory' | 'distributed'
 
-export type CacheTier = 'bypass' | 'memory' | 'distributed' | 'source' | 'coalesced'
+export type CacheTier = 'bypass' | 'memory' | 'distributed' | 'source'
 
 export interface CachePolicy<T> {
   namespace: string

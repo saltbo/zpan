@@ -76,6 +76,7 @@ const isolatedCloudflareTests = [
   'server/http/site/storages.cf-test.ts',
   'server/http/site/system.cf-test.ts',
   'workers/bootstrap-image-domain.cf-test.ts',
+  'workers/bootstrap-init.cf-test.ts',
   'workers/bootstrap.cf-test.ts',
 ]
 

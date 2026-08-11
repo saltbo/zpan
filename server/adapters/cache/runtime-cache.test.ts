@@ -56,18 +56,18 @@ describe('runtime cache', () => {
     expect(await cache.get(stringPolicy, 'present')).toMatchObject({ value: 'value', tier: 'memory' })
   })
 
-  it('coalesces concurrent loads for the same key', async () => {
-    let release: (value: string) => void = () => undefined
-    const loader = vi.fn(() => new Promise<string>((resolve) => (release = resolve)))
+  it('does not reuse a request-bound loader that remains pending', async () => {
+    const loader = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<string>(() => undefined))
+      .mockResolvedValue('recovered')
     const cache = createRuntimeCache({ mode: 'memory' })
 
-    const first = cache.getOrLoad(stringPolicy, 'a', loader)
-    const second = cache.getOrLoad(stringPolicy, 'a', loader)
-    expect(loader).toHaveBeenCalledTimes(1)
+    void cache.getOrLoad(stringPolicy, 'a', loader)
+    const recovered = cache.getOrLoad(stringPolicy, 'a', loader)
 
-    release('shared')
-    expect(await first).toMatchObject({ value: 'shared', tier: 'source' })
-    expect(await second).toMatchObject({ value: 'shared', tier: 'coalesced' })
+    expect(loader).toHaveBeenCalledTimes(2)
+    await expect(recovered).resolves.toMatchObject({ value: 'recovered', tier: 'source' })
   })
 
   it('uses the shorter negative-cache TTL', async () => {

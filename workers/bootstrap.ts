@@ -37,6 +37,7 @@ const SHARE_TOKEN_RE = /^\/s\/([^/?#]+)/
 // allowing arbitrary Host headers to grow the cache. Changes to OAuth provider
 // configs or env vars take effect on isolate recycle.
 type AuthSlot = 'configured' | 'primary' | 'webdav'
+export const APP_INITIALIZATION_TIMEOUT_MS = 10_000
 
 interface WorkerRuntime {
   platform: ReturnType<typeof createCloudflarePlatform>
@@ -45,6 +46,19 @@ interface WorkerRuntime {
   authBySlot: Map<AuthSlot, Auth>
   appBySlot: Map<AuthSlot, ReturnType<typeof createApp>>
   appInitBySlot: Map<AuthSlot, Promise<ReturnType<typeof createApp>>>
+}
+
+type InitializeApp = (
+  runtime: WorkerRuntime,
+  env: Env,
+  baseURL: string,
+  trustedOrigins: string[],
+) => Promise<{ auth: Auth; app: ReturnType<typeof createApp> }>
+type KeepAlive = (promise: Promise<unknown>) => void
+
+const initializeApp: InitializeApp = async (runtime, env, baseURL, trustedOrigins) => {
+  const auth = await createAuth(runtime.platform, env.BETTER_AUTH_SECRET, baseURL, trustedOrigins, waitUntil)
+  return { auth, app: createApp(runtime.platform, auth, runtime.deps) }
 }
 
 let cachedRuntime: WorkerRuntime | undefined
@@ -77,10 +91,12 @@ function runtimeFor(env: Env): WorkerRuntime {
   return cachedRuntime
 }
 
-async function appForRequest(
+export async function appForRequest(
   runtime: WorkerRuntime,
   request: Request,
   env: Env,
+  initialize: InitializeApp = initializeApp,
+  keepAlive: KeepAlive = waitUntil,
 ): Promise<ReturnType<typeof createApp>> {
   const origin = new URL(request.url).origin
   const webDavRequest = isPotentialWebDavPublicRequest(request.url)
@@ -98,19 +114,35 @@ async function appForRequest(
   const pendingApp = runtime.appInitBySlot.get(slot)
   if (pendingApp) return pendingApp
 
-  const appPromise = createAuth(runtime.platform, env.BETTER_AUTH_SECRET, baseURL, trustedOrigins, waitUntil).then(
-    (auth) => {
-      const app = createApp(runtime.platform, auth, runtime.deps)
-      runtime.authBySlot.set(slot, auth)
-      runtime.appBySlot.set(slot, app)
-      return app
-    },
-  )
+  // Keep the single cold-start initialization alive if its creating request is
+  // canceled, and bound it so a genuinely stuck dependency cannot poison the slot.
+  const appPromise = withTimeout(
+    initialize(runtime, env, baseURL, trustedOrigins),
+    APP_INITIALIZATION_TIMEOUT_MS,
+    'Worker app initialization timed out',
+  ).then(({ auth, app }) => {
+    runtime.authBySlot.set(slot, auth)
+    runtime.appBySlot.set(slot, app)
+    return app
+  })
   runtime.appInitBySlot.set(slot, appPromise)
+  keepAlive(appPromise.catch(() => undefined))
   try {
     return await appPromise
   } finally {
-    runtime.appInitBySlot.delete(slot)
+    if (runtime.appInitBySlot.get(slot) === appPromise) runtime.appInitBySlot.delete(slot)
+  }
+}
+
+async function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs)
+  })
+  try {
+    return await Promise.race([operation, timeout])
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId)
   }
 }
 
