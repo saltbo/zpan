@@ -150,9 +150,15 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
         .clone()
         .json()
         .catch(() => null)) as { error?: string } | null
-      if (error?.error === 'unsupported_token_type') {
-        const token = (await revokeRequest.formData()).get('token')
-        if (typeof token === 'string') {
+      const token = (await revokeRequest.formData()).get('token')
+      if (typeof token === 'string' && token.length > 0) {
+        if (error?.error === 'invalid_request') {
+          return new Response(null, {
+            status: 200,
+            headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' },
+          })
+        }
+        if (error?.error === 'unsupported_token_type') {
           await c.get('deps').oauth.revokeJwtAccessToken(c.get('platform').db, token)
           return new Response(null, {
             status: 200,

@@ -24,7 +24,7 @@ export function createArazzoDocument(origin: string) {
         workflowId: 'prepareDirectFileUpload',
         summary: 'Prepare a direct file upload',
         description:
-          'Creates a file draft and returns the runtime upload descriptor. If capacity is insufficient, createObject returns 402 with requestHash and eligible offers; invoke purchaseStorageCapacityWithX402 for one offer, then retry createObject. PUT every local file slice identified by upload.parts[].offset and upload.parts[].length to upload.parts[].url with upload.parts[].headers. Capture each response ETag, then invoke completeDirectFileUpload. If a presigned URL expires, invoke refreshDirectFileUploadParts. File bytes are sent directly to storage, not to ZPan.',
+          'Creates a file draft and returns the runtime upload descriptor. If capacity is insufficient and a published plan can close the gap, createObject returns 402 with requestHash and eligible offers; invoke purchaseStorageCapacityWithX402 for one offer, authorize its payment requirement with a discovered x402 payer, invoke submitStorageCapacityPayment with the returned signature, then retry createObject. If no published plan can close the gap, createObject returns 422 without a payment offer. PUT every local file slice identified by upload.parts[].offset and upload.parts[].length to upload.parts[].url with upload.parts[].headers. Capture each response ETag, then invoke completeDirectFileUpload. If a presigned URL expires, invoke refreshDirectFileUploadParts. File bytes are sent directly to storage, not to ZPan.',
         inputs: {
           type: 'object',
           properties: {
@@ -70,9 +70,9 @@ export function createArazzoDocument(origin: string) {
       },
       {
         workflowId: 'purchaseStorageCapacityWithX402',
-        summary: 'Purchase workspace storage capacity',
+        summary: 'Request payment terms for workspace storage capacity',
         description:
-          'Select an offer returned by createObject 402. Call purchaseStorageCapacity without PAYMENT-SIGNATURE to obtain PAYMENT-REQUIRED, pay that challenge, then retry the same operation with PAYMENT-SIGNATURE. After a delivered response, retry the original createObject request.',
+          'Select an offer returned by createObject 402 and call purchaseStorageCapacity without PAYMENT-SIGNATURE. Pass the returned PAYMENT-REQUIRED header unchanged to any discovered x402 payer. Then invoke submitStorageCapacityPayment with its PAYMENT-SIGNATURE.',
         inputs: {
           type: 'object',
           properties: {
@@ -96,12 +96,53 @@ export function createArazzoDocument(origin: string) {
             },
             successCriteria: [{ condition: '$statusCode == 402' }],
             outputs: {
-              paymentRequired: '$response.body',
+              paymentRequired: '$response.header.PAYMENT-REQUIRED',
             },
           },
         ],
         outputs: {
           paymentRequired: '$steps.requestPaymentChallenge.outputs.paymentRequired',
+        },
+      },
+      {
+        workflowId: 'submitStorageCapacityPayment',
+        summary: 'Submit payment for workspace storage capacity',
+        description:
+          'Retry the same capacity purchase with the PAYMENT-SIGNATURE returned by the selected x402 payer. Capture PAYMENT-RESPONSE from the successful response, pass it unchanged to that payer’s confirmation operation, and require the payment to settle. If the purchase status is pending, repeat this idempotent workflow until it is delivered. Retry the original createObject request only after delivery.',
+        inputs: {
+          type: 'object',
+          properties: {
+            resourceId: { type: 'string', minLength: 1 },
+            requestHash: { type: 'string', minLength: 1 },
+            idempotencyKey: { type: 'string', minLength: 1 },
+            paymentSignature: { type: 'string', minLength: 1 },
+          },
+          required: ['resourceId', 'requestHash', 'idempotencyKey', 'paymentSignature'],
+        },
+        steps: [
+          {
+            stepId: 'submitPayment',
+            operationId: 'purchaseStorageCapacity',
+            parameters: [
+              { name: 'resourceId', in: 'path', value: '$inputs.resourceId' },
+              { name: 'payment-signature', in: 'header', value: '$inputs.paymentSignature' },
+            ],
+            requestBody: {
+              contentType: 'application/json',
+              payload: {
+                requestHash: '$inputs.requestHash',
+                idempotencyKey: '$inputs.idempotencyKey',
+              },
+            },
+            outputs: {
+              purchase: '$response.body',
+              paymentResponse: '$response.header.PAYMENT-RESPONSE',
+            },
+          },
+        ],
+        outputs: {
+          purchase: '$steps.submitPayment.outputs.purchase',
+          paymentResponse: '$steps.submitPayment.outputs.paymentResponse',
         },
       },
       {

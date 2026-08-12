@@ -47,6 +47,12 @@ function cloudProduct(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function capacityUpgradeProduct() {
+  return cloudProduct({
+    metadata: { deliverable: { type: 'zpan.plan', storageBytes: 20 * 1024 ** 3, includedCredits: 100 } },
+  })
+}
+
 function cloudOrder(overrides: Record<string, unknown> = {}) {
   return {
     id: 'cloud-order-1',
@@ -759,7 +765,7 @@ describe('Quota Store API', () => {
       ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response
     vi.mocked(fetch)
       .mockResolvedValueOnce(response(capacityPublication()))
-      .mockResolvedValueOnce(response(cloudProduct()))
+      .mockResolvedValueOnce(response(capacityUpgradeProduct()))
       .mockResolvedValueOnce(
         response({
           id: 'receiver-1',
@@ -822,7 +828,7 @@ describe('Quota Store API', () => {
     vi.mocked(fetch)
       .mockClear()
       .mockResolvedValueOnce(response(capacityPublication()))
-      .mockResolvedValueOnce(response(cloudProduct()))
+      .mockResolvedValueOnce(response(capacityUpgradeProduct()))
       .mockResolvedValueOnce(
         response({
           id: 'receiver-1',

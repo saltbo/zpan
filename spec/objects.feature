@@ -71,6 +71,18 @@ Feature: Objects
     When a file object is created
     Then a draft with upload instructions (part size + presigned URLs) is returned
 
+  @objects/create-capacity-offer @api
+  Scenario: Creating a file over quota offers an immediate capacity upgrade
+    Given a file would exceed the workspace quota and a larger published plan is available
+    When the file object is created
+    Then the API responds 402 with the eligible capacity offer and a purchase request hash
+
+  @objects/create-capacity-unavailable @api
+  Scenario: Creating a file over quota fails when no immediate capacity upgrade exists
+    Given a file would exceed the workspace quota and no published plan can close the gap
+    When the file object is created
+    Then the API responds 422 without a payment offer
+
   @objects/create-file-too-large @api
   Scenario: Creating an oversized file is rejected
     Given a file larger than the 5 TiB maximum
