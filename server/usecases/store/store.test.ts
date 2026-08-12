@@ -617,6 +617,24 @@ describe('cloud-store usecase', () => {
       })
     })
 
+    it('rejects a non-increasing plan before creating an order [spec: quota-store/capacity-upgrade-only]', async () => {
+      const { deps, requests } = makeDeps({
+        responses: [ok(publication()), ok(pkg()), ok(receiver)],
+        quota: { currentPlan: { storageBytes: 4096 } } as EffectiveQuota,
+      })
+      const createIntent = vi.spyOn(deps.x402CapacityPurchases, 'create')
+
+      const out = await purchaseCapacity(deps, CLOUD, params)
+
+      expectError(out, {
+        httpStatus: 409,
+        reason: 'CAPACITY_OFFER_NOT_UPGRADE',
+        message: 'Capacity offer does not increase the workspace quota',
+      })
+      expect(createIntent).not.toHaveBeenCalled()
+      expect(requests).toHaveLength(3)
+    })
+
     it('rejects a capacity purchase when the x402 receiver is not active', async () => {
       const { deps, requests } = makeDeps({
         responses: [ok(publication()), ok(pkg()), ok({ ...receiver, status: 'pending_verification' })],
@@ -761,7 +779,7 @@ describe('cloud-store usecase', () => {
       })
     })
 
-    it('reuses the intent, verifies payment, settles, and returns the receipt', async () => {
+    it('reuses the intent after its plan becomes active, then settles [spec: quota-store/capacity-recovery]', async () => {
       const quoted = attempt()
       const verifiedAttempt = attempt('verified')
       const paidPendingFulfillment = attempt('paid_pending_fulfillment')
@@ -783,6 +801,10 @@ describe('cloud-store usecase', () => {
         ],
       })
       await purchaseCapacity(deps, CLOUD, params)
+      const getEffectiveQuota = vi.fn(async () => ({
+        currentPlan: { storageBytes: 4096 },
+      })) as unknown as QuotaRepo['getEffectiveQuota']
+      deps.quota.getEffectiveQuota = getEffectiveQuota
 
       const out = await purchaseCapacity(deps, CLOUD, { ...params, paymentSignature: 'signature' })
 
@@ -814,6 +836,7 @@ describe('cloud-store usecase', () => {
         path: 'stores/:storeId/orders/:orderId/x402/payment-attempts/:attemptId/fulfillment-attempts',
         input: { json: { deliveryCallbackUrl: `${params.origin}/api/store/webhook` } },
       })
+      expect(getEffectiveQuota).not.toHaveBeenCalled()
     })
 
     it('returns an already delivered attempt after quote expiry without creating a replacement quote', async () => {

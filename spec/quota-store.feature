@@ -51,6 +51,19 @@ Feature: Quota Store
     When a recurring checkout is started
     Then it is rejected
 
+  @quota-store/capacity-upgrade-only @usecase
+  Scenario: Capacity payments cannot buy a non-increasing plan
+    Given a workspace already has the selected storage tier
+    When a new capacity purchase is requested for that tier
+    Then it is rejected before an order or payment is created
+
+  @quota-store/capacity-recovery @usecase
+  Scenario: An existing capacity purchase remains recoverable after delivery
+    Given a capacity purchase intent was created while its storage tier was an upgrade
+    And that tier is now the workspace's active plan
+    When the same purchase request is resumed
+    Then its existing payment state is recovered without revalidating the tier
+
   @quota-store/fixed-checkout @api
   Scenario: Fixed-duration packages check out without credit discounts
     Given a fixed-duration package

@@ -39,6 +39,25 @@ const capacityPurchaseInputSchema = z.object({
   requestHash: z.string().min(1).max(256),
   idempotencyKey: z.string().min(1).max(200),
 })
+const paymentResponse = <T extends z.ZodType>(schema: T, description: string) => ({
+  ...jsonContent(schema, description),
+  headers: {
+    'PAYMENT-RESPONSE': {
+      description: 'Standard x402 settlement response for confirmation by the selected payer.',
+      schema: { type: 'string' as const },
+    },
+  },
+})
+const paymentRequiredResponse = {
+  ...jsonContent(x402PaymentRequiredSchema, 'x402 payment required'),
+  headers: {
+    'PAYMENT-REQUIRED': {
+      description: 'Standard x402 payment requirement to pass unchanged to a selected payer.',
+      required: true,
+      schema: { type: 'string' as const },
+    },
+  },
+}
 
 const packagesRoute = authRoute(
   { scopes: [AuthorizationScope.STORE_READ] },
@@ -172,7 +191,7 @@ const capacityPurchaseRoute = authRoute(
     operationId: 'purchaseStorageCapacity',
     summary: 'Purchase workspace storage capacity with x402',
     description:
-      'Call without PAYMENT-SIGNATURE to receive a standard x402 PAYMENT-REQUIRED challenge. Pay it and retry this same request with PAYMENT-SIGNATURE. An authorized caller may recover an interrupted purchase by using the same requestHash with a fresh idempotencyKey. A delivered response means the workspace capacity entitlement is active; retry the original createObject request.',
+      'Select an offer returned by createObject. A new purchase is accepted only when its plan increases the workspace capacity. Call without PAYMENT-SIGNATURE to receive a standard x402 PAYMENT-REQUIRED challenge. Pay it and retry this same request with PAYMENT-SIGNATURE. An authorized caller may recover an interrupted purchase by using the same requestHash with a fresh idempotencyKey. A delivered response means the workspace capacity entitlement is active; retry the original createObject request.',
     tags: ['Store'],
     method: 'post',
     path: '/capacity-purchases/{resourceId}',
@@ -189,12 +208,12 @@ const capacityPurchaseRoute = authRoute(
       ...jsonBody(capacityPurchaseInputSchema),
     },
     responses: {
-      200: jsonContent(capacityPurchaseDeliveredResultSchema, 'Capacity delivered'),
-      202: jsonContent(capacityPurchasePendingResultSchema, 'Payment accepted; capacity fulfillment is pending'),
+      200: paymentResponse(capacityPurchaseDeliveredResultSchema, 'Capacity delivered'),
+      202: paymentResponse(capacityPurchasePendingResultSchema, 'Payment accepted; capacity fulfillment is pending'),
       400: errorResponse('Invalid capacity offer'),
-      402: jsonContent(x402PaymentRequiredSchema, 'x402 payment required'),
+      402: paymentRequiredResponse,
       403: errorResponse('License not bound'),
-      409: errorResponse('Purchase request conflict'),
+      409: errorResponse('Purchase request conflict or capacity offer is not an upgrade'),
       429: errorResponse('Too many pending capacity purchases'),
       502: errorResponse('Cloud error'),
     },

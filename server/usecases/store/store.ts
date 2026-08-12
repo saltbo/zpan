@@ -402,12 +402,19 @@ export async function purchaseCapacity(
     if (receiverResponse.status === 404) throw new Error('x402_receiver_not_found')
     const receiver = await unwrapCloudResponse(receiverResponse, x402ReceiverSchema)
     if (receiver.status !== 'active') throw new Error('x402_receiver_not_active')
-    return { ...bound, productId, priceId, product, price, receiver }
+    return { ...bound, productId, priceId, product, price, receiver, storageBytes }
   })
   if (isCloudError(context)) return { ok: false, error: capacityPurchaseCloudError(context) }
 
   let intent = await deps.x402CapacityPurchases.get(params.orgId, params.resourceId, params.requestHash)
   if (!intent) {
+    const quota = await deps.quota.getEffectiveQuota(params.orgId)
+    if (context.storageBytes <= (quota.currentPlan?.storageBytes ?? 0)) {
+      return {
+        ok: false,
+        error: conflict('Capacity offer does not increase the workspace quota', 'CAPACITY_OFFER_NOT_UPGRADE'),
+      }
+    }
     try {
       intent = await deps.x402CapacityPurchases.create({
         orgId: params.orgId,

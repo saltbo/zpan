@@ -1894,6 +1894,82 @@ describe('Objects API — quota enforcement', () => {
     )
   }
 
+  function stubCapacityStoreWithOffer() {
+    const product = {
+      id: 'capacity-pro',
+      storeId: 'store-test-binding',
+      type: 'store_item',
+      name: 'Pro',
+      description: 'More storage',
+      metadata: { deliverable: { type: 'zpan.plan', storageBytes: 4096, includedCredits: 0 } },
+      prices: [
+        {
+          id: 'price-monthly',
+          currency: 'usd',
+          amount: 200,
+          recurring: { interval: 'month', intervalCount: 1 },
+        },
+      ],
+      active: true,
+      sortOrder: 2,
+      createdAt: '2026-07-30T00:00:00.000Z',
+      updatedAt: '2026-07-30T00:00:00.000Z',
+    }
+    const resource = {
+      id: 'publication-resource-pro',
+      storeId: 'store-test-binding',
+      resourceId: 'capacity-pro:price-monthly',
+      offerId: 'pro-monthly',
+      title: 'Pro',
+      description: 'More storage',
+      productId: product.id,
+      priceId: product.prices[0].id,
+      postResourceUrl: 'https://files.example/api/store/capacity-purchases/capacity-pro%3Aprice-monthly',
+      status: 'active',
+      tags: [],
+      capabilities: ['storage.capacity.purchase'],
+      publicDeliverable: { type: 'zpan.plan', storageBytes: 4096 },
+      productSnapshot: null,
+      bazaarRequestMethod: 'POST',
+      bazaarBodyType: 'json',
+      bazaarInput: null,
+      bazaarInputSchema: null,
+      bazaarOutput: null,
+      bazaarValidationStatus: 'unknown',
+      bazaarValidationDiagnostic: null,
+      bazaarValidatedAt: null,
+      createdAt: '2026-07-30T00:00:00.000Z',
+      updatedAt: '2026-07-30T00:00:00.000Z',
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input instanceof Request ? input.url : input)
+        if (url.includes('/products')) {
+          return Response.json({ items: [product], total: 1, limit: 100, offset: 0 })
+        }
+        if (url.endsWith('/publication')) {
+          return Response.json({
+            storeId: 'store-test-binding',
+            mode: 'directory',
+            listingStatus: 'listed',
+            displayName: 'ZPan',
+            summary: null,
+            publicMetadata: {},
+            skillUrl: null,
+            termsUrl: null,
+            healthUrl: 'https://files.example/api/health',
+            healthStatus: 'healthy',
+            resources: [resource],
+            createdAt: '2026-07-30T00:00:00.000Z',
+            updatedAt: '2026-07-30T00:00:00.000Z',
+          })
+        }
+        throw new Error(`Unexpected Cloud request: ${url}`)
+      }),
+    )
+  }
+
   it('surfaces capacity-offer lookup failures instead of reporting quota exhaustion', async () => {
     const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
     await seedBusinessLicense(db)
@@ -2362,7 +2438,39 @@ describe('Objects API — quota enforcement', () => {
       expect(quotaRows[0]).toEqual({ used: 140, quota: 100 })
     })
 
-    it('rejects upload preparation when no capacity offer can satisfy the request', async () => {
+    it('returns an eligible capacity offer before upload [spec: objects/create-capacity-offer]', async () => {
+      const { app, db } = await createTestApp()
+      await seedProLicense(db)
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 0, 90)
+      await addStorageEntitlement(db, orgId, 100)
+      stubCapacityStoreWithOffer()
+
+      const res = await createDraftResponse(app, headers, { name: 'upgrade.txt', size: 11 })
+
+      expect(res.status).toBe(402)
+      await expect(res.json()).resolves.toMatchObject({
+        error: 'CAPACITY_REQUIRED',
+        requestHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+        requestedBytes: 11,
+        usedBytes: 90,
+        quotaBytes: 100,
+        offers: [
+          {
+            resourceId: 'capacity-pro:price-monthly',
+            productId: 'capacity-pro',
+            priceId: 'price-monthly',
+            storageBytes: 4096,
+            amount: 200,
+            currency: 'usd',
+          },
+        ],
+      })
+    })
+
+    it('rejects upload preparation when no capacity offer can satisfy the request [spec: objects/create-capacity-unavailable]', async () => {
       const { app, db } = await createTestApp()
       await seedProLicense(db)
       const headers = await authedHeaders(app)

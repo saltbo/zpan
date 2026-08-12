@@ -204,6 +204,7 @@ describe('global OpenAPI document', () => {
     expect(workflows.workflows?.map((workflow) => workflow.workflowId)).toEqual([
       'prepareDirectFileUpload',
       'purchaseStorageCapacityWithX402',
+      'submitStorageCapacityPayment',
       'refreshDirectFileUploadParts',
       'completeDirectFileUpload',
       'abortDirectFileUpload',
@@ -213,6 +214,7 @@ describe('global OpenAPI document', () => {
       .map((step) => step.operationId)
     expect(workflowOperationIds).toEqual([
       'createObject',
+      'purchaseStorageCapacity',
       'purchaseStorageCapacity',
       'presignObjectUploadParts',
       'completeObjectUpload',
@@ -228,6 +230,12 @@ describe('global OpenAPI document', () => {
       objectId: '$steps.createUploadDraft.outputs.objectId',
       sessionId: '$steps.createUploadDraft.outputs.sessionId',
       upload: '$steps.createUploadDraft.outputs.upload',
+    })
+    expect(workflows.workflows?.[1]?.outputs).toMatchObject({
+      paymentRequired: '$steps.requestPaymentChallenge.outputs.paymentRequired',
+    })
+    expect(workflows.workflows?.[2]?.outputs).toMatchObject({
+      paymentResponse: '$steps.submitPayment.outputs.paymentResponse',
     })
     expect(document.externalDocs).toEqual({
       description: 'Machine-readable API workflows (Arazzo 1.1)',
@@ -582,6 +590,7 @@ describe('global OpenAPI document', () => {
             responses?: Record<
               string,
               {
+                headers?: Record<string, unknown>
                 content?: {
                   'application/json'?: { schema?: { $ref?: string; allOf?: unknown[]; properties?: unknown } }
                 }
@@ -620,6 +629,12 @@ describe('global OpenAPI document', () => {
     ).toMatchObject({
       type: 'object',
       required: ['x402Version', 'resource', 'accepts'],
+    })
+    expect(doc.paths['/api/store/capacity-purchases/{resourceId}']?.post?.responses?.['402']?.headers).toMatchObject({
+      'PAYMENT-REQUIRED': { required: true, schema: { type: 'string' } },
+    })
+    expect(doc.paths['/api/store/capacity-purchases/{resourceId}']?.post?.responses?.['200']?.headers).toMatchObject({
+      'PAYMENT-RESPONSE': { schema: { type: 'string' } },
     })
     expect(doc.paths['/api/objects']?.post?.security).toEqual([
       { oauth2: [AuthorizationScope.OBJECTS_CREATE] },
