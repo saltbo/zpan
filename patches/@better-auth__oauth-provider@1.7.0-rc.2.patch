@@ -328,6 +328,9 @@ index 3896e50f99997176d2f99c934d52701cf076d11b..c3668c63eaf7dadd4f901bef218b90e5
  				error: "invalid_client_metadata",
  				error_description: "jwks_uri must not point to a private or reserved address"
  			});
+@@ -4863 +4937 @@ async function revokeJwtAccessToken(ctx, opts, token) {
+-			if (error.name === "TypeError" || error.name === "JWSInvalid") throw new APIError$1("BAD_REQUEST", {
++			if (error.name === "TypeError" || error.name === "JWSInvalid" || error.name === "JWSSignatureVerificationFailed") throw new APIError$1("BAD_REQUEST", {
 @@ -5379,6 +5453,10 @@ const schema = {
  			type: "string[]",
  			required: false

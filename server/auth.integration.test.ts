@@ -1272,7 +1272,7 @@ describe('OAuth consent guards', () => {
     expect(response.headers.get('www-authenticate')).toContain('/.well-known/oauth-protected-resource/api')
   })
 
-  it('issues a DPoP API token through JWT bearer and token exchange grants', async () => {
+  it('issues and idempotently revokes a DPoP API token through JWT bearer and token exchange grants [spec: oauth-server/idempotent-token-revocation]', async () => {
     const ctx = await createTestApp()
     ctx.app.get('/api/test-agent-audit', async (c) => {
       const principal = c.get('principal')
@@ -1544,6 +1544,16 @@ describe('OAuth consent guards', () => {
       }).toString(),
     })
     expect(revokeResponse.status).toBe(200)
+
+    const inactiveTokenResponse = await ctx.app.request('http://localhost:3000/api/auth/oauth2/revoke', {
+      method: 'POST',
+      headers: { Authorization: basic, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        token: `${exchanged.access_token.slice(0, -1)}x`,
+        token_type_hint: 'access_token',
+      }).toString(),
+    })
+    expect(inactiveTokenResponse.status).toBe(200)
 
     const revokedProof = await new SignJWT({
       htm: 'GET',
