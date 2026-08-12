@@ -1555,6 +1555,13 @@ describe('OAuth consent guards', () => {
     })
     expect(inactiveTokenResponse.status).toBe(200)
 
+    const missingTokenResponse = await ctx.app.request('http://localhost:3000/api/auth/oauth2/revoke', {
+      method: 'POST',
+      headers: { Authorization: basic, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ token_type_hint: 'access_token' }).toString(),
+    })
+    expect(missingTokenResponse.status).toBe(400)
+
     const revokedProof = await new SignJWT({
       htm: 'GET',
       htu: apiUrl,
