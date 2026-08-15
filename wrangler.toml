@@ -6,7 +6,19 @@ compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 [assets]
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api", "/api/*", "/.well-known/*", "/dav", "/dav/*", "/ih/*", "/r/*", "/s/*"]
+run_worker_first = [
+  "/api",
+  "/api/*",
+  "/.well-known/oauth-authorization-server/*",
+  "/.well-known/openid-configuration/*",
+  "/.well-known/oauth-protected-resource/*",
+  "/.well-known/zpan-domain-verification/*",
+  "/dav",
+  "/dav/*",
+  "/ih/*",
+  "/r/*",
+  "/s/*",
+]
 
 [[d1_databases]]
 binding = "DB"

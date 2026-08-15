@@ -8,6 +8,7 @@ import { resolveAppCommit, resolveAppVersion } from './scripts/app-version.mjs'
 
 const appPort = Number(process.env.E2E_APP_PORT ?? 5185)
 const apiPort = Number(process.env.E2E_API_PORT ?? 8222)
+const nodeApiProxy = { target: `http://localhost:${apiPort}`, changeOrigin: false }
 const appVersion = resolveAppVersion()
 const appCommit = resolveAppCommit()
 const configuredDevHosts = (process.env.ZPAN_DEV_ALLOWED_HOSTS ?? '')
@@ -91,14 +92,11 @@ export default defineConfig(({ mode }) => ({
     ...(mode === 'node'
       ? {
           proxy: {
-            '/api': {
-              target: `http://localhost:${apiPort}`,
-              changeOrigin: false,
-            },
-            '/.well-known': {
-              target: `http://localhost:${apiPort}`,
-              changeOrigin: false,
-            },
+            '/api': nodeApiProxy,
+            '^/\\.well-known/oauth-authorization-server/': nodeApiProxy,
+            '^/\\.well-known/openid-configuration/': nodeApiProxy,
+            '^/\\.well-known/oauth-protected-resource/': nodeApiProxy,
+            '^/\\.well-known/zpan-domain-verification/': nodeApiProxy,
           },
         }
       : {}),

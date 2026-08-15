@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use ZPan"
+  short_description: "Manage private ZPan files through Realmroot"
+  default_prompt: "Use $use-zpan to manage my private ZPan files through Realmroot."

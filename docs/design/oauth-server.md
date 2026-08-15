@@ -29,6 +29,8 @@ Starting from `https://zpan.example/api`, clients discover:
 | API discovery | `/api` |
 | OpenAPI | `/api/openapi.json` |
 | Upload workflows | `/api/workflows.arazzo.json` |
+| Agent Skills Discovery | `/.well-known/agent-skills/index.json` |
+| Realmroot-oriented ZPan Skill | `/.well-known/agent-skills/use-zpan.tar.gz` |
 | Protected resource metadata | `/.well-known/oauth-protected-resource/api` |
 | Authorization server metadata | `/.well-known/oauth-authorization-server/api/auth` |
 | Dynamic client registration | `/api/auth/oauth2/register` |
@@ -73,6 +75,14 @@ an explicit contract and authorization decision made in one registry entry, not
 an automatic consequence of installing or updating a plugin. ZPan separately
 publishes its dynamic-registration and RFC 7592 configuration operations
 implemented at the auth boundary.
+
+The optional `use-zpan` Agent Skill teaches Realmroot Toolbox orchestration,
+workspace Context selection, least-privilege scope requests, and safe direct
+upload/download handling. It treats live Toolbox help, OpenAPI, Arazzo, and
+response-provided descriptors as authoritative; it does not embed credentials,
+deployment URLs, or a parallel API contract. Generic controllers remain able to
+operate ZPan without installing the Skill. Discovery and the archive are
+generated into the static asset tree at build time; they are not Worker routes.
 
 ## Workspace Authorization Details
 

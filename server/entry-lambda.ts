@@ -12,6 +12,7 @@ const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript',
   '.css': 'text/css',
+  '.gz': 'application/gzip',
   '.json': 'application/json',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
