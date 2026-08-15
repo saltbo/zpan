@@ -22,6 +22,7 @@ COPY shared ./shared
 COPY public ./public
 COPY migrations ./migrations
 COPY scripts ./scripts
+COPY agent-skills ./agent-skills
 # .git is excluded from the build context, so git describe cannot run here.
 # The release workflow passes the tag via APP_VERSION and the commit SHA via
 # APP_COMMIT; resolveAppVersion/resolveAppCommit read them.
@@ -46,13 +47,21 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o /out/zpan .
 
 FROM debian:bookworm-slim AS geoip-db
-ARG GEOIP_DB_MONTH=2026-06
-ARG GEOIP_DB_URL=https://download.db-ip.com/free/dbip-city-lite-${GEOIP_DB_MONTH}.mmdb.gz
+ARG GEOIP_DB_MONTH=
+ARG GEOIP_DB_URL=
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl gzip \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /out \
- && curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused "$GEOIP_DB_URL" -o /tmp/geoip.mmdb.gz \
+ && month="${GEOIP_DB_MONTH:-$(date -u +%Y-%m)}" \
+ && url="${GEOIP_DB_URL:-https://download.db-ip.com/free/dbip-city-lite-${month}.mmdb.gz}" \
+ && if ! curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused "$url" -o /tmp/geoip.mmdb.gz; then \
+      if [ -n "$GEOIP_DB_MONTH" ] || [ -n "$GEOIP_DB_URL" ]; then exit 1; fi; \
+      previous_month="$(date -u -d '1 month ago' +%Y-%m)"; \
+      curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused \
+        "https://download.db-ip.com/free/dbip-city-lite-${previous_month}.mmdb.gz" \
+        -o /tmp/geoip.mmdb.gz; \
+    fi \
  && gzip -dc /tmp/geoip.mmdb.gz > /out/geoip.mmdb \
  && rm -f /tmp/geoip.mmdb.gz
 

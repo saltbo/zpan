@@ -47,7 +47,7 @@ test.describe('Uploader responsive behavior', () => {
     expect(layout.overflowY).toBe('auto')
     expect(layout.scrollsVertically).toBe(true)
 
-    const firstFileName = page.getByText(files[0].name)
+    const firstFileName = taskList.getByText(files[0].name)
     await expect(firstFileName).toBeVisible()
     const fileNameLayout = await firstFileName.evaluate((el) => {
       const styles = window.getComputedStyle(el)
