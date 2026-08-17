@@ -1,6 +1,6 @@
 import type { CommercePayment, CommerceProduct, ProductPrice } from 'zpan-cloud-sdk'
 import type { DirType, ObjectStatus, StorageStatus, StorageStatusReason } from '../constants'
-import type { ActorAttribution } from '../schemas/actors'
+import type { ActorIdentity } from '../schemas/actors'
 import type {
   CloudOrder as ZPanCloudOrder,
   CloudOrderFulfillmentPayload as ZPanCloudOrderFulfillmentPayload,
@@ -21,7 +21,7 @@ export interface StorageObject {
   status: ObjectStatus
   // Soft-delete marker: null = live, epoch ms = in trash.
   trashedAt: number | null
-  createdBy?: ActorAttribution | null
+  createdBy?: ActorIdentity | null
   createdAt: string
   updatedAt: string
 }

@@ -13,12 +13,14 @@ import { currentTrafficPeriod } from '../domain/quota.js'
 import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
 import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../usecases/object.js'
 import type {
+  ActorIdentity,
   CopyMatterOptions,
   CreateMatterInput,
   Matter,
   MatterListFilters,
   UpdateMatterInput,
 } from '../usecases/ports.js'
+import { actorIdentityKey } from '../usecases/ports.js'
 import { createCapacityRequestHash } from './objects.js'
 
 type TestDbForMatter = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -150,14 +152,29 @@ async function insertFolder(
 async function insertFile(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
   orgId: string,
-  opts: { id: string; name: string; parent?: string; status?: string; size?: number; trashedAt?: number },
+  opts: {
+    id: string
+    name: string
+    parent?: string
+    status?: string
+    size?: number
+    trashedAt?: number
+    createdBy?: ActorIdentity
+  },
 ) {
   const now = Date.now()
   const status = opts.status ?? 'active'
   const size = opts.size ?? 100
   await db.run(sql`
-    INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at, created_at, updated_at)
-    VALUES (${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', ${size}, 0, ${opts.parent ?? ''}, 'some/key.txt', ${validStorage.id}, ${status}, ${opts.trashedAt ?? null}, ${now}, ${now})
+    INSERT INTO matters (
+      id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, trashed_at,
+      created_by_actor_type, created_by_actor_ref, created_by_actor_issuer, created_at, updated_at
+    )
+    VALUES (
+      ${opts.id}, ${orgId}, ${`${opts.id}-alias`}, ${opts.name}, 'text/plain', ${size}, 0,
+      ${opts.parent ?? ''}, 'some/key.txt', ${validStorage.id}, ${status}, ${opts.trashedAt ?? null},
+      ${opts.createdBy?.type ?? null}, ${opts.createdBy?.ref ?? null}, ${opts.createdBy?.issuer ?? null}, ${now}, ${now}
+    )
   `)
 }
 
@@ -221,6 +238,83 @@ describe('Objects API', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { items: unknown[]; nextPageToken: string | null }
     expect(body).toEqual({ items: [], nextPageToken: null })
+  })
+
+  it('GET /api/objects does not wait for external creator profiles [spec: objects/creator-attribution]', async () => {
+    const { app, db, deps } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const identity = { type: 'oauth', ref: 'agent-1', issuer: 'https://id.realmroot.dev/api/auth' } as const
+    await insertFile(db, orgId, { id: 'LazyCreatorFile', name: 'lazy.txt', createdBy: identity })
+    vi.spyOn(deps.auditActorDirectory, 'listTrustedAgentIssuerOrigins').mockResolvedValue(
+      new Set(['https://id.realmroot.dev']),
+    )
+    vi.spyOn(deps.agentInfo, 'resolve').mockImplementation(() => new Promise(() => {}))
+
+    const res = await Promise.race([
+      app.request('/api/objects?path=&pageSize=100', { headers }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('object_list_waited_for_creator')), 100)),
+    ])
+
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { items: Array<{ id: string; createdBy: unknown }> }
+    expect(body.items).toHaveLength(1)
+    expect(body.items[0]).toMatchObject({ id: 'LazyCreatorFile' })
+    expect(body.items[0]?.createdBy).toEqual(identity)
+    expect(deps.agentInfo.resolve).not.toHaveBeenCalled()
+  })
+
+  it('GET /api/objects/{id}/creator resolves the creator profile on demand', async () => {
+    const { app, db, deps } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const identity = { type: 'oauth', ref: 'agent-1', issuer: 'https://id.realmroot.dev/api/auth' } as const
+    await insertFile(db, orgId, { id: 'CreatorProfileFile', name: 'creator.txt', createdBy: identity })
+    vi.spyOn(deps.auditActorDirectory, 'listTrustedAgentIssuerOrigins').mockResolvedValue(
+      new Set(['https://id.realmroot.dev']),
+    )
+    vi.spyOn(deps.agentInfo, 'resolve').mockResolvedValue(
+      new Map([
+        [
+          actorIdentityKey(identity),
+          {
+            name: 'Jarvis',
+            image: 'https://id.realmroot.dev/agent-picture-v1.svg',
+            profileUrl: 'https://id.realmroot.dev/agents/agent-1',
+            resolved: true,
+          },
+        ],
+      ]),
+    )
+
+    const res = await app.request('/api/objects/CreatorProfileFile/creator', { headers })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({
+      ...identity,
+      name: 'Jarvis',
+      image: 'https://id.realmroot.dev/agent-picture-v1.svg',
+      profileUrl: 'https://id.realmroot.dev/agents/agent-1',
+    })
+  })
+
+  it('GET /api/objects/{id}/creator does not return a fallback profile', async () => {
+    const { app, db, deps } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const identity = { type: 'oauth', ref: 'missing-agent', issuer: 'https://id.realmroot.dev/api/auth' } as const
+    await insertFile(db, orgId, { id: 'MissingCreatorProfile', name: 'missing.txt', createdBy: identity })
+    vi.spyOn(deps.auditActorDirectory, 'listTrustedAgentIssuerOrigins').mockResolvedValue(
+      new Set(['https://id.realmroot.dev']),
+    )
+    vi.spyOn(deps.agentInfo, 'resolve').mockResolvedValue(new Map())
+
+    const res = await app.request('/api/objects/MissingCreatorProfile/creator', { headers })
+
+    expect(res.status).toBe(404)
   })
 
   it('GET /api/objects enforces the shared page-size limit', async () => {
@@ -2909,11 +3003,13 @@ describe('Objects API — error branches', () => {
     })
 
     expect(res.status).toBe(201)
-    await expect(res.json()).resolves.toMatchObject({
+    const body = (await res.json()) as { createdBy: unknown; name: string; parent: string }
+    expect(body).toMatchObject({
       name: '藏.mp3',
       parent: targetFolder,
-      createdBy: { type: 'device', resolved: true },
+      createdBy: { type: 'device' },
     })
+    expect(body.createdBy).not.toHaveProperty('resolved')
   })
 
   it('creates a folder with a workspace API key that has objects:create [spec: objects/creator-attribution]', async () => {
@@ -2930,11 +3026,13 @@ describe('Objects API — error branches', () => {
       body: JSON.stringify({ name: 'api-key-folder', type: 'folder', dirtype: 1, parent: '' }),
     })
     expect(res.status).toBe(201)
-    await expect(res.json()).resolves.toMatchObject({
+    const body = (await res.json()) as { createdBy: unknown; name: string; orgId: string }
+    expect(body).toMatchObject({
       name: 'api-key-folder',
       orgId,
-      createdBy: { type: 'api_key', name: 'API key · test-api-key', resolved: true },
+      createdBy: { type: 'api_key' },
     })
+    expect(body.createdBy).not.toHaveProperty('resolved')
   })
 
   it('returns null instead of attributing a legacy object to the workspace owner [spec: objects/legacy-creator]', async () => {
@@ -2948,6 +3046,9 @@ describe('Objects API — error branches', () => {
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({ id: 'legacy-creator-file', createdBy: null })
+
+    const creatorRes = await app.request('/api/objects/legacy-creator-file/creator', { headers })
+    expect(creatorRes.status).toBe(404)
   })
 
   it('returns 403 when an object API key is missing the route scope', async () => {

@@ -60,6 +60,7 @@ import {
   getLicensingStatus,
   getOAuthConsentContext,
   getObject,
+  getObjectCreator,
   getProfile,
   getSession,
   getShare,
@@ -273,6 +274,31 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
 
       await expect(getObject('missing')).rejects.toThrow('not found')
+    })
+  })
+
+  describe('getObjectCreator', () => {
+    it('fetches the object creator subresource', async () => {
+      const creator = {
+        type: 'agent' as const,
+        ref: 'agent-1',
+        issuer: 'https://id.realmroot.dev/api/auth',
+        name: 'Jarvis',
+        image: null,
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(creator))
+
+      await expect(getObjectCreator('id1')).resolves.toEqual(creator)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/objects/id1/creator')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws ApiError when the creator subresource fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(getObjectCreator('missing')).rejects.toThrow('not found')
     })
   })
 

@@ -1,11 +1,11 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
 import { useTranslation } from 'react-i18next'
-import { ActorIdentity } from '@/components/actor-identity'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { formatDate, formatSize } from '@/lib/format'
 import { FileIcon } from './file-icon'
+import { ObjectCreatorIdentity } from './object-creator'
 
 interface FileDetailsSheetProps {
   item: StorageObject | null
@@ -33,7 +33,7 @@ export function FileDetailsSheet({ item, onOpenChange }: FileDetailsSheetProps) 
         <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-4 gap-y-4 px-4 text-sm">
           <dt className="text-muted-foreground">{t('files.createdBy')}</dt>
           <dd className="min-w-0">
-            <ActorIdentity actor={item.createdBy} />
+            <ObjectCreatorIdentity item={item} />
           </dd>
           <dt className="text-muted-foreground">{t('files.createdAt')}</dt>
           <dd>{formatDate(item.createdAt)}</dd>

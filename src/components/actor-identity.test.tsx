@@ -7,7 +7,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => (key === 'actors.notRecorded' ? '-' : key) }),
 }))
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('ActorIdentity', () => {
   it('renders the resolved name and avatar', () => {
@@ -53,6 +56,39 @@ describe('ActorIdentity', () => {
 })
 
 describe('ActorAvatarHoverCard', () => {
+  it('uses the same fixed avatar box with an image or fallback', async () => {
+    class LoadedImage {
+      addEventListener(type: string, listener: EventListener) {
+        if (type === 'load') queueMicrotask(() => listener(new Event('load')))
+      }
+      removeEventListener() {}
+    }
+    vi.stubGlobal('Image', LoadedImage)
+    const actor: ActorAttribution = {
+      type: 'agent',
+      ref: 'agent-1',
+      issuer: 'https://realm.example.com',
+      name: 'Research Agent',
+      image: 'https://example.com/agent.png',
+      resolved: true,
+    }
+    const { rerender } = render(<ActorAvatarHoverCard actor={actor} />)
+
+    await waitFor(() => expect(document.querySelector('[data-slot="avatar-image"]')).toBeTruthy())
+    const image = document.querySelector('[data-slot="avatar-image"]')
+    const imageAvatar = document.querySelector('[data-slot="avatar"]')
+    expect(imageAvatar?.getAttribute('data-size')).toBe('default')
+    expect(image?.getAttribute('width')).toBe('32')
+    expect(image?.getAttribute('height')).toBe('32')
+    expect(image?.className).toContain('object-cover')
+
+    rerender(<ActorAvatarHoverCard actor={{ ...actor, image: null }} />)
+
+    const fallbackAvatar = document.querySelector('[data-slot="avatar"]')
+    expect(fallbackAvatar?.getAttribute('data-size')).toBe('default')
+    expect(fallbackAvatar?.className).toBe(imageAvatar?.className)
+  })
+
   it('keeps the file-list cell avatar-only and reveals the detailed identity card on hover', async () => {
     const actor: ActorAttribution = {
       type: 'oauth',

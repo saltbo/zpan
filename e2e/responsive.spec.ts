@@ -117,7 +117,11 @@ test.describe('File table responsive columns', () => {
   test('desktop: creator uses an avatar-only column with identity details on hover @desktop', async ({ page }) => {
     await signUpAndGoToFiles(page)
 
+    const creatorResponsePromise = page.waitForResponse(
+      (response) => response.url().endsWith('/creator') && response.request().method() === 'GET',
+    )
     await createFolder(page, 'test-folder')
+    expect((await creatorResponsePromise).ok()).toBe(true)
 
     await expect(page.getByRole('columnheader', { name: /size/i })).toBeVisible()
     await expect(page.getByRole('columnheader', { name: /modified/i })).toBeVisible()
@@ -127,21 +131,20 @@ test.describe('File table responsive columns', () => {
     const creatorCell = row.getByRole('cell').nth(4)
     const creatorTrigger = creatorCell.getByRole('button', { name: /created by:/i })
     await expect(creatorTrigger).toBeVisible()
-    const creatorLabel = await creatorTrigger.getAttribute('aria-label')
-    const creatorName = creatorLabel?.replace(/^Created by:\s*/i, '')
-    expect(creatorName).toBeTruthy()
-    await expect(creatorTrigger).not.toContainText(creatorName!)
-
+    const resolvedCreatorLabel = await creatorTrigger.getAttribute('aria-label')
+    const resolvedCreatorName = resolvedCreatorLabel?.replace(/^Created by:\s*/i, '')
+    expect(resolvedCreatorName).toBeTruthy()
+    await expect(creatorTrigger).not.toContainText(resolvedCreatorName!)
     await creatorTrigger.hover()
     const identityCard = page.locator('[data-slot="hover-card-content"]')
     await expect(identityCard).toBeVisible()
-    await expect(identityCard.getByText(creatorName!, { exact: true })).toBeVisible()
+    await expect(identityCard.getByText(resolvedCreatorName!, { exact: true })).toBeVisible()
     await expect(identityCard.getByText('User', { exact: true })).toBeVisible()
 
     await page.getByLabel('Grid view').click()
     const gridCard = page.getByRole('button', { name: /test-folder/ })
     await expect(gridCard).toBeVisible()
-    await expect(gridCard).not.toContainText(creatorName!)
+    await expect(gridCard).not.toContainText(resolvedCreatorName!)
 
     await page.getByLabel('List view').click()
 
@@ -149,7 +152,7 @@ test.describe('File table responsive columns', () => {
     await page.getByRole('menuitem', { name: /details/i }).click()
     const details = page.getByRole('dialog', { name: 'test-folder' })
     await expect(details.getByText(/created by/i)).toBeVisible()
-    await expect(details.getByTitle(creatorName!)).toBeVisible()
+    await expect(details.getByTitle(resolvedCreatorName!)).toBeVisible()
   })
 
   test('desktop: creator hover card truncates long identity metadata @desktop', async ({ page }) => {
@@ -169,18 +172,32 @@ test.describe('File table responsive columns', () => {
           type: 'agent',
           ref: 'agent-0123456789abcdef0123456789abcdef',
           issuer: actorIssuer,
-          name: actorName,
-          image: null,
-          profileUrl: 'https://identity.example.com/agents/agent-0123456789abcdef0123456789abcdef',
-          resolved: true,
         }
       }
       await route.fulfill({ response, json: body })
     })
+    await page.route('**/api/objects/*/creator', async (route) => {
+      await route.fulfill({
+        json: {
+          type: 'agent',
+          ref: 'agent-0123456789abcdef0123456789abcdef',
+          issuer: actorIssuer,
+          name: actorName,
+          image: null,
+          profileUrl: 'https://identity.example.com/agents/agent-0123456789abcdef0123456789abcdef',
+        },
+      })
+    })
+    const creatorResponsePromise = page.waitForResponse(
+      (response) => response.url().endsWith('/creator') && response.request().method() === 'GET',
+    )
     await page.reload()
+    expect((await creatorResponsePromise).ok()).toBe(true)
 
     const row = page.getByRole('row', { name: /long-actor-folder/ })
-    await row.getByRole('button', { name: `Created by: ${actorName}` }).hover()
+    const creator = row.locator('[data-slot="hover-card-trigger"]')
+    await expect(creator).toHaveAttribute('aria-label', `Created by: ${actorName}`)
+    await creator.hover()
     const card = page.locator('[data-slot="hover-card-content"]')
     await expect(card).toBeVisible()
     await expect(card.getByRole('link')).toHaveAttribute(

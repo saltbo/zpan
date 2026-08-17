@@ -1,7 +1,8 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
-  actorAttributionSchema,
+  actorIdentitySchema,
+  actorProfileSchema,
   completeObjectUploadSchema,
   copyObjectBodySchema,
   createMatterSchema,
@@ -26,11 +27,12 @@ import {
   copyObject,
   createObject,
   getObject,
+  getObjectCreator,
   listObjects,
+  matterCreatorIdentity,
   type ObjectActor,
   ObjectUploadSessionError,
   presignUploadSessionParts,
-  resolveMatterCreators,
   transferObject,
   trashObject,
   updateObject,
@@ -62,7 +64,7 @@ const matterSchema = z
     storageId: opaqueIdSchema,
     status: z.string(),
     trashedAt: z.number().int().nullable(),
-    createdBy: actorAttributionSchema.nullable(),
+    createdBy: actorIdentitySchema.nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -109,9 +111,8 @@ function toObjectListItemDTO(item: MatterListItem, createdBy: MatterDTO['created
   return { ...toMatterDTO(item, createdBy), hasChildren: item.hasChildren }
 }
 
-async function matterDTO(deps: Env['Variables']['deps'], matter: Matter): Promise<MatterDTO> {
-  const creators = await resolveMatterCreators(deps, [matter])
-  return toMatterDTO(matter, creators.get(matter.id) ?? null)
+function matterDTO(matter: Matter): MatterDTO {
+  return toMatterDTO(matter, matterCreatorIdentity(matter))
 }
 
 const objectPageSchema = cursorPageSchema(objectListItemSchema, 'ObjectPage')
@@ -358,6 +359,23 @@ const getObjectRoute = authRoute(
   },
 )
 
+const getObjectCreatorRoute = authRoute(
+  { scopes: [AuthorizationScope.OBJECTS_READ], minTeamRole: 'viewer' },
+  {
+    operationId: 'getObjectCreator',
+    summary: 'Get object creator',
+    tags: ['Objects'],
+    method: 'get',
+    path: '/{id}/creator',
+    request: { params: idParam },
+    responses: {
+      200: jsonContent(actorProfileSchema, 'Object creator profile'),
+      400: errorResponse('No active organization'),
+      404: errorResponse('Not found'),
+    },
+  },
+)
+
 const patchObjectRoute = authRoute(
   { scopes: [AuthorizationScope.OBJECTS_UPDATE], minTeamRole: 'editor' },
   {
@@ -472,10 +490,9 @@ const objects = app
       },
     })
     if (!result.ok) throw result.error
-    const creators = await resolveMatterCreators(c.get('deps'), result.result.items)
     return c.json(
       {
-        items: result.result.items.map((item) => toObjectListItemDTO(item, creators.get(item.id) ?? null)),
+        items: result.result.items.map((item) => toObjectListItemDTO(item, matterCreatorIdentity(item))),
         nextPageToken: await encodeNextPageToken(c.get('platform'), result.result.nextBoundary, {
           query: fingerprint,
           codec: directoryCursorCodec,
@@ -483,6 +500,16 @@ const objects = app
       },
       200,
     )
+  })
+  .openapi(getObjectCreatorRoute, async (c) => {
+    const orgId = c.get('orgId')
+    if (!orgId) throw badRequest('No active organization')
+    const result = await getObjectCreator(c.get('deps'), {
+      orgId,
+      objectId: c.req.valid('param').id,
+    })
+    if (!result.ok) throw result.error
+    return c.json(result.creator, 200)
   })
   .openapi(createObjectRoute, async (c) => {
     const orgId = c.get('orgId')
@@ -520,7 +547,7 @@ const objects = app
         402,
       )
     }
-    const matter = await matterDTO(c.get('deps'), result.matter)
+    const matter = matterDTO(result.matter)
     if ('upload' in result) return c.json({ ...matter, upload: result.upload }, 201)
     return c.json(matter, 201)
   })
@@ -560,7 +587,7 @@ const objects = app
       if ('error' in result) throw result.error // quota exceeded
       throw new ObjectUploadSessionError('not_found') // draft gone
     }
-    return c.json(await matterDTO(c.get('deps'), result.matter), 200)
+    return c.json(matterDTO(result.matter), 200)
   })
   .openapi(abortUploadRoute, async (c) => {
     const orgId = c.get('orgId')
@@ -603,9 +630,9 @@ const objects = app
           },
           result.receipt.trafficEventId,
         )
-        return c.json({ ...(await matterDTO(c.get('deps'), result.matter)), downloadUrl: result.downloadUrl }, 200)
+        return c.json({ ...matterDTO(result.matter), downloadUrl: result.downloadUrl }, 200)
       }
-      return c.json(await matterDTO(c.get('deps'), result.matter), 200)
+      return c.json(matterDTO(result.matter), 200)
     }
     throw result.error
   })
@@ -618,7 +645,7 @@ const objects = app
       input: c.req.valid('json'),
     })
     if (!result.ok) throw result.error
-    return c.json(await matterDTO(c.get('deps'), result.matter), 200)
+    return c.json(matterDTO(result.matter), 200)
   })
   // Soft delete: move a live object to trash. Permanent removal is
   // DELETE /trash/objects/{id}; discarding a draft is DELETE /{id}/uploads/{sid}.
@@ -644,7 +671,7 @@ const objects = app
       input: { copyFrom: c.req.valid('param').id, parent: body.parent, onConflict: body.onConflict },
     })
     if (!result.ok) throw result.error
-    return c.json(await matterDTO(c.get('deps'), result.matter), 201)
+    return c.json(matterDTO(result.matter), 201)
   })
   .openapi(transferObjectRoute, async (c) => {
     const orgId = c.get('orgId')
@@ -661,7 +688,7 @@ const objects = app
     if (!result.ok) throw result.error
     return c.json(
       {
-        saved: await Promise.all(result.result.saved.map((matter) => matterDTO(c.get('deps'), matter))),
+        saved: result.result.saved.map(matterDTO),
         skipped: result.result.skipped,
         sourceDeleted: result.result.sourceDeleted,
       },

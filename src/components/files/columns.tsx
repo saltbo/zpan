@@ -1,11 +1,11 @@
 import { DirType } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
 import type { ColumnDef, Row } from '@tanstack/react-table'
-import { ActorAvatarHoverCard } from '@/components/actor-identity'
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatDate, formatSize } from '@/lib/format'
 import { FileIcon } from './file-icon'
 import { FileRowActions } from './file-row-actions'
+import { ObjectCreatorAvatar } from './object-creator'
 import type { FileActionHandlers } from './types'
 
 function foldersFirstSort(rowA: Row<StorageObject>, rowB: Row<StorageObject>): number {
@@ -95,7 +95,7 @@ export function getColumns(
     {
       id: 'createdBy',
       header: t('files.colCreatedBy'),
-      cell: ({ row }) => <ActorAvatarHoverCard actor={row.original.createdBy} />,
+      cell: ({ row }) => <ObjectCreatorAvatar item={row.original} />,
       size: 64,
       meta: { className: 'hidden text-center lg:table-cell' },
       enableSorting: false,

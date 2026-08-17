@@ -1,6 +1,7 @@
 import { type ApiKeyMetadata, ApiKeyTemplate } from '@shared/api-key-templates'
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
+  ActorProfile,
   AllowedImageMime,
   AnnouncementInput,
   CloudCreditBalanceResponse,
@@ -307,6 +308,10 @@ export function listObjectsByPath(
 
 export function getObject(id: string) {
   return unwrap<StorageObject & { downloadUrl?: string }>(objects[':id'].$get({ param: { id } }))
+}
+
+export function getObjectCreator(id: string) {
+  return unwrap<ActorProfile>(objects[':id'].creator.$get({ param: { id } }))
 }
 
 // POST /api/objects returns a folder, or a file draft with `upload` instructions:

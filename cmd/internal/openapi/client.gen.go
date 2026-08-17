@@ -55,6 +55,78 @@ func (e ActorAttributionType) Valid() bool {
 	}
 }
 
+// Defines values for ActorIdentityType.
+const (
+	ActorIdentityTypeAgent      ActorIdentityType = "agent"
+	ActorIdentityTypeAnonymous  ActorIdentityType = "anonymous"
+	ActorIdentityTypeApiKey     ActorIdentityType = "api_key"
+	ActorIdentityTypeDevice     ActorIdentityType = "device"
+	ActorIdentityTypeOauth      ActorIdentityType = "oauth"
+	ActorIdentityTypeSystem     ActorIdentityType = "system"
+	ActorIdentityTypeTaskUpload ActorIdentityType = "task-upload"
+	ActorIdentityTypeUser       ActorIdentityType = "user"
+)
+
+// Valid indicates whether the value is a known member of the ActorIdentityType enum.
+func (e ActorIdentityType) Valid() bool {
+	switch e {
+	case ActorIdentityTypeAgent:
+		return true
+	case ActorIdentityTypeAnonymous:
+		return true
+	case ActorIdentityTypeApiKey:
+		return true
+	case ActorIdentityTypeDevice:
+		return true
+	case ActorIdentityTypeOauth:
+		return true
+	case ActorIdentityTypeSystem:
+		return true
+	case ActorIdentityTypeTaskUpload:
+		return true
+	case ActorIdentityTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ActorProfileType.
+const (
+	ActorProfileTypeAgent      ActorProfileType = "agent"
+	ActorProfileTypeAnonymous  ActorProfileType = "anonymous"
+	ActorProfileTypeApiKey     ActorProfileType = "api_key"
+	ActorProfileTypeDevice     ActorProfileType = "device"
+	ActorProfileTypeOauth      ActorProfileType = "oauth"
+	ActorProfileTypeSystem     ActorProfileType = "system"
+	ActorProfileTypeTaskUpload ActorProfileType = "task-upload"
+	ActorProfileTypeUser       ActorProfileType = "user"
+)
+
+// Valid indicates whether the value is a known member of the ActorProfileType enum.
+func (e ActorProfileType) Valid() bool {
+	switch e {
+	case ActorProfileTypeAgent:
+		return true
+	case ActorProfileTypeAnonymous:
+		return true
+	case ActorProfileTypeApiKey:
+		return true
+	case ActorProfileTypeDevice:
+		return true
+	case ActorProfileTypeOauth:
+		return true
+	case ActorProfileTypeSystem:
+		return true
+	case ActorProfileTypeTaskUpload:
+		return true
+	case ActorProfileTypeUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminAnalyticsGrowthComparisonCoverageQuality.
 const (
 	AdminAnalyticsGrowthComparisonCoverageQualityExact      AdminAnalyticsGrowthComparisonCoverageQuality = "exact"
@@ -4121,6 +4193,29 @@ type ActorAttribution struct {
 // ActorAttributionType defines model for ActorAttribution.Type.
 type ActorAttributionType string
 
+// ActorIdentity defines model for ActorIdentity.
+type ActorIdentity struct {
+	Issuer *string           `json:"issuer"`
+	Ref    *string           `json:"ref"`
+	Type   ActorIdentityType `json:"type"`
+}
+
+// ActorIdentityType defines model for ActorIdentity.Type.
+type ActorIdentityType string
+
+// ActorProfile defines model for ActorProfile.
+type ActorProfile struct {
+	Image      *string          `json:"image"`
+	Issuer     *string          `json:"issuer"`
+	Name       string           `json:"name"`
+	ProfileUrl *string          `json:"profileUrl,omitempty"`
+	Ref        *string          `json:"ref"`
+	Type       ActorProfileType `json:"type"`
+}
+
+// ActorProfileType defines model for ActorProfile.Type.
+type ActorProfileType string
+
 // AdminAnalyticsGrowth defines model for AdminAnalyticsGrowth.
 type AdminAnalyticsGrowth struct {
 	ActiveUserTrend []struct {
@@ -5815,14 +5910,14 @@ type ManualImageDomainSettingsProvider string
 
 // Matter defines model for Matter.
 type Matter struct {
-	Alias     string            `json:"alias"`
-	CreatedAt string            `json:"createdAt"`
-	CreatedBy *ActorAttribution `json:"createdBy"`
-	Dirtype   *int              `json:"dirtype"`
-	Id        string            `json:"id"`
-	Name      string            `json:"name"`
-	Object    string            `json:"object"`
-	OrgId     string            `json:"orgId"`
+	Alias     string         `json:"alias"`
+	CreatedAt string         `json:"createdAt"`
+	CreatedBy *ActorIdentity `json:"createdBy"`
+	Dirtype   *int           `json:"dirtype"`
+	Id        string         `json:"id"`
+	Name      string         `json:"name"`
+	Object    string         `json:"object"`
+	OrgId     string         `json:"orgId"`
 
 	// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 	Parent    string `json:"parent"`
@@ -5856,10 +5951,10 @@ type NotificationPage struct {
 
 // ObjectListItem defines model for ObjectListItem.
 type ObjectListItem struct {
-	Alias     string            `json:"alias"`
-	CreatedAt string            `json:"createdAt"`
-	CreatedBy *ActorAttribution `json:"createdBy"`
-	Dirtype   *int              `json:"dirtype"`
+	Alias     string         `json:"alias"`
+	CreatedAt string         `json:"createdAt"`
+	CreatedBy *ActorIdentity `json:"createdBy"`
+	Dirtype   *int           `json:"dirtype"`
 
 	// HasChildren Whether this folder contains at least one child folder.
 	HasChildren bool   `json:"hasChildren"`
@@ -11048,6 +11143,9 @@ type ClientInterface interface {
 
 	CopyObject(ctx context.Context, id string, body CopyObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetObjectCreator request
+	GetObjectCreator(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// TransferObjectWithBody request with any body
 	TransferObjectWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -12309,6 +12407,18 @@ func (c *Client) CopyObjectWithBody(ctx context.Context, id string, contentType 
 
 func (c *Client) CopyObject(ctx context.Context, id string, body CopyObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCopyObjectRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetObjectCreator(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetObjectCreatorRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -16399,6 +16509,40 @@ func NewCopyObjectRequestWithBody(server string, id string, contentType string, 
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetObjectCreatorRequest generates requests for GetObjectCreator
+func NewGetObjectCreatorRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s/creator", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -21441,6 +21585,9 @@ type ClientWithResponsesInterface interface {
 
 	CopyObjectWithResponse(ctx context.Context, id string, body CopyObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*CopyObjectResponse, error)
 
+	// GetObjectCreatorWithResponse request
+	GetObjectCreatorWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetObjectCreatorResponse, error)
+
 	// TransferObjectWithBodyWithResponse request with any body
 	TransferObjectWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TransferObjectResponse, error)
 
@@ -23440,14 +23587,14 @@ type CreateObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *struct {
-		Alias     string            `json:"alias"`
-		CreatedAt string            `json:"createdAt"`
-		CreatedBy *ActorAttribution `json:"createdBy"`
-		Dirtype   *int              `json:"dirtype"`
-		Id        string            `json:"id"`
-		Name      string            `json:"name"`
-		Object    string            `json:"object"`
-		OrgId     string            `json:"orgId"`
+		Alias     string         `json:"alias"`
+		CreatedAt string         `json:"createdAt"`
+		CreatedBy *ActorIdentity `json:"createdBy"`
+		Dirtype   *int           `json:"dirtype"`
+		Id        string         `json:"id"`
+		Name      string         `json:"name"`
+		Object    string         `json:"object"`
+		OrgId     string         `json:"orgId"`
 
 		// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 		Parent    string `json:"parent"`
@@ -23572,15 +23719,15 @@ type GetObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Alias       string            `json:"alias"`
-		CreatedAt   string            `json:"createdAt"`
-		CreatedBy   *ActorAttribution `json:"createdBy"`
-		Dirtype     *int              `json:"dirtype"`
-		DownloadUrl *string           `json:"downloadUrl,omitempty"`
-		Id          string            `json:"id"`
-		Name        string            `json:"name"`
-		Object      string            `json:"object"`
-		OrgId       string            `json:"orgId"`
+		Alias       string         `json:"alias"`
+		CreatedAt   string         `json:"createdAt"`
+		CreatedBy   *ActorIdentity `json:"createdBy"`
+		Dirtype     *int           `json:"dirtype"`
+		DownloadUrl *string        `json:"downloadUrl,omitempty"`
+		Id          string         `json:"id"`
+		Name        string         `json:"name"`
+		Object      string         `json:"object"`
+		OrgId       string         `json:"orgId"`
 
 		// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 		Parent    string `json:"parent"`
@@ -23679,6 +23826,38 @@ func (r CopyObjectResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CopyObjectResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetObjectCreatorResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ActorProfile
+	JSON400      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetObjectCreatorResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetObjectCreatorResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetObjectCreatorResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -27862,6 +28041,15 @@ func (c *ClientWithResponses) CopyObjectWithResponse(ctx context.Context, id str
 	return ParseCopyObjectResponse(rsp)
 }
 
+// GetObjectCreatorWithResponse request returning *GetObjectCreatorResponse
+func (c *ClientWithResponses) GetObjectCreatorWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetObjectCreatorResponse, error) {
+	rsp, err := c.GetObjectCreator(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetObjectCreatorResponse(rsp)
+}
+
 // TransferObjectWithBodyWithResponse request with arbitrary body returning *TransferObjectResponse
 func (c *ClientWithResponses) TransferObjectWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TransferObjectResponse, error) {
 	rsp, err := c.TransferObjectWithBody(ctx, id, contentType, body, reqEditors...)
@@ -31091,14 +31279,14 @@ func ParseCreateObjectResponse(rsp *http.Response) (*CreateObjectResponse, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest struct {
-			Alias     string            `json:"alias"`
-			CreatedAt string            `json:"createdAt"`
-			CreatedBy *ActorAttribution `json:"createdBy"`
-			Dirtype   *int              `json:"dirtype"`
-			Id        string            `json:"id"`
-			Name      string            `json:"name"`
-			Object    string            `json:"object"`
-			OrgId     string            `json:"orgId"`
+			Alias     string         `json:"alias"`
+			CreatedAt string         `json:"createdAt"`
+			CreatedBy *ActorIdentity `json:"createdBy"`
+			Dirtype   *int           `json:"dirtype"`
+			Id        string         `json:"id"`
+			Name      string         `json:"name"`
+			Object    string         `json:"object"`
+			OrgId     string         `json:"orgId"`
 
 			// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 			Parent    string `json:"parent"`
@@ -31257,15 +31445,15 @@ func ParseGetObjectResponse(rsp *http.Response) (*GetObjectResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Alias       string            `json:"alias"`
-			CreatedAt   string            `json:"createdAt"`
-			CreatedBy   *ActorAttribution `json:"createdBy"`
-			Dirtype     *int              `json:"dirtype"`
-			DownloadUrl *string           `json:"downloadUrl,omitempty"`
-			Id          string            `json:"id"`
-			Name        string            `json:"name"`
-			Object      string            `json:"object"`
-			OrgId       string            `json:"orgId"`
+			Alias       string         `json:"alias"`
+			CreatedAt   string         `json:"createdAt"`
+			CreatedBy   *ActorIdentity `json:"createdBy"`
+			Dirtype     *int           `json:"dirtype"`
+			DownloadUrl *string        `json:"downloadUrl,omitempty"`
+			Id          string         `json:"id"`
+			Name        string         `json:"name"`
+			Object      string         `json:"object"`
+			OrgId       string         `json:"orgId"`
 
 			// Parent Slash-delimited parent folder path relative to the workspace root; empty for root objects.
 			Parent    string `json:"parent"`
@@ -31374,6 +31562,46 @@ func ParseCopyObjectResponse(rsp *http.Response) (*CopyObjectResponse, error) {
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetObjectCreatorResponse parses an HTTP response from a GetObjectCreatorWithResponse call
+func ParseGetObjectCreatorResponse(rsp *http.Response) (*GetObjectCreatorResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetObjectCreatorResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ActorProfile
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error

@@ -12,7 +12,7 @@
 
 import { DirType } from '@shared/constants'
 import type {
-  ActorAttribution,
+  ActorProfile,
   CompleteObjectUploadInput,
   ConflictStrategy,
   CreateMatterInput,
@@ -22,7 +22,7 @@ import type {
 } from '@shared/schemas'
 import type { ObjectUploadInstructions } from '@shared/types'
 import { buildObjectKey, fileExt } from '../lib/path-template'
-import { resolveActorAttributions } from './audit-actors'
+import { resolveActorProfiles } from './audit-actors'
 import type { Deps } from './deps'
 import { assertFolderNotUsedByDownload, ensureDownloadFolderPath } from './downloads/download-folders'
 import { assertTaskUploadAllowed } from './downloads/downloads'
@@ -259,34 +259,37 @@ export async function createObject(
   return { ok: true, matter, upload }
 }
 
-export async function resolveMatterCreators(
-  deps: Pick<Deps, 'auditActorDirectory' | 'agentInfo'>,
-  matters: readonly Matter[],
-): Promise<ReadonlyMap<string, ActorAttribution>> {
-  const identities = matters.flatMap((matter) =>
-    matter.createdByActorType && matter.createdByActorRef
-      ? [
-          {
-            type: matter.createdByActorType as ActorIdentity['type'],
-            ref: matter.createdByActorRef,
-            issuer: matter.createdByActorIssuer ?? null,
-          } satisfies ActorIdentity,
-        ]
-      : [],
-  )
-  const actors = await resolveActorAttributions(deps, identities)
-  return new Map(
-    matters.flatMap((matter) => {
-      if (!matter.createdByActorType || !matter.createdByActorRef) return []
-      const identity = {
-        type: matter.createdByActorType as ActorIdentity['type'],
-        ref: matter.createdByActorRef,
-        issuer: matter.createdByActorIssuer ?? null,
-      }
-      const actor = actors.get(actorIdentityKey(identity))
-      return actor ? [[matter.id, actor] as const] : []
-    }),
-  )
+export function matterCreatorIdentity(matter: Matter): ActorIdentity | null {
+  if (!matter.createdByActorType || !matter.createdByActorRef) return null
+  return {
+    type: matter.createdByActorType as ActorIdentity['type'],
+    ref: matter.createdByActorRef,
+    issuer: matter.createdByActorIssuer ?? null,
+  }
+}
+
+export type GetObjectCreatorOutcome = { ok: true; creator: ActorProfile } | { ok: false; error: AppError }
+
+export async function getObjectCreator(
+  deps: Pick<Deps, 'matter' | 'auditActorDirectory' | 'agentInfo'>,
+  params: { orgId: string; objectId: string },
+): Promise<GetObjectCreatorOutcome> {
+  const matter = await deps.matter.get(params.objectId, params.orgId)
+  if (!matter || matter.trashedAt != null) return { ok: false, error: notFound() }
+  const identity = matterCreatorIdentity(matter)
+  if (!identity) return { ok: false, error: notFound() }
+  const profiles = await resolveActorProfiles(deps, [identity])
+  const profile = profiles.get(actorIdentityKey(identity))
+  if (!profile) return { ok: false, error: notFound() }
+  return {
+    ok: true,
+    creator: {
+      ...identity,
+      name: profile.name,
+      image: profile.image,
+      ...(profile.profileUrl !== undefined ? { profileUrl: profile.profileUrl } : {}),
+    },
+  }
 }
 
 // Decides the S3 mechanism, presigns every URL up front, and records the upload
