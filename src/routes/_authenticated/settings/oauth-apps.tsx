@@ -190,18 +190,18 @@ export function OAuthGrants() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t('settings.oauthApps.oauthClient')}</TableHead>
-                <TableHead>{t('settings.oauthApps.colWorkspace')}</TableHead>
+                <TableHead className="hidden md:table-cell">{t('settings.oauthApps.colWorkspace')}</TableHead>
                 <TableHead>{t('settings.oauthApps.colScopes')}</TableHead>
                 <TableHead className="hidden lg:table-cell">{t('settings.oauthApps.colCreated')}</TableHead>
                 <TableHead className="hidden xl:table-cell">{t('settings.oauthApps.colLastUsed')}</TableHead>
-                <TableHead className="w-28 text-right">{t('settings.oauthApps.colActions')}</TableHead>
+                <TableHead className="w-10 text-right sm:w-28">{t('settings.oauthApps.colActions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {grants.map((grant) => (
                 <TableRow key={grant.id}>
-                  <TableCell className="font-medium">{grant.clientName}</TableCell>
-                  <TableCell>{workspaceNames(grant)}</TableCell>
+                  <TableCell className="max-w-44 truncate font-medium sm:max-w-none">{grant.clientName}</TableCell>
+                  <TableCell className="hidden md:table-cell">{workspaceNames(grant)}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">
                       {t('settings.oauthApps.permissionCount', { count: grant.scopes.length })}
@@ -212,9 +212,15 @@ export function OAuthGrants() {
                     {formatDate(grant.lastUsedAt) ?? t('settings.oauthApps.never')}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setSelectedGrant(grant)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="size-8 px-0 sm:w-auto sm:px-3"
+                      onClick={() => setSelectedGrant(grant)}
+                    >
                       <PanelRightOpen className="size-4" aria-hidden="true" />
-                      {t('settings.oauthApps.viewDetails')}
+                      <span className="sr-only sm:not-sr-only">{t('settings.oauthApps.viewDetails')}</span>
                     </Button>
                   </TableCell>
                 </TableRow>
