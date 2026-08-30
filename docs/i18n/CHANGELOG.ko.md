@@ -1,3 +1,51 @@
+## v2.9.0 — 2026-08-30 · 외부 OAuth 앱 및 Agent 접근
+
+### 새로운 기능
+- **외부 OAuth 애플리케이션** — ZPan은 보호 리소스 및 권한 부여 서버 메타데이터, 동적 클라이언트 등록, PKCE, Rich Authorization Requests, 워크스페이스 인식 동의, DPoP 바인딩 액세스 토큰, 토큰 교환, JWT 폐기를 제공하는 검색 가능한 OAuth 2.1 리소스가 되었습니다.
+- **애플리케이션 및 Grant 관리** — 관리자는 인스턴스에 동적으로 등록된 모든 앱을 확인할 수 있습니다. 사용자는 앱 이름과 클라이언트 ID, 전체 scope 상세 정보, 실제 마지막 사용 시간을 확인하고 워크스페이스별 Grant를 폐기할 수 있습니다.
+- **자기 설명형 Agent API** — 표준 OpenAPI 문서가 OAuth scope와 안정적인 operation ID를 공개하고, Arazzo가 업로드 수명 주기를 설명합니다. 객체 생성 응답은 범용 컨트롤러에 단일 및 multipart upload의 권위 있는 지침을 제공합니다.
+- **Realmroot 통합** — Agent Skills Discovery가 digest로 고정된 선택적 `use-zpan` Skill, 워크스페이스 Context, 최소 권한 위임 접근을 게시합니다. Agent가 만든 파일과 다운로드에는 사용자 표시 및 감사용 행위자 ID가 보존됩니다.
+- **통합 권한 부여** — 브라우저 세션, API 키, 다운로더, 위임 OAuth 주체는 동일한 scope, 워크스페이스, 역할 및 리소스 상태 정책을 거칩니다. OAuth는 일반 관리자 제약을 우회하지 않습니다.
+- **Agent 용량 구매** — 위임 업로드는 컨트롤러가 승인한 x402 용량 구매와 지속적이고 테넌트 범위의 멱등성을 통해 부족한 할당량에서 복구할 수 있습니다.
+- **사용자 지정 이미지 도메인** — 사용자 지정 도메인 공급자를 구성하고 검증하며 Cloudflare hostname 설정을 자동화하고 Workers 및 Node 배포에서 올바른 공개 이미지 링크를 제공합니다.
+
+### 개선 및 수정
+- 잘못된 DPoP proof에 명시적 challenge와 서버 진단을 추가하고, 로그인 중 OAuth 연속성, 공식 Worker preview origin 신뢰, 등록 클라이언트 scope 동기화, 다중 워크스페이스 동의 처리를 수정했습니다.
+- OAuth Grant 활동은 제한된 DB 쓰기로 실제 인증 요청에서 갱신됩니다. 폐기된 Grant는 아직 유효한 토큰도 즉시 무효화합니다.
+- Cloudflare Workers의 S3 복사 요청에서 서명된 `x-amz-copy-source` 헤더를 보존하고 아카이브 처리, 앱 목록, 동의 표시의 릴리스 회귀를 수정했습니다.
+- 행위자 인식 감사 표시와 주문형 생성자 프로필을 추가하고, 파일 및 프로필 화면의 긴 메타데이터를 제한하며 파일 작업 메뉴를 통합했습니다.
+- WebDAV, 파일 탐색, 다운로드, 인증 hot path의 DB 왕복을 줄이고 계층형 캐시를 추가했습니다. 목록은 안정적인 커서 페이지네이션과 실시간 업데이트를 사용합니다.
+- Worker 캐시 초기화, 다운로더 bootstrap credential, 용량 구매 복구, API 키 영속성, CI 격리, Docker 검사, TypeScript 7 도구 체인을 강화했습니다.
+
+> **호환성 참고:** 새로운 영구 식별자는 불투명한 Base62 값입니다. API 클라이언트는 ID를 해석해서는 안 되며 기존 배포는 기록 데이터 통일이 필요할 때 선택적 정규화를 실행할 수 있습니다. 리소스 API는 표준 REST 경로와 구조화된 오류를 사용합니다. 최종 OAuth 계약에서는 고정 ZPan 클라이언트, Restish profile/plugin, credential helper, 비표준 authorization-constraints 확장을 의도적으로 제거했습니다.
+
+[전체 릴리스 노트 ↗](https://github.com/saltbo/zpan/releases/tag/v2.9.0)
+
+## v2.8.3 — 2026-08-30
+
+### 수정
+- 워크스페이스 백그라운드 작업 제어를 편집자와 관리자로 제한했습니다.
+- 다운로더 credential 권한 부여를 중앙화하고 Docker GeoIP 데이터베이스 소스를 갱신했습니다.
+- 릴리스 보안 권고를 해결하도록 의존성을 갱신했습니다.
+
+[전체 릴리스 노트 ↗](https://github.com/saltbo/zpan/releases/tag/v2.8.3)
+
+## v2.8.2 — 2026-08-03
+
+### 보안
+- 아웃바운드 요청 SSRF 보호를 우회할 수 있는 IPv6 전환 주소 변형을 차단했습니다.
+- 알림 이메일의 사용자 제어 콘텐츠를 이스케이프했습니다.
+- 릴리스 의존성을 갱신하고 강화된 인증 스택에서 OpenAPI 클라이언트를 다시 생성했습니다.
+
+[전체 릴리스 노트 ↗](https://github.com/saltbo/zpan/releases/tag/v2.8.2)
+
+## v2.8.1 — 2026-07-24
+
+### 성능
+- 데이터베이스 기반 요청 흐름에서 D1 쓰기 증폭을 줄였습니다.
+
+[전체 릴리스 노트 ↗](https://github.com/saltbo/zpan/releases/tag/v2.8.1)
+
 ## v2.8.0 — 2026-07-24 · 관리자 분석 및 운영
 
 ### 기능
