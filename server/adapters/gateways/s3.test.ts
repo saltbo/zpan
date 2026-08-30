@@ -1,3 +1,4 @@
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type { Storage } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { S3StorageCredentials } from '../../usecases/ports'
@@ -435,7 +436,24 @@ describe('S3Service', () => {
       )
       const dst = makeStorage({ bucket: 'dst-bucket' })
       await service.copyObject(storage, 'src.jpg', dst, 'dst.jpg')
-      expect(fetch).toHaveBeenCalledWith('https://signed-url.example.com', { method: 'PUT' })
+      expect(getSignedUrl).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          input: {
+            CopySource: 'my-bucket/src.jpg',
+            Bucket: 'dst-bucket',
+            Key: 'dst.jpg',
+          },
+        }),
+        {
+          expiresIn: 3600,
+          unhoistableHeaders: new Set(['x-amz-copy-source']),
+        },
+      )
+      expect(fetch).toHaveBeenCalledWith('https://signed-url.example.com', {
+        method: 'PUT',
+        headers: { 'x-amz-copy-source': 'my-bucket/src.jpg' },
+      })
       expect(mockSend).not.toHaveBeenCalled()
     })
 
@@ -446,6 +464,12 @@ describe('S3Service', () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response))
 
       await expect(service.copyObject(storage, 'src.jpg', storage, 'dst.jpg')).rejects.toThrow('S3 object copy failed')
+    })
+
+    it('rejects an empty 200 response instead of accepting a plain zero-byte PUT', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response('', { status: 200 })))
+
+      await expect(service.copyObject(storage, 'src.jpg', storage, 'dst.jpg')).rejects.toThrow('missing ETag')
     })
   })
 

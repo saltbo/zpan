@@ -221,19 +221,29 @@ export class S3Service implements S3Gateway {
     dstKey: string,
   ): Promise<void> {
     const client = this.createClient(dstStorage)
+    const copySource = `${srcStorage.bucket}/${srcKey}`
     const url = await getSignedUrl(
       client,
       new CopyObjectCommand({
-        CopySource: `${srcStorage.bucket}/${srcKey}`,
+        CopySource: copySource,
         Bucket: dstStorage.bucket,
         Key: dstKey,
       }),
-      { expiresIn: DEFAULT_EXPIRES_IN },
+      {
+        expiresIn: DEFAULT_EXPIRES_IN,
+        unhoistableHeaders: new Set(['x-amz-copy-source']),
+      },
     )
-    const response = await fetch(url, { method: 'PUT' })
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: { 'x-amz-copy-source': copySource },
+    })
     const body = await response.text()
     if (!response.ok || xmlTag(body, 'Error') !== null || xmlTag(body, 'Code') !== null) {
       throw new Error(`S3 object copy failed: ${response.status}: ${body.trim()}`)
+    }
+    if (xmlTag(body, 'ETag') === null) {
+      throw new Error(`S3 object copy failed: ${response.status}: missing ETag`)
     }
   }
 
