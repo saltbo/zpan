@@ -895,20 +895,24 @@ describe('site stats routes', () => {
     const { app, db } = await createTestApp()
     const headers = await adminHeaders(app)
     await seedProLicense(db)
-    const { orgId, userId } = await seedStatsFixture(db)
+    const { orgId, userId, bucketStart } = await seedStatsFixture(db)
+    const currentBucketStart = new Date(bucketStart.getTime() - 30 * 24 * 3_600_000)
+    const currentEventSec = Math.floor(currentBucketStart.getTime() / 1000)
+    const previousBucketStart = new Date(currentBucketStart.getTime() - 3_600_000)
+    const previousEventSec = Math.floor(previousBucketStart.getTime() / 1000)
     await db.run(sql`
       INSERT INTO audit_events
         (id, org_id, user_id, actor_type, action, target_type, target_name, metadata, created_at)
       VALUES
         ('missing-current-upload-bytes', ${orgId}, ${userId}, 'user', 'upload_confirm', 'file', 'current.bin', '{}',
-          ${Math.floor(Date.parse('2026-07-01T12:00:00.000Z') / 1000)}),
+          ${currentEventSec}),
         ('missing-previous-download-bytes', ${orgId}, ${userId}, 'user', 'share_download', 'share', 'previous.bin', '{}',
-          ${Math.floor(Date.parse('2026-06-30T12:00:00.000Z') / 1000)})
+          ${previousEventSec})
     `)
-    await rebuildAdminStatsHour(db, new Date('2026-07-01T12:00:00.000Z'), new Date())
-    await rebuildAdminStatsHour(db, new Date('2026-06-30T12:00:00.000Z'), new Date())
+    await rebuildAdminStatsHour(db, currentBucketStart, new Date())
+    await rebuildAdminStatsHour(db, previousBucketStart, new Date())
 
-    const query = 'from=2026-07-01T12%3A00%3A00.000Z&to=2026-07-01T12%3A59%3A59.999Z&timeZone=UTC'
+    const query = exactHourQuery(currentBucketStart)
     const [res, trafficRes, storageRes] = await Promise.all([
       app.request(`/api/site/analytics/overview?${query}`, { headers }),
       app.request(`/api/site/analytics/traffic?${query}`, { headers }),
