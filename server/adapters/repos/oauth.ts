@@ -1,6 +1,6 @@
 import { type AuthorizationScope, isAuthorizationScope } from '@shared/authorization'
 import { parseWorkspaceAuthorizationDetails } from '@shared/schemas'
-import { and, eq, gt, inArray, isNull } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lt, or } from 'drizzle-orm'
 import { decodeJwt } from 'jose'
 import {
   oauthAccessToken,
@@ -11,6 +11,8 @@ import {
 } from '../../db/auth-schema'
 import { executeWriteTransaction } from '../../db/transaction'
 import type { OAuthClient, OAuthGateway } from '../../usecases/ports'
+
+const GRANT_USAGE_WRITE_INTERVAL_MS = 5 * 60 * 1000
 
 export function createOAuthGateway(): OAuthGateway {
   return {
@@ -113,6 +115,32 @@ export function createOAuthGateway(): OAuthGateway {
         .where(and(eq(oauthJwtRevocation.id, tokenId), gt(oauthJwtRevocation.expiresAt, new Date())))
         .limit(1)
       return Boolean(row)
+    },
+
+    async recordGrantUsage(db, input) {
+      const grants = await db
+        .select({
+          id: oauthConsent.id,
+          authorizationDetails: oauthConsent.authorizationDetails,
+        })
+        .from(oauthConsent)
+        .where(and(eq(oauthConsent.clientId, input.clientId), eq(oauthConsent.userId, input.userId)))
+      const grantIds = grants
+        .filter((grant) => workspaceIdsFromAuthorizationDetails(grant.authorizationDetails).includes(input.workspaceId))
+        .map((grant) => grant.id)
+      if (grantIds.length === 0) return false
+
+      const staleBefore = new Date(input.now.getTime() - GRANT_USAGE_WRITE_INTERVAL_MS)
+      await db
+        .update(oauthConsent)
+        .set({ lastUsedAt: input.now })
+        .where(
+          and(
+            inArray(oauthConsent.id, grantIds),
+            or(isNull(oauthConsent.lastUsedAt), lt(oauthConsent.lastUsedAt, staleBefore)),
+          ),
+        )
+      return true
     },
 
     async listGrants(db, userId) {
