@@ -37,7 +37,7 @@ Each version ships 1–2 major features. Ship small, ship often.
 | [v2.6](docs/roadmap/v2.6.md) | **Pro / Business Launch** | Cloud binding, entitlement system, white-label, audit log, quota store machinery, site announcements, retroactive gates |
 | [v2.7](docs/roadmap/v2.7.md) | **WebDAV & File Processing** | WebDAV protocol access, small-file zip compression/extraction, and Community remote-download orchestration through Aria2, qBittorrent, and future adapters |
 | [v2.8](docs/roadmap/v2.8.md) | **Admin Analytics & Dashboard** | Admin overview, usage/cost/reliability metrics, share analytics, and offline result coverage |
-| [v2.9](docs/roadmap/v2.9.md) | **External OAuth Access** | Self-describing OpenAPI and upload workflows, delegated OAuth, DPoP, and protocol-neutral authorization |
+| [v2.9](docs/roadmap/v2.9.md) | **External OAuth Access** · Released | Self-describing OpenAPI and upload workflows, delegated OAuth, DPoP, and protocol-neutral authorization |
 | [v2.10](docs/roadmap/v2.10.md) | **Desktop Sync Foundation** | Sync device model, change log, sync API contract, conflict model, and protocol tests for external clients |
 | Future | **Native Client Projects** | macOS File Provider, Windows/Linux sync clients, Flutter/mobile clients, and other OS-specific apps in separate repositories |
 | Future | **Enterprise Identity & Governance** | SAML, LDAP / SCIM, advanced RBAC/custom roles, retention, and admin support mode if demand proves real |
