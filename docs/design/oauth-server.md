@@ -55,17 +55,17 @@ creates a new registration generation and leaves existing connections pinned to
 their original client identity until they are reconnected.
 
 OpenAPI uses standard `security` declarations. Every protected ZPan operation
-declares its OAuth scopes, plus cookie and bearer alternatives. Role constraints
-that OpenAPI cannot express use the narrow
-`x-zpan-authorization-constraints` extension. Better Auth operations and their
-complete generated definitions remain owned by Better Auth and available from
-its reference endpoints. The public product contract uses a deny-by-default
-operation registry. Each admitted entry names the exact source path and method,
-public path, stable operation ID, tags, and security policy; it may also declare
-a narrow contract correction. The aggregator copies only path-item parameters
-and the transitive local component closure reachable from that operation,
-rejecting missing sources, collisions, dangling references, and external
-references.
+declares its OAuth scopes, plus cookie and bearer alternatives. Workspace and
+site-role constraints remain server-enforced resource policy; they are not
+published through a ZPan-specific schema that generic controllers do not
+consume. Better Auth operations and their complete generated definitions remain
+owned by Better Auth and available from its reference endpoints. The public
+product contract uses a deny-by-default operation registry. Each admitted entry
+names the exact source path and method, public path, stable operation ID, tags,
+and security policy; it may also declare a narrow contract correction. The
+aggregator copies only path-item parameters and the transitive local component
+closure reachable from that operation, rejecting missing sources, collisions,
+dangling references, and external references.
 
 The registry currently imports only `POST /device/code` and `POST
 /device/token`, under their `/api/auth` runtime mount, for the Downloader Device
