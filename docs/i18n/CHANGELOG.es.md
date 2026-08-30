@@ -1,3 +1,51 @@
+## v2.9.0 — 2026-08-30 · Aplicaciones OAuth externas y acceso de Agents
+
+### Funcionalidades
+- **Aplicaciones OAuth externas** — ZPan ahora es un recurso OAuth 2.1 detectable, con metadatos del recurso protegido y del servidor de autorización, registro dinámico de clientes, PKCE, Rich Authorization Requests, consentimiento por espacio de trabajo, tokens de acceso vinculados a DPoP, intercambio de tokens y revocación de JWT.
+- **Gestión de aplicaciones y permisos** — los administradores pueden inspeccionar todas las aplicaciones registradas dinámicamente en una instancia. Los usuarios pueden consultar nombres y Client IDs, ver todos los scopes y la última utilización real, y revocar permisos individuales de cada espacio de trabajo.
+- **API autodescriptiva para Agents** — el documento OpenAPI canónico publica scopes OAuth y operation IDs estables; Arazzo describe el ciclo de subida y las respuestas de creación proporcionan instrucciones autoritativas para cargas simples y multipart a controladores genéricos.
+- **Integración con Realmroot** — Agent Skills Discovery publica el Skill opcional `use-zpan` fijado por digest, con Contexts de espacio de trabajo y acceso delegado de mínimo privilegio. Los archivos y descargas creados por Agents conservan la identidad del actor para atribución y auditoría.
+- **Autorización unificada** — las sesiones del navegador, claves API, downloaders y principales OAuth delegados pasan por las mismas políticas de scope, espacio de trabajo, rol y estado del recurso. OAuth nunca evita las restricciones administrativas normales.
+- **Compra de capacidad para Agents** — las subidas delegadas pueden recuperarse de una cuota insuficiente mediante compras x402 aprobadas por el controlador, con idempotencia duradera y aislada por tenant.
+- **Dominios de imagen personalizados** — permite configurar y verificar proveedores de dominios, automatizar hostnames de Cloudflare y servir enlaces públicos correctos en Workers y Node.
+
+### Mejoras y correcciones
+- Se añadieron challenges DPoP explícitos y diagnósticos del servidor, continuidad OAuth durante el inicio de sesión, confianza en orígenes oficiales de preview de Workers, sincronización de scopes y consentimiento multiespacio correcto.
+- La actividad de permisos OAuth se actualiza desde solicitudes autenticadas reales con escrituras limitadas; al revocar un permiso se invalidan inmediatamente sus tokens aún vigentes.
+- Se corrigieron las copias S3 en Cloudflare Workers conservando el header firmado `x-amz-copy-source`, además de regresiones en archivado, listados de aplicaciones y presentación del consentimiento.
+- Se añadieron auditorías conscientes del actor y perfiles del creador bajo demanda; también se limitaron metadatos largos y se unificaron los menús de acciones de archivos.
+- Se redujeron accesos a la base de datos y se añadió caché por capas en WebDAV, exploración de archivos, descargas y autenticación. Los listados usan cursores estables y actualizaciones en tiempo real sin polling.
+- Se reforzaron la caché de Workers, credenciales de arranque del downloader, recuperación de compras, persistencia de claves API, aislamiento de CI, comprobaciones Docker y TypeScript 7.
+
+> **Notas de compatibilidad:** los nuevos identificadores persistentes son valores Base62 opacos; los clientes no deben interpretarlos y las instalaciones existentes pueden ejecutar la normalización opcional cuando necesiten uniformar los datos históricos. Las APIs usan rutas REST canónicas y errores estructurados. El contrato OAuth final elimina intencionalmente el cliente ZPan fijo, perfiles/plugins de Restish, helpers de credenciales y la extensión no estándar authorization-constraints.
+
+[Notas completas de la versión ↗](https://github.com/saltbo/zpan/releases/tag/v2.9.0)
+
+## v2.8.3 — 2026-08-30
+
+### Correcciones
+- Se restringieron los controles de tareas en segundo plano a editores y administradores.
+- Se centralizó la autorización de credenciales del downloader y se actualizó la fuente de GeoIP para Docker.
+- Se actualizaron dependencias para resolver avisos de seguridad de la versión.
+
+[Notas completas de la versión ↗](https://github.com/saltbo/zpan/releases/tag/v2.8.3)
+
+## v2.8.2 — 2026-08-03
+
+### Seguridad
+- Se bloquearon variantes de direcciones de transición IPv6 que podían eludir las protecciones SSRF de solicitudes salientes.
+- Se escapó el contenido controlado por usuarios en los correos de notificación.
+- Se actualizaron dependencias y se regeneró el cliente OpenAPI con la pila de autenticación reforzada.
+
+[Notas completas de la versión ↗](https://github.com/saltbo/zpan/releases/tag/v2.8.2)
+
+## v2.8.1 — 2026-07-24
+
+### Rendimiento
+- Se redujo la amplificación de escrituras D1 en los flujos basados en base de datos.
+
+[Notas completas de la versión ↗](https://github.com/saltbo/zpan/releases/tag/v2.8.1)
+
 ## v2.8.0 — 2026-07-24 · Analítica y operaciones de administración
 
 ### Funcionalidades
