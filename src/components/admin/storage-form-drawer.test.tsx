@@ -3,7 +3,7 @@ import type { Storage } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createStorage, replaceStorage } from '@/lib/api'
+import { createStorage, patchStorage } from '@/lib/api'
 import { StorageFormDrawer } from './storage-form-drawer'
 
 class TestResizeObserver {
@@ -27,7 +27,7 @@ vi.mock('sonner', () => ({
 
 vi.mock('@/lib/api', () => ({
   createStorage: vi.fn(),
-  replaceStorage: vi.fn(),
+  patchStorage: vi.fn(),
 }))
 
 vi.mock('@/lib/eplist', () => ({
@@ -47,8 +47,6 @@ const storage: Storage = {
   bucket: 'bucket',
   endpoint: 'https://s3.example.com',
   region: 'auto',
-  accessKey: 'access-key',
-  secretKey: 'secret-key',
   filePath: '',
   capacity: 2 * 1024 * 1024 * 1024,
   forcePathStyle: true,
@@ -119,9 +117,9 @@ describe('StorageFormDrawer', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('resets edit values, allows provider editing, submits update payload, and toggles secret visibility', async () => {
+  it('keeps write-only credentials blank while editing and omits them from an ordinary update', async () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
-    vi.mocked(replaceStorage).mockResolvedValue(storage)
+    vi.mocked(patchStorage).mockResolvedValue(storage)
     renderStorageFormDrawer({ storage })
 
     const providerInput = screen.getByLabelText('admin.storages.fieldProvider') as HTMLInputElement
@@ -134,6 +132,8 @@ describe('StorageFormDrawer', () => {
     )
     expect((screen.getByLabelText('admin.storages.fieldRegion') as HTMLInputElement).value).toBe('auto')
     const secretInput = screen.getByLabelText('admin.storages.fieldSecretKey') as HTMLInputElement
+    expect(screen.getByLabelText('admin.storages.fieldAccessKey')).toHaveProperty('value', '')
+    expect(secretInput.value).toBe('')
     expect(secretInput.getAttribute('type')).toBe('password')
     fireEvent.click(screen.getByRole('button', { name: 'admin.storages.showSecretKey' }))
     expect(secretInput.getAttribute('type')).toBe('text')
@@ -143,14 +143,29 @@ describe('StorageFormDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
-      expect(replaceStorage).toHaveBeenCalledWith(
-        'storage-1',
-        expect.objectContaining({
-          provider: 'custom-s3',
-          capacity: storage.capacity,
-          egressCreditPerUnit: storage.egressCreditPerUnit,
-          enabled: true,
-        }),
+      expect(patchStorage).toHaveBeenCalledWith('storage-1', {
+        provider: 'custom-s3',
+        bucket: storage.bucket,
+        endpoint: storage.endpoint,
+        region: storage.region,
+        forcePathStyle: storage.forcePathStyle,
+      }),
+    )
+  })
+
+  it('includes only credentials explicitly entered during editing', async () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    vi.mocked(patchStorage).mockResolvedValue(storage)
+    renderStorageFormDrawer({ storage })
+
+    fireEvent.change(screen.getByLabelText('admin.storages.fieldAccessKey'), { target: { value: 'rotated-access' } })
+    fireEvent.change(screen.getByLabelText('admin.storages.fieldSecretKey'), { target: { value: 'rotated-secret' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() =>
+      expect(patchStorage).toHaveBeenCalledWith(
+        storage.id,
+        expect.objectContaining({ accessKey: 'rotated-access', secretKey: 'rotated-secret' }),
       ),
     )
   })

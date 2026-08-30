@@ -1,5 +1,6 @@
 import type { Storage } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { S3StorageCredentials } from '../../usecases/ports'
 import { S3Service } from './s3.js'
 
 const mockSend = vi.fn()
@@ -91,8 +92,10 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: vi.fn().mockResolvedValue('https://signed-url.example.com'),
 }))
 
-function makeStorage(overrides: Partial<Storage> = {}): Storage {
-  const storage: Storage = {
+type TestStorage = Storage & S3StorageCredentials
+
+function makeStorage(overrides: Partial<TestStorage> = {}): TestStorage {
+  const storage: TestStorage = {
     id: 's1',
     provider: 'aws-s3',
     bucket: 'my-bucket',
@@ -421,19 +424,28 @@ describe('S3Service', () => {
   })
 
   describe('copyObject', () => {
-    it('sends CopyObjectCommand with correct CopySource', async () => {
-      mockSend.mockResolvedValueOnce({ $metadata: {} })
+    it('presigns and fetches CopyObject without SDK response deserialization', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(
+            new Response('<CopyObjectResult><ETag>"etag"</ETag></CopyObjectResult>', { status: 200 }),
+          ),
+      )
       const dst = makeStorage({ bucket: 'dst-bucket' })
       await service.copyObject(storage, 'src.jpg', dst, 'dst.jpg')
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          input: {
-            CopySource: 'my-bucket/src.jpg',
-            Bucket: 'dst-bucket',
-            Key: 'dst.jpg',
-          },
-        }),
-      )
+      expect(fetch).toHaveBeenCalledWith('https://signed-url.example.com', { method: 'PUT' })
+      expect(mockSend).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      new Response('<Error><Code>NoSuchKey</Code></Error>', { status: 404 }),
+      new Response('<Error><Code>InternalError</Code></Error>', { status: 200 }),
+    ])('rejects HTTP and embedded S3 copy errors', async (response) => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(response))
+
+      await expect(service.copyObject(storage, 'src.jpg', storage, 'dst.jpg')).rejects.toThrow('S3 object copy failed')
     })
   })
 

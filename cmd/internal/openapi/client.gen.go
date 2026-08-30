@@ -6343,7 +6343,6 @@ type SmtpEmailSettingsProvider string
 
 // Storage defines model for Storage.
 type Storage struct {
-	AccessKey                  string               `json:"accessKey"`
 	Bucket                     string               `json:"bucket"`
 	Capacity                   int                  `json:"capacity"`
 	CreatedAt                  string               `json:"createdAt"`
@@ -6357,7 +6356,6 @@ type Storage struct {
 	Id                         string               `json:"id"`
 	Provider                   string               `json:"provider"`
 	Region                     string               `json:"region"`
-	SecretKey                  string               `json:"secretKey"`
 	Status                     StorageStatus        `json:"status"`
 	StatusCheckedAt            *string              `json:"statusCheckedAt"`
 	StatusReason               *StorageStatusReason `json:"statusReason"`

@@ -11,7 +11,7 @@ import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/ad
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { createStorage, replaceStorage } from '@/lib/api'
+import { createStorage, patchStorage } from '@/lib/api'
 import { eplistEndpointUrl, findEplistProvider, listEplistEndpoints, listEplistProviders } from '@/lib/eplist'
 
 const storageFormSchema = z.object({
@@ -19,9 +19,13 @@ const storageFormSchema = z.object({
   bucket: z.string().min(1),
   endpoint: z.string().url(),
   region: z.string().min(1),
+  accessKey: z.string(),
+  secretKey: z.string(),
+  forcePathStyle: z.boolean(),
+})
+const createStorageFormSchema = storageFormSchema.extend({
   accessKey: z.string().min(1),
   secretKey: z.string().min(1),
-  forcePathStyle: z.boolean(),
 })
 
 type StorageFormValues = z.infer<typeof storageFormSchema>
@@ -57,7 +61,7 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
   })
 
   const form = useForm<StorageFormValues>({
-    resolver: zodResolver(storageFormSchema),
+    resolver: zodResolver(isEditing ? storageFormSchema : createStorageFormSchema),
     defaultValues: DEFAULT_VALUES,
   })
 
@@ -69,8 +73,8 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
         bucket: storage.bucket,
         endpoint: storage.endpoint,
         region: storage.region,
-        accessKey: storage.accessKey,
-        secretKey: storage.secretKey,
+        accessKey: '',
+        secretKey: '',
         forcePathStyle: storage.forcePathStyle ?? true,
       })
     } else {
@@ -80,17 +84,21 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
   }, [open, storage, form])
 
   const mutation = useMutation({
-    mutationFn: (values: StorageFormValues) =>
-      isEditing
-        ? replaceStorage(storage.id, {
-            ...values,
-            capacity: storage.capacity,
-            egressCreditBillingEnabled: storage.egressCreditBillingEnabled,
-            egressCreditUnitBytes: storage.egressCreditUnitBytes,
-            egressCreditPerUnit: storage.egressCreditPerUnit,
-            enabled: storage.enabled,
-          })
-        : createStorage(values),
+    mutationFn: (values: StorageFormValues) => {
+      if (!isEditing) return createStorage(values)
+
+      const accessKey = values.accessKey.trim()
+      const secretKey = values.secretKey.trim()
+      return patchStorage(storage.id, {
+        provider: values.provider,
+        bucket: values.bucket,
+        endpoint: values.endpoint,
+        region: values.region,
+        forcePathStyle: values.forcePathStyle,
+        ...(accessKey ? { accessKey } : {}),
+        ...(secretKey ? { secretKey } : {}),
+      })
+    },
     onSuccess: (savedStorage) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'storages'] })
       onOpenChange(false)
@@ -252,7 +260,8 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
       <AdminFormField
         id="storage-access-key"
         label={t('admin.storages.fieldAccessKey')}
-        required
+        required={!isEditing}
+        help={isEditing ? t('admin.storages.credentialUnchangedHint') : undefined}
         error={form.formState.errors.accessKey?.message}
       >
         <Input {...form.register('accessKey')} placeholder={t('admin.storages.accessKeyPlaceholder')} />
@@ -261,7 +270,8 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
       <AdminFormField
         id="storage-secret-key"
         label={t('admin.storages.fieldSecretKey')}
-        required
+        required={!isEditing}
+        help={isEditing ? t('admin.storages.credentialUnchangedHint') : undefined}
         error={form.formState.errors.secretKey?.message}
       >
         {(controlProps) => (

@@ -21,9 +21,8 @@ import {
 } from '../../usecases/site/storage'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
-// Admin storage config. The response intentionally includes the S3 credentials
-// (accessKey/secretKey) so the admin UI can pre-fill the edit form — admin-only.
-// Timestamps are the only Date fields; toStorageDTO serializes them.
+// Storage credentials are write-only. Responses expose connection metadata but
+// never return secret material after creation.
 const storageSchema = z
   .object({
     id: opaqueIdSchema,
@@ -31,8 +30,6 @@ const storageSchema = z
     bucket: z.string(),
     endpoint: z.string(),
     region: z.string(),
-    accessKey: z.string(),
-    secretKey: z.string(),
     filePath: z.string(),
     capacity: z.number().int(),
     egressCreditBillingEnabled: z.boolean(),
@@ -54,8 +51,9 @@ const storageSchema = z
 type StorageDTO = z.infer<typeof storageSchema>
 
 function toStorageDTO(s: StorageRecord): StorageDTO {
+  const { accessKey: _accessKey, secretKey: _secretKey, ...storage } = s
   return {
-    ...s,
+    ...storage,
     statusCheckedAt: s.statusCheckedAt?.toISOString() ?? null,
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),

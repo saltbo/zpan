@@ -36,8 +36,6 @@ export interface Storage {
   bucket: string
   endpoint: string
   region: string
-  accessKey: string
-  secretKey: string
   filePath: string
   capacity: number
   forcePathStyle: boolean

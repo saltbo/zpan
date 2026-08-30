@@ -265,7 +265,14 @@ const createObjectRoute = authRoute(
     tags: ['Objects'],
     method: 'post',
     path: '/',
-    request: jsonBody(createMatterSchema),
+    request: jsonBody(createMatterSchema, {
+      name: 'notes.txt',
+      type: 'text/plain',
+      size: 12,
+      parent: '',
+      dirtype: 0,
+      onConflict: 'fail',
+    }),
     responses: {
       201: jsonContent(objectCreateResultSchema, 'Created object (folder, or file draft with upload instructions)'),
       402: jsonContent(capacityRequiredSchema, 'Additional workspace storage capacity is required'),

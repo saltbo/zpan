@@ -1,7 +1,8 @@
-import type { AdminOverviewStatistics, Downloader, Storage } from '@shared/types'
+import type { AdminOverviewStatistics, Downloader } from '@shared/types'
 import { describe, expect, it, vi } from 'vitest'
 import { getAdminOverview } from './admin-overview'
 import type { Deps } from './deps'
+import type { StorageRecord } from './ports'
 
 const now = new Date('2026-07-20T18:00:00.000Z')
 
@@ -26,7 +27,7 @@ const statistics: AdminOverviewStatistics = {
   storageTrend: [{ date: '2026-07-20', usedBytes: 400, writtenBytes: 120, releasedBytes: 20 }],
 }
 
-function storage(overrides: Partial<Storage> = {}): Storage {
+function storage(overrides: Partial<StorageRecord> = {}): StorageRecord {
   return {
     id: 'storage-1',
     provider: 'aws-s3',
@@ -45,9 +46,9 @@ function storage(overrides: Partial<Storage> = {}): Storage {
     enabled: true,
     status: 'healthy',
     statusReason: null,
-    statusCheckedAt: now.toISOString(),
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
+    statusCheckedAt: now,
+    createdAt: now,
+    updatedAt: now,
     ...overrides,
   }
 }
@@ -80,7 +81,7 @@ function downloader(overrides: Partial<Downloader> = {}): Downloader {
   }
 }
 
-function makeDeps(options: { storages?: Storage[]; downloaders?: Downloader[] } = {}): Deps {
+function makeDeps(options: { storages?: StorageRecord[]; downloaders?: Downloader[] } = {}): Deps {
   const storageItems = options.storages ?? [storage()]
   return {
     adminStats: {

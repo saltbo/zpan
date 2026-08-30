@@ -1,13 +1,16 @@
 import type { CreateStorageInput, PatchStorageInput, ReplaceStorageInput } from '@shared/schemas'
 import type { Storage } from '@shared/types'
+import type { S3StorageCredentials } from './s3'
 
-// Server-side record: the shared DTO, but timestamps stay as Date until the http
-// layer serializes them. Drizzle row types never cross this boundary.
-export type StorageRecord = Omit<Storage, 'createdAt' | 'updatedAt' | 'statusCheckedAt'> & {
-  statusCheckedAt: Date | null
-  createdAt: Date
-  updatedAt: Date
-}
+// Server-side record: the public storage representation plus write-only S3
+// credentials; timestamps stay as Date until the HTTP layer serializes them.
+// Drizzle row types never cross this boundary.
+export type StorageRecord = Omit<Storage, 'createdAt' | 'updatedAt' | 'statusCheckedAt'> &
+  S3StorageCredentials & {
+    statusCheckedAt: Date | null
+    createdAt: Date
+    updatedAt: Date
+  }
 
 export type DeleteStorageResult = 'ok' | 'not_found' | 'in_use'
 
