@@ -176,7 +176,7 @@ export {
   oauthGrantStatusSchema,
 } from './oauth-grants'
 export type { OAuthGrantScope, OAuthResourceScope } from './oauth-resource'
-export { oauthGrantScopeSchema, oauthResourceScopeLabels, oauthResourceScopeSchema } from './oauth-resource'
+export { oauthGrantScopeSchema, oauthResourceScopeSchema } from './oauth-resource'
 export type { CursorPage, CursorPageQuery, Page, PageQuery } from './pagination'
 export { cursorPageQuerySchema, cursorPageSchema, pageQuerySchema, pageSchema } from './pagination'
 export type { PublicProfile, PublicProfileShare, PublicUser } from './profile'

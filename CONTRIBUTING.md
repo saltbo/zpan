@@ -50,6 +50,14 @@ pnpm e2e              # Playwright E2E tests
 6. **PR** — target the `main` branch
 7. **Preview verification** — every PR must be verified in the preview environment (see below)
 
+### OAuth scope metadata
+
+Every scope published by ZPan must have an explicit English and Chinese description in
+`shared/oauth-scope-metadata.ts`. Do not generate permission copy from the scope name and do not add an unmapped
+scope as a temporary fallback. `shared/oauth-scope-metadata.test.ts` must continue to prove that the canonical scope
+registry and both descriptions are complete. UI surfaces must show the raw scope value alongside its description;
+an unexpected runtime scope must be identified as missing metadata rather than presented as a normal translation.
+
 ## Preview Verification
 
 Every PR that touches UI or API behavior **must** be verified in the Cloudflare Workers preview environment before merging. The verification report **must** be posted as a PR comment — a PR without a verification comment cannot be merged.

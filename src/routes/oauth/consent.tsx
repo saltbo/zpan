@@ -1,32 +1,22 @@
 import { DEFAULT_SITE_NAME } from '@shared/constants'
-import { type OAuthConsentContext, oauthResourceScopeLabels } from '@shared/schemas'
+import type { OAuthConsentContext } from '@shared/schemas'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Check, ExternalLink, LockKeyhole, ShieldAlert, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge } from '@/components/ui/badge'
+import { OAuthScopeList } from '@/components/oauth-scope-list'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useSiteConfig } from '@/hooks/use-site-config'
 import { getOAuthConsentContext, submitOAuthConsent } from '@/lib/api'
 import { redirectExternal } from '@/lib/browser-navigation'
 
 export const Route = createFileRoute('/oauth/consent')({ component: OAuthConsentPage })
-
-const oauthStandardScopeLabels = {
-  openid: 'settings.oauthApps.oauthStandardScopeOpenid',
-  profile: 'settings.oauthApps.oauthStandardScopeProfile',
-  email: 'settings.oauthApps.oauthStandardScopeEmail',
-  offline_access: 'settings.oauthApps.oauthStandardScopeOfflineAccess',
-} as const
-
-type ConsentScopeLabelKey =
-  | (typeof oauthStandardScopeLabels)[keyof typeof oauthStandardScopeLabels]
-  | (typeof oauthResourceScopeLabels)[keyof typeof oauthResourceScopeLabels]
 
 function oauthQueryFromLocation(): string {
   return typeof window === 'undefined' ? '' : window.location.search.slice(1)
@@ -36,17 +26,7 @@ export function requestedConsentScopes(context: Pick<OAuthConsentContext, 'stand
   return [...context.standardScopes, ...context.scopes]
 }
 
-export function consentScopeLabel(scope: string, translate: (key: ConsentScopeLabelKey) => string): string {
-  if (scope in oauthStandardScopeLabels) {
-    return translate(oauthStandardScopeLabels[scope as keyof typeof oauthStandardScopeLabels])
-  }
-  if (scope in oauthResourceScopeLabels) {
-    return translate(oauthResourceScopeLabels[scope as keyof typeof oauthResourceScopeLabels])
-  }
-  return scope
-}
-
-function OAuthConsentPage() {
+export function OAuthConsentPage() {
   const { t } = useTranslation()
   const { data: siteConfig } = useSiteConfig()
   const siteName = siteConfig?.site.name ?? DEFAULT_SITE_NAME
@@ -104,30 +84,28 @@ function OAuthConsentPage() {
   }
 
   return (
-    <Card className="mx-auto max-w-xl shadow-lg">
-      <CardHeader className="space-y-5 text-center">
-        <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <LockKeyhole className="size-6" />
+    <Card className="mx-auto max-w-2xl shadow-lg">
+      <CardHeader className="flex-row items-start gap-4 space-y-0">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <LockKeyhole className="size-6" aria-hidden="true" />
         </div>
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <p className="text-sm font-medium text-muted-foreground">{siteName}</p>
-          <h1 className="text-2xl leading-none font-semibold">
+          <h1 className="text-2xl leading-tight font-semibold">
             {t('settings.oauthApps.oauthWantsAccess', { client: context.clientName })}
           </h1>
           <p className="text-sm text-muted-foreground">{t('settings.oauthApps.oauthReviewAccess')}</p>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="rounded-lg border bg-muted/30 p-4 text-sm">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">{t('settings.oauthApps.oauthApplicationOrigin')}</span>
-            <span className="truncate font-medium">{context.clientOrigin}</span>
+        <div className="grid gap-4 rounded-lg border bg-muted/30 p-4 text-sm sm:grid-cols-2">
+          <div className="min-w-0 space-y-1">
+            <p className="text-muted-foreground">{t('settings.oauthApps.oauthApplicationOrigin')}</p>
+            <p className="truncate font-medium">{context.clientOrigin}</p>
           </div>
-          <div className="mt-3 flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">{t('settings.oauthApps.oauthAccessDuration')}</span>
-            <span className="font-medium">
-              {t('settings.oauthApps.oauthAccessDurationValue', { days: lifetimeDays })}
-            </span>
+          <div className="space-y-1">
+            <p className="text-muted-foreground">{t('settings.oauthApps.oauthAccessDuration')}</p>
+            <p className="font-medium">{t('settings.oauthApps.oauthAccessDurationValue', { days: lifetimeDays })}</p>
           </div>
         </div>
 
@@ -157,33 +135,36 @@ function OAuthConsentPage() {
 
         <Separator />
 
-        <section className="space-y-3">
-          <h2 className="font-medium">{t('settings.oauthApps.oauthPermissions')}</h2>
-          <div className="flex flex-wrap gap-2">
-            {requestedScopes.map((scope) => (
-              <Badge key={scope} variant="secondary">
-                {consentScopeLabel(scope, (key) => t(key))}
-              </Badge>
-            ))}
+        <section className="space-y-3" aria-labelledby="oauth-consent-permissions">
+          <div>
+            <h2 id="oauth-consent-permissions" className="font-medium">
+              {t('settings.oauthApps.oauthPermissions')}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {t('settings.oauthApps.permissionCount', { count: requestedScopes.length })}
+            </p>
           </div>
+          <ScrollArea className="h-80 rounded-lg border bg-muted/10 p-3">
+            <OAuthScopeList scopes={requestedScopes} className="pr-3" />
+          </ScrollArea>
         </section>
 
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
-          <ExternalLink className="size-3.5" />
+          <ExternalLink className="size-3.5" aria-hidden="true" />
           {t('settings.oauthApps.oauthReturnNotice', { origin: new URL(context.redirectUri).origin })}
         </p>
         {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
       </CardContent>
       <CardFooter className="flex flex-col-reverse gap-2 border-t sm:flex-row sm:justify-end">
         <Button variant="outline" disabled={submitMutation.isPending} onClick={() => submitMutation.mutate(false)}>
-          <X className="size-4" />
+          <X className="size-4" aria-hidden="true" />
           {t('settings.oauthApps.oauthDeny')}
         </Button>
         <Button
           disabled={submitMutation.isPending || selectedWorkspaceIds.length === 0}
           onClick={() => submitMutation.mutate(true)}
         >
-          <Check className="size-4" />
+          <Check className="size-4" aria-hidden="true" />
           {submitMutation.isPending ? t('common.loading') : t('settings.oauthApps.oauthApprove')}
         </Button>
       </CardFooter>
