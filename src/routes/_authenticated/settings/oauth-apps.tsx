@@ -180,7 +180,7 @@ export function OAuthGrants() {
         <CardTitle>{t('settings.oauthApps.oauthGrantsSection')}</CardTitle>
         <CardDescription>{t('settings.oauthApps.oauthGrantsDescription')}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-3 sm:px-6">
         {query.isLoading ? (
           <p className="py-6 text-center text-sm text-muted-foreground">{t('common.loading')}</p>
         ) : query.isError ? (
@@ -196,17 +196,22 @@ export function OAuthGrants() {
                 <TableHead>{t('settings.oauthApps.colScopes')}</TableHead>
                 <TableHead className="hidden lg:table-cell">{t('settings.oauthApps.colCreated')}</TableHead>
                 <TableHead className="hidden xl:table-cell">{t('settings.oauthApps.colLastUsed')}</TableHead>
-                <TableHead className="w-10 text-right sm:w-28">{t('settings.oauthApps.colActions')}</TableHead>
+                <TableHead className="w-10 text-right sm:w-28">
+                  <span className="sr-only sm:not-sr-only">{t('settings.oauthApps.colActions')}</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {grants.map((grant) => (
                 <TableRow key={grant.id}>
-                  <TableCell className="max-w-44 truncate font-medium sm:max-w-none">{grant.clientName}</TableCell>
+                  <TableCell className="max-w-32 truncate font-medium sm:max-w-none">{grant.clientName}</TableCell>
                   <TableCell className="hidden md:table-cell">{workspaceNames(grant)}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">
-                      {t('settings.oauthApps.permissionCount', { count: grant.scopes.length })}
+                      <span className="sm:hidden">{grant.scopes.length}</span>
+                      <span className="hidden sm:inline">
+                        {t('settings.oauthApps.permissionCount', { count: grant.scopes.length })}
+                      </span>
                     </Badge>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">{formatDate(grant.createdAt)}</TableCell>
