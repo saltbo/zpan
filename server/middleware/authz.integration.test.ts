@@ -19,8 +19,10 @@ function mountProbes(app: TestApp) {
     }),
     (c) => c.json({ ok: true }),
   )
-  app.get('/api/test-authz/no-downloader', authorize({ scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ] }), (c) =>
-    c.json({ ok: true }),
+  app.get(
+    '/api/test-authz/downloader-only',
+    authorize({ scopes: [AuthorizationScope.DOWNLOAD_TASKS_READ], credential: 'downloader' }),
+    (c) => c.json({ ok: true }),
   )
   app.get(
     '/api/test-authz/team-editor',
@@ -195,11 +197,24 @@ describe('direct protected scope declaration', () => {
     mountProbes(app)
     const downloaderToken = await registerDownloader(app, 'authz-downloader')
 
-    const res = await app.request('/api/test-authz/no-downloader', {
+    const res = await app.request('/api/test-authz/downloader-only', {
       headers: { Authorization: `Bearer ${downloaderToken}` },
     })
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toEqual({ ok: true })
+  })
+
+  it('rejects a session principal from a downloader-only route', async () => {
+    const { app } = await createTestApp()
+    mountProbes(app)
+    const headers = await authedHeaders(app, 'authz-downloader-only@example.com')
+
+    const res = await app.request('/api/test-authz/downloader-only', { headers })
+
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error: { message: string; status: string } }
+    expect(body.error.message).toBe('Forbidden')
+    expect(body.error.status).toBe('PERMISSION_DENIED')
   })
 
   it('returns 401 when a one-purpose bootstrap credential is used outside registration', async () => {
@@ -475,10 +490,17 @@ describe('evaluateAuthorization', () => {
     await expect(
       evaluateAuthorization({
         context: downloaderContext,
-        declaration: { scopes: [AuthorizationScope.DOWNLOADERS_UPDATE] },
+        declaration: { scopes: [AuthorizationScope.DOWNLOADERS_UPDATE], credential: 'downloader' },
         deps,
       }),
     ).resolves.toMatchObject({ allowed: true })
+    await expect(
+      evaluateAuthorization({
+        context: sessionContext,
+        declaration: { scopes: [AuthorizationScope.DOWNLOADERS_UPDATE], credential: 'downloader' },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'actor_not_allowed' })
     await expect(
       evaluateAuthorization({
         context: bootstrapContext,

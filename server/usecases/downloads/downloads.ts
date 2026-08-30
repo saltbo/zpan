@@ -440,20 +440,18 @@ export async function updateDownloadTask(
   platform: Platform,
   id: string,
   input: UpdateDownloadTaskInput,
-  actor: { orgId?: string; downloaderId?: string },
+  actor: { downloaderId: string },
 ): Promise<DownloadTask> {
   if (input.cleanupCompleted === true) {
-    if (!actor.downloaderId) throw new DownloadError('forbidden')
     const task = await deps.downloadTasks.completeCleanup(id, actor.downloaderId, new Date())
     return downloadTaskFromRecord(task)
   }
   const task = await deps.downloadTasks.findRecord(id)
   if (!task) throw new DownloadError('not_found')
-  if (actor.orgId && task.orgId !== actor.orgId) throw new DownloadError('not_found')
-  if (actor.downloaderId && task.assignedDownloaderId !== actor.downloaderId) throw new DownloadError('forbidden')
+  if (task.assignedDownloaderId !== actor.downloaderId) throw new DownloadError('forbidden')
 
   const now = new Date()
-  if (actor.downloaderId && task.status === 'pausing' && input.status === 'paused') {
+  if (task.status === 'pausing' && input.status === 'paused') {
     await deps.downloadTasks.setFields(id, {
       status: 'paused',
       runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)),
@@ -461,7 +459,7 @@ export async function updateDownloadTask(
     })
     return deps.downloadTasks.get(task.orgId, id)
   }
-  if (actor.downloaderId && task.status === 'canceling' && input.status === 'canceled') {
+  if (task.status === 'canceling' && input.status === 'canceled') {
     await deps.downloadTasks.setFields(id, {
       status: 'canceled',
       runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)),
@@ -470,19 +468,10 @@ export async function updateDownloadTask(
     })
     return deps.downloadTasks.get(task.orgId, id)
   }
-  if (actor.downloaderId && ['pausing', 'paused', 'canceling', 'canceled'].includes(task.status)) {
+  if (['pausing', 'paused', 'canceling', 'canceled'].includes(task.status)) {
     throw new DownloadError('invalid_state', `Task is ${task.status}`)
   }
-  if (actor.orgId && !actor.downloaderId) {
-    const onlyCancel =
-      input.status === 'canceled' &&
-      input.progress === undefined &&
-      input.errorMessage === undefined &&
-      input.resultObjectId === undefined &&
-      input.runtime === undefined
-    if (!onlyCancel) throw new DownloadError('forbidden')
-  }
-  if (actor.downloaderId && isRetainedSeedReport(input) && task.status !== 'completed') {
+  if (isRetainedSeedReport(input) && task.status !== 'completed') {
     return deps.downloadTasks.get(task.orgId, id)
   }
 
@@ -503,7 +492,7 @@ export async function updateDownloadTask(
   // no-credit task out of downloading entirely. Capped at the task's total size,
   // so the lifetime charge stays exactly ceil(total / unit) — same as before,
   // only billed earlier.
-  if (actor.downloaderId && (status === 'downloading' || nextDownloadedBytes > currentDownloadedBytes)) {
+  if (status === 'downloading' || nextDownloadedBytes > currentDownloadedBytes) {
     const downloader = await deps.downloaders.getRecord(actor.downloaderId)
     const unitBytes = downloader.remoteDownloadCreditUnitBytes
     const totalUnits = totalBytes > 0 ? Math.ceil(totalBytes / unitBytes) : Number.POSITIVE_INFINITY

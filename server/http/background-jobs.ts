@@ -86,7 +86,7 @@ const listRoute = authRoute(
 )
 
 const createJobRoute = authRoute(
-  { scopes: [AuthorizationScope.BACKGROUND_JOBS_CREATE] },
+  { scopes: [AuthorizationScope.BACKGROUND_JOBS_CREATE], minTeamRole: 'editor' },
   {
     operationId: 'createBackgroundJob',
     summary: 'Create background job',
@@ -133,7 +133,7 @@ const getJobRoute = authRoute(
 )
 
 const cancelJobRoute = authRoute(
-  { scopes: [AuthorizationScope.BACKGROUND_JOBS_UPDATE] },
+  { scopes: [AuthorizationScope.BACKGROUND_JOBS_UPDATE], minTeamRole: 'editor' },
   {
     operationId: 'cancelBackgroundJob',
     summary: 'Cancel background job',
@@ -150,7 +150,7 @@ const cancelJobRoute = authRoute(
 )
 
 const retryJobRoute = authRoute(
-  { scopes: [AuthorizationScope.BACKGROUND_JOBS_UPDATE] },
+  { scopes: [AuthorizationScope.BACKGROUND_JOBS_UPDATE], minTeamRole: 'editor' },
   {
     operationId: 'retryBackgroundJob',
     summary: 'Retry background job',

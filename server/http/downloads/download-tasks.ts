@@ -188,10 +188,10 @@ const eventsRoute = authRoute(
 )
 
 const updateRoute = authRoute(
-  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL] },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL], credential: 'downloader' },
   {
     operationId: 'updateDownloadTask',
-    summary: 'Update download task',
+    summary: 'Report download task progress',
     tags: ['Download Tasks'],
     method: 'patch',
     path: '/{id}',
@@ -204,7 +204,7 @@ const updateRoute = authRoute(
 )
 
 const statusRoute = authRoute(
-  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL] },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL], minTeamRole: 'editor' },
   {
     operationId: 'setDownloadTaskStatus',
     summary: 'Pause, resume, or cancel a task',
@@ -220,7 +220,7 @@ const statusRoute = authRoute(
 )
 
 const attemptRoute = authRoute(
-  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL] },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL], minTeamRole: 'editor' },
   {
     operationId: 'retryDownloadTask',
     summary: 'Retry or restart a task',
@@ -236,7 +236,7 @@ const attemptRoute = authRoute(
 )
 
 const deleteRoute = authRoute(
-  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL] },
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL], minTeamRole: 'editor' },
   {
     operationId: 'deleteDownloadTask',
     summary: 'Delete download task',
@@ -330,15 +330,11 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     const principal = c.get('principal')
     const id = c.req.valid('param').id
     const input = c.req.valid('json')
-    if (principal?.kind === 'downloader') {
-      return c.json(
-        await updateDownloadTask(c.get('deps'), c.get('platform'), id, input, { downloaderId: principal.downloaderId }),
-        200,
-      )
-    }
-    const orgId = c.get('orgId')
-    if (!orgId) throw unauthorized()
-    return c.json(await updateDownloadTask(c.get('deps'), c.get('platform'), id, input, { orgId }), 200)
+    if (principal?.kind !== 'downloader') throw new Error('authorized_downloader_principal_missing')
+    return c.json(
+      await updateDownloadTask(c.get('deps'), c.get('platform'), id, input, { downloaderId: principal.downloaderId }),
+      200,
+    )
   })
 
 export const downloaderTasksRoute = new OpenAPIHono<Env>().openapi(downloaderTaskListRoute, async (c) => {

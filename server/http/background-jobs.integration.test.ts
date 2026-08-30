@@ -25,9 +25,85 @@ async function getUserOrg(db: TestDb, email: string): Promise<UserOrg> {
   return rows[0]
 }
 
+async function activateTeamWorkspace(
+  app: Awaited<ReturnType<typeof createTestApp>>['app'],
+  db: TestDb,
+  input: { email: string; role: 'viewer' | 'editor' | 'owner'; orgId: string },
+): Promise<{ headers: { Cookie: string; Origin: string }; userId: string }> {
+  const headers = await authedHeaders(app, input.email)
+  const [{ userId }] = await db.all<{ userId: string }>(sql`
+    SELECT id AS userId FROM user WHERE email = ${input.email}
+  `)
+  await db.run(sql`
+    INSERT INTO member (id, organization_id, user_id, role)
+    VALUES (${`member-${input.orgId}-${input.role}`}, ${input.orgId}, ${userId}, ${input.role})
+  `)
+  const active = await app.request('/api/auth/organization/set-active', {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ organizationId: input.orgId }),
+  })
+  expect(active.status).toBe(200)
+  const sessionCookie = active.headers
+    .getSetCookie()
+    .map((cookie) => cookie.split(';')[0])
+    .join('; ')
+  return {
+    headers: { ...headers, Cookie: sessionCookie || headers.Cookie },
+    userId,
+  }
+}
+
 describe('background jobs API', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('rejects archive creation and cross-member controls from workspace viewers', async () => {
+    const { app, db } = await createTestApp()
+    const ownerEmail = 'jobs-team-owner@example.com'
+    await authedHeaders(app, ownerEmail)
+    const [{ userId: ownerId }] = await db.all<{ userId: string }>(sql`
+      SELECT id AS userId FROM user WHERE email = ${ownerEmail}
+    `)
+    const orgId = 'jobs-security-team'
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata)
+      VALUES (${orgId}, 'Jobs Security Team', ${orgId}, '{"type":"team"}')
+    `)
+    await db.run(sql`
+      INSERT INTO member (id, organization_id, user_id, role)
+      VALUES ('member-jobs-security-owner', ${orgId}, ${ownerId}, 'owner')
+    `)
+    const { headers } = await activateTeamWorkspace(app, db, {
+      email: 'jobs-team-viewer@example.com',
+      role: 'viewer',
+      orgId,
+    })
+    const queued = await createBackgroundJobRepo(db).create({ orgId, userId: ownerId, type: 'archive_compress' })
+    const failed = await createBackgroundJobRepo(db).create({
+      orgId,
+      userId: ownerId,
+      type: 'archive_extract',
+      retryable: true,
+    })
+    await createBackgroundJobRepo(db).update(orgId, failed.id, { status: 'failed' })
+
+    const create = await app.request('/api/background-jobs', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'archive_extract', matterId: 'viewer-source' }),
+    })
+    const cancel = await app.request(`/api/background-jobs/${queued.id}/status`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'canceled' }),
+    })
+    const retry = await app.request(`/api/background-jobs/${failed.id}/retries`, { method: 'POST', headers })
+
+    expect([create.status, cancel.status, retry.status]).toEqual([403, 403, 403])
+    await expect(createBackgroundJobRepo(db).get(orgId, queued.id)).resolves.toMatchObject({ status: 'queued' })
+    await expect(createBackgroundJobRepo(db).get(orgId, failed.id)).resolves.toMatchObject({ status: 'failed' })
   })
 
   it('creates archive jobs through POST and completes them after the response [spec: background-jobs/create-and-complete]', async () => {

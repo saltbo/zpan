@@ -408,6 +408,21 @@ describe('global OpenAPI document', () => {
     expect(findOperationsMissingAuthContract(migratedPaths)).toEqual([])
   })
 
+  it('declares the download progress route as downloader-only', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as {
+      paths: Record<string, Record<string, { security?: unknown; 'x-zpan-authorization-constraints'?: unknown }>>
+    }
+
+    const operation = doc.paths['/api/downloads/tasks/{id}']?.patch
+    expect(operation?.security).toEqual([{ bearerAuth: [] }])
+    expect(operation?.['x-zpan-authorization-constraints']).toEqual({
+      requiredScopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL],
+      credential: 'downloader',
+    })
+  })
+
   it('emits OpenAPI authorization metadata from one route declaration helper', () => {
     const route = authRoute(
       {

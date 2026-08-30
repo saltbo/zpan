@@ -18,6 +18,7 @@ export type RequiredAuthorizationScopes = readonly [AuthorizationScope, ...Autho
 
 export type ScopedAuthorizationPolicy = {
   scopes: RequiredAuthorizationScopes
+  credential?: 'downloader'
   oauth?: boolean
   minTeamRole?: TeamRole
   siteRole?: 'admin'
@@ -63,6 +64,9 @@ async function evaluateScopedPolicy(
   deps: AuthzDeps,
 ): Promise<AuthzDecision> {
   if (context.credential === 'anonymous') return deny(context, 401, 'missing_credential', policy)
+  if (policy.credential && context.credential !== policy.credential) {
+    return deny(context, 403, 'actor_not_allowed', policy)
+  }
   if (policy.oauth === false && context.credential === 'oauth') return deny(context, 403, 'actor_not_allowed', policy)
 
   for (const scope of policy.scopes) {

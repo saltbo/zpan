@@ -89,6 +89,7 @@ function openApiAuthorizationConstraints(auth: RouteAuthorizationDeclaration): R
   return {
     'x-zpan-authorization-constraints': {
       requiredScopes: [...auth.scopes],
+      ...(auth.credential ? { credential: auth.credential } : {}),
       ...(auth.oauth === false ? { oauth: false } : {}),
       ...(auth.minTeamRole ? { minTeamRole: auth.minTeamRole } : {}),
       ...(auth.siteRole ? { siteRole: auth.siteRole } : {}),
@@ -111,5 +112,6 @@ function openApiSecurity(auth: RouteAuthorizationDeclaration): { security?: Reco
 }
 
 function openApiPolicySecurity(policy: ScopedAuthorizationPolicy): Record<string, string[]>[] {
+  if (policy.credential === 'downloader') return [{ bearerAuth: [] }]
   return [...(policy.oauth === false ? [] : [{ oauth2: [...policy.scopes] }]), { bearerAuth: [] }, { cookieAuth: [] }]
 }
