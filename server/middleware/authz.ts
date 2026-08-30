@@ -42,11 +42,16 @@ export function requireTeamRole(minRole: TeamRole) {
 export function requirePermission(
   resource: string,
   action: string,
-  opts: { minTeamRole?: TeamRole; allowDownloader?: boolean } = {},
+  opts: { credential?: 'downloader'; minTeamRole?: TeamRole; allowDownloader?: boolean } = {},
 ) {
   return createMiddleware<Env>(async (c, next) => {
     const principal = c.get('principal')
     if (!principal) throw unauthorized('Unauthorized')
+
+    if (opts.credential === 'downloader') {
+      if (principal.kind !== 'downloader') throw forbidden('Forbidden')
+      return next()
+    }
 
     if (principal.kind === 'downloader') {
       if (opts.allowDownloader) return next()

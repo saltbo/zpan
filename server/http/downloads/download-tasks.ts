@@ -19,7 +19,7 @@ import {
   performDownloadTaskAction,
   updateDownloadTask,
 } from '../../usecases/downloads/downloads'
-import { badRequest, forbidden, unauthorized } from '../../usecases/ports'
+import { badRequest, unauthorized } from '../../usecases/ports'
 import { errorResponse, jsonBody, jsonContent } from '../openapi'
 
 const downloadTaskStatuses = new Set([
@@ -123,7 +123,7 @@ const updateRoute = createRoute({
   tags: ['Download Tasks'],
   method: 'patch',
   path: '/{id}',
-  middleware: [requirePermission('remoteDownload', 'cancel', { allowDownloader: true })] as const,
+  middleware: [requirePermission('remoteDownload', 'cancel', { credential: 'downloader' })] as const,
   request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloadTaskSchema) },
   responses: {
     200: jsonContent(downloadTaskSchema, 'Updated download task'),
@@ -253,7 +253,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     const principal = c.get('principal')
     const id = c.req.valid('param').id
     const input = c.req.valid('json')
-    if (principal?.kind !== 'downloader') throw forbidden()
+    if (principal?.kind !== 'downloader') throw new Error('authorized_downloader_principal_missing')
     return c.json(
       await updateDownloadTask(c.get('deps'), c.get('platform'), id, input, { downloaderId: principal.downloaderId }),
       200,
