@@ -75,12 +75,13 @@ describe('OAuth grants settings', () => {
     renderPage()
 
     expect(await screen.findByText('Realmroot ZPan')).toBeTruthy()
+    expect(screen.getByText('Client123456789012345')).toBeTruthy()
     expect(screen.getByText('2 permissions')).toBeTruthy()
     expect(screen.queryByText(AuthorizationScope.OBJECTS_READ)).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.oauthApps.viewDetails' }))
 
-    expect(await screen.findByText('Client123456789012345')).toBeTruthy()
+    expect(await screen.findAllByText('Client123456789012345')).toHaveLength(2)
     expect(screen.getByText(AuthorizationScope.OBJECTS_READ)).toBeTruthy()
     expect(screen.getByText('List, inspect, and download objects')).toBeTruthy()
   })
@@ -107,7 +108,7 @@ describe('OAuth grants settings', () => {
 
     expect(screen.queryByText('settings.oauthApps.oauthGrantRevokeTitle')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'common.close' }))
-    await waitFor(() => expect(screen.queryByText(grant.clientId)).toBeNull())
+    await waitFor(() => expect(screen.getAllByText(grant.clientId)).toHaveLength(1))
   })
 
   it('shows revoke failures inline without closing the details sheet', async () => {
@@ -120,7 +121,7 @@ describe('OAuth grants settings', () => {
     fireEvent.click(revokeButtons.at(-1)!)
 
     expect(await screen.findByText('Cannot revoke grant')).toBeTruthy()
-    expect(screen.getByText(grant.clientId)).toBeTruthy()
+    expect(screen.getAllByText(grant.clientId)).toHaveLength(2)
   })
 
   it('uses workspace ids when names are unavailable and renders the page wrapper', async () => {

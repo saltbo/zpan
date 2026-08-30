@@ -44,6 +44,10 @@ export interface OAuthGateway {
   listRegisteredApplications(db: Database): Promise<RegisteredOAuthApplication[]>
   revokeJwtAccessToken(db: Database, token: string): Promise<void>
   isJwtAccessTokenRevoked(db: Database, tokenId: string): Promise<boolean>
+  recordGrantUsage(
+    db: Database,
+    input: { clientId: string; userId: string; workspaceId: string; now: Date },
+  ): Promise<boolean>
   listGrants(db: Database, userId: string): Promise<OAuthGrant[]>
   revokeGrant(db: Database, input: { userId: string; grantId: string; now: Date }): Promise<boolean>
 }

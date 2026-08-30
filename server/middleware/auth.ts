@@ -60,6 +60,13 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     if (await c.get('deps').userAdmin.isBanned(userId)) {
       throw invalidOauthToken(audience, 'OAUTH_SUBJECT_BANNED')
     }
+    const grantActive = await c.get('deps').oauth.recordGrantUsage(c.get('platform').db, {
+      clientId,
+      userId,
+      workspaceId: orgId,
+      now: new Date(),
+    })
+    if (!grantActive) throw invalidOauthToken(audience, 'OAUTH_GRANT_INACTIVE')
     const role = (await c.get('deps').userAdmin.getSiteRole(userId)) ?? undefined
     const scopes = typeof payload.scope === 'string' ? payload.scope.split(/\s+/).filter(isAuthorizationScope) : []
     c.set('principal', {

@@ -11,6 +11,7 @@ function gateway(overrides: Partial<OAuthGateway> = {}): OAuthGateway {
     listRegisteredApplications: vi.fn(),
     revokeJwtAccessToken: vi.fn(),
     isJwtAccessTokenRevoked: vi.fn(),
+    recordGrantUsage: vi.fn(async () => true),
     listGrants: vi.fn(async () => []),
     revokeGrant: vi.fn(async () => true),
     ...overrides,

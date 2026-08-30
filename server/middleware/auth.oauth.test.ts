@@ -1,3 +1,5 @@
+import { AuthorizationScope } from '@shared/authorization'
+import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +8,10 @@ import { authMiddleware, mapOauthVerificationError } from './auth'
 import type { Env } from './platform'
 
 const verifyAccessTokenRequest = vi.hoisted(() => vi.fn())
+const isJwtAccessTokenRevoked = vi.fn()
+const recordGrantUsage = vi.fn()
+const isBanned = vi.fn()
+const getSiteRole = vi.fn()
 
 vi.mock('@better-auth/oauth-provider/resource-client', () => ({
   oauthProviderResourceClient: () => ({
@@ -29,7 +35,10 @@ function createApp() {
       $context: Promise.resolve({ baseURL: 'https://files.example', internalAdapter: {} }),
     } as never)
     c.set('platform', { db: {} } as never)
-    c.set('deps', {} as never)
+    c.set('deps', {
+      oauth: { isJwtAccessTokenRevoked, recordGrantUsage },
+      userAdmin: { isBanned, getSiteRole },
+    } as never)
     await next()
   })
   app.use('*', authMiddleware)
@@ -38,7 +47,46 @@ function createApp() {
 }
 
 describe('OAuth authentication middleware', () => {
-  beforeEach(() => verifyAccessTokenRequest.mockReset())
+  beforeEach(() => {
+    verifyAccessTokenRequest.mockReset()
+    isJwtAccessTokenRevoked.mockReset().mockResolvedValue(false)
+    recordGrantUsage.mockReset().mockResolvedValue(true)
+    isBanned.mockReset().mockResolvedValue(false)
+    getSiteRole.mockReset().mockResolvedValue('user')
+  })
+
+  it('records the matching grant when a DPoP token authenticates successfully', async () => {
+    verifyAccessTokenRequest.mockResolvedValue(validPayload())
+
+    const { app } = createApp()
+    const response = await app.request('https://files.example/api/test', {
+      headers: { Authorization: 'DPoP access-token', DPoP: 'proof' },
+    })
+
+    expect(response.status).toBe(200)
+    expect(recordGrantUsage).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        clientId: 'client-1',
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+        now: expect.any(Date),
+      }),
+    )
+  })
+
+  it('rejects a valid token when its grant is no longer active', async () => {
+    verifyAccessTokenRequest.mockResolvedValue(validPayload())
+    recordGrantUsage.mockResolvedValue(false)
+
+    const { app, errors } = createApp()
+    const response = await app.request('https://files.example/api/test', {
+      headers: { Authorization: 'DPoP access-token', DPoP: 'proof' },
+    })
+
+    expect(response.status).toBe(401)
+    expect((errors[0] as AppError).meta.diagnostics?.reason).toBe('OAUTH_GRANT_INACTIVE')
+  })
 
   it('rejects malformed workspace authorization details in an otherwise shaped token', async () => {
     verifyAccessTokenRequest.mockResolvedValue({
@@ -84,3 +132,14 @@ describe('OAuth authentication middleware', () => {
     })
   })
 })
+
+function validPayload() {
+  return {
+    sub: 'user-1',
+    client_id: 'client-1',
+    act: { sub: 'agent-1', iss: 'https://agent.example' },
+    authorization_details: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'workspace-1' }],
+    jti: 'token-1',
+    scope: AuthorizationScope.OBJECTS_READ,
+  }
+}

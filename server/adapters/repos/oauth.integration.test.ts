@@ -70,6 +70,79 @@ describe('OAuth gateway', () => {
     ])
   })
 
+  it('records usage only for the matching workspace grant and throttles writes', async () => {
+    const { db } = await createTestApp()
+    await insertClient(db, CLIENT_ID, 'FlareAuth')
+    const userId = 'oauth-user'
+    await insertUserAndOrg(db, userId, 'workspace-a')
+    await db.insert(authSchema.oauthConsent).values([
+      {
+        id: 'grant-a',
+        clientId: CLIENT_ID,
+        userId,
+        authorizationDetails: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'workspace-a' }],
+        scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
+        createdAt: new Date('2026-08-30T11:00:00.000Z'),
+        updatedAt: new Date('2026-08-30T11:00:00.000Z'),
+      },
+      {
+        id: 'grant-b',
+        clientId: CLIENT_ID,
+        userId,
+        authorizationDetails: [{ type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'workspace-b' }],
+        scopes: JSON.stringify([AuthorizationScope.OBJECTS_READ]),
+        createdAt: new Date('2026-08-30T11:00:00.000Z'),
+        updatedAt: new Date('2026-08-30T11:00:00.000Z'),
+      },
+    ])
+    const gateway = createOAuthGateway()
+
+    await expect(
+      gateway.recordGrantUsage(db, {
+        clientId: CLIENT_ID,
+        userId,
+        workspaceId: 'workspace-a',
+        now: new Date('2026-08-30T12:00:00.000Z'),
+      }),
+    ).resolves.toBe(true)
+    await gateway.recordGrantUsage(db, {
+      clientId: CLIENT_ID,
+      userId,
+      workspaceId: 'workspace-a',
+      now: new Date('2026-08-30T12:01:00.000Z'),
+    })
+
+    let rows = await db
+      .select({ id: authSchema.oauthConsent.id, lastUsedAt: authSchema.oauthConsent.lastUsedAt })
+      .from(authSchema.oauthConsent)
+    expect(rows).toEqual([
+      { id: 'grant-a', lastUsedAt: new Date('2026-08-30T12:00:00.000Z') },
+      { id: 'grant-b', lastUsedAt: null },
+    ])
+
+    await gateway.recordGrantUsage(db, {
+      clientId: CLIENT_ID,
+      userId,
+      workspaceId: 'workspace-a',
+      now: new Date('2026-08-30T12:06:00.000Z'),
+    })
+    rows = await db
+      .select({ id: authSchema.oauthConsent.id, lastUsedAt: authSchema.oauthConsent.lastUsedAt })
+      .from(authSchema.oauthConsent)
+    expect(rows).toEqual([
+      { id: 'grant-a', lastUsedAt: new Date('2026-08-30T12:06:00.000Z') },
+      { id: 'grant-b', lastUsedAt: null },
+    ])
+    await expect(
+      gateway.recordGrantUsage(db, {
+        clientId: CLIENT_ID,
+        userId,
+        workspaceId: 'workspace-missing',
+        now: new Date('2026-08-30T12:10:00.000Z'),
+      }),
+    ).resolves.toBe(false)
+  })
+
   it('resolves only live account access tokens from enabled clients', async () => {
     const { db } = await createTestApp()
     await insertClient(db, CLIENT_ID, 'FlareAuth')

@@ -204,7 +204,12 @@ export function OAuthGrants() {
             <TableBody>
               {grants.map((grant) => (
                 <TableRow key={grant.id}>
-                  <TableCell className="max-w-32 truncate font-medium sm:max-w-none">{grant.clientName}</TableCell>
+                  <TableCell className="max-w-40 sm:max-w-64">
+                    <div className="truncate font-medium">{grant.clientName}</div>
+                    <div className="truncate font-mono text-xs text-muted-foreground" title={grant.clientId}>
+                      {grant.clientId}
+                    </div>
+                  </TableCell>
                   <TableCell className="hidden md:table-cell">{workspaceNames(grant)}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">
