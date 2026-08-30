@@ -65,7 +65,6 @@ export function authRoute<P extends string, T extends Omit<RouteConfig, 'path'> 
     ...config,
     middleware,
     ...openApiSecurity(auth),
-    ...openApiAuthorizationConstraints(auth),
   } as T) as T & { getRoutingPath(): string }
 }
 
@@ -84,26 +83,26 @@ export function findOperationsMissingAuthContract(paths: Record<string, Record<s
   return missing
 }
 
-function openApiAuthorizationConstraints(auth: RouteAuthorizationDeclaration): Record<string, unknown> {
-  if ('public' in auth) return {}
-  return {
-    'x-zpan-authorization-constraints': {
-      requiredScopes: [...auth.scopes],
-      ...(auth.credential ? { credential: auth.credential } : {}),
-      ...(auth.oauth === false ? { oauth: false } : {}),
-      ...(auth.minTeamRole ? { minTeamRole: auth.minTeamRole } : {}),
-      ...(auth.siteRole ? { siteRole: auth.siteRole } : {}),
-    },
-  }
-}
-
 function hasValidAuthContract(operation: object): boolean {
   if (!('security' in operation) || !Array.isArray(operation.security)) return false
   if (operation.security.length === 0) return true
-  const constraints =
-    'x-zpan-authorization-constraints' in operation ? operation['x-zpan-authorization-constraints'] : null
-  if (!constraints || typeof constraints !== 'object' || !('requiredScopes' in constraints)) return false
-  return Array.isArray(constraints.requiredScopes) && constraints.requiredScopes.length > 0
+
+  const requirements = operation.security.filter(
+    (requirement): requirement is Record<string, unknown> => !!requirement && typeof requirement === 'object',
+  )
+  const oauthRequirements = requirements.filter((requirement) => 'oauth2' in requirement)
+  if (oauthRequirements.length > 0) {
+    return oauthRequirements.some((requirement) => {
+      const scopes = requirement.oauth2
+      return Array.isArray(scopes) && scopes.length > 0 && scopes.every((scope) => typeof scope === 'string')
+    })
+  }
+
+  return requirements.some((requirement) => {
+    if ('bearerAuth' in requirement && Array.isArray(requirement.bearerAuth)) return true
+    if ('cookieAuth' in requirement && Array.isArray(requirement.cookieAuth)) return true
+    return false
+  })
 }
 
 function openApiSecurity(auth: RouteAuthorizationDeclaration): { security?: Record<string, string[]>[] } {

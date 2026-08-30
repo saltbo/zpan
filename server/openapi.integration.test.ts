@@ -408,19 +408,13 @@ describe('global OpenAPI document', () => {
     expect(findOperationsMissingAuthContract(migratedPaths)).toEqual([])
   })
 
-  it('declares the download progress route as downloader-only', async () => {
+  it('declares the download progress route as bearer-only', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
-    const doc = (await res.json()) as {
-      paths: Record<string, Record<string, { security?: unknown; 'x-zpan-authorization-constraints'?: unknown }>>
-    }
+    const doc = (await res.json()) as { paths: Record<string, Record<string, { security?: unknown }>> }
 
     const operation = doc.paths['/api/downloads/tasks/{id}']?.patch
     expect(operation?.security).toEqual([{ bearerAuth: [] }])
-    expect(operation?.['x-zpan-authorization-constraints']).toEqual({
-      requiredScopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL],
-      credential: 'downloader',
-    })
   })
 
   it('emits OpenAPI authorization metadata from one route declaration helper', () => {
@@ -437,7 +431,6 @@ describe('global OpenAPI document', () => {
       },
     ) as {
       security?: unknown
-      'x-zpan-auth'?: unknown
       middleware?: unknown[]
     }
 
@@ -446,7 +439,6 @@ describe('global OpenAPI document', () => {
       { bearerAuth: [] },
       { cookieAuth: [] },
     ])
-    expect(route['x-zpan-auth']).toBeUndefined()
     expect(route.middleware).toHaveLength(1)
   })
 
@@ -499,7 +491,7 @@ describe('global OpenAPI document', () => {
     ])
   })
 
-  it('keeps role constraints separate from authentication and scopes', () => {
+  it('keeps resource roles in server policy instead of publishing an unconsumed extension', () => {
     const adminRoute = authRoute(
       {
         scopes: [AuthorizationScope.SITE_ANALYTICS_READ],
@@ -511,17 +503,14 @@ describe('global OpenAPI document', () => {
         path: '/probe',
         responses: { 200: { description: 'OK' } },
       },
-    ) as { security?: unknown; 'x-zpan-authorization-constraints'?: unknown }
+    ) as Record<string, unknown>
 
     expect(adminRoute.security).toEqual([
       { oauth2: [AuthorizationScope.SITE_ANALYTICS_READ] },
       { bearerAuth: [] },
       { cookieAuth: [] },
     ])
-    expect(adminRoute['x-zpan-authorization-constraints']).toEqual({
-      requiredScopes: [AuthorizationScope.SITE_ANALYTICS_READ],
-      siteRole: 'admin',
-    })
+    expect(adminRoute).not.toHaveProperty('x-zpan-authorization-constraints')
   })
 
   it('detects OpenAPI operations missing explicit authorization declarations without an allowlist', () => {
@@ -529,14 +518,12 @@ describe('global OpenAPI document', () => {
       findOperationsMissingAuthContract({
         '/public': { get: { security: [] } },
         '/protected': {
-          post: {
-            security: [{ oauth2: ['objects:read'] }],
-            'x-zpan-authorization-constraints': { requiredScopes: ['objects:read'] },
-          },
+          post: { security: [{ oauth2: ['objects:read'] }] },
         },
+        '/missing-scope': { get: { security: [{ oauth2: [] }, { bearerAuth: [] }, { cookieAuth: [] }] } },
         '/missing': { delete: { responses: { 204: { description: 'Deleted' } } } },
       }),
-    ).toEqual(['DELETE /missing'])
+    ).toEqual(['GET /missing-scope', 'DELETE /missing'])
   })
 
   it('requires every non-public OpenAPI operation to declare at least one scope', async () => {
@@ -547,12 +534,23 @@ describe('global OpenAPI document', () => {
     expect(findOperationsMissingAuthContract(doc.paths)).toEqual([])
   })
 
-  it('documents downloader registration with its scope and session admin constraint', async () => {
+  it('does not publish ZPan-specific authorization constraint metadata', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
-    const doc = (await res.json()) as {
-      paths: Record<string, Record<string, { security?: unknown; 'x-zpan-authorization-constraints'?: unknown }>>
+    const doc = (await res.json()) as { paths: Record<string, Record<string, unknown>> }
+
+    for (const pathItem of Object.values(doc.paths)) {
+      for (const operation of Object.values(pathItem)) {
+        if (!operation || typeof operation !== 'object') continue
+        expect(operation).not.toHaveProperty('x-zpan-authorization-constraints')
+      }
     }
+  })
+
+  it('documents downloader registration with standard scope metadata', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    const res = await app.request('/api/openapi.json')
+    const doc = (await res.json()) as { paths: Record<string, Record<string, { security?: unknown }>> }
 
     const operation = doc.paths['/api/downloads/downloaders']?.post
     expect(operation?.security).toEqual([
@@ -560,18 +558,12 @@ describe('global OpenAPI document', () => {
       { bearerAuth: [] },
       { cookieAuth: [] },
     ])
-    expect(operation?.['x-zpan-authorization-constraints']).toEqual({
-      requiredScopes: [AuthorizationScope.DOWNLOADERS_CREATE],
-      siteRole: 'admin',
-    })
   })
 
   it('authorizes permanent purge with its OAuth scope independently from the credential type', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
-    const doc = (await res.json()) as {
-      paths: Record<string, Record<string, { security?: unknown; 'x-zpan-authorization-constraints'?: unknown }>>
-    }
+    const doc = (await res.json()) as { paths: Record<string, Record<string, { security?: unknown }>> }
 
     const operation = doc.paths['/api/trash/objects/{id}']?.delete
     expect(operation?.security).toEqual([
@@ -579,10 +571,6 @@ describe('global OpenAPI document', () => {
       { bearerAuth: [] },
       { cookieAuth: [] },
     ])
-    expect(operation?.['x-zpan-authorization-constraints']).toEqual({
-      requiredScopes: [AuthorizationScope.OBJECTS_PURGE],
-      minTeamRole: 'editor',
-    })
   })
 
   it('publishes stable upload operations for Restish plugin discovery', async () => {
@@ -771,31 +759,6 @@ describe('global OpenAPI document', () => {
     expect(
       doc.paths['/api/objects/{id}/uploads/{uploadSessionId}']?.delete?.responses?.['204']?.content,
     ).toBeUndefined()
-  })
-
-  it('documents owner role requirements for store operations that enforce owner team role', async () => {
-    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
-    const res = await app.request('/api/openapi.json')
-    const doc = (await res.json()) as {
-      paths: Record<string, Record<string, { 'x-zpan-authorization-constraints'?: unknown }>>
-    }
-
-    const ownerOperations = [
-      doc.paths['/api/store/credits']?.get,
-      doc.paths['/api/store/credits/ledger-entries']?.get,
-      doc.paths['/api/store/credits/redemptions']?.post,
-      doc.paths['/api/store/checkouts']?.post,
-      doc.paths['/api/store/billing-portal-sessions']?.post,
-      doc.paths['/api/store/orders']?.get,
-      doc.paths['/api/store/orders/{orderId}/payments']?.post,
-      doc.paths['/api/store/orders/{orderId}/status']?.put,
-    ]
-
-    for (const operation of ownerOperations) {
-      expect(operation?.['x-zpan-authorization-constraints']).toMatchObject({
-        minTeamRole: 'owner',
-      })
-    }
   })
 
   it('documents the concrete public profile contract without the removed objects placeholder', async () => {
