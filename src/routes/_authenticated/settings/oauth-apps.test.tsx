@@ -2,7 +2,7 @@ import { AuthorizationScope } from '@shared/authorization'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { OAuthGrants } from './oauth-apps'
+import { OAuthAppsSettingsPage, OAuthGrants } from './oauth-apps'
 
 const api = vi.hoisted(() => ({
   listOAuthGrants: vi.fn(),
@@ -55,6 +55,22 @@ afterEach(() => {
 })
 
 describe('OAuth grants settings', () => {
+  it('renders loading, error, and empty states', async () => {
+    api.listOAuthGrants.mockReturnValueOnce(new Promise(() => {}))
+    const loading = renderPage()
+    expect(screen.getByText('common.loading')).toBeTruthy()
+    loading.unmount()
+
+    api.listOAuthGrants.mockRejectedValueOnce(new Error('Unavailable'))
+    const failed = renderPage()
+    expect(await screen.findByText('settings.oauthApps.oauthGrantsError')).toBeTruthy()
+    failed.unmount()
+
+    api.listOAuthGrants.mockResolvedValueOnce({ items: [] })
+    renderPage()
+    expect(await screen.findByText('settings.oauthApps.oauthNoGrants')).toBeTruthy()
+  })
+
   it('keeps large scope sets out of the table and opens details in a right sheet', async () => {
     renderPage()
 
@@ -80,5 +96,51 @@ describe('OAuth grants settings', () => {
     fireEvent.click(revokeButtons.at(-1)!)
 
     await waitFor(() => expect(api.revokeOAuthGrant).toHaveBeenCalledWith(grant.id))
+  })
+
+  it('can cancel confirmation and close the details sheet', async () => {
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.oauthApps.viewDetails' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.oauthApps.revokeAccess' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(screen.queryByText('settings.oauthApps.oauthGrantRevokeTitle')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'common.close' }))
+    await waitFor(() => expect(screen.queryByText(grant.clientId)).toBeNull())
+  })
+
+  it('shows revoke failures inline without closing the details sheet', async () => {
+    api.revokeOAuthGrant.mockRejectedValueOnce(new Error('Cannot revoke grant'))
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.oauthApps.viewDetails' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.oauthApps.revokeAccess' }))
+    const revokeButtons = screen.getAllByRole('button', { name: 'settings.oauthApps.revokeAccess' })
+    fireEvent.click(revokeButtons.at(-1)!)
+
+    expect(await screen.findByText('Cannot revoke grant')).toBeTruthy()
+    expect(screen.getByText(grant.clientId)).toBeTruthy()
+  })
+
+  it('uses workspace ids when names are unavailable and renders the page wrapper', async () => {
+    api.listOAuthGrants.mockResolvedValueOnce({
+      items: [
+        {
+          ...grant,
+          workspaces: [{ id: 'SpaceWithoutName123456', name: null }],
+          lastUsedAt: '2026-08-20T12:00:00.000Z',
+        },
+      ],
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OAuthAppsSettingsPage />
+      </QueryClientProvider>,
+    )
+
+    expect((await screen.findAllByText('SpaceWithoutName123456')).length).toBeGreaterThan(0)
+    expect(screen.queryByText('settings.oauthApps.never')).toBeNull()
   })
 })

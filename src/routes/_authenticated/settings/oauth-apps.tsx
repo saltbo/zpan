@@ -39,10 +39,7 @@ function OAuthGrantDetailsSheet({ grant, onClose }: { grant: OAuthGrant | null; 
   const [confirming, setConfirming] = useState(false)
   const [revokeError, setRevokeError] = useState<string | null>(null)
   const mutation = useMutation({
-    mutationFn: () => {
-      if (!grant) throw new Error('OAuth grant is required')
-      return revokeOAuthGrant(grant.id)
-    },
+    mutationFn: (grantId: string) => revokeOAuthGrant(grantId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['oauth-grants'] })
       setConfirming(false)
@@ -156,7 +153,12 @@ function OAuthGrantDetailsSheet({ grant, onClose }: { grant: OAuthGrant | null; 
             <Button type="button" variant="outline" disabled={mutation.isPending} onClick={() => setConfirming(false)}>
               {t('common.cancel')}
             </Button>
-            <Button type="button" variant="destructive" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={mutation.isPending}
+              onClick={() => mutation.mutate(grant!.id)}
+            >
               {mutation.isPending ? t('common.loading') : t('settings.oauthApps.revokeAccess')}
             </Button>
           </DialogFooter>
