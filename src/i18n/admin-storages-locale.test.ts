@@ -97,6 +97,7 @@ const ADMIN_STORAGES_KEYS = [
   'admin.storages.accessKeyPlaceholder',
   'admin.storages.fieldSecretKey',
   'admin.storages.secretKeyPlaceholder',
+  'admin.storages.credentialUnchangedHint',
   'admin.storages.showSecretKey',
   'admin.storages.hideSecretKey',
   'admin.storages.fieldForcePathStyle',

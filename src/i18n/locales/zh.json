@@ -1125,6 +1125,7 @@
   "admin.storages.accessKeyPlaceholder": "AKIA...",
   "admin.storages.fieldSecretKey": "Secret Key",
   "admin.storages.secretKeyPlaceholder": "Secret access key",
+  "admin.storages.credentialUnchangedHint": "保持 Access Key 不变并将 Secret Key 留空，即可保留当前凭据。",
   "admin.storages.showSecretKey": "显示 Secret Key",
   "admin.storages.hideSecretKey": "隐藏 Secret Key",
   "admin.storages.fieldForcePathStyle": "路径样式",

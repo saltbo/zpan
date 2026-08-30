@@ -68,6 +68,8 @@ describe('global OpenAPI document', () => {
     expect(doc.components?.schemas?.ImageHostingDraft?.properties?.token?.pattern).toBe(
       COMPATIBLE_IMAGE_TOKEN_PATTERN.source,
     )
+    expect(doc.components?.schemas?.Storage?.properties).toHaveProperty('accessKey')
+    expect(doc.components?.schemas?.Storage?.properties).not.toHaveProperty('secretKey')
   })
 
   it('aggregates every OpenAPIHono route at /api/openapi.json', async () => {
@@ -597,7 +599,10 @@ describe('global OpenAPI document', () => {
             parameters?: { name?: string; in?: string; required?: boolean; schema?: unknown }[]
             requestBody?: {
               content?: {
-                'application/json'?: { schema?: { properties?: Record<string, unknown>; required?: string[] } }
+                'application/json'?: {
+                  example?: Record<string, unknown>
+                  schema?: { properties?: Record<string, unknown>; required?: string[] }
+                }
               }
             }
             responses?: Record<
@@ -660,6 +665,14 @@ describe('global OpenAPI document', () => {
     })
     expect(doc.paths['/api/objects']?.post?.responses?.['422']).toBeDefined()
     expect(doc.paths['/api/objects']?.post?.requestBody).toBeDefined()
+    expect(doc.paths['/api/objects']?.post?.requestBody?.content?.['application/json']?.example).toEqual({
+      name: 'notes.txt',
+      type: 'text/plain',
+      size: 12,
+      parent: '',
+      dirtype: 0,
+      onConflict: 'fail',
+    })
     expect(doc.paths['/api/objects']?.post?.requestBody?.content?.['application/json']?.schema).toMatchObject({
       required: ['name'],
       properties: {

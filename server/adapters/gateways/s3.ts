@@ -221,13 +221,20 @@ export class S3Service implements S3Gateway {
     dstKey: string,
   ): Promise<void> {
     const client = this.createClient(dstStorage)
-    await client.send(
+    const url = await getSignedUrl(
+      client,
       new CopyObjectCommand({
         CopySource: `${srcStorage.bucket}/${srcKey}`,
         Bucket: dstStorage.bucket,
         Key: dstKey,
       }),
+      { expiresIn: DEFAULT_EXPIRES_IN },
     )
+    const response = await fetch(url, { method: 'PUT' })
+    const body = await response.text()
+    if (!response.ok || xmlTag(body, 'Error') !== null || xmlTag(body, 'Code') !== null) {
+      throw new Error(`S3 object copy failed: ${response.status}: ${body.trim()}`)
+    }
   }
 
   async streamCopy(

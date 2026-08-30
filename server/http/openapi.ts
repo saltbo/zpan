@@ -14,8 +14,8 @@ export const jsonContent = <T extends z.ZodType>(schema: T, description: string)
   description,
 })
 
-export const jsonBody = <T extends z.ZodType>(schema: T) => ({
-  body: { content: { 'application/json': { schema } }, required: true },
+export const jsonBody = <T extends z.ZodType>(schema: T, example?: z.input<T>) => ({
+  body: { content: { 'application/json': { schema, ...(example === undefined ? {} : { example }) } }, required: true },
 })
 
 // A route response carrying the shared AIP-193 `Error` envelope. Handlers and

@@ -57,7 +57,9 @@ Every PR that touches UI or API behavior **must** be verified in the Cloudflare 
 Cloudflare Workers automatically deploys each PR to a preview URL (posted as a PR comment).
 
 Before merging, the reviewer **must** verify in the preview environment and post a PR comment with:
-   - **Screenshots** proving the feature works (golden path + edge cases)
+   - **Evidence appropriate to the change**:
+     - For intentional visual changes (layout, styling, component presentation, responsive behavior, or a new UI surface), include screenshots covering the golden path and relevant edge cases.
+     - For API changes and non-visual UI behavior changes (such as data binding, validation, submission, or explanatory copy that does not change the visual design), screenshots are optional; include direct preview or executable evidence instead.
    - **What was tested** (e.g. "Switched theme to dark, changed language to Chinese, verified password mismatch error")
    - **Verdict** — approve or request changes
 
