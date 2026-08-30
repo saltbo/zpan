@@ -2,10 +2,12 @@ import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
+const wranglerPackage = require.resolve('wrangler/package.json')
+const wrangler = join(dirname(wranglerPackage), 'bin', 'wrangler.js')
 const stateDir = mkdtempSync(join(tmpdir(), 'zpan-e2e-'))
 const shardArg = process.argv.slice(2).find((arg) => arg.startsWith('--shard='))
 const artifactSuffix = `${shardArg?.slice('--shard='.length).replace('/', '-of-') ?? 'run'}-${process.pid}`
@@ -50,7 +52,7 @@ try {
     await run(
       process.execPath,
       [
-        require.resolve('wrangler/bin/wrangler.js'),
+        wrangler,
         'd1',
         'migrations',
         'apply',
