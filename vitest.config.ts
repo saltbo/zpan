@@ -1,12 +1,12 @@
 import path from 'node:path'
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers'
-import react from '@vitejs/plugin-react-swc'
+import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
 const aliases = {
-  '@': path.resolve(__dirname, './src'),
-  '@shared': path.resolve(__dirname, './shared'),
-  '@server': path.resolve(__dirname, './server'),
+  '@': path.resolve(import.meta.dirname, './src'),
+  '@shared': path.resolve(import.meta.dirname, './shared'),
+  '@server': path.resolve(import.meta.dirname, './server'),
 }
 
 const backendCoverageIncludes = ['server/**/*.ts', 'shared/**/*.ts']
@@ -59,7 +59,7 @@ const coverageGate =
 
 function createCloudflarePlugin() {
   return cloudflareTest(async () => {
-    const migrationsPath = path.join(__dirname, './migrations')
+    const migrationsPath = path.join(import.meta.dirname, './migrations')
     const migrations = await readD1Migrations(migrationsPath)
 
     return {

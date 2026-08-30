@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { extname, join, relative, resolve } from 'node:path'
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const PRODUCTION_ROOTS = ['server', 'shared', 'src', 'workers', 'scripts']
