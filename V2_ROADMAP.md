@@ -11,7 +11,7 @@ Three scenarios, one platform:
 
 - **Image Hosting** — Upload via PicGo / uPic / ShareX / API, get a permanent URL on your own domain
 - **File Sharing** — Upload, generate a link, distribute
-- **Automation & Sync** — Agent-friendly OpenAPI + Restish + upload plugin + Skill workflows for scripted file management, plus a server-side sync protocol for future desktop clients
+- **Automation & Sync** — Self-describing OpenAPI and Arazzo workflows, delegated OAuth access, and an optional discovery-based Skill for scripted file management, plus a server-side sync protocol for future desktop clients
 
 ## Target Users
 
@@ -76,7 +76,7 @@ Everything an individual, family, or small team needs to self-host:
 - One personal workspace plus one extra team workspace, shared folders, and basic roles
 - Small-file zip compression and extraction within local runtime limits
 - Remote-download orchestration through one user-configured downloader, with Aria2, qBittorrent, and future compatible adapters
-- Agent-friendly OpenAPI + Restish + upload plugin + Skill workflows once v2.9 ships
+- Self-describing OpenAPI and Arazzo upload workflows, delegated OAuth with DPoP, and an optional discovery-based Agent Skill in v2.9
 - Desktop sync protocol foundation once v2.10 ships; actual native clients live in separate projects
 - All 7 deployment targets
 

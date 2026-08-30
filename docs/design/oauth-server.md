@@ -163,9 +163,10 @@ and a proof bound to the request method, URL, and access token.
 ## Scope and Role Enforcement
 
 All ZPan resource routes use canonical `<resource>:<action>` scopes. The OAuth
-server advertises every grantable canonical scope. Permanent object purge stays
-outside user-delegated OAuth grants; it remains a separately constrained
-operation.
+server advertises every canonical resource scope, including permanent object
+purge and administrative operations. The account-only `workspaces:discover`
+scope is advertised separately and grants discovery only, not workspace
+resource access.
 
 Possessing a scope does not bypass role checks. For example, a token with a
 write scope still needs editor access to the selected workspace, and a token
