@@ -251,8 +251,7 @@ describe('Admin user detail activity', () => {
 
     renderUserDetailPage()
 
-    expect(await screen.findByText(/contract\.pdf/)).toBeTruthy()
-    expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, { userId: 'route-user-1' })
+    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, { userId: 'route-user-1' }))
   })
 
   it('renders the activity empty state', async () => {

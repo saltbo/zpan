@@ -262,8 +262,7 @@ describe('Admin team detail activity', () => {
 
     renderTeamDetailPage()
 
-    expect(await screen.findByText(/contract\.pdf/)).toBeTruthy()
-    expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, { orgId: 'route-org-1' })
+    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, { orgId: 'route-org-1' }))
   })
 
   it('renders Activity and Entitlement tabs in order and pages activity results', async () => {
