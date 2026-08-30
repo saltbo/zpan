@@ -1,4 +1,5 @@
 import { createMiddleware } from 'hono/factory'
+import type { Deps } from '../usecases/deps'
 import { forbidden, unauthorized } from '../usecases/ports'
 import type { Env } from './platform'
 
@@ -9,14 +10,48 @@ const ROLE_LEVELS: Record<string, number> = {
   member: 1,
 }
 
+type TeamRole = 'viewer' | 'editor' | 'owner'
+
+async function assertMinimumTeamRole(org: Deps['org'], orgId: string, userId: string, minRole: TeamRole) {
+  const role = await org.getMemberRole(orgId, userId)
+  if (role !== null) {
+    if ((ROLE_LEVELS[role] ?? 0) < ROLE_LEVELS[minRole]) throw forbidden('Forbidden')
+    return
+  }
+  if (await org.isPersonalOrg(orgId)) return
+  throw forbidden('Forbidden')
+}
+
+export function requireTeamRole(minRole: TeamRole) {
+  return createMiddleware<Env>(async (c, next) => {
+    const principal = c.get('principal')
+    if (!principal) throw unauthorized('Unauthorized')
+    if (principal.kind === 'downloader' || principal.kind === 'download-task-upload') {
+      throw unauthorized('Unauthorized')
+    }
+
+    const orgId = c.get('orgId')
+    const userId = c.get('userId')
+    if (!orgId || !userId) throw unauthorized('Unauthorized')
+
+    await assertMinimumTeamRole(c.get('deps').org, orgId, userId, minRole)
+    return next()
+  })
+}
+
 export function requirePermission(
   resource: string,
   action: string,
-  opts: { minTeamRole?: 'viewer' | 'editor' | 'owner'; allowDownloader?: boolean } = {},
+  opts: { credential?: 'downloader'; minTeamRole?: TeamRole; allowDownloader?: boolean } = {},
 ) {
   return createMiddleware<Env>(async (c, next) => {
     const principal = c.get('principal')
     if (!principal) throw unauthorized('Unauthorized')
+
+    if (opts.credential === 'downloader') {
+      if (principal.kind !== 'downloader') throw forbidden('Forbidden')
+      return next()
+    }
 
     if (principal.kind === 'downloader') {
       if (opts.allowDownloader) return next()
@@ -30,13 +65,8 @@ export function requirePermission(
         throw forbidden('Forbidden')
       }
       if (principal.scope.mode === 'workspace') {
-        const role = await c.get('deps').org.getMemberRole(principal.scope.orgId, principal.userId)
         const minRole = opts.minTeamRole ?? 'editor'
-        if (role !== null) {
-          if ((ROLE_LEVELS[role] ?? 0) < ROLE_LEVELS[minRole]) throw forbidden('Forbidden')
-          return next()
-        }
-        throw forbidden('Forbidden')
+        await assertMinimumTeamRole(c.get('deps').org, principal.scope.orgId, principal.userId, minRole)
       }
       return next()
     }
@@ -48,12 +78,7 @@ export function requirePermission(
     const orgId = c.get('orgId')
     if (!orgId) throw unauthorized('Unauthorized')
 
-    const role = await c.get('deps').org.getMemberRole(orgId, userId)
-    if (role !== null) {
-      if ((ROLE_LEVELS[role] ?? 0) < ROLE_LEVELS[opts.minTeamRole]) throw forbidden('Forbidden')
-      return next()
-    }
-    if (await c.get('deps').org.isPersonalOrg(orgId)) return next()
-    throw forbidden('Forbidden')
+    await assertMinimumTeamRole(c.get('deps').org, orgId, userId, opts.minTeamRole)
+    return next()
   })
 }

@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { createBackgroundJobRequestSchema, listBackgroundJobsQuerySchema, pageSchema } from '../../shared/schemas'
 import { requireAuth } from '../middleware/auth'
+import { requireTeamRole } from '../middleware/authz'
 import type { Env } from '../middleware/platform'
 import {
   cancelBackgroundJob,
@@ -76,6 +77,7 @@ const createJobRoute = createRoute({
   tags: ['Background Jobs'],
   method: 'post',
   path: '/',
+  middleware: [requireTeamRole('editor')] as const,
   request: jsonBody(createBackgroundJobRequestSchema),
   responses: {
     201: jsonContent(backgroundJobSchema, 'Created background job'),
@@ -102,6 +104,7 @@ const cancelJobRoute = createRoute({
   tags: ['Background Jobs'],
   method: 'put',
   path: '/{id}/status',
+  middleware: [requireTeamRole('editor')] as const,
   request: { params: z.object({ id: z.string() }), ...jsonBody(cancelJobSchema) },
   responses: {
     200: jsonContent(backgroundJobSchema, 'Canceled background job'),
@@ -116,6 +119,7 @@ const retryJobRoute = createRoute({
   tags: ['Background Jobs'],
   method: 'post',
   path: '/{id}/retries',
+  middleware: [requireTeamRole('editor')] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
     201: jsonContent(backgroundJobSchema, 'Retried background job'),

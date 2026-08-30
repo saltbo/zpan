@@ -16,6 +16,11 @@ function mountProbes(app: TestApp) {
   app.get('/api/test-authz/api-perm', requirePermission('remoteDownload', 'create'), (c) => c.json({ ok: true }))
   app.get('/api/test-authz/no-downloader', requirePermission('remoteDownload', 'read'), (c) => c.json({ ok: true }))
   app.get(
+    '/api/test-authz/downloader-only',
+    requirePermission('remoteDownload', 'cancel', { credential: 'downloader' }),
+    (c) => c.json({ ok: true }),
+  )
+  app.get(
     '/api/test-authz/team-editor',
     requirePermission('remoteDownload', 'create', { minTeamRole: 'editor' }),
     (c) => c.json({ ok: true }),
@@ -188,6 +193,32 @@ describe('requirePermission middleware', () => {
     const body = (await res.json()) as { error: { message: string; status: string } }
     expect(body.error.message).toBe('Unauthorized')
     expect(body.error.status).toBe('UNAUTHENTICATED')
+  })
+
+  it('allows a downloader principal on a downloader-only route', async () => {
+    const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    mountProbes(app)
+    const downloaderToken = await registerDownloader(app, 'authz-downloader-only')
+
+    const res = await app.request('/api/test-authz/downloader-only', {
+      headers: { Authorization: `Bearer ${downloaderToken}` },
+    })
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ ok: true })
+  })
+
+  it('returns 403 for a session principal on a downloader-only route', async () => {
+    const { app } = await createTestApp()
+    mountProbes(app)
+    const headers = await authedHeaders(app, 'authz-session-downloader-only@example.com')
+
+    const res = await app.request('/api/test-authz/downloader-only', { headers })
+
+    expect(res.status).toBe(403)
+    const body = (await res.json()) as { error: { message: string; status: string } }
+    expect(body.error.message).toBe('Forbidden')
+    expect(body.error.status).toBe('PERMISSION_DENIED')
   })
 
   it('returns 403 when a team member role is below the required minTeamRole', async () => {

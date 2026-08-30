@@ -123,7 +123,7 @@ const updateRoute = createRoute({
   tags: ['Download Tasks'],
   method: 'patch',
   path: '/{id}',
-  middleware: [requirePermission('remoteDownload', 'cancel', { allowDownloader: true })] as const,
+  middleware: [requirePermission('remoteDownload', 'cancel', { credential: 'downloader' })] as const,
   request: { params: z.object({ id: z.string() }), ...jsonBody(updateDownloadTaskSchema) },
   responses: {
     200: jsonContent(downloadTaskSchema, 'Updated download task'),
@@ -137,7 +137,7 @@ const statusRoute = createRoute({
   tags: ['Download Tasks'],
   method: 'put',
   path: '/{id}/status',
-  middleware: [requirePermission('remoteDownload', 'cancel')] as const,
+  middleware: [requirePermission('remoteDownload', 'cancel', { minTeamRole: 'editor' })] as const,
   request: { params: z.object({ id: z.string() }), ...jsonBody(downloadTaskStatusUpdateSchema) },
   responses: {
     200: jsonContent(downloadTaskSchema, 'Updated download task'),
@@ -151,7 +151,7 @@ const attemptRoute = createRoute({
   tags: ['Download Tasks'],
   method: 'post',
   path: '/{id}/attempts',
-  middleware: [requirePermission('remoteDownload', 'cancel')] as const,
+  middleware: [requirePermission('remoteDownload', 'cancel', { minTeamRole: 'editor' })] as const,
   request: { params: z.object({ id: z.string() }), ...jsonBody(downloadTaskAttemptSchema) },
   responses: {
     201: jsonContent(downloadTaskSchema, 'New download attempt'),
@@ -165,7 +165,7 @@ const deleteRoute = createRoute({
   tags: ['Download Tasks'],
   method: 'delete',
   path: '/{id}',
-  middleware: [requirePermission('remoteDownload', 'cancel')] as const,
+  middleware: [requirePermission('remoteDownload', 'cancel', { minTeamRole: 'editor' })] as const,
   request: { params: z.object({ id: z.string() }) },
   responses: {
     204: { description: 'Deleted download task' },
@@ -253,15 +253,11 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     const principal = c.get('principal')
     const id = c.req.valid('param').id
     const input = c.req.valid('json')
-    if (principal?.kind === 'downloader') {
-      return c.json(
-        await updateDownloadTask(c.get('deps'), c.get('platform'), id, input, { downloaderId: principal.downloaderId }),
-        200,
-      )
-    }
-    const orgId = c.get('orgId')
-    if (!orgId) throw unauthorized()
-    return c.json(await updateDownloadTask(c.get('deps'), c.get('platform'), id, input, { orgId }), 200)
+    if (principal?.kind !== 'downloader') throw new Error('authorized_downloader_principal_missing')
+    return c.json(
+      await updateDownloadTask(c.get('deps'), c.get('platform'), id, input, { downloaderId: principal.downloaderId }),
+      200,
+    )
   })
 
 export default downloadTasksRoute

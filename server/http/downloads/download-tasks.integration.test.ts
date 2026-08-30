@@ -1,5 +1,6 @@
 import type { Downloader, DownloadTask, DownloadTaskTimelineItem } from '@shared/types'
 import { sql } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../../adapters/gateways/s3.js'
 import { remoteDownloadUsageReports } from '../../db/schema'
@@ -88,6 +89,35 @@ async function insertStorage(db: Awaited<ReturnType<typeof createTestApp>>['db']
   `)
 }
 
+async function activateDownloadTeamWorkspace(
+  app: Awaited<ReturnType<typeof createTestApp>>['app'],
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  input: { email: string; role: 'viewer' | 'editor' | 'owner'; orgId: string },
+): Promise<{ headers: { Cookie: string; Origin: string }; userId: string }> {
+  const headers = await authedHeaders(app, input.email)
+  const [{ userId }] = await db.all<{ userId: string }>(sql`
+    SELECT id AS userId FROM user WHERE email = ${input.email}
+  `)
+  await db.run(sql`
+    INSERT INTO member (id, organization_id, user_id, role)
+    VALUES (${nanoid()}, ${input.orgId}, ${userId}, ${input.role})
+  `)
+  const active = await app.request('/api/auth/organization/set-active', {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ organizationId: input.orgId }),
+  })
+  expect(active.status).toBe(200)
+  const sessionCookie = active.headers
+    .getSetCookie()
+    .map((cookie) => cookie.split(';')[0])
+    .join('; ')
+  return {
+    headers: { ...headers, Cookie: sessionCookie || headers.Cookie },
+    userId,
+  }
+}
+
 async function seedCloudBinding(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
   await seedBusinessLicense(db)
 }
@@ -168,6 +198,81 @@ async function claimTaskForDownloader(
 }
 
 describe('Download tasks API integration', () => {
+  it('rejects cross-member task controls from workspace viewers', async () => {
+    const { app, db, deps } = await createTestApp()
+    const ownerEmail = 'download-security-owner@example.com'
+    await authedHeaders(app, ownerEmail)
+    const [{ userId: ownerId }] = await db.all<{ userId: string }>(sql`
+      SELECT id AS userId FROM user WHERE email = ${ownerEmail}
+    `)
+    const orgId = 'download-security-team'
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata)
+      VALUES (${orgId}, 'Download Security Team', ${orgId}, '{"type":"team"}')
+    `)
+    await db.run(sql`
+      INSERT INTO member (id, organization_id, user_id, role)
+      VALUES (${nanoid()}, ${orgId}, ${ownerId}, 'owner')
+    `)
+    const { headers } = await activateDownloadTeamWorkspace(app, db, {
+      email: 'download-security-viewer@example.com',
+      role: 'viewer',
+      orgId,
+    })
+    const now = new Date()
+    const taskIds = {
+      patch: nanoid(),
+      status: nanoid(),
+      attempt: nanoid(),
+      delete: nanoid(),
+    }
+    for (const [action, id] of Object.entries(taskIds)) {
+      await deps.downloadTasks.insert({
+        id,
+        orgId,
+        createdByUserId: ownerId,
+        sourceType: 'http',
+        sourceUri: `https://example.com/${action}.bin`,
+        displayName: null,
+        targetFolder: '',
+        category: null,
+        tags: [],
+        assignedDownloaderId: null,
+        status: action === 'attempt' ? 'failed' : action === 'delete' ? 'completed' : 'queued',
+        assignedAt: null,
+        now,
+      })
+    }
+
+    const patch = await app.request(`/api/downloads/tasks/${taskIds.patch}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'canceled' }),
+    })
+    const status = await app.request(`/api/downloads/tasks/${taskIds.status}/status`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'paused' }),
+    })
+    const attempt = await app.request(`/api/downloads/tasks/${taskIds.attempt}/attempts`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fresh: false }),
+    })
+    const deletion = await app.request(`/api/downloads/tasks/${taskIds.delete}`, {
+      method: 'DELETE',
+      headers,
+    })
+
+    expect([patch.status, status.status, attempt.status, deletion.status]).toEqual([403, 403, 403, 403])
+    await expect(deps.downloadTasks.get(orgId, taskIds.patch)).resolves.toMatchObject({ status: { state: 'queued' } })
+    await expect(deps.downloadTasks.get(orgId, taskIds.status)).resolves.toMatchObject({ status: { state: 'queued' } })
+    await expect(deps.downloadTasks.get(orgId, taskIds.attempt)).resolves.toMatchObject({ status: { state: 'failed' } })
+    await expect(deps.downloadTasks.get(orgId, taskIds.delete)).resolves.toMatchObject({
+      status: { state: 'completed' },
+    })
+  })
+
   it('registers a downloader through BetterAuth device login [spec: download-tasks/register-downloader]', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)
