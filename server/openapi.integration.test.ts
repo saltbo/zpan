@@ -520,10 +520,20 @@ describe('global OpenAPI document', () => {
         '/protected': {
           post: { security: [{ oauth2: ['objects:read'] }] },
         },
+        '/cookie-only': { get: { security: [{ cookieAuth: [] }] } },
         '/missing-scope': { get: { security: [{ oauth2: [] }, { bearerAuth: [] }, { cookieAuth: [] }] } },
+        '/invalid-scope': { get: { security: [{ oauth2: ['objects:read', 1] }] } },
+        '/invalid-requirements': { get: { security: [null, 'bearer'] } },
+        '/unsupported-scheme': { get: { security: [{ apiKeyAuth: [] }] } },
         '/missing': { delete: { responses: { 204: { description: 'Deleted' } } } },
       }),
-    ).toEqual(['GET /missing-scope', 'DELETE /missing'])
+    ).toEqual([
+      'GET /missing-scope',
+      'GET /invalid-scope',
+      'GET /invalid-requirements',
+      'GET /unsupported-scheme',
+      'DELETE /missing',
+    ])
   })
 
   it('requires every non-public OpenAPI operation to declare at least one scope', async () => {
