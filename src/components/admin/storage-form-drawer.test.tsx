@@ -47,6 +47,7 @@ const storage: Storage = {
   bucket: 'bucket',
   endpoint: 'https://s3.example.com',
   region: 'auto',
+  accessKey: 'access-key',
   filePath: '',
   capacity: 2 * 1024 * 1024 * 1024,
   forcePathStyle: true,
@@ -132,7 +133,7 @@ describe('StorageFormDrawer', () => {
     )
     expect((screen.getByLabelText('admin.storages.fieldRegion') as HTMLInputElement).value).toBe('auto')
     const secretInput = screen.getByLabelText('admin.storages.fieldSecretKey') as HTMLInputElement
-    expect(screen.getByLabelText('admin.storages.fieldAccessKey')).toHaveProperty('value', '')
+    expect(screen.getByLabelText('admin.storages.fieldAccessKey')).toHaveProperty('value', storage.accessKey)
     expect(secretInput.value).toBe('')
     expect(secretInput.getAttribute('type')).toBe('password')
     fireEvent.click(screen.getByRole('button', { name: 'admin.storages.showSecretKey' }))

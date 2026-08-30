@@ -1125,7 +1125,7 @@
   "admin.storages.accessKeyPlaceholder": "AKIA...",
   "admin.storages.fieldSecretKey": "Secret Key",
   "admin.storages.secretKeyPlaceholder": "Secret access key",
-  "admin.storages.credentialUnchangedHint": "Leave blank to keep the current credential.",
+  "admin.storages.credentialUnchangedHint": "Keep the access key unchanged and leave the secret key blank to retain the current credential.",
   "admin.storages.showSecretKey": "Show secret key",
   "admin.storages.hideSecretKey": "Hide secret key",
   "admin.storages.fieldForcePathStyle": "Path Style",

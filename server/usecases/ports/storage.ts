@@ -2,8 +2,8 @@ import type { CreateStorageInput, PatchStorageInput, ReplaceStorageInput } from 
 import type { Storage } from '@shared/types'
 import type { S3StorageCredentials } from './s3'
 
-// Server-side record: the public storage representation plus write-only S3
-// credentials; timestamps stay as Date until the HTTP layer serializes them.
+// Server-side record: the public storage representation plus the write-only S3
+// secret; timestamps stay as Date until the HTTP layer serializes them.
 // Drizzle row types never cross this boundary.
 export type StorageRecord = Omit<Storage, 'createdAt' | 'updatedAt' | 'statusCheckedAt'> &
   S3StorageCredentials & {

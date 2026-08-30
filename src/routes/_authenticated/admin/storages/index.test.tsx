@@ -63,6 +63,7 @@ const storage: Storage = {
   bucket: 'bucket',
   endpoint: 'https://s3.example.com',
   region: 'auto',
+  accessKey: 'access-key',
   filePath: '',
   capacity: 0,
   forcePathStyle: true,

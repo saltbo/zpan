@@ -21,8 +21,8 @@ import {
 } from '../../usecases/site/storage'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 
-// Storage credentials are write-only. Responses expose connection metadata but
-// never return secret material after creation.
+// The access key identifies the configured credential for administrators. The
+// secret key is write-only and is never returned after creation.
 const storageSchema = z
   .object({
     id: opaqueIdSchema,
@@ -30,6 +30,7 @@ const storageSchema = z
     bucket: z.string(),
     endpoint: z.string(),
     region: z.string(),
+    accessKey: z.string(),
     filePath: z.string(),
     capacity: z.number().int(),
     egressCreditBillingEnabled: z.boolean(),
@@ -51,7 +52,7 @@ const storageSchema = z
 type StorageDTO = z.infer<typeof storageSchema>
 
 function toStorageDTO(s: StorageRecord): StorageDTO {
-  const { accessKey: _accessKey, secretKey: _secretKey, ...storage } = s
+  const { secretKey: _secretKey, ...storage } = s
   return {
     ...storage,
     statusCheckedAt: s.statusCheckedAt?.toISOString() ?? null,

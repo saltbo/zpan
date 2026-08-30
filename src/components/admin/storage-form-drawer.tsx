@@ -73,7 +73,7 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
         bucket: storage.bucket,
         endpoint: storage.endpoint,
         region: storage.region,
-        accessKey: '',
+        accessKey: storage.accessKey,
         secretKey: '',
         forcePathStyle: storage.forcePathStyle ?? true,
       })
@@ -95,7 +95,7 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
         endpoint: values.endpoint,
         region: values.region,
         forcePathStyle: values.forcePathStyle,
-        ...(accessKey ? { accessKey } : {}),
+        ...(accessKey && accessKey !== storage.accessKey ? { accessKey } : {}),
         ...(secretKey ? { secretKey } : {}),
       })
     },

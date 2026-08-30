@@ -23,8 +23,8 @@ const validReplacement = {
   enabled: true,
 }
 
-function expectCredentialsOmitted(storage: Record<string, unknown>) {
-  expect(storage).not.toHaveProperty('accessKey')
+function expectSecretOmitted(storage: Record<string, unknown>, accessKey = validStorage.accessKey) {
+  expect(storage.accessKey).toBe(accessKey)
   expect(storage).not.toHaveProperty('secretKey')
 }
 
@@ -70,7 +70,7 @@ describe('Admin Storages API', () => {
     })
     expect(res.status).toBe(201)
     const body = (await res.json()) as Record<string, unknown>
-    expectCredentialsOmitted(body)
+    expectSecretOmitted(body)
     expect(body.provider).toBe('aws-s3')
     expect(body.bucket).toBe('test-bucket')
     expect(body.enabled).toBe(true)
@@ -147,7 +147,7 @@ describe('Admin Storages API', () => {
     expect(body.items).toHaveLength(1)
     expect(body.items[0].bucket).toBe('test-bucket')
     expect(body.items[0].forcePathStyle).toBe(true)
-    expectCredentialsOmitted(body.items[0])
+    expectSecretOmitted(body.items[0])
   })
 
   it('GET /:id returns storage detail [spec: storages/detail]', async () => {
@@ -164,7 +164,7 @@ describe('Admin Storages API', () => {
     const res = await app.request(`/api/site/storages/${created.id}`, { headers })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expectCredentialsOmitted(body)
+    expectSecretOmitted(body)
     expect(body.id).toBe(created.id)
     expect(body.bucket).toBe('test-bucket')
   })
@@ -194,7 +194,7 @@ describe('Admin Storages API', () => {
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expectCredentialsOmitted(body)
+    expectSecretOmitted(body, validReplacement.accessKey)
     expect(body.bucket).toBe('updated-bucket')
     expect(body.enabled).toBe(false)
     expect(body.status).toBe('unknown')
@@ -253,7 +253,7 @@ describe('Admin Storages API', () => {
       statusReason: string | null
       statusCheckedAt: string | null
     }
-    expectCredentialsOmitted(health as unknown as Record<string, unknown>)
+    expectSecretOmitted(health as unknown as Record<string, unknown>, validReplacement.accessKey)
     expect(health.enabled).toBe(false)
     expect(health.status).toBe('unhealthy')
     expect(health.statusReason).toBe('network_error')
@@ -298,7 +298,7 @@ describe('Admin Storages API', () => {
     })
     expect(res.status).toBe(200)
     const body = (await res.json()) as Record<string, unknown>
-    expectCredentialsOmitted(body)
+    expectSecretOmitted(body, validReplacement.accessKey)
     expect(body.egressCreditBillingEnabled).toBe(true)
     expect(body.egressCreditUnitBytes).toBe(1024)
     expect(body.egressCreditPerUnit).toBe(2)

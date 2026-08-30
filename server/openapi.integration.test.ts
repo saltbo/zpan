@@ -68,7 +68,7 @@ describe('global OpenAPI document', () => {
     expect(doc.components?.schemas?.ImageHostingDraft?.properties?.token?.pattern).toBe(
       COMPATIBLE_IMAGE_TOKEN_PATTERN.source,
     )
-    expect(doc.components?.schemas?.Storage?.properties).not.toHaveProperty('accessKey')
+    expect(doc.components?.schemas?.Storage?.properties).toHaveProperty('accessKey')
     expect(doc.components?.schemas?.Storage?.properties).not.toHaveProperty('secretKey')
   })
 
