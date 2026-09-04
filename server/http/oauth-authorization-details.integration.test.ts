@@ -31,16 +31,42 @@ describe('OAuth authorization details catalog', () => {
           display: { label: 'Build Team', metadata: { type: 'organization', role: 'editor' } },
         },
       ],
-      pagination: { limit: 50, offset: 0, total: 2, hasMore: false, nextOffset: null },
+      pagination: { page: 1, pageSize: 20, totalItems: 2, totalPages: 1 },
     })
+    expect(response.headers.get('link')).toBeNull()
 
-    const firstPage = await app.request('/api/auth/oauth2/authorization-details/catalog?limit=1&offset=0', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const firstPage = await app.request(
+      'https://zpan.example/api/auth/oauth2/authorization-details/catalog?page=1&pageSize=1',
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    )
     await expect(firstPage.json()).resolves.toMatchObject({
       items: [{ authorizationDetail: { identifier: 'personal-1' } }],
-      pagination: { limit: 1, offset: 0, total: 2, hasMore: true, nextOffset: 1 },
+      pagination: { page: 1, pageSize: 1, totalItems: 2, totalPages: 2 },
     })
+    expect(firstPage.headers.get('link')).toBe(
+      '<https://zpan.example/api/auth/oauth2/authorization-details/catalog?page=2&pageSize=1>; rel="next", <https://zpan.example/api/auth/oauth2/authorization-details/catalog?page=2&pageSize=1>; rel="last"',
+    )
+
+    const secondPage = await app.request(
+      'https://zpan.example/api/auth/oauth2/authorization-details/catalog?page=2&pageSize=1',
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    )
+    await expect(secondPage.json()).resolves.toEqual({
+      items: [
+        {
+          authorizationDetail: { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'team-1' },
+          display: { label: 'Build Team', metadata: { type: 'organization', role: 'editor' } },
+        },
+      ],
+      pagination: { page: 2, pageSize: 1, totalItems: 2, totalPages: 2 },
+    })
+    expect(secondPage.headers.get('link')).toBe(
+      '<https://zpan.example/api/auth/oauth2/authorization-details/catalog?page=1&pageSize=1>; rel="first", <https://zpan.example/api/auth/oauth2/authorization-details/catalog?page=1&pageSize=1>; rel="prev"',
+    )
 
     await db.delete(authSchema.member).where(eq(authSchema.member.organizationId, 'team-1'))
     const afterRevocation = await app.request('/api/auth/oauth2/authorization-details/catalog', {
@@ -48,6 +74,56 @@ describe('OAuth authorization details catalog', () => {
     })
     const body = (await afterRevocation.json()) as { items: Array<{ authorizationDetail: { identifier: string } }> }
     expect(body.items.map((item) => item.authorizationDetail.identifier)).toEqual(['personal-1'])
+  })
+
+  it('publishes the standardized page catalog contract in OpenAPI', async () => {
+    const { app } = await createTestApp()
+    const response = await app.request('/api/openapi.json')
+    type OpenApiSchema = { $ref?: string; properties?: Record<string, OpenApiSchema> }
+    const document = (await response.json()) as {
+      components?: { schemas?: Record<string, OpenApiSchema> }
+      paths: Record<
+        string,
+        {
+          get?: {
+            parameters?: Array<{ name?: string; schema?: Record<string, unknown> }>
+            responses?: Record<
+              string,
+              {
+                headers?: Record<string, unknown>
+                content?: { 'application/json'?: { schema?: OpenApiSchema } }
+              }
+            >
+          }
+        }
+      >
+    }
+    const operation = document.paths['/api/auth/oauth2/authorization-details/catalog']?.get
+    const queryParameters = Object.fromEntries(
+      (operation?.parameters ?? []).map((parameter) => [parameter.name, parameter.schema]),
+    )
+    const responseSchema = operation?.responses?.['200']?.content?.['application/json']?.schema
+    const responseSchemaName = responseSchema?.$ref?.split('/').at(-1)
+    const catalogSchema = responseSchemaName ? document.components?.schemas?.[responseSchemaName] : responseSchema
+    const pagination = catalogSchema?.properties?.pagination
+
+    expect(queryParameters).toEqual({
+      page: expect.objectContaining({ type: 'integer', default: 1, minimum: 1 }),
+      pageSize: expect.objectContaining({ type: 'integer', default: 20, minimum: 1, maximum: 100 }),
+    })
+    expect(Object.keys(pagination?.properties ?? {})).toEqual(['page', 'pageSize', 'totalItems', 'totalPages'])
+    expect(operation?.responses?.['200']?.headers).toHaveProperty('Link')
+  })
+
+  it('rejects page values outside the catalog contract', async () => {
+    const { app, db } = await createTestApp()
+    const token = await seedAccountToken(db, [AuthorizationScope.WORKSPACES_DISCOVER])
+    const headers = { Authorization: `Bearer ${token}` }
+
+    expect((await app.request('/api/auth/oauth2/authorization-details/catalog?page=0', { headers })).status).toBe(400)
+    expect((await app.request('/api/auth/oauth2/authorization-details/catalog?pageSize=101', { headers })).status).toBe(
+      400,
+    )
   })
 
   it('rejects missing, expired, target, and under-scoped credentials', async () => {
