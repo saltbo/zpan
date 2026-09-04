@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Deploy on Cloudflare Workers or Docker. Upload directly to object storage.
+  Deploy on Cloudflare Workers or Docker, Upload directly to object storage.
 </p>
 
 <p align="center">
