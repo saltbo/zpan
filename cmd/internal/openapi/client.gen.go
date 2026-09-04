@@ -5121,11 +5121,10 @@ type AuthorizationDetailsCatalog struct {
 		} `json:"display"`
 	} `json:"items"`
 	Pagination struct {
-		HasMore    bool `json:"hasMore"`
-		Limit      int  `json:"limit"`
-		NextOffset *int `json:"nextOffset"`
-		Offset     int  `json:"offset"`
-		Total      int  `json:"total"`
+		Page       int `json:"page"`
+		PageSize   int `json:"pageSize"`
+		TotalItems int `json:"totalItems"`
+		TotalPages int `json:"totalPages"`
 	} `json:"pagination"`
 }
 
@@ -6540,8 +6539,8 @@ type CreateDeviceAccessToken400JSONResponseBodyError string
 
 // ListAuthorizationDetailsCatalogParams defines parameters for ListAuthorizationDetailsCatalog.
 type ListAuthorizationDetailsCatalogParams struct {
-	Limit  *int `form:"limit,omitempty" json:"limit,omitempty"`
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+	Page     *int `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
 // CreateDynamicOAuthClientRegistrationJSONBody defines parameters for CreateDynamicOAuthClientRegistration.
@@ -14312,9 +14311,9 @@ func NewListAuthorizationDetailsCatalogRequest(server string, params *ListAuthor
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if params.Limit != nil {
+		if params.Page != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -14324,9 +14323,9 @@ func NewListAuthorizationDetailsCatalogRequest(server string, params *ListAuthor
 
 		}
 
-		if params.Offset != nil {
+		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {

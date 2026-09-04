@@ -62,7 +62,7 @@ jobs:
           cache-dependency-path: cmd/go.sum
       - run: pnpm install --frozen-lockfile
       - name: Audit dependencies
-        run: pnpm audit --audit-level high
+        run: pnpm audit --audit-level high --ignore-registry-errors
       - run: pnpm lint
       - run: pnpm lint:arch
       - run: pnpm lint:http

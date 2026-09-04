@@ -19,11 +19,10 @@ const catalogEntrySchema = z.object({
 })
 
 const paginationSchema = z.object({
-  limit: z.number().int().positive(),
-  offset: z.number().int().nonnegative(),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-  nextOffset: z.number().int().nonnegative().nullable(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  totalItems: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
 })
 
 const catalogSchema = z
@@ -41,12 +40,20 @@ const catalogRoute = {
   security: [{ oauth2: [AuthorizationScope.WORKSPACES_DISCOVER] }],
   request: {
     query: z.object({
-      limit: z.coerce.number().int().min(1).max(100).default(50),
-      offset: z.coerce.number().int().min(0).default(0),
+      page: z.coerce.number().int().min(1).default(1),
+      pageSize: z.coerce.number().int().min(1).max(100).default(20),
     }),
   },
   responses: {
-    200: jsonContent(catalogSchema, 'Available workspace authorization details'),
+    200: {
+      ...jsonContent(catalogSchema, 'Available workspace authorization details'),
+      headers: {
+        Link: {
+          description: 'RFC 8288 links to applicable first, previous, next, and last catalog pages.',
+          schema: { type: 'string' as const },
+        },
+      },
+    },
     401: errorResponse('Invalid or expired account access token'),
     403: errorResponse('Missing workspace discovery scope'),
   },
@@ -73,5 +80,29 @@ export const oauthAuthorizationDetails = new OpenAPIHono<Env>().openapi(catalogR
       ).payload,
   })
   c.header('Cache-Control', 'no-store')
+  const link = catalogPaginationLink(c.req.url, catalog.pagination)
+  if (link) c.header('Link', link)
   return c.json(catalog, 200)
 })
+
+function catalogPaginationLink(
+  requestUrl: string,
+  pagination: { page: number; pageSize: number; totalPages: number },
+): string | null {
+  if (pagination.totalPages === 0) return null
+
+  const links: string[] = []
+  const add = (page: number, relation: 'first' | 'prev' | 'next' | 'last') => {
+    const url = new URL(requestUrl)
+    url.search = ''
+    url.searchParams.set('page', String(page))
+    url.searchParams.set('pageSize', String(pagination.pageSize))
+    links.push(`<${url.toString()}>; rel="${relation}"`)
+  }
+
+  if (pagination.page !== 1) add(1, 'first')
+  if (pagination.page > 1) add(pagination.page - 1, 'prev')
+  if (pagination.page < pagination.totalPages) add(pagination.page + 1, 'next')
+  if (pagination.page !== pagination.totalPages) add(pagination.totalPages, 'last')
+  return links.length > 0 ? links.join(', ') : null
+}
