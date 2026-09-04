@@ -32,7 +32,7 @@
 </p>
 
 <p align="center">
-  🎉 <strong>ZPan v2 is here.</strong> To celebrate, we're giving away ZPan Pro three ways — for early stargazers, contributors, and new stars. See <a href="docs/v2-launch-offers.md"><strong>v2 Launch Offers</strong></a>.
+  🎉 <strong>ZPan v2 is here.</strong> To celebrate, we're giving away ZPan Pro three waysfor early stargazers, contributors, and new stars.  <br />See <a href="docs/v2-launch-offers.md"><strong>v2 Launch Offers</strong></a>.
 </p>
 
 ## What is ZPan?
