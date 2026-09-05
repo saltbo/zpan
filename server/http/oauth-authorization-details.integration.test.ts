@@ -23,10 +23,12 @@ describe('OAuth authorization details catalog', () => {
     await expect(response.json()).resolves.toEqual({
       items: [
         {
+          id: 'personal-1',
           authorizationDetail: { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'personal-1' },
           display: { label: 'Personal Files', metadata: { type: 'personal', role: 'owner' } },
         },
         {
+          id: 'team-1',
           authorizationDetail: { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'team-1' },
           display: { label: 'Build Team', metadata: { type: 'organization', role: 'editor' } },
         },
@@ -42,7 +44,7 @@ describe('OAuth authorization details catalog', () => {
       },
     )
     await expect(firstPage.json()).resolves.toMatchObject({
-      items: [{ authorizationDetail: { identifier: 'personal-1' } }],
+      items: [{ id: 'personal-1', authorizationDetail: { identifier: 'personal-1' } }],
       pagination: { page: 1, pageSize: 1, totalItems: 2, totalPages: 2 },
     })
     expect(firstPage.headers.get('link')).toBe(
@@ -58,6 +60,7 @@ describe('OAuth authorization details catalog', () => {
     await expect(secondPage.json()).resolves.toEqual({
       items: [
         {
+          id: 'team-1',
           authorizationDetail: { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: 'team-1' },
           display: { label: 'Build Team', metadata: { type: 'organization', role: 'editor' } },
         },
