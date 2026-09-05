@@ -5,6 +5,29 @@ import { authRoute, findOperationsMissingAuthContract } from './http/openapi'
 import { createTestApp } from './test/setup'
 
 describe('global OpenAPI document', () => {
+  it('publishes stable workspace IDs in the authorization details catalog', async () => {
+    const { app } = await createTestApp()
+    const response = await app.request('/api/openapi.json')
+    expect(response.status).toBe(200)
+    const doc = await response.json()
+    expect(doc).toMatchObject({
+      components: {
+        schemas: {
+          AuthorizationDetailsCatalog: {
+            properties: {
+              items: {
+                items: {
+                  required: expect.arrayContaining(['id']),
+                  properties: { id: { type: 'string', minLength: 1 } },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
+  })
+
   it('publishes compatibility contracts for stored IDs while preserving token namespaces', async () => {
     const { app } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     const res = await app.request('/api/openapi.json')
