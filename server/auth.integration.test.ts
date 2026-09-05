@@ -1399,11 +1399,32 @@ describe('OAuth consent guards', () => {
     await expect(catalogResponse.json()).resolves.toMatchObject({
       items: expect.arrayContaining([
         expect.objectContaining({
+          id: workspaceId,
           authorizationDetail: { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: workspaceId },
           display: expect.objectContaining({
             label: expect.any(String),
             metadata: { type: 'personal', role: 'owner' },
           }),
+        }),
+      ]),
+    })
+
+    // [spec: oauth-server/stable-context-id]
+    await ctx.db
+      .update(authSchema.organization)
+      .set({ name: 'Renamed workspace' })
+      .where(eq(authSchema.organization.id, workspaceId))
+    const renamedCatalogResponse = await ctx.app.request(
+      'http://localhost:3000/api/auth/oauth2/authorization-details/catalog',
+      { headers: { Authorization: `Bearer ${subject.access_token}` } },
+    )
+    expect(renamedCatalogResponse.status).toBe(200)
+    await expect(renamedCatalogResponse.json()).resolves.toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          id: workspaceId,
+          authorizationDetail: { type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE, identifier: workspaceId },
+          display: expect.objectContaining({ label: 'Renamed workspace' }),
         }),
       ]),
     })

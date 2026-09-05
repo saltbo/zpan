@@ -5119,6 +5119,9 @@ type AuthorizationDetailsCatalog struct {
 			Label    string            `json:"label"`
 			Metadata map[string]string `json:"metadata"`
 		} `json:"display"`
+
+		// Id Stable workspace Context ID, unchanged when the workspace is renamed
+		Id string `json:"id"`
 	} `json:"items"`
 	Pagination struct {
 		Page       int `json:"page"`

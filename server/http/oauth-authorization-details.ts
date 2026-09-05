@@ -8,6 +8,7 @@ import { unauthorized } from '../usecases/ports'
 import { errorResponse, jsonContent } from './openapi'
 
 const catalogEntrySchema = z.object({
+  id: z.string().min(1).describe('Stable workspace Context ID, unchanged when the workspace is renamed'),
   authorizationDetail: z.object({
     type: z.literal(WORKSPACE_AUTHORIZATION_DETAIL_TYPE),
     identifier: z.string().min(1),

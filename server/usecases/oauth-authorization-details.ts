@@ -26,6 +26,7 @@ export async function listOAuthAuthorizationDetailsCatalog(
   const workspaces = await deps.org.listUserWorkspaceCatalog(account.userId)
   const offset = (input.page - 1) * input.pageSize
   const items = workspaces.slice(offset, offset + input.pageSize).map((workspace) => ({
+    id: workspace.id,
     authorizationDetail: {
       type: WORKSPACE_AUTHORIZATION_DETAIL_TYPE as typeof WORKSPACE_AUTHORIZATION_DETAIL_TYPE,
       identifier: workspace.id,
