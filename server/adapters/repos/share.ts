@@ -1,6 +1,6 @@
 import { DirType } from '@shared/constants'
 import type { CreateShareInput } from '@shared/schemas/share'
-import { and, count, desc, eq, isNotNull, isNull, like, lt, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, isNotNull, isNull, lt, or, sql } from 'drizzle-orm'
 import { generateId, generateShareToken } from '../../../shared/ids'
 import { user } from '../../db/auth-schema'
 import { matters, shareRecipients, shares } from '../../db/schema'
@@ -22,9 +22,10 @@ function buildPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
 }
 
-// Escape LIKE wildcards so user-controlled folder names don't act as patterns.
-function escapeLike(s: string): string {
-  return s.replace(/[\\%_]/g, '\\$&')
+function folderChildrenCondition(folderPath: string) {
+  const prefix = `${folderPath}/`
+  // Literal prefixes avoid D1's LIKE pattern limit and preserve path case/wildcards.
+  return or(eq(matters.parent, folderPath), sql`SUBSTR(${matters.parent}, 1, LENGTH(${prefix})) = ${prefix}`)
 }
 
 export function createShareRepo(db: Database): ShareRepo {
@@ -404,7 +405,7 @@ export function createShareRepo(db: Database): ShareRepo {
             isNull(matters.trashedAt),
             isNull(matters.purgedAt),
             eq(matters.dirtype, DirType.FILE),
-            or(eq(matters.parent, folderPath), like(matters.parent, `${folderPath}/%`)),
+            folderChildrenCondition(folderPath),
           ),
         )
       return rows.reduce((acc, r) => acc + (r.size ?? 0), 0)
@@ -457,7 +458,6 @@ export function createShareRepo(db: Database): ShareRepo {
       childId: string,
     ): Promise<Matter | null> {
       const root = buildPath(rootMatter.parent, rootMatter.name)
-      const likePattern = `${escapeLike(root)}/%`
       const rows = await db
         .select()
         .from(matters)
@@ -468,7 +468,7 @@ export function createShareRepo(db: Database): ShareRepo {
             eq(matters.status, 'active'),
             isNull(matters.trashedAt),
             isNull(matters.purgedAt),
-            or(eq(matters.parent, root), sql`${matters.parent} LIKE ${likePattern} ESCAPE '\\'`),
+            folderChildrenCondition(root),
           ),
         )
       return rows[0] ?? null
