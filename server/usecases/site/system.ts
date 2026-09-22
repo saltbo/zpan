@@ -27,11 +27,8 @@ export async function resolveInstanceInfo(
   params: { requestUrl: string; runtime: RuntimeInfo; publicOrigin?: string | null },
 ): Promise<InstanceInfo> {
   const origin =
-    params.publicOrigin ??
-    (await getSitePublicOrigin(deps)) ??
-    originFromRequestUrl(params.requestUrl) ??
-    new URL(params.requestUrl).origin
-  return buildInstanceInfo(deps, { url: origin, runtime: params.runtime })
+    (await getSitePublicOrigin(deps)) ?? originFromRequestUrl(params.requestUrl) ?? new URL(params.requestUrl).origin
+  return buildInstanceInfo(deps, { url: params.publicOrigin ?? origin, runtime: params.runtime })
 }
 
 // ─── Changelog ───────────────────────────────────────────────────────────────
