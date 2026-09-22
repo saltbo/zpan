@@ -15,7 +15,7 @@ pnpm install
 ## Development
 
 ```sh
-pnpm dev              # CF Workers mode with HMR (default, uses local D1 with test bindings)
+pnpm dev              # CF Workers mode with HMR (default, uses simulated local D1 bindings)
 pnpm dev:node         # Node.js mode with HMR (SQLite, reads .dev.vars)
 ```
 
@@ -116,7 +116,7 @@ Schema is defined in `server/db/schema.ts` and `server/db/auth-schema.ts`.
 
 ```sh
 pnpm db:generate                            # Generate migration SQL after schema changes
-pnpm db:migrate                             # Apply migrations (Node/SQLite)
+pnpm db:migrate:node                        # Apply migrations (Node/SQLite)
 pnpm db:migrate:d1                          # Apply migrations (D1 local)
 wrangler d1 migrations apply zpan-db --remote  # Apply migrations (D1 production)
 ```
@@ -124,7 +124,8 @@ wrangler d1 migrations apply zpan-db --remote  # Apply migrations (D1 production
 To reset local databases with seed data (admin user + dev storage):
 
 ```sh
-pnpm db:reset                # Reset Node database (zpan.db)
+pnpm db:reset                # Reset local Workers D1
+pnpm db:reset:node           # Reset Node database (.local/node/zpan.db)
 pnpm db:reset:d1             # Reset D1 local database (.wrangler)
 ```
 
@@ -138,8 +139,8 @@ After applying the migration that creates `storage_usage_breakdowns`, run the st
 pnpm storage:backfill -- --d1 zpan-db --remote
 pnpm storage:backfill -- --d1 zpan-db --remote --apply
 
-pnpm storage:backfill -- --sqlite zpan.db
-pnpm storage:backfill -- --sqlite zpan.db --apply
+pnpm storage:backfill -- --sqlite .local/node/zpan.db
+pnpm storage:backfill -- --sqlite .local/node/zpan.db --apply
 ```
 
 The backfill recalculates all eight storage categories from `matters` and `image_hostings`. It is an operator command, not part of the application runtime or deployment lifecycle.
@@ -153,26 +154,26 @@ the `enabled` flag and the `unknown`/`healthy`/`unhealthy` health model:
 pnpm storage-status:backfill -- --d1 zpan-db --remote
 pnpm storage-status:backfill -- --d1 zpan-db --remote --apply
 
-pnpm storage-status:backfill -- --sqlite zpan.db
-pnpm storage-status:backfill -- --sqlite zpan.db --apply
+pnpm storage-status:backfill -- --sqlite .local/node/zpan.db
+pnpm storage-status:backfill -- --sqlite .local/node/zpan.db --apply
 ```
 
 Run this once before deploying the application version that reads health status.
 
 ### Turso (libSQL) migrate path
 
-When deploying the Node/Docker image against a Turso (libSQL) database, set `TURSO_DATABASE_URL` (and `TURSO_AUTH_TOKEN` for remote URLs) before running `db:migrate`. `drizzle.config.ts` detects the env var and switches to the `turso` dialect automatically:
+When deploying the Node/Docker image against a Turso (libSQL) database, set `TURSO_DATABASE_URL` (and `TURSO_AUTH_TOKEN` for remote URLs) before running `db:migrate:node`. `drizzle.config.ts` detects the env var and switches to the `turso` dialect automatically:
 
 ```sh
 TURSO_DATABASE_URL=libsql://your-db.turso.io \
 TURSO_AUTH_TOKEN=your-token \
-pnpm db:migrate
+pnpm db:migrate:node
 ```
 
 For local libSQL files the token can be omitted:
 
 ```sh
-TURSO_DATABASE_URL=file:./zpan.db pnpm db:migrate
+TURSO_DATABASE_URL=file:./zpan.db pnpm db:migrate:node
 ```
 
 Migrations run automatically at Docker container startup when `TURSO_DATABASE_URL` is set. See [docs/deploy/docker.md](docs/deploy/docker.md) for the full Docker + Turso setup.
@@ -208,3 +209,20 @@ We welcome financial contributions on our [Open Collective](https://opencollecti
 Thank you to all the people who have already contributed to ZPan!
 
 <a href="https://github.com/saltbo/zpan/graphs/contributors"><img src="https://opencollective.com/zpan/contributors.svg?width=890" /></a>
+
+## Local runtime and database selection
+
+`pnpm dev` runs Cloudflare Workers locally. Copy `.dev.vars.example` to `.dev.vars`
+and fill in development credentials. Bindings are simulated locally in `.wrangler/state/`;
+there is no `env.local`. Never add `remote: true` for ordinary local development.
+
+- `pnpm db:migrate`: migrate local Workers D1.
+- `pnpm db:query --command "SELECT name FROM sqlite_master WHERE type='table'"`: query the same local D1.
+- Node is opt-in via `pnpm dev:node`; its database lives in `.local/node/`.
+- `pnpm db:migrate:node`: migrate Node SQLite (or explicitly configured Node database).
+
+Agents: first identify the running runtime. For the default Workers server, use
+`pnpm db:query`; never inspect a root-level `.db` file or Node SQLite as evidence
+about Workers data. Do not select an arbitrary `.sqlite` file from Wrangler state.
+Explicit `DATABASE_URL` overrides apply only to Node; Docker volume paths are preserved.
+Stop local servers before clearing `.wrangler/state/`, then run `pnpm db:migrate`.

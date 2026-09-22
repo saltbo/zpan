@@ -1,6 +1,11 @@
+import { mkdirSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { defineConfig } from 'drizzle-kit'
 
 const tursoUrl = process.env.TURSO_DATABASE_URL
+
+const nodeDbPath = process.env.DATABASE_URL || '.local/node/zpan.db'
+if (nodeDbPath !== ':memory:') mkdirSync(dirname(nodeDbPath), { recursive: true })
 
 export default tursoUrl
   ? defineConfig({
@@ -17,6 +22,6 @@ export default tursoUrl
       out: './migrations',
       dialect: 'sqlite',
       dbCredentials: {
-        url: process.env.DATABASE_URL || 'zpan.db',
+        url: nodeDbPath,
       },
     })

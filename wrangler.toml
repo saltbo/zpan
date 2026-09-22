@@ -105,36 +105,3 @@ bucket_name = "zpan-public-images-staging"
 
 [[previews.send_email]]
 name = "EMAIL"
-
-
-# Used only by local development and local D1 tools.
-[env.local]
-
-[env.local.vars]
-ZPAN_CLOUD_URL = "https://staging-zpan-cloud.saltbo.workers.dev"
-ZPAN_CACHE_MODE = "distributed"
-
-[[env.local.d1_databases]]
-binding = "DB"
-database_name = "zpan-db-staging"
-database_id = "a9197d7a-6524-42f0-b646-e714dcb30b3b"
-migrations_dir = "./migrations"
-
-[[env.local.kv_namespaces]]
-binding = "CACHE_KV"
-id = "7d8625bacbc54e23a46ca4464a9f64a0"
-
-[[env.local.ratelimits]]
-name = "WEBDAV_RATE_LIMITER"
-namespace_id = "2802"
-
-[env.local.ratelimits.simple]
-limit = 3600
-period = 60
-
-[[env.local.r2_buckets]]
-binding = "PUBLIC_IMAGES"
-bucket_name = "zpan-public-images-staging"
-
-[[env.local.send_email]]
-name = "EMAIL"

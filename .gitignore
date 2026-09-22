@@ -63,3 +63,6 @@ skills-lock.json
 
 # e2e throwaway database
 .e2e/
+
+# Explicit Node runtime state; Workers use .wrangler/state instead.
+.local/

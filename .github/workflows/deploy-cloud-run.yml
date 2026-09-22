@@ -96,7 +96,7 @@ jobs:
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
         run: |
           pnpm install --frozen-lockfile
-          pnpm db:migrate
+          pnpm db:migrate:node
 
       - name: Store required secrets in Secret Manager
         env:

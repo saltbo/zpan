@@ -6,8 +6,8 @@
   "type": "module",
   "packageManager": "pnpm@10.30.2",
   "scripts": {
-    "dev": "CLOUDFLARE_ENV=local vite dev",
-    "dev:node": "node --env-file=.dev.vars node_modules/vite/bin/vite.js dev --mode node",
+    "dev": "vite dev",
+    "dev:node": "node --env-file=.dev.vars scripts/dev-node.mjs",
     "agent-skills:build": "node scripts/build-agent-skills.mjs",
     "agent-skills:check": "node scripts/build-agent-skills.mjs --check",
     "build": "pnpm agent-skills:build && vite build",
@@ -20,11 +20,11 @@
     "release": "node scripts/release.mjs",
     "release:check-version": "node scripts/check-release-version.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:migrate:d1": "wrangler d1 migrations apply zpan-db-staging --local --env local",
+    "db:migrate": "pnpm db:migrate:d1",
+    "db:migrate:d1": "wrangler d1 migrations apply DB --local",
     "db:migrate:d1:staging": "wrangler d1 migrations apply PREVIEW_DB --remote --config wrangler.preview-migrations.json",
     "db:migrate:d1:prod": "wrangler d1 migrations apply zpan-db --remote",
-    "db:reset": "tsx --env-file=.dev.vars scripts/db-reset.ts",
+    "db:reset": "pnpm db:reset:d1",
     "db:reset:d1": "tsx --env-file=.dev.vars scripts/db-reset.ts --d1",
     "seed:preview-admin": "TMPDIR=/tmp node --env-file-if-exists=.dev.vars --import tsx scripts/seed-preview-admin.ts",
     "stats:backfill": "tsx scripts/backfill-admin-stats.ts",
@@ -53,7 +53,11 @@
     "e2e:archive:cf": "E2E_RUNTIME=cf node scripts/run-e2e.mjs archive.spec.ts --project=desktop",
     "openapi:client": "tsx scripts/openapi-client.ts",
     "openapi:client:check": "tsx scripts/openapi-client.ts --check",
-    "deploy:preview": "pnpm db:migrate:d1:staging && wrangler preview"
+    "deploy:preview": "pnpm db:migrate:d1:staging && wrangler preview",
+    "db:migrate:node": "drizzle-kit migrate",
+    "db:query": "wrangler d1 execute DB --local",
+    "dev:server:node": "tsx watch --env-file=.dev.vars server/entry-node.ts",
+    "db:reset:node": "tsx --env-file=.dev.vars scripts/db-reset.ts --node"
   },
   "engines": {
     "node": ">=24"

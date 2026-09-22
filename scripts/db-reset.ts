@@ -10,11 +10,11 @@ import * as authSchema from '../server/db/auth-schema'
 import * as schema from '../server/db/schema'
 import type { Platform } from '../server/platform/interface'
 
-const isD1 = process.argv.includes('--d1')
+const isD1 = !process.argv.includes('--node')
 
-const NODE_DB_PATH = process.env.DATABASE_URL || './zpan.db'
+const NODE_DB_PATH = process.env.DATABASE_URL || './.local/node/zpan.db'
 const D1_STATE_DIR = '.wrangler/state/v3/d1'
-const D1_DB_NAME = 'zpan-db-staging'
+const D1_DB_NAME = 'DB'
 
 // ── required env vars ──
 const email = 'admin@zpan.space'
@@ -86,6 +86,7 @@ function resetNode(): Platform {
   }
   console.log(`deleted ${NODE_DB_PATH}`)
 
+  fs.mkdirSync(path.dirname(NODE_DB_PATH), { recursive: true })
   const sqlite = new Database(NODE_DB_PATH)
   sqlite.pragma('journal_mode = WAL')
   const db = drizzle(sqlite, { schema: { ...schema, ...authSchema } })
@@ -103,7 +104,7 @@ function resetD1(): Platform {
   }
 
   // re-run migrations via wrangler
-  execSync(`wrangler d1 migrations apply ${D1_DB_NAME} --local --env local`, { stdio: 'inherit' })
+  execSync(`wrangler d1 migrations apply ${D1_DB_NAME} --local`, { stdio: 'inherit' })
   console.log('D1 local database migrated')
 
   // find the SQLite file wrangler just created
@@ -118,7 +119,7 @@ function findD1SqliteFile(): string {
   const base = path.join(D1_STATE_DIR, 'miniflare-D1DatabaseObject')
   if (!fs.existsSync(base)) throw new Error(`D1 state dir not found: ${base}`)
   const files = fs.readdirSync(base).filter((f) => f.endsWith('.sqlite') && f !== 'metadata.sqlite')
-  if (files.length === 0) throw new Error('No D1 SQLite database file found after migration')
+  if (files.length !== 1) throw new Error('Expected exactly one freshly migrated local D1 database')
   return path.join(base, files[0])
 }
 

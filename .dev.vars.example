@@ -19,3 +19,6 @@ ZPAN_CLOUD_URL=http://localhost:5186
 # rotated via config and never trusted by production builds. Pair this with the
 # matching LICENSE_SIGNING_KEY in zpan-cloud/.dev.vars (run `npm run gen-keypair`).
 ZPAN_LICENSE_PUBLIC_KEYS=
+
+# Explicit Node runtime only; Workers always use simulated D1.
+# DATABASE_URL=./.local/node/zpan.db

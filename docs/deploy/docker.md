@@ -121,10 +121,10 @@ When `TURSO_DATABASE_URL` is present:
 ```sh
 TURSO_DATABASE_URL=libsql://your-db.turso.io \
 TURSO_AUTH_TOKEN=your-token \
-pnpm db:migrate
+pnpm db:migrate:node
 ```
 
-`drizzle.config.ts` automatically switches to the `turso` dialect when `TURSO_DATABASE_URL` is set, so `pnpm db:generate` and `pnpm db:migrate` work against Turso without any extra flags.
+`drizzle.config.ts` automatically switches to the `turso` dialect when `TURSO_DATABASE_URL` is set, so `pnpm db:generate` and `pnpm db:migrate:node` work against Turso without any extra flags.
 
 ### Obtaining a Turso auth token
 

@@ -72,3 +72,20 @@ If `drizzle-kit generate` errors about TTY in CI, **fix the CI invocation** (pas
 ## Frontend API Wrappers
 
 **Every new function added to `src/lib/api.ts` must have a corresponding test added to `src/lib/api.test.ts` in the same PR.** Codecov rejects PRs where `src/lib/api.ts` gains uncovered lines. For each wrapper, assert: correct RPC path and method, payload shape, success path resolves, error path throws `ApiError`. Follow the pattern already established for `listShares`/`getShare`/`deleteShare`/`listNotifications`/etc.
+
+## Local runtime and database selection
+
+`pnpm dev` runs Cloudflare Workers locally. Copy `.dev.vars.example` to `.dev.vars`
+and fill in development credentials. Bindings are simulated locally in `.wrangler/state/`;
+there is no `env.local`. Never add `remote: true` for ordinary local development.
+
+- `pnpm db:migrate`: migrate local Workers D1.
+- `pnpm db:query --command "SELECT name FROM sqlite_master WHERE type='table'"`: query the same local D1.
+- Node is opt-in via `pnpm dev:node`; its database lives in `.local/node/`.
+- `pnpm db:migrate:node`: migrate Node SQLite (or explicitly configured Node database).
+
+Agents: first identify the running runtime. For the default Workers server, use
+`pnpm db:query`; never inspect a root-level `.db` file or Node SQLite as evidence
+about Workers data. Do not select an arbitrary `.sqlite` file from Wrangler state.
+Explicit `DATABASE_URL` overrides apply only to Node; Docker volume paths are preserved.
+Stop local servers before clearing `.wrangler/state/`, then run `pnpm db:migrate`.

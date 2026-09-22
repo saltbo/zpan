@@ -12,11 +12,12 @@ separately deployed `zpan-staging` Worker in the target setup.
 | Preview builds | Enabled |
 
 Do not set `CLOUDFLARE_ENV=staging` in Builds. Vite builds the top-level Worker;
-Wrangler selects `previews` bindings when publishing a Preview. `env.local` is
-only for local development and must not be deployed.
+Wrangler selects `previews` bindings when publishing a Preview. Local development uses the top-level bindings simulated by Wrangler,
+with local variables and secrets from `.dev.vars`; no named local environment is needed.
 
-The `previews.d1_databases` binding and `wrangler.preview-migrations.json` must
-point at the same database ID. Preview migrations run before upload, separately
+Following the [official D1 migration workflow](https://developers.cloudflare.com/workers/previews/resources/#d1-migrations),
+`wrangler.preview-migrations.json` declares the migration target separately. Its
+database ID must match `previews.d1_databases` in `wrangler.toml`. Preview migrations run before upload, separately
 from production migrations. All branches share staging data; incompatible schema
 changes require coordination or a separate database, not concurrent migrations
 against the shared database.
