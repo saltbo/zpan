@@ -22,6 +22,7 @@ function getCloudBaseUrl(c: Context<Env>): string {
 }
 
 async function getInstanceOrigin(c: Context<Env>): Promise<string | null> {
+  if (c.get('platform').getEnv('ZPAN_PREVIEW') === 'true') return new URL(c.req.url).origin
   return (await getSitePublicOrigin(c.get('deps'))) ?? originFromRequestUrl(c.req.url)
 }
 
@@ -35,6 +36,7 @@ async function configuredPublicHost(c: Context<Env>): Promise<string | null> {
 }
 
 async function getRequestHost(c: Context<Env>): Promise<string> {
+  if (c.get('platform').getEnv('ZPAN_PREVIEW') === 'true') return new URL(c.req.url).host
   const configured = await getSitePublicOrigin(c.get('deps'))
   if (configured) return new URL(configured).host
   const forwardedHost = c.req.header('x-forwarded-host') ?? c.req.header('host')
