@@ -88,6 +88,14 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
     await next()
   })
   app.use('/*', async (c, next) => {
+    if (platform.getEnv('ZPAN_PREVIEW') === 'true') {
+      const routing = await getSiteRoutingConfig(deps)
+      c.set('sitePublicOrigin', new URL(c.req.url).origin)
+      c.set('webDavEnabled', routing.webDavEnabled)
+      c.set('webDavDomain', '')
+      await next()
+      return
+    }
     if (isPotentialWebDavPublicRequest(c.req.url)) {
       const routing = await getSiteRoutingConfig(deps)
       c.set('webDavEnabled', routing.webDavEnabled)
