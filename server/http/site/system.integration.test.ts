@@ -3,6 +3,15 @@ import { resetChangelogCache } from '../../adapters/providers/changelog.js'
 import { adminHeaders, createTestApp } from '../../test/setup.js'
 
 describe('System API', () => {
+  it('uses the request origin for preview instance info despite a saved staging origin', async () => {
+    const { app, deps } = await createTestApp({ ZPAN_PREVIEW: 'true' })
+    await deps.systemOptions.set('site_public_origin', 'https://retired-staging.example.com')
+    const headers = await adminHeaders(app)
+    const res = await app.request('https://branch-preview.example.com/api/site/instance', { headers })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ url: 'https://branch-preview.example.com' })
+  })
+
   it('exposes instance info to admins only [spec: system/instance-info-admin-only]', async () => {
     const { app } = await createTestApp()
     expect((await app.request('/api/site/instance')).status).toBe(401)

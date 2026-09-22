@@ -24,10 +24,13 @@ export type SystemDeps = {
 // origin) and builds the About-page instance info on top of it.
 export async function resolveInstanceInfo(
   deps: Pick<SystemDeps, 'systemOptions' | 'instance'>,
-  params: { requestUrl: string; runtime: RuntimeInfo },
+  params: { requestUrl: string; runtime: RuntimeInfo; publicOrigin?: string | null },
 ): Promise<InstanceInfo> {
   const origin =
-    (await getSitePublicOrigin(deps)) ?? originFromRequestUrl(params.requestUrl) ?? new URL(params.requestUrl).origin
+    params.publicOrigin ??
+    (await getSitePublicOrigin(deps)) ??
+    originFromRequestUrl(params.requestUrl) ??
+    new URL(params.requestUrl).origin
   return buildInstanceInfo(deps, { url: origin, runtime: params.runtime })
 }
 
