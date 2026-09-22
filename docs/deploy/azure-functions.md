@@ -101,7 +101,7 @@ The workflow triggers automatically on every push to `main` **and** can be trigg
    - Consumption plan (Y1 / Dynamic SKU)
    - Function App (Node 22, runtime v4)
 6. **Build** — `pnpm build:azure` produces the `azure-functions/` publish directory.
-7. **Migrate** — `pnpm db:migrate` applies Drizzle migrations to Turso.
+7. **Migrate** — `pnpm db:migrate:node` applies Drizzle migrations to Turso.
 8. **Publish** — `func azure functionapp publish <name>` uploads the bundle.
 9. **Set `BETTER_AUTH_SECRET`** — checks whether the setting already exists; generates and sets it if missing.
 10. **Update `APP_URL`** — patches the real function-app URL into its own app settings.

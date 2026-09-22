@@ -36,10 +36,10 @@ describe('seed-preview-admin script', () => {
       'wrangler',
       'd1',
       'execute',
-      'zpan-db-staging',
+      'PREVIEW_DB',
       '--remote',
-      '--env',
-      'staging',
+      '--config',
+      'wrangler.preview-migrations.json',
       '--file',
       '/tmp/seed.sql',
     ])

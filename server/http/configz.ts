@@ -29,7 +29,20 @@ async function responseEtag(body: string): Promise<string> {
 }
 
 export const configz = new OpenAPIHono<Env>().openapi(getRoute, async (c) => {
-  const config = await getSiteConfig(c.get('deps'), c.req.url)
+  const storedConfig = await getSiteConfig(c.get('deps'), c.req.url)
+  const previewOrigin = c.get('platform').getEnv('ZPAN_PREVIEW') === 'true' ? new URL(c.req.url).origin : undefined
+  const config = {
+    ...storedConfig,
+    site: { ...storedConfig.site, ...(previewOrigin ? { publicUrl: previewOrigin } : {}) },
+    services: {
+      ...storedConfig.services,
+      webdav: {
+        ...storedConfig.services.webdav,
+        ...(previewOrigin ? { url: `${previewOrigin}/dav/` } : {}),
+      },
+      archive: { enabled: c.get('platform').getEnv('ZPAN_ARCHIVE_JOBS_ENABLED') !== 'false' },
+    },
+  }
   const body = JSON.stringify(config)
   const etag = await responseEtag(body)
   const cacheControl = siteConfigCacheControl(c.get('deps'))

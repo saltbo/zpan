@@ -6,11 +6,11 @@
   "type": "module",
   "packageManager": "pnpm@10.30.2",
   "scripts": {
-    "dev": "CLOUDFLARE_ENV=staging vite dev",
-    "dev:node": "node --env-file=.dev.vars node_modules/vite/bin/vite.js dev --mode node",
+    "dev": "vite dev",
+    "dev:node": "node --env-file=.dev.vars scripts/dev-node.mjs",
     "agent-skills:build": "node scripts/build-agent-skills.mjs",
     "agent-skills:check": "node scripts/build-agent-skills.mjs --check",
-    "build": "pnpm agent-skills:build && (if [ \"$WORKERS_CI\" = \"1\" ] && [ \"$WORKERS_CI_BRANCH\" != \"main\" ]; then export CLOUDFLARE_ENV=staging; fi; vite build)",
+    "build": "pnpm agent-skills:build && vite build",
     "build:node": "pnpm agent-skills:build && vite build --mode node && tsup server/entry-node.ts --config server/tsup.config.mjs --format esm --outDir dist-server --external better-sqlite3 --external @libsql/client",
     "build:lambda": "pnpm agent-skills:build && tsup server/entry-lambda.ts --config server/tsup.config.mjs --format cjs --outDir dist-lambda --external @libsql/client",
     "build:vercel": "pnpm agent-skills:build && vite build --mode node && tsup server/entry-vercel.ts --config server/tsup.config.mjs --format esm --outDir api --external @libsql/client",
@@ -20,11 +20,11 @@
     "release": "node scripts/release.mjs",
     "release:check-version": "node scripts/check-release-version.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:migrate:d1": "wrangler d1 migrations apply zpan-db-staging --local --env staging",
-    "db:migrate:d1:staging": "wrangler d1 migrations apply zpan-db-staging --remote --env staging",
+    "db:migrate": "pnpm db:migrate:d1",
+    "db:migrate:d1": "wrangler d1 migrations apply DB --local",
+    "db:migrate:d1:staging": "wrangler d1 migrations apply PREVIEW_DB --remote --config wrangler.preview-migrations.json",
     "db:migrate:d1:prod": "wrangler d1 migrations apply zpan-db --remote",
-    "db:reset": "tsx --env-file=.dev.vars scripts/db-reset.ts",
+    "db:reset": "pnpm db:reset:d1",
     "db:reset:d1": "tsx --env-file=.dev.vars scripts/db-reset.ts --d1",
     "seed:preview-admin": "TMPDIR=/tmp node --env-file-if-exists=.dev.vars --import tsx scripts/seed-preview-admin.ts",
     "stats:backfill": "tsx scripts/backfill-admin-stats.ts",
@@ -52,7 +52,12 @@
     "e2e:archive": "node scripts/run-e2e.mjs archive.spec.ts --project=desktop",
     "e2e:archive:cf": "E2E_RUNTIME=cf node scripts/run-e2e.mjs archive.spec.ts --project=desktop",
     "openapi:client": "tsx scripts/openapi-client.ts",
-    "openapi:client:check": "tsx scripts/openapi-client.ts --check"
+    "openapi:client:check": "tsx scripts/openapi-client.ts --check",
+    "deploy:preview": "pnpm db:migrate:d1:staging && wrangler preview",
+    "db:migrate:node": "drizzle-kit migrate",
+    "db:query": "wrangler d1 execute DB --local",
+    "dev:server:node": "tsx watch --env-file=.dev.vars server/entry-node.ts",
+    "db:reset:node": "tsx --env-file=.dev.vars scripts/db-reset.ts --node"
   },
   "engines": {
     "node": ">=24"
@@ -92,7 +97,7 @@
     "lucide-react": "^0.577.0",
     "nanoid": "^5.1.16",
     "next-themes": "^0.4.6",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^9.1.0",
     "paseto-ts": "^2.0.6",
     "pdfjs-dist": "^6.2.108",
     "posthog-node": "^5.36.4",
@@ -117,9 +122,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",
-    "@cloudflare/vite-plugin": "^1.54.2",
+    "@cloudflare/vite-plugin": "^1.57.2",
     "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@cloudflare/workers-types": "^5.20260830.1",
+    "@cloudflare/workers-types": "^5.20260921.1",
     "@hono/vite-dev-server": "^0.26.1",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.3.3",
@@ -147,7 +152,7 @@
     "vite": "^8.2.2",
     "vitest": "^4.1.11",
     "webdav": "^5.10.0",
-    "wrangler": "^4.127.1"
+    "wrangler": "^4.136.2"
   },
   "cloudflare": {
     "bindings": {
@@ -196,7 +201,7 @@
       "brace-expansion": "2.1.4",
       "esbuild": "0.28.1",
       "postcss": "8.5.25",
-      "sharp": "0.35.3",
+      "sharp": "0.35.4",
       "undici": "7.29.0",
       "ws": "8.21.0",
       "@esbuild-kit/core-utils>esbuild": "0.25.12"

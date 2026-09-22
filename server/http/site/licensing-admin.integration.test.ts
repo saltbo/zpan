@@ -132,6 +132,24 @@ describe('POST /api/site/licensing/pairings', () => {
     const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
     expect(JSON.parse(String(init.body)).instance.url).toBe('http://localhost')
   })
+
+  it('pairs the current Preview origin with staging Cloud despite a shared stored site URL', async () => {
+    const cloudOrigin = 'https://staging-zpan-cloud.saltbo.workers.dev'
+    const { app, deps } = await createTestApp({ ZPAN_PREVIEW: 'true', ZPAN_CLOUD_URL: cloudOrigin })
+    const headers = await adminHeaders(app)
+    await deps.systemOptions.set('site_public_origin', 'https://old-staging.example.com')
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeCloudResponse({ code: 'PREVIEW', pairingUrl: `${cloudOrigin}/pair`, expiresAt: '2026-12-01T00:00:00Z' }),
+    )
+    const response = await app.request('https://branch.example.com/api/site/licensing/pairings', {
+      method: 'POST',
+      headers,
+    })
+    expect(response.status).toBe(200)
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    expect(new URL(url).origin).toBe(cloudOrigin)
+    expect(JSON.parse(String(init.body)).instance.url).toBe('https://branch.example.com')
+  })
 })
 
 describe('GET /api/site/licensing/pairings/:code', () => {

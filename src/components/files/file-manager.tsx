@@ -23,6 +23,7 @@ import { Card } from '@/components/ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import type { UploadRunnerContext } from '@/components/upload/upload-queue'
+import { useSiteConfig } from '@/hooks/use-site-config'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import { createBackgroundJob, deleteObject, getObject, listObjectsByPath, updateObject } from '@/lib/api'
@@ -170,6 +171,8 @@ export function FileManager({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { data: siteConfig } = useSiteConfig()
+  const archivesEnabled = siteConfig?.services.archive?.enabled !== false
   const dropzoneRef = useRef<UploadDropzoneHandle>(null)
 
   const currentPath = initialPath ?? ''
@@ -192,9 +195,9 @@ export function FileManager({
       share: capabilities?.share ?? !dataSource,
       copyUrl: capabilities?.copyUrl ?? false,
       delete: capabilities?.delete ?? false,
-      archive: capabilities?.archive ?? !dataSource,
+      archive: archivesEnabled && (capabilities?.archive ?? !dataSource),
     }),
-    [capabilities, dataSource],
+    [capabilities, dataSource, archivesEnabled],
   )
 
   const [viewMode, setViewMode] = useViewMode(viewModeStorageKey)

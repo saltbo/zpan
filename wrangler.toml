@@ -72,50 +72,36 @@ head_sampling_rate = 0.1
 [triggers]
 crons = ["*/10 * * * *", "10 * * * *", "0 */6 * * *", "0 */12 * * *", "0 0 1 * *", "0 4 * * *"]
 
-# ----------------------------------------------------------------------------
-# Staging environment — used by non-production branch builds.
-# CLOUDFLARE_ENV=staging is set automatically in the build script.
-# Workers Builds creates preview versions on the same zpan Worker
-# but with staging D1 binding.
-# ----------------------------------------------------------------------------
-[env.staging]
+# Branch Previews share staging data; they never bind production resources.
+[previews]
 
-[env.staging.vars]
-BETTER_AUTH_URL = "https://zpan-staging.saltbo.workers.dev"
-ZPAN_CLOUD_URL = "https://zpan-cloud-staging.saltbo.workers.dev"
-ZPAN_CACHE_MODE = "distributed"
+[previews.vars]
+ZPAN_PREVIEW = "true"
+ZPAN_ARCHIVE_JOBS_ENABLED = "false"
+ZPAN_CLOUD_URL = "https://staging-zpan-cloud.saltbo.workers.dev"
+ZPAN_CACHE_MODE = "memory"
 
-[[env.staging.d1_databases]]
+[[previews.d1_databases]]
 binding = "DB"
 database_name = "zpan-db-staging"
 database_id = "a9197d7a-6524-42f0-b646-e714dcb30b3b"
 migrations_dir = "./migrations"
 
-[[env.staging.kv_namespaces]]
+[[previews.kv_namespaces]]
 binding = "CACHE_KV"
 id = "7d8625bacbc54e23a46ca4464a9f64a0"
 
-[[env.staging.ratelimits]]
+[[previews.ratelimits]]
 name = "WEBDAV_RATE_LIMITER"
 namespace_id = "2802"
 
-[env.staging.ratelimits.simple]
+[previews.ratelimits.simple]
 limit = 3600
 period = 60
 
-[[env.staging.r2_buckets]]
+[[previews.r2_buckets]]
 binding = "PUBLIC_IMAGES"
 bucket_name = "zpan-public-images-staging"
 
-[[env.staging.send_email]]
+[[previews.send_email]]
 name = "EMAIL"
-
-[[env.staging.queues.producers]]
-binding = "ARCHIVE_QUEUE"
-queue = "zpan-archive-jobs-staging"
-
-[[env.staging.queues.consumers]]
-queue = "zpan-archive-jobs-staging"
-max_batch_size = 1
-max_batch_timeout = 1
-max_retries = 3

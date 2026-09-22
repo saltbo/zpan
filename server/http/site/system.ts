@@ -69,6 +69,7 @@ const system = new OpenAPIHono<Env>()
   .openapi(instanceRoute, async (c) => {
     const info = await resolveInstanceInfo(c.get('deps'), {
       requestUrl: c.req.url,
+      publicOrigin: c.get('sitePublicOrigin'),
       runtime: runtimeInfo(c.get('platform')),
     })
     return c.json(info, 200)

@@ -16,6 +16,20 @@ async function put(
 }
 
 describe('Site configuration API', () => {
+  it('keeps Preview public links on each request origin without changing shared settings', async () => {
+    const { app, deps } = await createTestApp({ ZPAN_PREVIEW: 'true' })
+    await deps.systemOptions.set('site_public_origin', 'https://old-staging.example.com')
+    for (const origin of ['https://branch.example.com', 'https://deployment.example.com']) {
+      const response = await app.request(`${origin}/api/configz`)
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({
+        site: { publicUrl: origin },
+        services: { webdav: { url: `${origin}/dav/` } },
+      })
+    }
+    expect(await deps.systemOptions.getValue('site_public_origin')).toBe('https://old-staging.example.com')
+  })
+
   it('serves one structured public config document [spec: system/public-config]', async () => {
     const { app } = await createTestApp()
     const res = await app.request('https://pan.example.com/api/configz')

@@ -77,7 +77,7 @@ jobs:
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-        run: pnpm db:migrate
+        run: pnpm db:migrate:node
 
       - name: Build
         run: pnpm build:vercel

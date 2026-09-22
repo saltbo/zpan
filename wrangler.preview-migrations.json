@@ -1,0 +1,10 @@
+{
+  "d1_databases": [
+    {
+      "binding": "PREVIEW_DB",
+      "database_name": "zpan-db-staging",
+      "database_id": "a9197d7a-6524-42f0-b646-e714dcb30b3b",
+      "migrations_dir": "./migrations"
+    }
+  ]
+}

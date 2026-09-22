@@ -15,7 +15,7 @@ import {
   listBackgroundJobs,
   retryBackgroundJob,
 } from '../usecases/background-job'
-import { BackgroundJobError, notFound } from '../usecases/ports'
+import { AppError, BackgroundJobError, notFound } from '../usecases/ports'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 import {
   createdAtIdCursorCodec,
@@ -96,6 +96,7 @@ const createJobRoute = authRoute(
     request: jsonBody(createBackgroundJobRequestSchema),
     responses: {
       201: jsonContent(backgroundJobSchema, 'Created background job'),
+      503: errorResponse('Archive jobs are unavailable in this environment'),
       404: errorResponse('Not found'),
     },
   },
@@ -160,6 +161,7 @@ const retryJobRoute = authRoute(
     request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       201: jsonContent(backgroundJobSchema, 'Retried background job'),
+      503: errorResponse('Archive jobs are unavailable in this environment'),
       404: errorResponse('Not found'),
       409: errorResponse('Background job cannot be retried'),
     },
@@ -200,6 +202,9 @@ const backgroundJobs = app
     return c.json({ activeCount }, 200)
   })
   .openapi(createJobRoute, async (c) => {
+    if (c.get('platform').getEnv('ZPAN_ARCHIVE_JOBS_ENABLED') === 'false') {
+      throw new AppError(503, 'Archive jobs are unavailable in this preview environment')
+    }
     const orgId = requireOrg(c)
     const userId = c.get('userId')
     if (!userId) throw new BackgroundJobError('not_found')
@@ -217,6 +222,9 @@ const backgroundJobs = app
     c.json(await cancelBackgroundJob(c.get('deps'), requireOrg(c), c.req.valid('param').id), 200),
   )
   .openapi(retryJobRoute, async (c) => {
+    if (c.get('platform').getEnv('ZPAN_ARCHIVE_JOBS_ENABLED') === 'false') {
+      throw new AppError(503, 'Archive jobs are unavailable in this preview environment')
+    }
     const createdBy = authzActorIdentity(c.get('authzContext'))
     if (!createdBy) throw new Error('authenticated_actor_missing')
     return c.json(await retryBackgroundJob(c.get('deps'), requireOrg(c), c.req.valid('param').id, createdBy), 201)

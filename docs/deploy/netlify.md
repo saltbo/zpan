@@ -111,7 +111,7 @@ In the Netlify dashboard → **Domain management → Add a domain**. No changes 
 ```sh
 TURSO_DATABASE_URL=libsql://your-db.turso.io \
 TURSO_AUTH_TOKEN=your-token \
-pnpm db:migrate
+pnpm db:migrate:node
 ```
 
 ### Free-tier limits

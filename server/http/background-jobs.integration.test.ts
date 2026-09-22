@@ -55,6 +55,23 @@ async function activateTeamWorkspace(
 }
 
 describe('background jobs API', () => {
+  it('rejects preview creation and retries before persisting a job', async () => {
+    const { app, db } = await createTestApp({ ZPAN_ARCHIVE_JOBS_ENABLED: 'false' })
+    const headers = await authedHeaders(app, 'preview-archive@example.com')
+    const create = await app.request('/api/background-jobs', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'archive_compress', matterIds: ['test-matter'] }),
+    })
+    expect(create.status).toBe(503)
+    const retry = await app.request('/api/background-jobs/test-job/retries', { method: 'POST', headers })
+    expect(retry.status).toBe(503)
+    const jobs = await db.all<{ count: number }>(sql`SELECT count(*) AS count FROM background_jobs`)
+    expect(jobs[0].count).toBe(0)
+    const config = await (await app.request('/api/configz')).json()
+    expect(config).toMatchObject({ services: { archive: { enabled: false } } })
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })
