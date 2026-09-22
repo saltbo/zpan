@@ -2,6 +2,33 @@ import { describe, expect, it, vi } from 'vitest'
 import { APP_INITIALIZATION_TIMEOUT_MS, appForRequest } from './bootstrap'
 
 describe('[CF] Worker auth initialization recovery', () => {
+  it('keeps preview and deployment authentication origins separate', async () => {
+    const initialize = vi.fn().mockImplementation(async (_runtime, _env, baseURL) => ({ auth: {}, app: { baseURL } }))
+    const runtime = { authBySlot: new Map(), appBySlot: new Map(), appInitBySlot: new Map() } as Parameters<
+      typeof appForRequest
+    >[0]
+    const env = { ZPAN_PREVIEW: 'true', BETTER_AUTH_URL: 'https://old-staging.example.com' } as Parameters<
+      typeof appForRequest
+    >[2]
+    const first = await appForRequest(
+      runtime,
+      new Request('https://branch-zpan.test.workers.dev/api'),
+      env,
+      initialize,
+      vi.fn(),
+    )
+    const second = await appForRequest(
+      runtime,
+      new Request('https://deployment-zpan.test.workers.dev/api'),
+      env,
+      initialize,
+      vi.fn(),
+    )
+    expect(first).toEqual({ baseURL: 'https://branch-zpan.test.workers.dev' })
+    expect(second).toEqual({ baseURL: 'https://deployment-zpan.test.workers.dev' })
+    expect(initialize).toHaveBeenCalledTimes(2)
+  })
+
   it('starts a fresh initialization after an earlier request reaches its deadline', async () => {
     vi.useFakeTimers()
     try {

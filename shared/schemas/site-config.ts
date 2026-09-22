@@ -57,7 +57,10 @@ export const siteConfigSchema = z
       captcha: publicCaptchaSchema,
       providers: z.array(publicAuthProviderSchema),
     }),
-    services: z.object({ webdav: z.object({ enabled: z.boolean(), url: z.string() }) }),
+    services: z.object({
+      archive: z.object({ enabled: z.boolean() }).optional(),
+      webdav: z.object({ enabled: z.boolean(), url: z.string() }),
+    }),
   })
   .openapi('SiteConfig')
 

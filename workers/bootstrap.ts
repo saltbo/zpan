@@ -20,6 +20,7 @@ import { handleScheduled } from './scheduled'
 interface Env {
   DB: D1Database
   BETTER_AUTH_SECRET: string
+  ZPAN_PREVIEW?: string
   BETTER_AUTH_URL?: string
   TRUSTED_ORIGINS?: string
   ASSETS: Fetcher
@@ -36,7 +37,7 @@ const SHARE_TOKEN_RE = /^\/s\/([^/?#]+)/
 // request on the WebDAV hostname from fixing the primary app base URL without
 // allowing arbitrary Host headers to grow the cache. Changes to OAuth provider
 // configs or env vars take effect on isolate recycle.
-type AuthSlot = 'configured' | 'primary' | 'webdav'
+type AuthSlot = 'configured' | 'primary' | 'webdav' | `preview:${string}`
 export const APP_INITIALIZATION_TIMEOUT_MS = 10_000
 
 interface WorkerRuntime {
@@ -101,11 +102,18 @@ export async function appForRequest(
   const origin = new URL(request.url).origin
   const webDavRequest = isPotentialWebDavPublicRequest(request.url)
   const inferredOrigin = origin
-  const baseURL = env.BETTER_AUTH_URL || inferredOrigin
+  const isPreview = env.ZPAN_PREVIEW === 'true'
+  const baseURL = isPreview ? inferredOrigin : env.BETTER_AUTH_URL || inferredOrigin
   const trustedOrigins = env.TRUSTED_ORIGINS?.split(',')
     .map((value) => value.trim())
     .filter(Boolean) || [inferredOrigin]
-  const slot: AuthSlot = env.BETTER_AUTH_URL ? 'configured' : webDavRequest ? 'webdav' : 'primary'
+  const slot: AuthSlot = isPreview
+    ? `preview:${origin}`
+    : env.BETTER_AUTH_URL
+      ? 'configured'
+      : webDavRequest
+        ? 'webdav'
+        : 'primary'
 
   const cachedApp = runtime.appBySlot.get(slot)
   const cachedAuth = runtime.authBySlot.get(slot)
@@ -121,6 +129,15 @@ export async function appForRequest(
     APP_INITIALIZATION_TIMEOUT_MS,
     'Worker app initialization timed out',
   ).then(({ auth, app }) => {
+    // Preview aliases and deployment URLs need separate auth origins. Bound the
+    // isolate cache so historical deployment hostnames cannot accumulate forever.
+    if (isPreview && runtime.appBySlot.size >= 8) {
+      const oldest = runtime.appBySlot.keys().next().value
+      if (oldest) {
+        runtime.appBySlot.delete(oldest)
+        runtime.authBySlot.delete(oldest)
+      }
+    }
     runtime.authBySlot.set(slot, auth)
     runtime.appBySlot.set(slot, app)
     return app

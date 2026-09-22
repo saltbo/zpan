@@ -29,7 +29,14 @@ async function responseEtag(body: string): Promise<string> {
 }
 
 export const configz = new OpenAPIHono<Env>().openapi(getRoute, async (c) => {
-  const config = await getSiteConfig(c.get('deps'), c.req.url)
+  const storedConfig = await getSiteConfig(c.get('deps'), c.req.url)
+  const config = {
+    ...storedConfig,
+    services: {
+      ...storedConfig.services,
+      archive: { enabled: c.get('platform').getEnv('ZPAN_ARCHIVE_JOBS_ENABLED') !== 'false' },
+    },
+  }
   const body = JSON.stringify(config)
   const etag = await responseEtag(body)
   const cacheControl = siteConfigCacheControl(c.get('deps'))

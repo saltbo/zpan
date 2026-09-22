@@ -6,11 +6,11 @@
   "type": "module",
   "packageManager": "pnpm@10.30.2",
   "scripts": {
-    "dev": "CLOUDFLARE_ENV=staging vite dev",
+    "dev": "CLOUDFLARE_ENV=local vite dev",
     "dev:node": "node --env-file=.dev.vars node_modules/vite/bin/vite.js dev --mode node",
     "agent-skills:build": "node scripts/build-agent-skills.mjs",
     "agent-skills:check": "node scripts/build-agent-skills.mjs --check",
-    "build": "pnpm agent-skills:build && (if [ \"$WORKERS_CI\" = \"1\" ] && [ \"$WORKERS_CI_BRANCH\" != \"main\" ]; then export CLOUDFLARE_ENV=staging; fi; vite build)",
+    "build": "pnpm agent-skills:build && vite build",
     "build:node": "pnpm agent-skills:build && vite build --mode node && tsup server/entry-node.ts --config server/tsup.config.mjs --format esm --outDir dist-server --external better-sqlite3 --external @libsql/client",
     "build:lambda": "pnpm agent-skills:build && tsup server/entry-lambda.ts --config server/tsup.config.mjs --format cjs --outDir dist-lambda --external @libsql/client",
     "build:vercel": "pnpm agent-skills:build && vite build --mode node && tsup server/entry-vercel.ts --config server/tsup.config.mjs --format esm --outDir api --external @libsql/client",
@@ -21,8 +21,8 @@
     "release:check-version": "node scripts/check-release-version.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:migrate:d1": "wrangler d1 migrations apply zpan-db-staging --local --env staging",
-    "db:migrate:d1:staging": "wrangler d1 migrations apply zpan-db-staging --remote --env staging",
+    "db:migrate:d1": "wrangler d1 migrations apply zpan-db-staging --local --env local",
+    "db:migrate:d1:staging": "wrangler d1 migrations apply PREVIEW_DB --remote --config wrangler.preview-migrations.json",
     "db:migrate:d1:prod": "wrangler d1 migrations apply zpan-db --remote",
     "db:reset": "tsx --env-file=.dev.vars scripts/db-reset.ts",
     "db:reset:d1": "tsx --env-file=.dev.vars scripts/db-reset.ts --d1",
@@ -52,7 +52,8 @@
     "e2e:archive": "node scripts/run-e2e.mjs archive.spec.ts --project=desktop",
     "e2e:archive:cf": "E2E_RUNTIME=cf node scripts/run-e2e.mjs archive.spec.ts --project=desktop",
     "openapi:client": "tsx scripts/openapi-client.ts",
-    "openapi:client:check": "tsx scripts/openapi-client.ts --check"
+    "openapi:client:check": "tsx scripts/openapi-client.ts --check",
+    "deploy:preview": "pnpm db:migrate:d1:staging && wrangler preview"
   },
   "engines": {
     "node": ">=24"
@@ -117,9 +118,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",
-    "@cloudflare/vite-plugin": "^1.54.2",
+    "@cloudflare/vite-plugin": "^1.57.2",
     "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@cloudflare/workers-types": "^5.20260830.1",
+    "@cloudflare/workers-types": "^5.20260921.1",
     "@hono/vite-dev-server": "^0.26.1",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.3.3",
@@ -147,7 +148,7 @@
     "vite": "^8.2.2",
     "vitest": "^4.1.11",
     "webdav": "^5.10.0",
-    "wrangler": "^4.127.1"
+    "wrangler": "^4.136.2"
   },
   "cloudflare": {
     "bindings": {

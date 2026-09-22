@@ -15,7 +15,7 @@ pnpm install
 ## Development
 
 ```sh
-pnpm dev              # CF Workers mode with HMR (default, uses staging D1)
+pnpm dev              # CF Workers mode with HMR (default, uses local D1 with test bindings)
 pnpm dev:node         # Node.js mode with HMR (SQLite, reads .dev.vars)
 ```
 
@@ -62,7 +62,7 @@ an unexpected runtime scope must be identified as missing metadata rather than p
 
 Every PR that touches UI or API behavior **must** be verified in the Cloudflare Workers preview environment before merging. The verification report **must** be posted as a PR comment — a PR without a verification comment cannot be merged.
 
-Cloudflare Workers automatically deploys each PR to a preview URL (posted as a PR comment).
+Cloudflare Workers Builds deploys non-production branches with `pnpm deploy:preview` after `pnpm build`. Each branch has a Worker Preview URL posted on its PR. `main` deploys production. See [Worker Previews](docs/deploy/worker-previews.md).
 
 Before merging, the reviewer **must** verify in the preview environment and post a PR comment with:
    - **Evidence appropriate to the change**:
@@ -106,7 +106,7 @@ pnpm seed:preview-admin
 ```
 
 The command reads `DEV_ADMIN_PASSWORD` from the shell environment or the gitignored local `.dev.vars` file, then targets
-`zpan-db-staging` with `--env staging --remote` and upserts only `admin@zpan.space`.
+`zpan-db-staging` with `--config wrangler.preview-migrations.json --remote` and upserts only `admin@zpan.space`.
 To rotate the shared preview password intentionally, run the same command with the new non-production
 `DEV_ADMIN_PASSWORD` value and update the private maintainer credential source in the same change.
 

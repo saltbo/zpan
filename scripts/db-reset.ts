@@ -103,7 +103,7 @@ function resetD1(): Platform {
   }
 
   // re-run migrations via wrangler
-  execSync(`wrangler d1 migrations apply ${D1_DB_NAME} --local --env staging`, { stdio: 'inherit' })
+  execSync(`wrangler d1 migrations apply ${D1_DB_NAME} --local --env local`, { stdio: 'inherit' })
   console.log('D1 local database migrated')
 
   // find the SQLite file wrangler just created

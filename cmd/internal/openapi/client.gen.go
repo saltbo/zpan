@@ -6248,6 +6248,9 @@ type SiteConfig struct {
 	} `json:"auth"`
 	Branding SiteBranding `json:"branding"`
 	Services struct {
+		Archive *struct {
+			Enabled bool `json:"enabled"`
+		} `json:"archive,omitempty"`
 		Webdav struct {
 			Enabled bool   `json:"enabled"`
 			Url     string `json:"url"`
@@ -22304,6 +22307,7 @@ type CreateBackgroundJobResponse struct {
 	HTTPResponse *http.Response
 	JSON201      *BackgroundJob
 	JSON404      *Error
+	JSON503      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -22400,6 +22404,7 @@ type RetryBackgroundJobResponse struct {
 	JSON201      *BackgroundJob
 	JSON404      *Error
 	JSON409      *Error
+	JSON503      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -29725,6 +29730,13 @@ func ParseCreateBackgroundJobResponse(rsp *http.Response) (*CreateBackgroundJobR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	return response, nil
@@ -29832,6 +29844,13 @@ func ParseRetryBackgroundJobResponse(rsp *http.Response) (*RetryBackgroundJobRes
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 

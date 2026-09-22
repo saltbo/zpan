@@ -9,7 +9,6 @@ export const PREVIEW_ADMIN_EMAIL = 'admin@zpan.space'
 export const CREDENTIAL_ACCOUNT_ISSUER = 'local:credential'
 
 const STAGING_D1_DB = 'zpan-db-staging'
-const STAGING_ENV = 'staging'
 
 interface SeedSqlOptions {
   email: string
@@ -62,10 +61,10 @@ export function buildWranglerArgs(sqlFile: string): string[] {
     'wrangler',
     'd1',
     'execute',
-    STAGING_D1_DB,
+    'PREVIEW_DB',
     '--remote',
-    '--env',
-    STAGING_ENV,
+    '--config',
+    'wrangler.preview-migrations.json',
     '--file',
     sqlFile,
   ]
