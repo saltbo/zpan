@@ -668,7 +668,7 @@ describe('api', () => {
       await expect(abortObjectUpload('obj-1', 'sess-1')).resolves.toBeUndefined()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/obj-1/uploads/sess-1?')
+      expect(url).toBe('/api/objects/obj-1/uploads/sess-1')
       expect(init.method).toBe('DELETE')
     })
 
