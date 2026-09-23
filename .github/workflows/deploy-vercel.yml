@@ -64,7 +64,7 @@ jobs:
           repository: saltbo/zpan
           ref: ${{ steps.release.outputs.version }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 24

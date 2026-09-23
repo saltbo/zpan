@@ -64,13 +64,13 @@ jobs:
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
           echo "### 🚀 Deploying $TAG to Netlify" >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: saltbo/zpan
           ref: ${{ steps.release.outputs.version }}
 
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm

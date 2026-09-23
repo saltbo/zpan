@@ -84,7 +84,7 @@ jobs:
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
           echo "### 🚀 Deploying $TAG to Azure Functions" >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           repository: saltbo/zpan
           ref: ${{ steps.release.outputs.version }}
@@ -92,8 +92,8 @@ jobs:
       # ------------------------------------------------------------------
       # Step 3 — Node.js setup + install dependencies.
       # ------------------------------------------------------------------
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
@@ -104,7 +104,7 @@ jobs:
       # Step 4 — Log in to Azure using the service-principal credentials.
       # ------------------------------------------------------------------
       - name: Azure login
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
