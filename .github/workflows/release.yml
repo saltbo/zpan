@@ -13,7 +13,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -51,7 +51,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/metadata-action@v5
+      - uses: docker/metadata-action@v6
         id: meta
         with:
           images: ghcr.io/${{ github.repository }}
@@ -61,7 +61,7 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest
 
-      - uses: docker/metadata-action@v5
+      - uses: docker/metadata-action@v6
         id: cli-meta
         with:
           images: ghcr.io/${{ github.repository }}
@@ -126,7 +126,7 @@ jobs:
           excludeTypes: docs,style,test
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           body: |
             ${{ steps.changelog.outputs.changes }}

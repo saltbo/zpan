@@ -51,7 +51,7 @@ jobs:
     if: github.repository == 'saltbo/zpan'
     steps:
       - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -96,7 +96,7 @@ jobs:
             report: frontend
     steps:
       - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -108,7 +108,7 @@ jobs:
         env:
           COVERAGE_SCOPE: ${{ matrix.scope }}
         run: pnpm exec vitest run ${{ matrix.projects }} --silent=passed-only --coverage --coverage.reportsDirectory=coverage/${{ matrix.report }} --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/${{ matrix.report }}.blob
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: vitest-coverage-${{ matrix.report }}
@@ -123,7 +123,7 @@ jobs:
     if: github.repository == 'saltbo/zpan'
     steps:
       - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -139,13 +139,13 @@ jobs:
     needs: [tests-node]
     steps:
       - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           pattern: vitest-coverage-*
           path: .vitest-reports
@@ -161,7 +161,7 @@ jobs:
         env:
           COVERAGE_ENFORCE: '1'
         run: pnpm exec vitest --merge-reports=.vitest-reports --coverage --reporter=agent --coverage.reportsDirectory=coverage/merged
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         if: always()
         with:
           files: coverage/merged/coverage-final.json
@@ -240,7 +240,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -298,7 +298,7 @@ jobs:
             artifact: cf-2
     steps:
       - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -308,7 +308,7 @@ jobs:
       # cheaply below the browser. The complete multi-viewport suite runs nightly.
       - name: Run Cloudflare critical journeys
         run: E2E_RUNTIME=cf pnpm e2e --project=desktop --grep @critical --shard=${{ matrix.shard }}/2
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: playwright-report-${{ matrix.artifact }}
