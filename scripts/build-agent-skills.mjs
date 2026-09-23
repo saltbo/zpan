@@ -5,7 +5,7 @@ import { gzipSync } from 'node:zlib'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const skillDirectory = join(root, 'agent-skills', 'use-zpan')
+const skillDirectory = join(root, 'skills', 'use-zpan')
 const outputDirectory = join(root, 'public', '.well-known', 'agent-skills')
 const archivePath = join(outputDirectory, 'use-zpan.tar.gz')
 const indexPath = join(outputDirectory, 'index.json')

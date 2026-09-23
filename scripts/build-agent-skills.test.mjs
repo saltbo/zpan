@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 
-const skillDirectory = new URL('../agent-skills/use-zpan/', import.meta.url)
+const skillDirectory = new URL('../skills/use-zpan/', import.meta.url)
 const outputDirectory = new URL('../public/.well-known/agent-skills/', import.meta.url)
 const wranglerConfig = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8')
 

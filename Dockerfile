@@ -22,7 +22,7 @@ COPY shared ./shared
 COPY public ./public
 COPY migrations ./migrations
 COPY scripts ./scripts
-COPY agent-skills ./agent-skills
+COPY skills ./skills
 # .git is excluded from the build context, so git describe cannot run here.
 # The release workflow passes the tag via APP_VERSION and the commit SHA via
 # APP_COMMIT; resolveAppVersion/resolveAppCommit read them.

@@ -195,10 +195,31 @@ zpan/
 ├── src/                  # React frontend (TanStack Router, shadcn/ui)
 ├── shared/               # Shared types, Zod schemas, constants
 ├── workers/              # Cloudflare Workers entry
+├── spec/                 # Gherkin behavior specs traced to tests
+├── docs/design/          # Technical designs and implementation proposals
+├── skills/               # Source for Agent Skills distributed by ZPan
+├── public/.well-known/agent-skills/ # Generated Skill discovery index and archives
 ├── migrations/           # D1/SQLite migrations (drizzle-kit generated, wrangler managed)
 ├── wrangler.toml         # Cloudflare Workers config
 └── biome.json            # Lint + format config
 ```
+
+### Specs, designs, and Agent Skills
+
+Keep behavior specifications in `spec/*.feature` and technical designs in
+`docs/design/*.md`, using kebab-case filenames. Do not create a parallel `specs/`
+directory. See [spec/README.md](spec/README.md) for scenario and test traceability.
+
+`skills/<skill-name>/` contains the canonical source for Agent Skills published
+by ZPan, including `SKILL.md` and optional agent metadata. These are product
+artifacts; development-assistant skills installed locally belong in the ignored
+`.agents/` or `.claude/skills/` directories.
+
+After changing a published Skill, run `pnpm agent-skills:build` and commit its
+updated discovery index and archive under `public/.well-known/agent-skills/`.
+Do not edit these generated files directly. `pnpm agent-skills:check` verifies
+that they match the source; public discovery and archive URLs stay stable when
+source directories move.
 
 ## Financial Contributions
 
