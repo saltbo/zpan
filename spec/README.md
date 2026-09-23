@@ -5,6 +5,9 @@ source of truth for **what ZPan does**, independent of implementation. There is
 **no Cucumber runner** — the `.feature` files are documentation, and tests trace
 back to scenarios by id.
 
+Technical designs and implementation proposals live in `docs/design/`; this
+directory contains behavior specifications and their conventions.
+
 ## Convention
 
 - One `.feature` file per capability (`storages.feature`, `site-invitations.feature`, …).
