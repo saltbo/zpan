@@ -74,6 +74,7 @@ func TestAria2StartArgs(t *testing.T) {
 		"--save-session=" + filepath.Join(stateDir, "aria2.session"),
 		"--save-session-interval=30",
 		"--force-save=true",
+		"--file-allocation=none",
 		"--listen-port=51413",
 		"--enable-dht=true",
 		"--enable-peer-exchange=true",

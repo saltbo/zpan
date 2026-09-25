@@ -312,10 +312,7 @@ func (w *TaskRunner) downloadThenUpload(
 				return
 			}
 			if errors.Is(context.Cause(ctx), errTaskCanceling) {
-				if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{Status: "canceled"}); updateErr != nil {
-					log.Error("failed to mark task canceled", "error", updateErr)
-				}
-				log.Info("task canceled by control action")
+				w.completeCancellation(ctx, log, task)
 				return
 			}
 			if errors.Is(context.Cause(ctx), errTaskSuspended) {
@@ -338,7 +335,14 @@ func (w *TaskRunner) downloadThenUpload(
 		}
 		msg := taskErrorMessage(err)
 		log.Error("task download failed", "error", err)
-		if _, updateErr := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "failed", ErrorMessage: &msg}); updateErr != nil {
+		patch := client.TaskPatch{Status: "failed", ErrorMessage: &msg}
+		if cleanupErr := w.cleanupTerminalTask(ctx, task); cleanupErr != nil {
+			log.Error("failed to clean failed download", "error", cleanupErr)
+			msg = taskErrorMessage(errors.Join(err, cleanupErr))
+		} else {
+			patch.Runtime = &client.DownloadTaskRuntime{Phase: "error", State: localResultRemovedRuntimeState}
+		}
+		if _, updateErr := w.updateTask(ctx, task.ID, patch); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
 		}
 		return
@@ -507,6 +511,34 @@ func (w *TaskRunner) cleanupDeletedTask(ctx context.Context, log *slog.Logger, t
 	return nil
 }
 
+// Terminal tasks no longer own resumable files. Use a fresh bounded context:
+// cancellation of the download must not cancel its cleanup or acknowledgment.
+func (w *TaskRunner) cleanupTerminalTask(ctx context.Context, task client.DownloadTask) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	if w.downloader == nil {
+		return errors.New("downloader engine is unavailable for terminal cleanup")
+	}
+	return w.downloader.ResetTask(cleanupCtx, downloadTask(task))
+}
+
+func (w *TaskRunner) completeCancellation(ctx context.Context, log *slog.Logger, task client.DownloadTask) {
+	if err := w.cleanupTerminalTask(ctx, task); err != nil {
+		log.Error("failed to clean canceled task", "error", err)
+		return // Keep canceling so the next control poll retries cleanup.
+	}
+	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	if _, err := w.updateTask(reportCtx, task.ID, client.TaskPatch{
+		Status:  "canceled",
+		Runtime: &client.DownloadTaskRuntime{State: localResultRemovedRuntimeState},
+	}); err != nil {
+		log.Error("failed to mark task canceled", "error", err)
+		return
+	}
+	log.Info("cleaned canceled task")
+}
+
 func (w *TaskRunner) uploadAndComplete(
 	ctx context.Context,
 	log *slog.Logger,
@@ -536,10 +568,7 @@ func (w *TaskRunner) uploadAndComplete(
 				return
 			}
 			if errors.Is(context.Cause(ctx), errTaskCanceling) {
-				if _, updateErr := w.updateTask(context.WithoutCancel(ctx), task.ID, client.TaskPatch{Status: "canceled"}); updateErr != nil {
-					log.Error("failed to mark task canceled during upload", "error", updateErr)
-				}
-				log.Info("task upload canceled by control action")
+				w.completeCancellation(ctx, log, task)
 				return
 			}
 			if errors.Is(context.Cause(ctx), errTaskSuspended) {
@@ -758,11 +787,7 @@ func (w *TaskRunner) ackStoppedControlTask(ctx context.Context, task client.Down
 		return
 	}
 	if task.State() == "canceling" {
-		if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{Status: "canceled"}); err != nil {
-			log.Error("failed to acknowledge canceled task without local process", "error", err)
-			return
-		}
-		log.Info("acknowledged canceled task without local process")
+		w.completeCancellation(ctx, log, task)
 		return
 	}
 	if task.State() == "suspended" {
