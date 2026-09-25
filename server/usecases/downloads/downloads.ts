@@ -460,9 +460,12 @@ export async function updateDownloadTask(
     return deps.downloadTasks.get(task.orgId, id)
   }
   if (task.status === 'canceling' && input.status === 'canceled') {
+    const runtime = stoppedRuntime(task.runtime)
     await deps.downloadTasks.setFields(id, {
       status: 'canceled',
-      runtime: serializeTaskRuntime(stoppedRuntime(task.runtime)),
+      runtime: serializeTaskRuntime(
+        input.runtime?.state === undefined ? runtime : { ...runtime, state: input.runtime.state },
+      ),
       finishedAt: task.finishedAt ?? now,
       updatedAt: now,
     })

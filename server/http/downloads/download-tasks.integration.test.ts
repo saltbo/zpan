@@ -2590,10 +2590,12 @@ describe('Download tasks API integration', () => {
     const canceledRes = await app.request(`/api/downloads/tasks/${createdTask.id}`, {
       method: 'PATCH',
       headers: downloaderHeaders,
-      body: JSON.stringify({ status: 'canceled' }),
+      body: JSON.stringify({ status: 'canceled', runtime: { state: 'local_result_removed' } }),
     })
     expect(canceledRes.status).toBe(200)
-    await expect(canceledRes.json()).resolves.toMatchObject({ status: { state: 'canceled' } })
+    await expect(canceledRes.json()).resolves.toMatchObject({
+      status: { state: 'canceled', runtime: { state: 'local_result_removed' } },
+    })
 
     const commandEvents = await db.all<{ action: string; userId: string; actorType: string }>(sql`
       SELECT action, user_id AS userId, actor_type AS actorType
