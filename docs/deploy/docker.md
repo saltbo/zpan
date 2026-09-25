@@ -61,6 +61,16 @@ environment:
 
 When retained seed files exceed this limit, the downloader cleans the oldest retained seeds first. This is an application-level seed cache limit, not a Docker volume hard quota; active downloads are allowed to finish or fail naturally instead of being deleted mid-task.
 
+Canceling a task removes its local files before cancellation is acknowledged.
+Downloads that fail before uploading also release their local files; retrying
+either starts downloading again. Paused, suspended, interrupted, and failed-upload
+tasks retain their files so they can resume.
+
+Completed uploads are kept for seeding only after their cleanup record is saved.
+If that write fails (for example, because the disk is full), the uploaded local
+copy is cleaned immediately. Seed ledger updates are serialized so concurrent
+completions cannot overwrite each other's cleanup records.
+
 ### Remote downloader BitTorrent port
 
 The bundled downloader can auto-start aria2 or qBittorrent for magnet and torrent tasks. The provided compose files publish the configured BitTorrent listen port for both TCP and UDP:

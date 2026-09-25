@@ -43,6 +43,7 @@ type SeedManager struct {
 	localResultTaskIDs func(context.Context) (map[string]struct{}, bool)
 	retainedSeeds      []retainedSeed
 	mu                 sync.Mutex
+	ledgerMu           sync.Mutex
 }
 
 func NewSeedManager(
@@ -138,13 +139,16 @@ func (s *SeedManager) Retain(ctx context.Context, task client.DownloadTask, resu
 	} else if err != nil {
 		log.Warn("failed to record retained bt seed upload baseline", "error", err)
 	}
+	s.ledgerMu.Lock()
+	defer s.ledgerMu.Unlock()
+	if err := s.upsertSeedLedger(seed, result.Size); err != nil {
+		log.Warn("cannot retain bt seed without durable cleanup record", "error", err)
+		return false
+	}
 	s.mu.Lock()
 	s.retainedSeeds = append(s.retainedSeeds, seed)
 	count := len(s.retainedSeeds)
 	s.mu.Unlock()
-	if err := s.upsertSeedLedger(seed, result.Size); err != nil {
-		log.Warn("failed to persist retained bt seed", "error", err)
-	}
 
 	log.Info("retaining completed bt task for seeding",
 		"engine", seed.engine,
@@ -160,6 +164,8 @@ func (s *SeedManager) Restore(ctx context.Context) {
 	if !s.cfg.SeedEnabled || s.cfg.StateDir == "" {
 		return
 	}
+	s.ledgerMu.Lock()
+	defer s.ledgerMu.Unlock()
 	ledger, err := loadSeedLedger(s.cfg.StateDir)
 	if err != nil {
 		s.log().Warn("failed to load retained seed ledger", "error", err)
@@ -181,7 +187,10 @@ func (s *SeedManager) Restore(ctx context.Context) {
 			continue
 		}
 		if !entry.ExpiresAt.IsZero() && !now.Before(entry.ExpiresAt) {
-			_ = os.RemoveAll(entry.Path)
+			if err := os.RemoveAll(entry.Path); err != nil {
+				s.log().Warn("failed to remove expired seed files", "task_id", entry.TaskID, "error", err)
+				kept = append(kept, entry)
+			}
 			continue
 		}
 		seed, supported, err := s.manager().RestoreSeed(ctx, SeedRef{
@@ -488,6 +497,8 @@ func (s *SeedManager) Reconcile(ctx context.Context) {
 	if !s.cfg.SeedEnabled {
 		return
 	}
+	s.ledgerMu.Lock()
+	defer s.ledgerMu.Unlock()
 	seeds, supported, err := s.manager().ListSeeds(ctx)
 	if !supported {
 		return
@@ -557,11 +568,13 @@ func (s *SeedManager) Reconcile(ctx context.Context) {
 		if s.cfg.SeedDuration > 0 {
 			adoptedSeed.expiresAt = now.Add(s.cfg.SeedDuration)
 		}
-		adopted = append(adopted, adoptedSeed)
-		tracked[taskID] = struct{}{}
 		if err := s.upsertSeedLedger(adoptedSeed, size); err != nil {
 			s.log().Warn("failed to persist adopted seed", "task_id", taskID, "error", err)
+			// Do not wait out a seeding window that cannot survive a restart.
+			adoptedSeed.expiresAt = now
 		}
+		adopted = append(adopted, adoptedSeed)
+		tracked[taskID] = struct{}{}
 	}
 	if len(adopted) == 0 {
 		return
@@ -674,6 +687,7 @@ func (s *SeedManager) CleanupTask(ctx context.Context, taskID string, reason str
 }
 
 func (s *SeedManager) upsertSeedLedger(seed retainedSeed, size int64) error {
+	// The caller holds ledgerMu through both persistence and in-memory registration.
 	if s.cfg.StateDir == "" {
 		return nil
 	}
@@ -710,6 +724,8 @@ func (s *SeedManager) upsertSeedLedger(seed retainedSeed, size int64) error {
 }
 
 func (s *SeedManager) removeSeedLedger(taskID string) error {
+	s.ledgerMu.Lock()
+	defer s.ledgerMu.Unlock()
 	if s.cfg.StateDir == "" {
 		return nil
 	}

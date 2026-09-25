@@ -636,6 +636,7 @@ func TestUploadAndCompleteHandlesCanceledUploadStates(t *testing.T) {
 			api := &recordingAPI{}
 			runner := NewTaskRunnerWithAPI(config.Config{}, api)
 			runner.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+			runner.downloader = NewManagerWithDownloader(&recordingEngine{})
 			ctx, cancel := context.WithCancelCause(context.Background())
 			tc.cancel(cancel)
 

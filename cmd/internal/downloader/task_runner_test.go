@@ -64,7 +64,7 @@ func TestDownloadThenUploadStopsWhenSuspendedAtStart(t *testing.T) {
 	}
 }
 
-func TestCanceledDownloadPreservesRuntimeAndMarksCanceled(t *testing.T) {
+func TestCanceledDownloadCleansRuntimeAndMarksCanceled(t *testing.T) {
 	api := &recordingAPI{}
 	eng := &recordingEngine{downloadErr: context.Canceled}
 	w := NewTaskRunnerWithAPI(config.Config{}, api)
@@ -75,8 +75,8 @@ func TestCanceledDownloadPreservesRuntimeAndMarksCanceled(t *testing.T) {
 
 	w.downloadThenUpload(ctx, w.logger, clientTaskWithStatus("task-1", "downloading"), nil)
 
-	if eng.resetCalls != 0 {
-		t.Fatalf("expected canceled task to preserve runtime, got %d reset calls", eng.resetCalls)
+	if eng.resetCalls != 1 {
+		t.Fatalf("expected terminal task cleanup, got %d reset calls", eng.resetCalls)
 	}
 	patch := lastPatchWithStatus(t, api.patches, "canceled")
 	if patch.State() != "canceled" {
@@ -199,7 +199,7 @@ func TestDeleteRequestedCleanupFailureIsNotAcknowledged(t *testing.T) {
 	}
 }
 
-func TestCancelingControlTaskWithoutDeleteRequestPreservesRuntime(t *testing.T) {
+func TestCancelingControlTaskCleansRuntime(t *testing.T) {
 	api := &recordingAPI{
 		controlTasks: []client.DownloadTask{clientTaskWithStatus("task-1", "canceling")},
 	}
@@ -211,8 +211,8 @@ func TestCancelingControlTaskWithoutDeleteRequestPreservesRuntime(t *testing.T) 
 	if err := w.tick(context.Background()); err != nil {
 		t.Fatalf("tick: %v", err)
 	}
-	if eng.resetCalls != 0 {
-		t.Fatalf("expected canceling task without delete request to preserve runtime, got %d reset calls", eng.resetCalls)
+	if eng.resetCalls != 1 {
+		t.Fatalf("expected terminal task cleanup, got %d reset calls", eng.resetCalls)
 	}
 	patch := lastPatchWithStatus(t, api.patches, "canceled")
 	if patch.State() != "canceled" {
@@ -220,7 +220,7 @@ func TestCancelingControlTaskWithoutDeleteRequestPreservesRuntime(t *testing.T) 
 	}
 }
 
-func TestFailedDownloadPreservesRuntimeAndMarksFailed(t *testing.T) {
+func TestFailedDownloadCleansRuntimeAndMarksFailed(t *testing.T) {
 	api := &recordingAPI{}
 	eng := &recordingEngine{downloadErr: errors.New("disk write failed")}
 	w := NewTaskRunnerWithAPI(config.Config{}, api)
@@ -229,8 +229,8 @@ func TestFailedDownloadPreservesRuntimeAndMarksFailed(t *testing.T) {
 
 	w.downloadThenUpload(context.Background(), w.logger, clientTaskWithStatus("task-1", "downloading"), nil)
 
-	if eng.resetCalls != 0 {
-		t.Fatalf("expected failed task to preserve runtime, got %d reset calls", eng.resetCalls)
+	if eng.resetCalls != 1 {
+		t.Fatalf("expected terminal task cleanup, got %d reset calls", eng.resetCalls)
 	}
 	failed := lastPatchWithStatus(t, api.patches, "failed")
 	if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "disk write failed") {
@@ -238,7 +238,7 @@ func TestFailedDownloadPreservesRuntimeAndMarksFailed(t *testing.T) {
 	}
 }
 
-func TestTerminalDownloadStopsPreservePartialFiles(t *testing.T) {
+func TestTerminalDownloadStopsCleanFilesButSuspensionPreservesThem(t *testing.T) {
 	cases := []struct {
 		name          string
 		cancelCause   error
@@ -315,8 +315,19 @@ func TestTerminalDownloadStopsPreservePartialFiles(t *testing.T) {
 				lastPatchWithStatus(t, api.patches, tc.wantStatus)
 			}
 			taskDir := filepath.Join(downloadDir, task.ID)
-			if _, err := os.Stat(taskDir); err != nil {
-				t.Fatalf("expected %s to remain after %s stop, got err=%v", taskDir, tc.name, err)
+			_, statErr := os.Stat(taskDir)
+			if tc.requireStop {
+				if statErr != nil {
+					t.Fatalf("expected suspended files to remain: %v", statErr)
+				}
+			} else {
+				if !os.IsNotExist(statErr) {
+					t.Fatalf("expected terminal files removed, got %v", statErr)
+				}
+				patch := lastPatchWithStatus(t, api.patches, tc.wantStatus)
+				if patch.Runtime == nil || patch.Runtime.State != localResultRemovedRuntimeState {
+					t.Fatalf("retry must know to redownload: %#v", patch)
+				}
 			}
 			if tc.requireStop {
 				for _, forbidden := range []string{"failed", "interrupted", "canceled", "paused"} {
@@ -1452,53 +1463,26 @@ func TestRetainSeedKeepsDownloadedResult(t *testing.T) {
 	}
 }
 
-func TestRetainedSeedExpiresWhenLedgerPersistenceFails(t *testing.T) {
-	stateFile := filepath.Join(t.TempDir(), "state-file")
-	if err := os.WriteFile(stateFile, []byte("not a directory"), 0o644); err != nil {
+func TestSeedIsNotRetainedWhenLedgerPersistenceFails(t *testing.T) {
+	stateFile := writeTempFile(t, "not a directory")
+	w := NewTaskRunnerWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour, StateDir: stateFile}, &recordingAPI{})
+	result := Result{Path: writeTempFile(t, "uploaded payload"), Size: 16}
+	result.Seed = &Seed{
+		Engine: "aria2", ID: "gid", Path: result.Path,
+		Snapshot: func(context.Context) (SeedSnapshot, error) { return SeedSnapshot{}, nil },
+		Cleanup:  func(context.Context) error { return os.Remove(result.Path) },
+	}
+	if w.seeds.Retain(context.Background(), clientTask("task-1"), result, w.logger) {
+		t.Fatal("must immediately clean instead of retaining an unpersisted seed")
+	}
+	if err := cleanupDownloadedResult(context.Background(), clientTask("task-1"), result); err != nil {
 		t.Fatal(err)
 	}
-	cleaned := false
-	w := NewTaskRunnerWithAPI(config.Config{SeedEnabled: true, SeedDuration: time.Hour, StateDir: stateFile}, &recordingAPI{})
-	w.downloader = NewManagerWithDownloader(&recordingEngine{})
-
-	retained := w.seeds.Retain(
-		context.Background(),
-		clientTask("task-1"),
-		Result{
-			Path: filepath.Join(t.TempDir(), "result"),
-			Size: 123,
-			Seed: &Seed{
-				Engine:   "aria2",
-				ID:       "gid",
-				InfoHash: "infohash",
-				Path:     t.TempDir(),
-				Snapshot: func(context.Context) (SeedSnapshot, error) {
-					return SeedSnapshot{}, nil
-				},
-				Cleanup: func(context.Context) error {
-					cleaned = true
-					return nil
-				},
-			},
-		},
-		w.logger,
-	)
-
-	if !retained {
-		t.Fatal("expected seed to remain tracked in memory")
-	}
-	if len(w.seeds.retainedSeedSnapshot()) != 1 {
-		t.Fatalf("expected retained seed despite ledger failure, got %d", len(w.seeds.retainedSeedSnapshot()))
-	}
-	w.seeds.retainedSeeds[0].expiresAt = time.Now().Add(-time.Second)
-
-	w.seeds.Cleanup(context.Background())
-
-	if !cleaned {
-		t.Fatal("expected in-memory retained seed to expire and clean up")
+	if _, err := os.Stat(result.Path); !os.IsNotExist(err) {
+		t.Fatalf("expected uploaded payload removed immediately, got %v", err)
 	}
 	if len(w.seeds.retainedSeedSnapshot()) != 0 {
-		t.Fatalf("expected expired seed to be removed from memory, got %d", len(w.seeds.retainedSeedSnapshot()))
+		t.Fatal("unpersisted seed must not be retained")
 	}
 }
 
