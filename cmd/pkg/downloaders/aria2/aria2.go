@@ -171,8 +171,6 @@ func (a Aria2) startArgs(rpcPort string) ([]string, error) {
 		"--rpc-listen-port=" + rpcPort,
 		"--dir=" + a.Dir,
 		"--continue=true",
-		// Canceled or failed downloads must not reserve the entire torrent size.
-		"--file-allocation=none",
 		"--allow-overwrite=true",
 		"--auto-file-renaming=false",
 		"--listen-port=" + listenPortString(a.ListenPort),

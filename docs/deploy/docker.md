@@ -64,8 +64,7 @@ When retained seed files exceed this limit, the downloader cleans the oldest ret
 Canceling a task removes its local files before cancellation is acknowledged.
 Downloads that fail before uploading also release their local files; retrying
 either starts downloading again. Paused, suspended, interrupted, and failed-upload
-tasks retain their files so they can resume. aria2 does not preallocate entire
-torrent files, preventing a small partial download from reserving the full size.
+tasks retain their files so they can resume.
 
 Completed uploads are kept for seeding only after their cleanup record is saved.
 If that write fails (for example, because the disk is full), the uploaded local
