@@ -198,21 +198,6 @@ jobs:
           ZPAN_APP_COMMIT: ${{ github.sha }}
         run: pnpm build
 
-      - name: Fix KV namespace in generated config
-        run: |
-          node - <<'NODE'
-          const fs = require('fs');
-          const path = 'dist/zpan/wrangler.json';
-          const config = JSON.parse(fs.readFileSync(path, 'utf8'));
-          const kv = config.kv_namespaces?.find(
-            entry => entry.binding === 'CACHE_KV'
-          );
-          if (!kv) throw new Error('CACHE_KV binding not found');
-          kv.id = '7a5e8c9bc5534e60a26d9b1847bb95f5';
-          fs.writeFileSync(path, JSON.stringify(config, null, 2));
-          console.log('KV namespace patched:', kv.id);
-          NODE
-  
       - name: Deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
