@@ -20,6 +20,7 @@ import {
   createDownloadTask,
   createIhostApiKey,
   createIhostImagePresign,
+  createMediaLibrary,
   createObject,
   createRemoteDownloadApiKey,
   createShare,
@@ -33,6 +34,7 @@ import {
   deleteIhostConfig,
   deleteIhostImage,
   deleteInviteCode,
+  deleteMediaLibrary,
   deleteObject,
   deleteStorage,
   deleteTeamLogo,
@@ -95,6 +97,7 @@ import {
   listDownloadTasks,
   listIhostImages,
   listInviteCodes,
+  listMediaLibraries,
   listNotifications,
   listOAuthGrants,
   listObjectsByPath,
@@ -136,6 +139,7 @@ import {
   saveEmailConfig,
   saveImageDomainProvider,
   saveShareToDrive,
+  scanMediaLibrary,
   sendDownloaderHeartbeat,
   serverEventsUrl,
   setSharePrivacy,
@@ -1562,6 +1566,86 @@ describe('api', () => {
         name: 'ApiError',
         status: 409,
         message: 'Background job cannot be retried',
+      })
+    })
+  })
+
+  describe('media libraries', () => {
+    const library = {
+      id: 'lib-1',
+      orgId: 'org-1',
+      folderId: 'folder-1',
+      folderPath: 'Movies',
+      scanning: false,
+      lastScannedAt: null,
+      createdBy: { type: 'user', ref: 'user-1', issuer: null },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+
+    it('lists every page of media libraries', async () => {
+      const second = { ...library, id: 'lib-2', folderId: 'folder-2' }
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(makeResponse({ items: [library], nextPageToken: 'page-2' }))
+        .mockResolvedValueOnce(makeResponse({ items: [second], nextPageToken: null }))
+
+      await expect(listMediaLibraries()).resolves.toEqual([library, second])
+
+      const [firstUrl, firstInit] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const [secondUrl] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
+      expect(firstUrl).toContain('/api/media-libraries?')
+      expect(firstUrl).toContain('pageSize=100')
+      expect(firstUrl).not.toContain('pageToken')
+      expect(firstInit.method).toBe('GET')
+      expect(secondUrl).toContain('pageToken=page-2')
+    })
+
+    it('creates a media library for a folder', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ ...library, scanning: true }, true, 201))
+
+      await expect(createMediaLibrary('folder-1')).resolves.toMatchObject({ id: 'lib-1', scanning: true })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/media-libraries')
+      expect(init.method).toBe('POST')
+      expect(init.body).toBe(JSON.stringify({ folderId: 'folder-1' }))
+    })
+
+    it('deletes a media library', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({ ok: true, status: 204 } as Response)
+
+      await expect(deleteMediaLibrary('lib-1')).resolves.toBeUndefined()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/media-libraries/lib-1')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('queues a media library rescan', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'job-1', type: 'media_library_scan' }, true, 201))
+
+      await expect(scanMediaLibrary('lib-1')).resolves.toMatchObject({ id: 'job-1', type: 'media_library_scan' })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/media-libraries/lib-1/scans')
+      expect(init.method).toBe('POST')
+    })
+
+    it('throws ApiError for media library failures', async () => {
+      const conflictBody = {
+        error: {
+          code: 409,
+          message: 'Media libraries cannot be nested',
+          status: 'ABORTED',
+          details: [{ reason: 'MEDIA_LIBRARY_NESTED', domain: 'zpan.dev' }],
+        },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(conflictBody, false, 409))
+
+      await expect(createMediaLibrary('folder-2')).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 409,
+        reason: 'MEDIA_LIBRARY_NESTED',
       })
     })
   })

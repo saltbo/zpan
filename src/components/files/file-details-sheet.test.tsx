@@ -5,9 +5,12 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getObjectCreator } from '@/lib/api'
 import { FileDetailsSheet } from './file-details-sheet'
+import type { MediaLibraryActions } from './types'
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => (values ? `${key}:${JSON.stringify(values)}` : key),
+  }),
 }))
 
 vi.mock('./file-icon', () => ({ FileIcon: () => <span data-testid="file-icon" /> }))
@@ -64,5 +67,47 @@ describe('FileDetailsSheet', () => {
     const { container } = render(<FileDetailsSheet item={null} onOpenChange={vi.fn()} />)
 
     expect(container.firstChild).toBeNull()
+  })
+
+  it('shows the media library status and index path of a folder', () => {
+    vi.mocked(getObjectCreator).mockResolvedValue({ ...item.createdBy!, name: 'Report Agent', image: null })
+    const folder: StorageObject = { ...item, id: 'folder-1', name: 'Movies', dirtype: DirType.USER_FOLDER, parent: '' }
+    const lastScannedAt = '2026-08-03T12:00:00.000Z'
+    const actions = (overrides: Partial<MediaLibraryActions>): MediaLibraryActions => ({
+      locked: false,
+      libraryFor: () => undefined,
+      onSet: vi.fn(),
+      onRemove: vi.fn(),
+      onRescan: vi.fn(),
+      ...overrides,
+    })
+    const renderSheet = (mediaLibrary: MediaLibraryActions) =>
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <FileDetailsSheet item={folder} onOpenChange={vi.fn()} mediaLibrary={mediaLibrary} />
+        </QueryClientProvider>,
+      )
+
+    renderSheet(
+      actions({
+        libraryFor: () =>
+          ({ id: 'lib-1', folderPath: 'Movies', scanning: false, lastScannedAt }) as ReturnType<
+            MediaLibraryActions['libraryFor']
+          >,
+      }),
+    )
+    expect(
+      screen.getByText(`mediaLibrary.lastScanned:{"date":"${new Date(lastScannedAt).toLocaleDateString()}"}`),
+    ).toBeTruthy()
+    expect(screen.getByText('/Movies/.zpan/library.json')).toBeTruthy()
+    cleanup()
+
+    renderSheet(actions({}))
+    expect(screen.getByText('mediaLibrary.none')).toBeTruthy()
+    cleanup()
+
+    renderSheet(actions({ locked: true }))
+    expect(screen.getByText('Pro')).toBeTruthy()
+    expect(screen.queryByText('mediaLibrary.indexFile')).toBeNull()
   })
 })

@@ -7,7 +7,7 @@ import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FileActionsContextContent } from './file-actions-menu'
 import { FileRowActions } from './file-row-actions'
-import type { FileActionHandlers } from './types'
+import type { FileActionHandlers, MediaLibraryActions } from './types'
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -19,6 +19,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('lucide-react', () => ({
   Archive: () => null,
+  Clapperboard: () => null,
   Copy: () => null,
   Download: () => null,
   EllipsisVertical: () => null,
@@ -30,8 +31,10 @@ vi.mock('lucide-react', () => ({
   Info: () => null,
   Pencil: () => null,
   ArrowRightLeft: () => null,
+  RefreshCw: () => null,
   Share2: () => null,
   Trash2: () => null,
+  X: () => null,
 }))
 
 vi.mock('@/components/ui/button', () => ({
@@ -289,5 +292,44 @@ describe('FileRowActions — component rendering', () => {
     expect(compressItem).toBeDefined()
     fireEvent.click(compressItem!)
     expect(onCompress).toHaveBeenCalledWith(item)
+  })
+
+  it('offers media library actions on folders only, following the folder state', () => {
+    const folder = makeObject(DirType.USER_FOLDER)
+    const library = { id: 'lib-1', folderId: folder.id } as ReturnType<MediaLibraryActions['libraryFor']>
+    const actions = (overrides: Partial<MediaLibraryActions>): MediaLibraryActions => ({
+      locked: false,
+      libraryFor: () => undefined,
+      onSet: vi.fn(),
+      onRemove: vi.fn(),
+      onRescan: vi.fn(),
+      ...overrides,
+    })
+    const labels = (item: StorageObject, mediaLibrary: MediaLibraryActions) => {
+      const view = render(<FileRowActions item={item} handlers={{ onOpen: vi.fn(), mediaLibrary }} />)
+      const items = view.getAllByRole('menuitem')
+      return { items, text: items.map((el) => el.textContent) }
+    }
+
+    const plain = actions({})
+    const unmarked = labels(folder, plain)
+    expect(unmarked.text).toContain('mediaLibrary.set')
+    fireEvent.click(unmarked.items.find((el) => el.textContent === 'mediaLibrary.set')!)
+    expect(plain.onSet).toHaveBeenCalledWith(folder)
+    cleanup()
+
+    const marked = actions({ libraryFor: () => library })
+    const markedView = labels(folder, marked)
+    expect(markedView.text).not.toContain('mediaLibrary.set')
+    fireEvent.click(markedView.items.find((el) => el.textContent === 'mediaLibrary.rescan')!)
+    fireEvent.click(markedView.items.find((el) => el.textContent === 'mediaLibrary.remove')!)
+    expect(marked.onRescan).toHaveBeenCalledWith(library)
+    expect(marked.onRemove).toHaveBeenCalledWith(library)
+    cleanup()
+
+    expect(labels(folder, actions({ locked: true })).text).toContain('mediaLibrary.setPro')
+    cleanup()
+
+    expect(labels(makeObject(DirType.FILE), plain).text.some((text) => text?.startsWith('mediaLibrary.'))).toBe(false)
   })
 })

@@ -1,5 +1,5 @@
-import type { BackgroundJob, BackgroundJobStatus } from '@shared/types'
-import { Archive, FileArchive, RotateCcw, Square } from 'lucide-react'
+import type { BackgroundJob, BackgroundJobStatus, KnownBackgroundJobType } from '@shared/types'
+import { Archive, Clapperboard, FileArchive, type LucideIcon, RotateCcw, Square } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,18 @@ interface BackgroundTaskListProps {
   onRetry: (id: string) => void
   cancelingId?: string
   retryingId?: string
+}
+
+// byteProgress: false marks jobs whose work is not measured in bytes (a scan
+// lists rows and writes one small index), so a byte percentage would sit at 0%.
+const TASK_TYPES: Record<KnownBackgroundJobType, { icon: LucideIcon; labelKey: string; byteProgress: boolean }> = {
+  archive_compress: { icon: Archive, labelKey: 'tasks.type.archiveCompress', byteProgress: true },
+  archive_extract: { icon: FileArchive, labelKey: 'tasks.type.archiveExtract', byteProgress: true },
+  media_library_scan: { icon: Clapperboard, labelKey: 'tasks.type.mediaLibraryScan', byteProgress: false },
+}
+
+function taskType(type: string) {
+  return TASK_TYPES[type as KnownBackgroundJobType] ?? { icon: Archive, labelKey: null, byteProgress: true }
 }
 
 export type BackgroundTaskFilter = 'active' | 'completed' | 'failed'
@@ -71,11 +83,7 @@ export function BackgroundTaskList({
               <tr key={job.id} className="border-b last:border-b-0">
                 <td className="px-4 py-3">
                   <div className="flex min-w-44 items-center gap-2">
-                    {job.type === 'archive_extract' ? (
-                      <FileArchive className="size-4 text-muted-foreground" />
-                    ) : (
-                      <Archive className="size-4 text-muted-foreground" />
-                    )}
+                    <TaskTypeIcon type={job.type} />
                     <div>
                       <div className="font-medium">{formatTaskType(job.type, t)}</div>
                       <div className="text-xs text-muted-foreground">{job.id}</div>
@@ -86,10 +94,14 @@ export function BackgroundTaskList({
                   <TaskStatusBadge status={job.status} />
                 </td>
                 <td className="min-w-44 px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <Progress value={taskProgressPercent(job)} className="w-28" />
-                    <span className="w-10 text-xs text-muted-foreground">{taskProgressPercent(job)}%</span>
-                  </div>
+                  {taskType(job.type).byteProgress ? (
+                    <div className="flex items-center gap-2">
+                      <Progress value={taskProgressPercent(job)} className="w-28" />
+                      <span className="w-10 text-xs text-muted-foreground">{taskProgressPercent(job)}%</span>
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
                 </td>
                 <td className="max-w-48 px-4 py-3 text-muted-foreground">
                   <span className="block truncate">{job.progress.currentFilename ?? '-'}</span>
@@ -142,6 +154,11 @@ export function BackgroundTaskList({
   )
 }
 
+function TaskTypeIcon({ type }: { type: string }) {
+  const Icon = taskType(type).icon
+  return <Icon className="size-4 text-muted-foreground" />
+}
+
 function TaskStatusBadge({ status }: { status: BackgroundJobStatus }) {
   const { t } = useTranslation()
   const variant = status === 'failed' ? 'destructive' : status === 'completed' ? 'secondary' : 'outline'
@@ -159,13 +176,14 @@ export function taskProgressPercent(job: BackgroundJob): number {
 }
 
 export function formatTaskType(type: string, t: (key: string) => string): string {
-  if (type === 'archive_compress') return t('tasks.type.archiveCompress')
-  if (type === 'archive_extract') return t('tasks.type.archiveExtract')
-  return type
+  const { labelKey } = taskType(type)
+  return labelKey ? t(labelKey) : type
 }
 
 export function formatResult(job: BackgroundJob, t: (key: string, values?: Record<string, unknown>) => string): string {
   if (job.status === 'failed') return job.errorMessage ?? '-'
+  const itemCount = typeof job.resultMetadata?.itemCount === 'number' ? job.resultMetadata.itemCount : null
+  if (itemCount !== null) return t('tasks.result.mediaItems', { count: itemCount })
   const outputName = typeof job.resultMetadata?.outputName === 'string' ? job.resultMetadata.outputName : null
   if (outputName) return outputName
   const outputBytes = typeof job.resultMetadata?.outputBytes === 'number' ? job.resultMetadata.outputBytes : null
