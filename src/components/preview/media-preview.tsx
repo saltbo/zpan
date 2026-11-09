@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import type { PreviewType } from '@/lib/file-types'
+import { ExternalPlayerMenu } from './external-player-menu'
 
 interface MediaPreviewProps {
   url: string
@@ -29,22 +30,21 @@ export function mimeFromExt(filename: string, previewType: PreviewType): string 
     }
     return map[ext] ?? 'audio/mpeg'
   }
+  // Vidstack picks its HTML5 provider from this type, then the browser sniffs the real
+  // container. Matroska is a WebM superset, so Chromium plays MKV with common codecs.
+  // Unknown formats still get a chance and fall back via onError.
   const map: Record<string, string> = {
     mp4: 'video/mp4',
+    m4v: 'video/mp4',
+    mov: 'video/mp4',
     webm: 'video/webm',
-    mkv: 'video/x-matroska',
-    avi: 'video/x-msvideo',
-    mov: 'video/quicktime',
-    wmv: 'video/x-ms-wmv',
-    flv: 'video/x-flv',
+    mkv: 'video/webm',
   }
   return map[ext] ?? 'video/mp4'
 }
 
 export function MediaPreview({ url, filename, previewType }: MediaPreviewProps) {
-  const ext = filename.split('.').pop()?.toLowerCase() ?? ''
-  const isUnsupported = previewType === 'video' && ['mkv', 'avi', 'wmv', 'flv'].includes(ext)
-  const [error, setError] = useState(isUnsupported)
+  const [error, setError] = useState(false)
   const { t } = useTranslation()
 
   if (error) {
@@ -56,26 +56,27 @@ export function MediaPreview({ url, filename, previewType }: MediaPreviewProps) 
         <div className="space-y-1">
           <h3 className="font-semibold text-lg">{t('preview.unsupported')}</h3>
           <p className="text-sm text-muted-foreground max-w-sm">
-            {previewType === 'video'
-              ? '当前浏览器不支持播放该格式或编码的视频。建议您将视频下载到本地，使用系统播放器进行播放。'
-              : '当前浏览器不支持播放该格式或编码的音频。建议您将音频下载到本地进行播放。'}
+            {previewType === 'video' ? t('preview.videoUnsupported') : t('preview.audioUnsupported')}
           </p>
         </div>
-        <Button asChild className="mt-2">
-          <a href={url} download={filename} target="_blank" rel="noopener noreferrer">
-            <DownloadIcon className="mr-2 size-4" />
-            {t('preview.download')}
-          </a>
-        </Button>
+        <div className="mt-2 flex flex-wrap justify-center gap-2">
+          <ExternalPlayerMenu url={url} />
+          <Button asChild size="sm">
+            <a href={url} download={filename} target="_blank" rel="noopener noreferrer">
+              <DownloadIcon className="mr-2 size-4" />
+              {t('preview.download')}
+            </a>
+          </Button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-full items-center justify-center">
+    <div className="flex h-full flex-col items-center justify-center">
       <MediaPlayer
         title={filename}
-        src={url}
+        src={previewType === 'video' ? { src: url, type: mimeFromExt(filename, previewType) as 'video/mp4' } : url}
         viewType={previewType === 'video' ? 'video' : 'audio'}
         crossOrigin
         onError={() => setError(true)}
@@ -88,6 +89,11 @@ export function MediaPreview({ url, filename, previewType }: MediaPreviewProps) 
           <DefaultVideoLayout icons={defaultLayoutIcons} />
         )}
       </MediaPlayer>
+      {previewType === 'video' && (
+        <div className="flex w-full justify-end px-2 py-2">
+          <ExternalPlayerMenu url={url} variant="ghost" />
+        </div>
+      )}
     </div>
   )
 }
