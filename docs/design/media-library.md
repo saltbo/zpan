@@ -1,6 +1,6 @@
 # Media Libraries
 
-> Status: Phase 1 implemented (filename metadata, no scraping)
+> Status: Phase 2 implemented (filename metadata, TMDB scraping into sidecars)
 > Editions: Pro and Business (`media_library` feature gate)
 
 ## 1. Problem
@@ -35,6 +35,22 @@ deletes it, and a library whose index is gone is off.
 
 There is no movies/shows kind. The media type is inferred per file, so mixed
 folders work.
+
+`media_scrapes` (one row per video a scrape has looked at, see
+[Scraping](#5-scraping)):
+
+| Column | Notes |
+| --- | --- |
+| `matter_id` | Primary key: the video's matter id |
+| `org_id`, `library_id` | `library_id` cascades with the library |
+| `status` | `matched` or `unmatched` |
+| `tmdb_type`, `tmdb_id` | `movie` or `tv`; for an episode, the series id |
+| `season`, `episode` | Set for an episode |
+| `language` | The scraper language the row was scraped in |
+| `source` | `nfo` when an existing `.nfo` named the id, `search` otherwise |
+| `match_key` | The parsed kind, normalized title, and year the match came from |
+| `file_updated_at` | The video's `updated_at` when it was scraped |
+| `scraped_at` | When the row was written |
 
 Rules:
 
@@ -185,6 +201,8 @@ The processor:
    instead of failing the job.
 6. Stores the fingerprint and `last_scanned_at`, and drops the WebDAV child
    listing cache for the library folder.
+7. Queues a TMDB scrape when the library has videos that need one (see
+   [When a scrape runs](#when-a-scrape-runs)).
 
 Failures split in two. A deterministic failure stores the attempted
 fingerprint, so it does not re-enqueue on every sweep; the next change in the
@@ -269,7 +287,205 @@ Workers.
   and parse the whole file when it changes, which is a client concern rather
   than a server limit.
 
-## 5. Index format
+## 5. Scraping
+
+A Pro or Business instance with a TMDB token matches each library's videos to
+[TMDB](https://www.themoviedb.org/). `library.json` gains only the TMDB id of a
+matched video. Titles, plots, and artwork go to Kodi/Jellyfin sidecar files
+next to the videos, so players that ignore the feed read them too.
+
+### Settings
+
+Admin → Settings → Media libraries → Metadata scraping holds one TMDB
+language (a closed list of common TMDB tags, `en-US` by default) and a TMDB
+API Read Access Token (v4, sent as a bearer token). Both live in
+`system_options` (`media_scraper_language`, `media_scraper_tmdb_access_token`)
+and the TMDB gateway reads them on every use, like the image-domain provider
+reads its credentials. The token is write-only, like the captcha secret:
+`GET /api/site/settings` reports `mediaScraping.tmdbTokenConfigured`, a
+`PUT /api/site/settings/media-scraping` without `tmdbAccessToken` keeps the
+saved token, and an empty one removes it, which turns scraping off. The `PUT`
+needs the `media_library` feature (`402` otherwise).
+
+### When a scrape runs
+
+`media_library_scrape` is its own background job, routed like the scan. It is
+queued:
+
+- At the end of a successful scan, when TMDB is configured, the instance is
+  entitled (the same license check as the sweep, against `ZPAN_CLOUD_URL`), no
+  scrape of the library holds the lease, and a video needs scraping. Failing
+  to queue it is logged as `media_library.scan.scrape_enqueue_error` and the
+  scan stays completed.
+- On `POST /api/media-libraries/{id}/scrapes` (editor, `media_library`
+  feature). It answers `409 MEDIA_LIBRARY_SCRAPE_IN_PROGRESS` while a scrape
+  holds the lease and `412 MEDIA_SCRAPER_NOT_CONFIGURED` without a token. The
+  folder menu offers it as "Scrape metadata".
+
+The lease works like the scan's: a `queued` or `running`
+`media_library_scrape` job updated within the last hour. The library DTO
+reports it as `scraping`.
+
+A video needs scraping when it has no `media_scrapes` row, its matter's
+`updated_at` is after the row's `file_updated_at` (renamed, moved, or
+overwritten), or the row's language differs from the configured one. An
+unmatched video is therefore not searched again until it or the language
+changes. One SQL predicate answers both "is there anything to scrape" (for
+the trigger) and "which videos" (for each batch). It is the scan's video
+listing with `media_scrapes` left-joined on its primary key.
+
+A scrape that changed a published id (a new match, a different match, or a
+lost one) queues a scan when no scan holds the lease, so `library.json` picks
+the ids up right away. Failing to queue it is logged as
+`media_library.scrape.scan_enqueue_error`. Sidecars it wrote also change the
+subtree fingerprint, so the sweep rescans anyway. Either scan ends with the
+trigger above, which now finds no video that needs scraping, because every
+video the scrape processed has a current row. So the loop stops after one
+scrape and at most one scan unless videos changed in the meantime.
+
+### Matching a video
+
+The scrape parses each video exactly as the index does (the filename, with
+the library folder as the outermost folder) and settles its TMDB id in this
+order:
+
+1. **An existing `.nfo`.** For a movie, `X.nfo` and then `movie.nfo` in the
+   video's folder; for an episode, `tvshow.nfo` in its show folder. The first
+   one with a TMDB id (`<uniqueid type="tmdb">` or `<tmdbid>`, read with a
+   tolerant regex, files over 1 MiB skipped) names the match, unless its root
+   element says it describes something else. An episode's own `.nfo` carries
+   the episode id, not the series.
+2. **The previous match**, while the match key (kind, normalized title, year)
+   is unchanged. A moved video, a renamed library folder, or a new language
+   reuses the match instead of searching. A previous miss is reused only in
+   the same language, since another language can match a localized title.
+3. **A search** for the parsed title in the configured language and then in
+   English, with the parsed year (`year` for movies, `first_air_date_year` for
+   shows) and then without it. A search with no results at all skips the
+   other language for that year, which would find the same nothing.
+
+A video the parser could not classify (`_media.type` `unknown`, such as
+`holiday-clip.mov`) is matched only through an `.nfo`, because a search for a
+title like that matches unrelated films. Renaming it to `Title (Year).ext`
+makes it a movie.
+
+A search result matches when its localized or original title has a Dice
+similarity of at least 0.85 to the parsed title (character bigrams after
+NFKD, ignoring accents, case, punctuation, `&` versus "and", and a leading
+English article) and its year is within one of the parsed year. A missing
+year on either side is neutral. The most similar title wins, then the closest
+year, then TMDB's order.
+
+### Sidecars
+
+| Video | Written next to it | Written in the show folder |
+| --- | --- | --- |
+| Movie `X.mkv` | `X.nfo` (`<movie>`: title, originaltitle, year, plot, premiered, genre, runtime, `<uniqueid type="tmdb" default="true">`), `X-poster.jpg` (w780), `X-fanart.jpg` (w1280) | none |
+| Episode `X.mkv` | `X.nfo` (`<episodedetails>`: title, season, episode, plot, aired, `<uniqueid type="tmdb">` of the episode), `X-thumb.jpg` (still, w300) | `tvshow.nfo` (`<tvshow>`: title, originaltitle, year, plot, premiered, genre, `<uniqueid type="tmdb" default="true">`), `poster.jpg`, `fanart.jpg`, `seasonNN-poster.jpg` (`season00` for specials) |
+
+- **Show folder.** The episode's folder, or its parent when the episode sits
+  in a season folder (`Season 1`, `S01`, `Series 2`, `第1季`, `Specials`)
+  inside the library. It counts only when its name (without a year) is the
+  show's title by the rule above. Episodes of several shows loose in one
+  folder therefore never share a `tvshow.nfo`. They get only their own
+  sidecars and are matched by their own titles.
+- **Existing files win.** A live entry at a sidecar path (any case, file or
+  folder) is never replaced or modified, and the create never replaces
+  either. An entry that appears between the lookup and the write wins, and
+  the uploaded object is deleted.
+- **Writing.** Each sidecar takes the path other server-written files take: a
+  fresh object key, `putObject`, then quota reserved and the matter created.
+  It is attributed to the system actor whoever asked for the scrape.
+  Exceeding the quota stops the job with `Quota exceeded while writing
+  metadata files. The files written so far are kept.` The WebDAV listing
+  cache of every folder written to is dropped at the end of the batch.
+- **Language.** Details and seasons are fetched in the configured language.
+  When a plot is empty there, one English fetch fills it: per movie, per show,
+  and per season for its episodes. Posters prefer the configured language,
+  then no text, then English; fanart prefers no text. Images come from
+  `https://image.tmdb.org/t/p/`.
+- **Only what is missing.** A video whose sidecars all exist costs no TMDB
+  details call, so a re-scrape after a language change or a move only
+  records the row.
+
+### Batches, retries, and limits
+
+A queue message handles at most 20 videos, keyset-paged over the
+needs-scraping predicate in the index's `(parent, name)` order. After a full
+batch the processor renews the lease (the job's progress update) and queues
+the same job id again with `resume: { after, processed, matched, changed }`.
+A stored job never has `resume`, so a retry from the task list starts over. A
+recorded video drops out of the predicate, so a redelivered message repeats
+no finished work. `progress.fileCount` is the number of videos processed so
+far, and the result reports matched and unmatched counts.
+
+Episodes of one show in a batch share one id lookup, one show fetch, and one
+fetch per season. A later batch finds the `tvshow.nfo` this one wrote and
+reads the id from it instead of searching.
+
+| Failure | Outcome |
+| --- | --- |
+| TMDB `429` | The message is queued again after `Retry-After` (1 to 300 s, 10 s when absent) with the videos already done, and the job stays running |
+| TMDB `401` | Failed, not retryable: `TMDB rejected the access token. An administrator can update it in the scraping settings.` |
+| TMDB `5xx`, a 15 s timeout, or a network failure | Failed and retryable, naming the video it stopped at; videos without a row are scraped by the next scrape |
+| Quota | Failed and retryable, with the sidecars written so far kept |
+| Library gone, folder in trash, or no token | Failed, not retryable |
+
+Subrequests per video, counted from the code. A D1 call, a TMDB or image
+request, and an S3 call each count one, so a sidecar costs one S3 put and
+three D1 calls.
+
+| Video | Typical | Worst |
+| --- | --- | --- |
+| Movie matched by search, nothing on disk | 18: lookup, search, details, 2 images, 3 sidecars, row | 23: 4 searches, the English plot, an `.nfo` read |
+| First episode of a show in the batch | 33: lookup, search, show, season, 4 images, 6 sidecars, row | 39: 4 searches, 2 English plots, a `tvshow.nfo` read |
+| Next episode of the same season | 11: lookup, still, 2 sidecars, row | 11 |
+| Unmatched movie | 4: lookup, 2 searches, row | 6 |
+
+A batch of 20 therefore stays under about 800 subrequests even when every
+video is the first episode of a different show (estimated from the table),
+well under the 10,000 a Paid-plan invocation allows, and makes at most about
+200 TMDB calls. CPU per video is small; the time goes to waiting on TMDB and
+storage.
+
+The index page query gains the `media_scrapes` join without new bound
+parameters (still 26, 27 with the cursor). Measured on the local Workers D1
+in `workers/media-library-scrape.cf-test.ts`:
+
+| Query | Plan |
+| --- | --- |
+| Index page | `SEARCH matters USING INDEX matters_webdav_path_idx (org_id=? AND parent>? AND parent<?)`, or `(parent,name)>(?,?)` with the cursor, then `SEARCH media_scrapes USING INDEX sqlite_autoindex_media_scrapes_1 (matter_id=?) LEFT-JOIN` |
+| Videos to scrape, 28 parameters with the cursor | Same as the index page |
+| Anything to scrape, 27 parameters | `SEARCH matters USING INDEX matters_active_name_uniq (org_id=? AND parent>? AND parent<?)` and the same join. The query is unordered, so SQLite takes the smaller partial index over the same range |
+
+### Not handled
+
+- **Renamed videos leave their old sidecars.** The renamed video gets new
+  ones, and `X.nfo` of the old name stays until someone deletes it.
+- **Existing sidecars are not rewritten.** A language change re-records every
+  video and fills in missing sidecars in the new language, but the rule that
+  existing files win also covers files an earlier scrape wrote. ZPan does not
+  recognise its own sidecars: they are attributed to the system actor, but a
+  WebDAV overwrite keeps that attribution, so it cannot tell its own file
+  from a user's edit of it. Rewriting only untouched sidecars needs a stored
+  digest per sidecar. Until then, delete the sidecars to regenerate them;
+  they come back when the video or the language changes next.
+- **A deleted sidecar comes back only with a change.** The predicate looks at
+  the video, not at its sidecars.
+- **`movie.nfo` names every movie in its folder.** It is meant for
+  folder-per-movie layouts.
+- **Second precision.** A video renamed in the same second it was scraped is
+  not scraped again, like the fingerprint's blind spot.
+- **Purged videos keep their rows** until the library is removed. Nothing
+  reads them, because every query joins from live matters.
+- **A scan already running** when a scrape completes may have listed before
+  the new ids. The sweep rescans once the sidecars change the fingerprint. A
+  scrape that matched only through existing `.nfo` files writes nothing, so
+  its ids wait for the next change in the subtree.
+- **Live TMDB is not exercised by tests.** The suites fake TMDB at the fetch
+  boundary.
+
+## 6. Index format
 
 `<library>/library.json`, `application/feed+json`, a full snapshot in
 [JSON Feed 1.1](https://jsonfeed.org/version/1.1). The schema lives in
@@ -287,7 +503,7 @@ Workers.
       "content_text": "Inception (2010).mkv",
       "date_modified": "2026-11-09T15:59:35.000Z",
       "attachments": [{ "url": "Inception%20(2010).mkv", "mime_type": "video/x-matroska", "size_in_bytes": 42 }],
-      "_media": { "type": "movie", "title": "Inception", "year": 2010 }
+      "_media": { "type": "movie", "title": "Inception", "year": 2010, "tmdb": { "id": 27205, "type": "movie" } }
     }
   ]
 }
@@ -310,13 +526,17 @@ Workers.
   `SxxEyy`, `NxNN`, and `第N季第M集` episodes (a bare `S01E02.mkv` takes its
   show title from the nearest non-season folder), `Title.Year...` and
   `Title (Year)` movies, and `unknown` with the filename otherwise.
+- `_media.tmdb` is `{ "id", "type" }` once a scrape matched the video, where
+  `type` is `movie` or `tv` and an episode's id is its series. It is absent
+  for a video that was never scraped or did not match. Nothing else from TMDB
+  goes into the index.
 
-## 6. API and UI
+## 7. API and UI
 
 `/api/media-libraries` lists (cursor page), creates `{folderId}`, deletes
-`/{id}`, and creates scans at `/{id}/scans`. Scopes are
+`/{id}`, and creates scans at `/{id}/scans` and scrapes at `/{id}/scrapes`. Scopes are
 `media-libraries:read|create|update|delete`; writes need the editor role.
-Create and rescan need the `media_library` feature (`402` otherwise). List and
+Create, rescan, and scrape need the `media_library` feature (`402` otherwise). List and
 delete do not, so after a license lapses users still see their libraries and
 can remove them.
 
@@ -330,29 +550,25 @@ has no fingerprint, so the next sweep scans it.
 Deleting a library purges the index first, then the row. If deleting the row
 fails, the library is already off and the next sweep drops it.
 
-The file manager shows "Set as media library", "Rescan media library", and
-"Remove media library" on folders, and the details sheet shows status, last
-scan, and the index path. It loads the workspace's libraries once and joins
-them to folders by id, so the object DTO is unchanged. The list loads
-regardless of entitlement. Without it, "Set as media library" and "Rescan
-media library" carry a Pro badge and open an upgrade prompt, while "Remove
-media library" and the details still work for existing libraries. "Remove
-media library" asks for confirmation and names the `library.json` it deletes.
+The file manager shows "Set as media library", "Rescan media library",
+"Scrape metadata", and "Remove media library" on folders, and the details
+sheet shows status (including a running scrape), last scan, and the index
+path. It loads the workspace's libraries once and joins them to folders by
+id, so the object DTO is unchanged. The list loads regardless of
+entitlement. Without it, "Set as media library", "Rescan media library", and
+"Scrape metadata" carry a Pro badge and open an upgrade prompt, while
+"Remove media library" and the details still work for existing libraries.
+"Remove media library" asks for confirmation and names the `library.json` it
+deletes. The task list labels scrape jobs and shows how many videos matched.
 
-## 7. Future phases
+## 8. Future phases
 
-- **TMDB scraping.** Match `_media` titles and years to TMDB and add ids,
-  overviews, and artwork URLs to each item. The TMDB API key is an
-  instance-level admin setting stored in `system_options` and masked like the
-  other secrets.
-- **Sidecars.** Write `.nfo` files and posters next to videos (Kodi/Jellyfin
-  layout) so players that ignore the feed still get metadata. Sidecars are
-  library content and count toward the fingerprint; only `library.json` stays
-  excluded.
 - **Subtitles and extras.** List sidecar subtitles per item as additional
   attachments.
+- **Rewriting ZPan's own sidecars.** Store a digest per written sidecar, so a
+  language change can rewrite the ones nobody edited.
 
-## 8. Open decisions
+## 9. Open decisions
 
 - **Non-video changes.** Any change in the subtree (a new `.txt`) rewrites the
   index, and `generatedAt` changes the ETag even when items are equal.
