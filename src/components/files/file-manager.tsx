@@ -40,6 +40,7 @@ import { FilesToolbar } from './files-toolbar'
 import { useConflictResolver, withConflictRetry } from './hooks/use-conflict-resolver'
 import { useFileMutations } from './hooks/use-file-mutations'
 import { useViewMode } from './hooks/use-view-mode'
+import { resolvePreviewFile, resolveSidecarSubtitles } from './preview-file'
 import { TransferSpaceDialog } from './transfer-space-dialog'
 import type { BreadcrumbItem, FileActionHandlers } from './types'
 
@@ -305,19 +306,10 @@ export function FileManager({
         return
       }
       try {
-        const file =
-          (await dataSource?.getPreviewFile?.(item)) ??
-          (await getObject(item.id).then((obj) =>
-            obj.downloadUrl
-              ? {
-                  id: obj.id,
-                  name: obj.name,
-                  type: obj.type,
-                  size: obj.size,
-                  downloadUrl: obj.downloadUrl,
-                }
-              : null,
-          ))
+        const [file, subtitles] = await Promise.all([
+          resolvePreviewFile(item, dataSource?.getPreviewFile),
+          resolveSidecarSubtitles(item, items, dataSource?.getPreviewFile),
+        ])
         if (!file) {
           toast.error(t('common.error'))
           return
@@ -326,13 +318,13 @@ export function FileManager({
           musicPlayer.play(file)
           return
         }
-        setPreviewFile(file)
+        setPreviewFile(subtitles.length > 0 ? { ...file, subtitles } : file)
         setPreviewOpen(true)
       } catch {
         toast.error(t('common.error'))
       }
     },
-    [currentPath, dataSource, musicPlayer, navigateToPath, t],
+    [currentPath, dataSource, items, musicPlayer, navigateToPath, t],
   )
 
   const handleDownload = useCallback(

@@ -49,6 +49,12 @@ vi.mock('@vidstack/react', () => ({
   MediaProvider: () => null,
 }))
 
+vi.mock('./subtitle-tracks', () => ({
+  SubtitleTracks: ({ videoUrl, videoName, sidecars }: { videoUrl: string; videoName: string; sidecars: unknown[] }) => (
+    <div data-testid="subtitle-tracks" data-url={videoUrl} data-name={videoName} data-count={sidecars.length} />
+  ),
+}))
+
 vi.mock('@vidstack/react/player/layouts/default', () => ({
   DefaultAudioLayout: () => null,
   DefaultVideoLayout: () => null,
@@ -141,6 +147,15 @@ describe('MediaPreview video', () => {
     expect(await screen.findByText('preview.videoUnsupported')).toBeTruthy()
   })
 
+  it('hands the video and its sidecar subtitles to the player', async () => {
+    preparePlayback.mockResolvedValue({ kind: 'native', dispose: vi.fn() })
+    const subtitles = [{ name: 'movie.chs.srt', url: 'https://s3.example.com/movie.chs.srt' }]
+    render(<MediaPreview url={URL} filename="movie.mkv" previewType="video" subtitles={subtitles} />)
+
+    const tracks = await screen.findByTestId('subtitle-tracks')
+    expect(tracks.dataset).toMatchObject({ url: URL, name: 'movie.mkv', count: '1' })
+  })
+
   it('lets the browser try when the probe itself fails (e.g. storage refuses range reads)', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     preparePlayback.mockRejectedValue(new Error('CORS'))
@@ -173,6 +188,7 @@ describe('MediaPreview audio', () => {
   it('plays audio directly without probing', () => {
     render(<MediaPreview url={URL} filename="song.mp3" previewType="audio" />)
     expect(screen.getByTestId('media-player')).toBeTruthy()
+    expect(screen.queryByTestId('subtitle-tracks')).toBeNull()
     expect(preparePlayback).not.toHaveBeenCalled()
     expect(screen.queryByText('preview.openWith')).toBeNull()
   })

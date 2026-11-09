@@ -4,19 +4,25 @@ import '@vidstack/react/player/styles/default/theme.css'
 import '@vidstack/react/player/styles/default/layouts/audio.css'
 import '@vidstack/react/player/styles/default/layouts/video.css'
 import { AlertCircleIcon, DownloadIcon, Loader2Icon } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import type { PreviewType } from '@/lib/file-types'
 import type { MseStream } from '@/lib/media-pipeline/mse-stream'
 import type { UnsupportedReason } from '@/lib/media-pipeline/plan'
+import type { SidecarSubtitle } from '@/lib/subtitles'
 import { ExternalPlayerMenu } from './external-player-menu'
+import { SubtitleTracks } from './subtitle-tracks'
 
 interface MediaPreviewProps {
   url: string
   filename: string
   previewType: PreviewType
+  /** Subtitle files found next to a video. */
+  subtitles?: readonly SidecarSubtitle[]
 }
+
+const NO_SUBTITLES: readonly SidecarSubtitle[] = []
 
 type FailureReason = UnsupportedReason | 'playback'
 
@@ -52,9 +58,9 @@ export function mimeFromExt(filename: string, previewType: PreviewType): string 
   return map[ext] ?? 'video/mp4'
 }
 
-export function MediaPreview({ url, filename, previewType }: MediaPreviewProps) {
+export function MediaPreview({ url, filename, previewType, subtitles = NO_SUBTITLES }: MediaPreviewProps) {
   if (previewType === 'audio') return <AudioPreview url={url} filename={filename} />
-  return <VideoPreview url={url} filename={filename} />
+  return <VideoPreview url={url} filename={filename} subtitles={subtitles} />
 }
 
 function AudioPreview({ url, filename }: { url: string; filename: string }) {
@@ -63,7 +69,15 @@ function AudioPreview({ url, filename }: { url: string; filename: string }) {
   return <Player src={url} title={filename} viewType="audio" onFailure={() => setFailed(true)} />
 }
 
-function VideoPreview({ url, filename }: { url: string; filename: string }) {
+function VideoPreview({
+  url,
+  filename,
+  subtitles,
+}: {
+  url: string
+  filename: string
+  subtitles: readonly SidecarSubtitle[]
+}) {
   const { t } = useTranslation()
   const [source, setSource] = useState<VideoSource>({ kind: 'probing' })
 
@@ -127,7 +141,9 @@ function VideoPreview({ url, filename }: { url: string; filename: string }) {
       onProviderSetup={(provider) => {
         if (source.kind === 'mse' && isVideoProvider(provider)) source.stream.attach(provider.video)
       }}
-    />
+    >
+      <SubtitleTracks videoUrl={url} videoName={filename} sidecars={subtitles} />
+    </Player>
   )
 }
 
@@ -150,9 +166,10 @@ interface PlayerProps {
   viewType: 'video' | 'audio'
   onFailure: () => void
   onProviderSetup?: (provider: MediaProviderAdapter) => void
+  children?: ReactNode
 }
 
-function Player({ src, title, viewType, onFailure, onProviderSetup }: PlayerProps) {
+function Player({ src, title, viewType, onFailure, onProviderSetup, children }: PlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const onFailureRef = useRef(onFailure)
   onFailureRef.current = onFailure
@@ -182,6 +199,7 @@ function Player({ src, title, viewType, onFailure, onProviderSetup }: PlayerProp
         className="max-h-full w-full [--audio-bg:transparent] [--audio-border:0] [--audio-border-radius:0] [--audio-filter:none] [--video-bg:transparent] [--video-border:0] [--video-border-radius:0]"
       >
         <MediaProvider />
+        {children}
         {viewType === 'audio' ? (
           <DefaultAudioLayout icons={defaultLayoutIcons} />
         ) : (
