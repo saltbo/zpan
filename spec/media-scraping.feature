@@ -61,6 +61,12 @@ Feature: Media library scraping
     When the sweep runs, a rescan completes, and a scrape is requested again
     Then no further scan is queued by the sweep, the rescan queues no scrape, and the scrape has nothing to do
 
+  @media-scraping/publish-after-lease @api
+  Scenario: Recorded ids reach library.json even when no scan follows the scrape
+    Given a scrape that records a match while another scan holds the lease, or that fails after recording one
+    When the next sweep runs
+    Then the recorded match has changed the library's fingerprint, so a scan publishes the id
+
   @media-scraping/rescrape-changes @api
   Scenario: A renamed video or a new language is scraped again without searching for known matches
     Given a scraped library

@@ -420,7 +420,8 @@ export const mediaScrapes = sqliteTable(
     fileUpdatedAt: integer('file_updated_at', { mode: 'timestamp' }).notNull(),
     scrapedAt: integer('scraped_at', { mode: 'timestamp_ms' }).notNull(),
   },
-  (t) => [index('media_scrapes_library_idx').on(t.libraryId)],
+  // Covers the library fingerprint's count and latest scrape of matched rows.
+  (t) => [index('media_scrapes_library_idx').on(t.libraryId, t.status, t.scrapedAt)],
 )
 
 export const downloaders = sqliteTable(

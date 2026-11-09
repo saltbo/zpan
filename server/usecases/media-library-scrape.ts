@@ -606,9 +606,9 @@ async function liveLibrary(
   return library?.folder && !library.folder.trashed ? { ...library, folder: library.folder } : null
 }
 
-// The scan that publishes the changed ids. A scan already holding the lease
-// may have listed before them; the sweep rescans once the sidecars written
-// here change the fingerprint.
+// Publishes the changed ids now instead of at the next sweep. A scan already
+// holding the lease may have listed before them; the recorded matches are part
+// of the library's fingerprint, so the sweep rescans after it.
 async function rescanIndex(deps: Deps, message: ScrapeMessage, library: MediaLibraryView): Promise<void> {
   const current = await liveLibrary(deps, message.orgId, library.id)
   if (!current || current.scanning) return

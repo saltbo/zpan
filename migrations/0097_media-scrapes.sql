@@ -15,4 +15,4 @@ CREATE TABLE `media_scrapes` (
 	FOREIGN KEY (`library_id`) REFERENCES `media_libraries`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `media_scrapes_library_idx` ON `media_scrapes` (`library_id`);
+CREATE INDEX `media_scrapes_library_idx` ON `media_scrapes` (`library_id`,`status`,`scraped_at`);

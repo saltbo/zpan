@@ -166,7 +166,7 @@ async function scanLibrary(
 
   // Taken before listing: a change that races the listing then shows up as a
   // fingerprint mismatch and triggers one more scan instead of being lost.
-  const fingerprint = await deps.mediaLibraries.fingerprint(orgId, path)
+  const fingerprint = await deps.mediaLibraries.fingerprint(orgId, library.id, path)
   try {
     await assertNoOlderOverlap(deps, orgId, { id: library.id, createdAt: library.createdAt, path })
     const source = { libraryId: library.id, folderPath: path, folderName: name, generatedAt: new Date() }

@@ -169,8 +169,15 @@ function fingerprintedMatters(orgId: SQL | AnySQLiteColumn, path: SQL): SQL {
 // move, and overwrite bump updated_at (cascadeParentPath bumps every
 // descendant of a moved folder). SUM(updated_at) also catches a change that
 // lands in the same second as the previous maximum. COUNT(id) rather than
-// COUNT(*) so a library joined to no rows counts zero.
-const FINGERPRINT = sql<string>`COUNT(${matters.id}) || ':' || COALESCE(SUM(${matters.size}), 0) || ':' || COALESCE(MAX(${matters.updatedAt}), 0) || ':' || COALESCE(SUM(${matters.updatedAt}), 0)`
+// COUNT(*) so a library joined to no rows counts zero. The scan publishes the
+// matched TMDB ids too, so the library's matched media_scrapes count, and
+// their latest scraped_at (millisecond precision, written on every record),
+// cover a match a scrape records, changes, or loses, and a purged video's row.
+// The aggregate is grouped over the subtree's matters; the scrape terms are a
+// subquery over the covering media_scrapes_library_idx.
+function fingerprint(libraryId: SQL | AnySQLiteColumn): SQL<string> {
+  return sql<string>`COUNT(${matters.id}) || ':' || COALESCE(SUM(${matters.size}), 0) || ':' || COALESCE(MAX(${matters.updatedAt}), 0) || ':' || COALESCE(SUM(${matters.updatedAt}), 0) || ':' || (SELECT COUNT(*) || ':' || COALESCE(MAX(${mediaScrapes.scrapedAt}), 0) FROM ${mediaScrapes} WHERE ${mediaScrapes.libraryId} = ${libraryId} AND ${mediaScrapes.status} = 'matched')`
+}
 
 const folder = alias(matters, 'library_folder')
 const indexFile = alias(matters, 'library_index')
@@ -299,7 +306,11 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
           ),
       )
       const rows = await db
-        .select({ ...stateColumns(), indexed: sql<number>`${indexed}`, subtreeFingerprint: FINGERPRINT })
+        .select({
+          ...stateColumns(),
+          indexed: sql<number>`${indexed}`,
+          subtreeFingerprint: fingerprint(mediaLibraries.id),
+        })
         .from(mediaLibraries)
         .leftJoin(folder, folderJoin)
         .leftJoin(matters, fingerprintedMatters(mediaLibraries.orgId, folderPath))
@@ -342,9 +353,9 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
         .where(and(eq(mediaLibraries.orgId, orgId), eq(mediaLibraries.id, id)))
     },
 
-    async fingerprint(orgId, path) {
+    async fingerprint(orgId, libraryId, path) {
       const [row] = await db
-        .select({ fingerprint: FINGERPRINT })
+        .select({ fingerprint: fingerprint(sql`${libraryId}`) })
         .from(matters)
         .where(fingerprintedMatters(sql`${orgId}`, sql`${path}`))
       return row.fingerprint

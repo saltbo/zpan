@@ -340,6 +340,57 @@ describe('media library scraping', () => {
     expect(tmdb.apiCalls()).toHaveLength(calls)
   })
 
+  // Arrival matches through its own .nfo and has every sidecar, so its
+  // scrape writes nothing that would change the subtree.
+  async function seedSidecarComplete(ctx: Ctx) {
+    const media = await ctx.add('', 'Media')
+    await ctx.video('Media', 'Arrival (2016).mkv')
+    await ctx.add('Media', 'Arrival (2016).nfo', '<movie><uniqueid type="tmdb">329865</uniqueid></movie>')
+    await ctx.add('Media', 'Arrival (2016)-poster.jpg', 'my poster')
+    await ctx.add('Media', 'Arrival (2016)-fanart.jpg', 'my fanart')
+    return media
+  }
+
+  it('publishes ids recorded while another scan held the lease on the next sweep [spec: media-scraping/publish-after-lease]', async () => {
+    const ctx = await setup({ token: null })
+    const media = await seedSidecarComplete(ctx)
+    const libraryId = await createLibrary(ctx, media.id)
+    await ctx.settle()
+    await ctx.deps.systemOptions.setMany([{ key: 'media_scraper_tmdb_access_token', value: FAKE_TMDB_TOKEN }])
+    const lease = await createBackgroundJobRepo(ctx.db).create({
+      orgId: ctx.orgId,
+      userId: ctx.userId,
+      type: 'media_library_scan',
+      metadata: { type: 'media_library_scan', libraryId },
+    })
+
+    expect((await ctx.request(`/api/media-libraries/${libraryId}/scrapes`)).status).toBe(201)
+    await vi.waitFor(async () => expect((await ctx.jobs('media_library_scrape'))[0]?.status).toBe('completed'))
+    await createBackgroundJobRepo(ctx.db).update(ctx.orgId, lease.id, { status: 'failed' })
+    expect((await ctx.index('Media')).get('Arrival (2016).mkv')).toBeUndefined()
+
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+    await ctx.settle()
+
+    expect((await ctx.index('Media')).get('Arrival (2016).mkv')).toEqual({ id: 329865, type: 'movie' })
+  })
+
+  it('publishes the ids a failed scrape recorded on the next sweep [spec: media-scraping/publish-after-lease]', async () => {
+    const ctx = await setup({ token: 'revoked-token' })
+    const media = await seedSidecarComplete(ctx)
+    await ctx.video('Media', 'Inception (2010).mkv')
+
+    await createLibrary(ctx, media.id)
+    await ctx.settle()
+    expect((await ctx.jobs('media_library_scrape'))[0]).toMatchObject({ status: 'failed', retryable: false })
+    expect((await ctx.index('Media')).get('Arrival (2016).mkv')).toBeUndefined()
+
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+    await ctx.settle()
+
+    expect((await ctx.index('Media')).get('Arrival (2016).mkv')).toEqual({ id: 329865, type: 'movie' })
+  })
+
   it('reuses matches after a rename or a language change and searches again only what did not match [spec: media-scraping/rescrape-changes]', async () => {
     const ctx = await setup()
     const media = await seedLibrary(ctx)

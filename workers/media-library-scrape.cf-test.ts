@@ -231,4 +231,39 @@ describe('[CF] media library scrapes on the Workers queue', () => {
       [`SEARCH matters USING INDEX matters_webdav_path_idx (${keyset})`, join],
     ])
   })
+
+  it('reads the matched scrapes for the fingerprint from their covering index [spec: media-scraping/index-query-plan]', async () => {
+    const statements: Array<{ query: string; values: unknown[] }> = []
+    const recording = {
+      prepare(query: string) {
+        const statement = env.DB.prepare(query)
+        return {
+          bind(...values: unknown[]) {
+            statements.push({ query, values })
+            return statement.bind(...values)
+          },
+        }
+      },
+    }
+    const repo = createMediaLibraryRepo(
+      createCloudflarePlatform({ ...testEnv, DB: recording as unknown as D1Database }).db,
+    )
+
+    await repo.fingerprint('org-plan', 'lib-plan', 'Movies')
+    await repo.listForSweep()
+
+    expect(statements.map((statement) => statement.values.length)).toEqual([9, 14])
+    const plans = []
+    for (const { query, values } of statements) {
+      const plan = await env.DB.prepare(`EXPLAIN QUERY PLAN ${query}`)
+        .bind(...values)
+        .all<{ detail: string }>()
+      plans.push(plan.results.map((row) => row.detail))
+    }
+    const scrapes = 'SEARCH media_scrapes USING COVERING INDEX media_scrapes_library_idx (library_id=? AND status=?)'
+    const subtree = 'SEARCH matters USING INDEX matters_active_name_uniq (org_id=? AND parent>? AND parent<?)'
+    expect(plans[0]).toEqual([subtree, 'SCALAR SUBQUERY 1', scrapes])
+    expect(plans[1]).toContain(`${subtree} LEFT-JOIN`)
+    expect(plans[1]).toContain(scrapes)
+  })
 })

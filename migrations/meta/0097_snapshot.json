@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "2da25e2d-e928-4247-afd0-257d5ec0ef20",
+  "id": "48552170-e701-4182-864e-0de6436906de",
   "prevId": "0bc4560e-7f0c-43ef-af26-a7c7ea3c0a54",
   "tables": {
     "announcements": {
@@ -2165,7 +2165,9 @@
         "media_scrapes_library_idx": {
           "name": "media_scrapes_library_idx",
           "columns": [
-            "library_id"
+            "library_id",
+            "status",
+            "scraped_at"
           ],
           "isUnique": false
         }
