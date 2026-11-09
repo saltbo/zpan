@@ -832,6 +832,7 @@
   "admin.settings.tmdbTokenMissing": "No TMDB token",
   "admin.settings.tmdbAccessToken": "TMDB API Read Access Token",
   "admin.settings.tmdbAccessTokenHint": "Create one in the API section of your themoviedb.org account settings. It is stored privately and used only by the server. Leave blank to keep the saved token.",
+  "admin.settings.tmdbAccessTokenRemove": "Remove token",
   "admin.settings.tmdbAccessTokenPlaceholder": "eyJhbGciOiJIUzI1NiJ9…",
   "admin.settings.scrapingLanguage": "Language",
   "admin.settings.scrapingLanguageHint": "Titles and plots are written in this language, in English when TMDB has no translation. Posters prefer it too.",

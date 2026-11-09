@@ -832,6 +832,7 @@
   "admin.settings.tmdbTokenMissing": "未设置 TMDB 令牌",
   "admin.settings.tmdbAccessToken": "TMDB API 读取访问令牌",
   "admin.settings.tmdbAccessTokenHint": "在 themoviedb.org 账户设置的 API 页面创建。令牌私密保存，仅由服务器使用。留空则保留已保存的令牌。",
+  "admin.settings.tmdbAccessTokenRemove": "移除令牌",
   "admin.settings.tmdbAccessTokenPlaceholder": "eyJhbGciOiJIUzI1NiJ9…",
   "admin.settings.scrapingLanguage": "语言",
   "admin.settings.scrapingLanguageHint": "标题和简介使用该语言，TMDB 没有对应翻译时使用英文。海报也优先使用该语言。",

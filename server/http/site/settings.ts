@@ -16,7 +16,6 @@ import {
   updateSiteWebDavSchema,
 } from '@shared/schemas'
 import type { Env } from '../../middleware/platform'
-import { requireFeature } from '../../middleware/require-feature'
 import {
   getSiteSettings,
   updateSiteCaptcha,
@@ -113,11 +112,10 @@ const updateMediaScrapingRoute = authRoute(
     tags: ['Site Settings'],
     method: 'put',
     path: '/media-scraping',
-    middleware: [requireFeature('media_library')] as const,
     request: jsonBody(updateSiteMediaScrapingSchema),
     responses: {
       200: jsonContent(siteMediaScrapingSettingsSchema, 'Updated scraping settings'),
-      402: errorResponse('Media libraries require a Pro or Business license'),
+      400: errorResponse('Invalid scraping settings'),
     },
   },
 )

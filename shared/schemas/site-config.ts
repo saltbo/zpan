@@ -327,7 +327,7 @@ export const updateSiteMediaScrapingSchema = z
   .object({
     language: mediaScraperLanguageSchema,
     // Omitted keeps the saved token; an empty string removes it.
-    tmdbAccessToken: z.string().max(1024).nullable().optional(),
+    tmdbAccessToken: z.string().max(1024).optional(),
   })
   .openapi('UpdateSiteMediaScraping')
 export const updateSiteWebDavSchema = z

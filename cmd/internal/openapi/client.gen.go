@@ -26508,7 +26508,7 @@ type UpdateSiteMediaScrapingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *SiteMediaScrapingSettings
-	JSON402      *Error
+	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -34817,12 +34817,12 @@ func ParseUpdateSiteMediaScrapingResponse(rsp *http.Response) (*UpdateSiteMediaS
 		}
 		response.JSON200 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON402 = &dest
+		response.JSON400 = &dest
 
 	}
 

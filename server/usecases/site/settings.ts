@@ -360,9 +360,9 @@ export async function updateSiteMediaScraping(
 ): Promise<SiteMediaScrapingSettings> {
   await deps.systemOptions.setMany([
     { key: SITE_SETTING_KEYS.mediaScraperLanguage, value: input.language },
-    ...(Object.hasOwn(input, 'tmdbAccessToken')
-      ? [{ key: SITE_SETTING_KEYS.mediaScraperTmdbAccessToken, value: (input.tmdbAccessToken ?? '').trim() }]
-      : []),
+    ...(input.tmdbAccessToken === undefined
+      ? []
+      : [{ key: SITE_SETTING_KEYS.mediaScraperTmdbAccessToken, value: input.tmdbAccessToken.trim() }]),
   ])
   return mediaScrapingFrom(
     optionMap(

@@ -424,13 +424,14 @@ export function SettingsPage() {
     },
   })
 
+  // A blank token field keeps the saved token; removing it sends an empty one.
   const scrapingMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (action: 'save' | 'removeToken') => {
       const values = form.getValues()
-      const tmdbAccessToken = values.tmdbAccessToken.trim()
+      const tmdbAccessToken = action === 'removeToken' ? '' : values.tmdbAccessToken.trim()
       return updateSiteMediaScraping({
         language: values.scrapingLanguage,
-        ...(tmdbAccessToken ? { tmdbAccessToken } : {}),
+        ...(tmdbAccessToken || action === 'removeToken' ? { tmdbAccessToken } : {}),
       })
     },
     onSuccess: (result) => {
@@ -889,14 +890,21 @@ export function SettingsPage() {
         bodyClassName="grid auto-rows-min content-start gap-4"
         footer={
           <>
+            {tmdbTokenConfigured && (
+              <Button
+                type="button"
+                variant="outline"
+                className="mr-auto"
+                disabled={scrapingMutation.isPending}
+                onClick={() => scrapingMutation.mutate('removeToken')}
+              >
+                {t('admin.settings.tmdbAccessTokenRemove')}
+              </Button>
+            )}
             <Button type="button" variant="outline" onClick={() => closeSettingsDrawer()}>
               {t('common.cancel')}
             </Button>
-            <Button
-              type="button"
-              disabled={!hasMediaLibrary || scrapingMutation.isPending}
-              onClick={() => scrapingMutation.mutate()}
-            >
+            <Button type="button" disabled={scrapingMutation.isPending} onClick={() => scrapingMutation.mutate('save')}>
               {scrapingMutation.isPending ? t('common.loading') : t('common.save')}
             </Button>
           </>
@@ -911,7 +919,6 @@ export function SettingsPage() {
           <Input
             type="password"
             autoComplete="off"
-            disabled={!hasMediaLibrary}
             placeholder={tmdbTokenConfigured ? '••••••••' : t('admin.settings.tmdbAccessTokenPlaceholder')}
             {...form.register('tmdbAccessToken')}
           />
@@ -924,7 +931,6 @@ export function SettingsPage() {
         >
           <Select
             value={selectedScrapingLanguage}
-            disabled={!hasMediaLibrary}
             onValueChange={(language: MediaScraperLanguage) =>
               form.setValue('scrapingLanguage', language, { shouldDirty: true })
             }

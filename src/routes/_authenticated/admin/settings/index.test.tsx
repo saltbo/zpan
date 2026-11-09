@@ -220,14 +220,18 @@ describe('SettingsPage', () => {
     )
   })
 
-  it('locks scraping settings without the media library feature [spec: media-scraping/settings]', () => {
+  it('lets an administrator without the media library feature change the language and remove the token [spec: media-scraping/settings]', async () => {
     state.mediaLibrary = false
+    vi.mocked(updateSiteMediaScraping).mockResolvedValue({ language: 'ja-JP', tmdbTokenConfigured: false })
     const view = renderSettingsPage()
     openSection(view, 'admin.settings.scrapingTitle')
 
-    expect(view.getByLabelText('admin.settings.tmdbAccessToken')).toHaveProperty('disabled', true)
-    expect(view.getByRole('button', { name: 'common.save' })).toHaveProperty('disabled', true)
     expect(view.getByText('admin.settings.scrapingUpgradeHint')).toBeTruthy()
+    expect(view.getByLabelText('admin.settings.tmdbAccessToken')).toHaveProperty('disabled', false)
+    fireEvent.click(view.getByRole('button', { name: 'admin.settings.tmdbAccessTokenRemove' }))
+    await waitFor(() =>
+      expect(updateSiteMediaScraping).toHaveBeenCalledWith({ language: 'ja-JP', tmdbAccessToken: '' }),
+    )
   })
 
   it('shows email configuration on the settings page', () => {
