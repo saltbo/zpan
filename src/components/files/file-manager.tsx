@@ -1,4 +1,5 @@
 import { DirType } from '@shared/constants'
+import type { MediaLibrary } from '@shared/schemas'
 import type { StorageObject } from '@shared/types'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -43,6 +44,7 @@ import {
 import { runSequentialOperation } from '@/lib/sequential-operation'
 import { cn } from '@/lib/utils'
 import { getColumns } from './columns'
+import { MediaLibraryRemoveDialog } from './dialogs/media-library-remove-dialog'
 import type { OperationProgressState } from './dialogs/operation-progress'
 import { DndWrapper } from './dnd-wrapper'
 import { FileDetailsSheet } from './file-details-sheet'
@@ -261,6 +263,7 @@ export function FileManager({
   const [transferTarget, setTransferTarget] = useState<StorageObject | null>(null)
   const [detailsTarget, setDetailsTarget] = useState<StorageObject | null>(null)
   const [mediaLibraryUpgradeOpen, setMediaLibraryUpgradeOpen] = useState(false)
+  const [mediaLibraryRemoveTarget, setMediaLibraryRemoveTarget] = useState<MediaLibrary | null>(null)
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false)
@@ -329,7 +332,7 @@ export function FileManager({
       libraryFor: (folder) => libraries.get(folder.id),
       onSet: mediaLibraryEntitled ? (folder) => request({ type: 'set', id: folder.id }) : upgrade,
       onRescan: mediaLibraryEntitled ? (library) => request({ type: 'rescan', id: library.id }) : upgrade,
-      onRemove: (library) => request({ type: 'remove', id: library.id }),
+      onRemove: setMediaLibraryRemoveTarget,
     }
   }, [
     resolvedCapabilities.mediaLibrary,
@@ -825,6 +828,17 @@ export function FileManager({
         onOpenChange={(open) => {
           if (!open) setDetailsTarget(null)
         }}
+      />
+      <MediaLibraryRemoveDialog
+        library={mediaLibraryRemoveTarget}
+        isPending={mediaLibraryMutation.isPending}
+        onCancel={() => setMediaLibraryRemoveTarget(null)}
+        onConfirm={(library) =>
+          mediaLibraryMutation.mutate(
+            { type: 'remove', id: library.id },
+            { onSettled: () => setMediaLibraryRemoveTarget(null) },
+          )
+        }
       />
       <Dialog open={mediaLibraryUpgradeOpen} onOpenChange={setMediaLibraryUpgradeOpen}>
         <DialogContent className="max-w-sm p-0">

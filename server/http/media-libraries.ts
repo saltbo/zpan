@@ -72,7 +72,8 @@ const createRoute = authRoute(
   {
     operationId: 'createMediaLibrary',
     summary: 'Mark a folder as a media library',
-    description: 'Queues the first scan, which writes `<folder>/library.json` (JSON Feed 1.1).',
+    description:
+      'Writes `<folder>/library.json` (JSON Feed 1.1) and queues the first scan to fill it. The index also marks the folder as a media library: deleting, renaming, or moving it turns the library off.',
     tags: ['Media Libraries'],
     method: 'post',
     path: '/',
@@ -83,7 +84,10 @@ const createRoute = authRoute(
       400: errorResponse('The target is not a folder'),
       402: errorResponse('Media libraries require a Pro or Business license'),
       404: errorResponse('Folder not found'),
-      409: errorResponse('The folder already is, contains, or is inside a media library'),
+      409: errorResponse(
+        'The folder already is, contains, or is inside a media library, or already holds an entry named library.json',
+      ),
+      422: errorResponse('The index does not fit the storage quota'),
       503: errorResponse('Background jobs are unavailable in this environment'),
     },
   },
@@ -94,7 +98,7 @@ const deleteRoute = authRoute(
   {
     operationId: 'deleteMediaLibrary',
     summary: 'Remove a media library',
-    description: 'The folder and its existing `library.json` index are left in place.',
+    description: 'Permanently deletes the `library.json` index. The folder and its videos are left in place.',
     tags: ['Media Libraries'],
     method: 'delete',
     path: '/{id}',

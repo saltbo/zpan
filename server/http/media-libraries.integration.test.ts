@@ -6,7 +6,9 @@ import { S3Service } from '../adapters/gateways/s3'
 import { createBackgroundJobRepo } from '../adapters/repos/background-job'
 import { createMatterRepo } from '../adapters/repos/matter'
 import { createMediaLibraryRepo } from '../adapters/repos/media-library'
+import { buildMediaLibraryFeed, joinMatterPath } from '../domain/media-library'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup'
+import { createMediaLibraryIndex } from '../usecases/media-library-index'
 import { sweepMediaLibraries } from '../usecases/media-library-scan'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>
@@ -82,16 +84,32 @@ async function setup(options: { licensed?: boolean; env?: Record<string, string>
   }
 }
 
-// Inserts a library row without the create-time checks or a first scan, the
-// way a later move or restore can leave libraries.
+// Inserts a library row and its empty index without the create-time checks or
+// a first scan, the way a later move or restore can leave libraries.
 async function seedLibrary(ctx: Awaited<ReturnType<typeof setup>>, folderId: string, createdAt: Date) {
+  const createdBy = { type: 'user' as const, ref: ctx.userId, issuer: null }
   const library = await createMediaLibraryRepo(ctx.db).create({
     orgId: ctx.orgId,
     folderId,
     createdByUserId: ctx.userId,
-    createdBy: { type: 'user', ref: ctx.userId, issuer: null },
+    createdBy,
   })
   if (!library) throw new Error('library not created')
+  const folder = await ctx.matters.get(folderId, ctx.orgId)
+  if (!folder) throw new Error('library folder missing')
+  const folderPath = joinMatterPath(folder.parent, folder.name)
+  await createMediaLibraryIndex(
+    ctx.deps,
+    { orgId: ctx.orgId, userId: ctx.userId, createdBy },
+    folderPath,
+    buildMediaLibraryFeed({
+      libraryId: library.id,
+      folderPath,
+      folderName: folder.name,
+      files: [],
+      generatedAt: new Date(),
+    }),
+  )
   await ctx.db.run(sql`UPDATE media_libraries SET created_at = ${createdAt.getTime()} WHERE id = ${library.id}`)
   return library
 }
@@ -123,10 +141,10 @@ async function readIndex(ctx: Awaited<ReturnType<typeof setup>>, folderPath: str
   return { matter, feed }
 }
 
-async function webDavKey(ctx: Awaited<ReturnType<typeof setup>>) {
+async function webDavKey(ctx: Awaited<ReturnType<typeof setup>>, objects: string[] = ['read']) {
   // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
   const result = (await (ctx.auth.api as any).createApiKey({
-    body: { configId: 'webdav', userId: ctx.userId, permissions: { objects: ['read'] } },
+    body: { configId: 'webdav', userId: ctx.userId, permissions: { objects } },
   })) as { key: string }
   return { Authorization: `Basic ${btoa(`media-owner@example.com:${result.key}`)}` }
 }
@@ -144,6 +162,9 @@ describe('media libraries API', () => {
     const created = await ctx.createLibrary(movies.id)
     expect(created.status).toBe(201)
     expect(await created.json()).toMatchObject({ folderId: movies.id, folderPath: 'Movies', scanning: true })
+    expect(await ctx.matters.findActiveConflict(ctx.orgId, 'Movies', 'library.json')).toMatchObject({
+      type: 'application/feed+json',
+    })
 
     const [job] = await waitForScans(ctx.db, ctx.orgId)
     expect(job).toMatchObject({ status: 'completed', progress: { fileCount: 2 } })
@@ -179,7 +200,9 @@ describe('media libraries API', () => {
       items: unknown[]
     }
     expect(after.items).toEqual([])
-    await expect(readIndex(ctx, 'Movies')).resolves.toBeTruthy()
+    await expect(readIndex(ctx, 'Movies')).rejects.toThrow('library.json not found')
+    expect(objects.has(matter.object)).toBe(false)
+    await expect(ctx.matters.get(matter.id, ctx.orgId)).resolves.toBeNull()
   })
 
   it('rescans only after the subtree changes and rewrites the index in place [spec: media-library/sweep-rescans-on-change]', async () => {
@@ -343,6 +366,7 @@ describe('media libraries API', () => {
     })
     expect(removed.status).toBe(204)
     expect(await ctx.db.all(sql`SELECT id FROM media_libraries`)).toEqual([])
+    await expect(readIndex(ctx, 'Shows')).rejects.toThrow('library.json not found')
   })
 
   it('leaves libraries unscanned when the instance is not entitled [spec: media-library/sweep-requires-license]', async () => {
@@ -441,7 +465,7 @@ describe('media libraries API', () => {
       errorMessage: 'Media library overlaps the older media library at "Media"',
     })
     expect((await readIndex(ctx, 'Media')).feed.items.map((item) => item.title)).toEqual(['Dune'])
-    await expect(readIndex(ctx, 'Media/Movies')).rejects.toThrow('library.json not found')
+    expect((await readIndex(ctx, 'Media/Movies')).feed.items).toEqual([])
 
     await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
     expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(2)
@@ -470,7 +494,10 @@ describe('media libraries API', () => {
     const ctx = await setup()
     const movies = await ctx.add('', 'Movies', 'folder')
     await ctx.add('Movies', 'Dune (2021).mkv')
-    vi.mocked(S3Service.prototype.putObject).mockRejectedValueOnce(new Error('S3 unavailable'))
+    const put = vi.mocked(S3Service.prototype.putObject)
+    const store = put.getMockImplementation()
+    if (!store) throw new Error('putObject is not mocked')
+    put.mockImplementationOnce(store).mockRejectedValueOnce(new Error('S3 unavailable'))
 
     expect((await ctx.createLibrary(movies.id)).status).toBe(201)
     expect(await waitForScans(ctx.db, ctx.orgId)).toEqual([
@@ -501,35 +528,73 @@ describe('media libraries API', () => {
     expect(error).toHaveBeenCalledWith(expect.stringContaining(before.matter.object))
   })
 
-  it('leaves a user-uploaded library.json in place and fails the scan [spec: media-library/user-index-file-blocks]', async () => {
+  it.each([
+    ['a user file', 'library.json', 'file'],
+    ['a case-variant folder', 'Library.json', 'folder'],
+  ] as const)('refuses a folder that already holds %s named library.json [spec: media-library/index-name-occupied]', async (_label, name, kind) => {
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    const occupant = await ctx.add('Movies', name, kind)
+
+    const res = await ctx.createLibrary(movies.id)
+
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ error: { details: [{ reason: 'MEDIA_LIBRARY_INDEX_OCCUPIED' }] } })
+    expect(await ctx.db.all(sql`SELECT id FROM media_libraries`)).toEqual([])
+    expect(await scanJobs(ctx.db, ctx.orgId)).toEqual([])
+    expect(await ctx.matters.findActiveConflict(ctx.orgId, 'Movies', 'library.json')).toMatchObject({
+      id: occupant.id,
+      type: occupant.type,
+      object: occupant.object,
+    })
+    expect(S3Service.prototype.putObject).not.toHaveBeenCalled()
+  })
+
+  it('turns a library off when its library.json is deleted over WebDAV [spec: media-library/index-removed]', async () => {
     const ctx = await setup()
     const movies = await ctx.add('', 'Movies', 'folder')
     await ctx.add('Movies', 'Dune (2021).mkv')
-    const userFile = await ctx.matters.create({
-      orgId: ctx.orgId,
-      name: 'library.json',
-      type: 'application/json',
-      size: 12,
-      dirtype: DirType.FILE,
-      parent: 'Movies',
-      object: 'objects/user-library.json',
-      storageId: STORAGE_ID,
-      status: 'active',
-    })
+    const created = (await (await ctx.createLibrary(movies.id)).json()) as { id: string }
+    await waitForScans(ctx.db, ctx.orgId)
 
-    expect((await ctx.createLibrary(movies.id)).status).toBe(201)
+    const dav = await webDavKey(ctx, ['read', 'delete'])
+    const deleted = await ctx.app.request(`/dav/${ctx.slug}/Movies/library.json`, { method: 'DELETE', headers: dav })
+    expect(deleted.status).toBe(204)
+    await ctx.add('Movies', 'Arrival (2016).mkv')
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining(`library=${created.id} org=${ctx.orgId} reason=index_removed`),
+    )
+    await expect(createMediaLibraryRepo(ctx.db).get(ctx.orgId, created.id)).resolves.toBeNull()
+    expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(1)
+    expect(await ctx.matters.findActiveConflict(ctx.orgId, 'Movies', 'library.json')).toBeNull()
+  })
+
+  it('ends a queued scan without recreating an index that was removed [spec: media-library/index-removed]', async () => {
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    const library = await seedLibrary(ctx, movies.id, new Date())
+    const index = await ctx.matters.findActiveConflict(ctx.orgId, 'Movies', 'library.json')
+    if (!index) throw new Error('index missing')
+    await ctx.matters.update(index.id, ctx.orgId, { name: 'old-library.json' })
+    vi.mocked(S3Service.prototype.putObject).mockClear()
+
+    const rescan = await ctx.app.request(`/api/media-libraries/${library.id}/scans`, {
+      method: 'POST',
+      headers: ctx.headers,
+    })
+    expect(rescan.status).toBe(201)
+
     expect(await waitForScans(ctx.db, ctx.orgId)).toEqual([
       expect.objectContaining({
         status: 'failed',
-        errorMessage:
-          '"Movies/library.json" is not a ZPan media library index; rename or remove it so the index can be written',
+        errorMessage: 'Media library index was removed, so the library was turned off',
       }),
     ])
-    expect(await ctx.matters.findActiveConflict(ctx.orgId, 'Movies', 'library.json')).toMatchObject({
-      id: userFile.id,
-      type: 'application/json',
-      object: 'objects/user-library.json',
-    })
+    await expect(createMediaLibraryRepo(ctx.db).get(ctx.orgId, library.id)).resolves.toBeNull()
+    expect(await ctx.matters.findActiveConflict(ctx.orgId, 'Movies', 'library.json')).toBeNull()
     expect(S3Service.prototype.putObject).not.toHaveBeenCalled()
   })
 

@@ -1,8 +1,10 @@
 Feature: Media libraries
   A folder marked as a media library gets a JSON Feed index at
   <folder>/library.json that WebDAV clients fetch conditionally instead of
-  walking the folder tree. A 10-minute sweep rescans a library when its subtree
-  fingerprint changes. Media libraries are a Pro and Business feature.
+  walking the folder tree. The index is also the library's on switch: removing
+  the library deletes it, and deleting it turns the library off. A 10-minute
+  sweep rescans a library when its subtree fingerprint changes. Media libraries
+  are a Pro and Business feature.
 
   @media-library/parse-filenames @domain
   Scenario: Video filenames are parsed into movie, episode, or unknown metadata
@@ -17,11 +19,12 @@ Feature: Media libraries
     Then it lists only the videos, ordered by path, with library-relative encoded URLs
 
   @media-library/create-and-scan @api
-  Scenario: Marking a folder queues a scan that writes the index
+  Scenario: Marking a folder writes the index and queues a scan that fills it
     Given a licensed workspace with videos in a folder
     When the folder is marked as a media library
-    Then a scan job completes and library.json lists the videos
+    Then library.json exists right away and a scan job fills it with the videos
     And a WebDAV GET with the returned ETag answers 304
+    And removing the library permanently deletes library.json
 
   @media-library/sweep-rescans-on-change @api
   Scenario: The sweep rescans only libraries whose subtree changed
@@ -72,11 +75,17 @@ Feature: Media libraries
     When a rescan cannot delete the previous index object
     Then the scan completes with the new index and the failure is logged
 
-  @media-library/user-index-file-blocks @api
-  Scenario: A user's own library.json is never overwritten
-    Given a library folder whose root already holds a user file named library.json
-    When the library is scanned
-    Then the scan fails naming that file and the file is left untouched
+  @media-library/index-name-occupied @api
+  Scenario: A folder that already holds a library.json cannot become a library
+    Given a folder whose root holds a file or folder named library.json in any case
+    When the folder is marked as a media library
+    Then the request is rejected with MEDIA_LIBRARY_INDEX_OCCUPIED and nothing is created
+
+  @media-library/index-removed @api
+  Scenario: Deleting library.json turns the library off
+    Given a media library whose library.json was deleted, renamed, or moved away
+    When the sweep runs or a scan job starts
+    Then the library is removed and library.json is not recreated
 
   @media-library/scan-holds-lease @api
   Scenario: A long scan keeps its lease

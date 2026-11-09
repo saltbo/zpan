@@ -1,13 +1,28 @@
 // The media-libraries resource usecase (/api/media-libraries): list, mark a
-// folder as a library (and queue its first scan), remove, and request a rescan.
+// folder as a library (writing its library.json and queueing the first scan),
+// remove it (purging library.json), and request a rescan.
 
 import { DirType, ObjectStatus } from '@shared/constants'
 import type { BackgroundJob } from '@shared/types'
-import { folderPathsOverlap, joinMatterPath } from '../domain/media-library'
+import {
+  buildMediaLibraryFeed,
+  folderPathsOverlap,
+  joinMatterPath,
+  MEDIA_LIBRARY_INDEX_FILE,
+} from '../domain/media-library'
 import { formatError } from '../lib/errors'
 import type { Deps } from './deps'
+import { createMediaLibraryIndex, purgeMediaLibraryIndex } from './media-library-index'
 import { enqueueMediaLibraryScan } from './media-library-scan'
-import { type ActorIdentity, badRequest, conflict, type MediaLibraryView, notFound } from './ports'
+import {
+  type ActorIdentity,
+  badRequest,
+  conflict,
+  type MediaLibraryView,
+  notFound,
+  quotaExceeded,
+  StorageQuotaExceededError,
+} from './ports'
 
 type Requester = { orgId: string; userId: string; createdBy: ActorIdentity }
 
@@ -20,7 +35,7 @@ export function listMediaLibraries(
 }
 
 export async function createMediaLibrary(
-  deps: Pick<Deps, 'matter' | 'mediaLibraries' | 'backgroundJobs' | 'jobQueue'>,
+  deps: Deps,
   input: Requester & { folderId: string },
 ): Promise<MediaLibraryView> {
   const { orgId, userId, createdBy } = input
@@ -43,8 +58,34 @@ export async function createMediaLibrary(
     throw conflict(`Media libraries cannot be nested: "${overlapping.path}" is a media library`, 'MEDIA_LIBRARY_NESTED')
   }
 
+  const occupant = await deps.matter.findActiveConflict(orgId, folderPath, MEDIA_LIBRARY_INDEX_FILE)
+  if (occupant) {
+    throw conflict(
+      `"${joinMatterPath(folderPath, occupant.name)}" already exists; rename or remove it to make this folder a media library`,
+      'MEDIA_LIBRARY_INDEX_OCCUPIED',
+    )
+  }
+
   const record = await deps.mediaLibraries.create({ orgId, folderId: folder.id, createdByUserId: userId, createdBy })
   if (!record) throw conflict('Folder is already a media library', 'MEDIA_LIBRARY_EXISTS')
+  // The index is the library's on switch, so it exists before the request
+  // returns; the first scan fills it in.
+  try {
+    const feed = buildMediaLibraryFeed({
+      libraryId: record.id,
+      folderPath,
+      folderName: folder.name,
+      files: [],
+      generatedAt: new Date(),
+    })
+    await createMediaLibraryIndex(deps, input, folderPath, feed)
+  } catch (error) {
+    await deps.mediaLibraries.delete(orgId, record.id)
+    throw error instanceof StorageQuotaExceededError
+      ? quotaExceeded('Quota exceeded for the media library index')
+      : error
+  }
+  await deps.webdavPath.invalidateFolders(orgId, [folderPath])
   const library: MediaLibraryView = {
     ...record,
     folder: { path: folderPath, name: folder.name, trashed: false },
@@ -61,7 +102,15 @@ export async function createMediaLibrary(
   }
 }
 
-export async function deleteMediaLibrary(deps: Pick<Deps, 'mediaLibraries'>, orgId: string, id: string) {
+// The index goes first: if deleting the row then fails, the library is already
+// off and the next sweep drops the row.
+export async function deleteMediaLibrary(deps: Deps, orgId: string, id: string) {
+  const library = await deps.mediaLibraries.get(orgId, id)
+  if (!library) throw notFound('Media library not found')
+  if (library.folder) {
+    await purgeMediaLibraryIndex(deps, orgId, library.folder.path)
+    await deps.webdavPath.invalidateFolders(orgId, [library.folder.path])
+  }
   if (!(await deps.mediaLibraries.delete(orgId, id))) throw notFound('Media library not found')
 }
 

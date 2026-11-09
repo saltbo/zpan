@@ -1,8 +1,19 @@
+import { DirType } from '@shared/constants'
 import { MEDIA_LIBRARY_FEED_VERSION, type MediaLibraryFeed, type MediaLibraryFeedItem } from '@shared/schemas'
 import { parseMediaPath } from './media-filename'
 
 export const MEDIA_LIBRARY_INDEX_FILE = 'library.json'
 export const MEDIA_LIBRARY_INDEX_MIME = 'application/feed+json'
+
+// The index in the library root is also the library's on switch. Only a file
+// named exactly library.json with the feed type counts: a case variant, a
+// folder, or a file of another type means the index is gone and the library is
+// off.
+export function isMediaLibraryIndex(entry: { name: string; dirtype: number | null; type: string }): boolean {
+  return (
+    entry.name === MEDIA_LIBRARY_INDEX_FILE && entry.dirtype === DirType.FILE && entry.type === MEDIA_LIBRARY_INDEX_MIME
+  )
+}
 
 // A queued or running scan older than this no longer blocks a new one, so a
 // consumer that died mid-scan (or a Node restart that lost the in-process

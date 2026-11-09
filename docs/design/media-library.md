@@ -16,6 +16,11 @@ A folder marked as a **media library** gets a generated index at
 When it changes, the client downloads one JSON document and diffs items by
 `id`. No client-side protocol beyond WebDAV GET is required.
 
+The index file is also the library's on switch. ZPan's index is the live file
+in the library root named exactly `library.json` with type
+`application/feed+json`. Creating a library writes it, removing a library
+deletes it, and a library whose index is gone is off.
+
 ## 2. Data shape
 
 `media_libraries` (one row per library):
@@ -45,9 +50,24 @@ Rules:
   `id`) is scanned. The newer one's scan fails with
   `Media library overlaps the older media library at "<path>"`, so the conflict
   shows in the task list until the user removes one of them.
+- A folder whose root already holds a live entry named `library.json` (file or
+  folder, in any case, since live sibling names are unique
+  case-insensitively) cannot become a library: create fails with `409` and
+  reason `MEDIA_LIBRARY_INDEX_OCCUPIED` and creates nothing. ZPan never takes
+  over a file the user put there.
 - A library whose folder is trashed is skipped by the sweep. A library whose
   folder was purged is deleted by the sweep (or by a scan that finds it).
-- Removing a library leaves the folder and its `library.json` in place.
+- A library whose index is gone is off. That covers an index that was trashed,
+  purged, renamed, moved away, or replaced by a file of another type. The
+  sweep deletes such a library and logs
+  `media_library.sweep.deleted reason=index_removed`. A scan job that finds the
+  index gone deletes the library and fails with
+  `Media library index was removed, so the library was turned off`, so the
+  task list shows why the library disappeared. Neither ever recreates the
+  index.
+- Removing a library permanently deletes its `library.json` (the matter, its
+  storage object, and the usage it held) and then the row. The folder and its
+  videos stay.
 
 ## 3. Change detection
 
@@ -104,7 +124,7 @@ be created through `POST /api/background-jobs`.
 The processor:
 
 1. Loads the library and its folder; fails the job if either is gone or
-   trashed.
+   trashed. Turns the library off and fails the job if its index is gone.
 2. Computes the fingerprint **before** listing, so a change that races the
    listing produces one extra scan instead of being lost. Excluding the index
    file means the job's own write never retriggers a scan.
@@ -113,7 +133,7 @@ The processor:
    extension is a known video extension, and builds the feed. Recording the
    file count on the job here also renews its `updated_at`, so a listing of a
    large library does not lose the scan lease before the write.
-5. Writes `<library>/library.json` as a real matter: a fresh object key per write,
+5. Rewrites `<library>/library.json` in place: a fresh object key per write,
    quota reserved for growth, `applyUpload` on the existing row (so size and
    `updated_at`, and therefore the WebDAV ETag, change), then the old object is
    deleted. A new key means a reader holding a cached matter row never pairs
@@ -124,20 +144,10 @@ The processor:
 6. Stores the fingerprint and `last_scanned_at`, and drops the WebDAV child
    listing cache for the library folder.
 
-The index shares the library root with user files, so a scan overwrites an
-existing `library.json` only when it looks like one ZPan wrote: a file whose
-name matches exactly and whose type is `application/feed+json`. Anything else
-holding the name (a user's own `library.json`, a folder, or a case variant
-such as `Library.json`, since live sibling names are unique
-case-insensitively while WebDAV paths are case-sensitive) fails the scan with
-`"<path>" is not a ZPan media library index; rename or remove it so the index
-can be written` and is left untouched.
-
 Failures split in two. A deterministic failure stores the attempted
 fingerprint, so it does not re-enqueue on every sweep; the next change in the
 subtree or a manual rescan retries. These are a quota exceeded by the index,
-an entry ZPan does not own occupying the index name, and an overlap with an
-older library. Any other failure (a storage or database error)
+a missing index storage, and an overlap with an older library. Any other failure (a storage or database error)
 leaves the fingerprint untouched, so the next sweep retries it, including a
 failed first scan.
 
@@ -191,10 +201,15 @@ Create and rescan need the `media_library` feature (`402` otherwise). List and
 delete do not, so after a license lapses users still see their libraries and
 can remove them.
 
-Creating a library stores the row and then queues the first scan. If queueing
-fails, the request still returns `201` with `scanning: false` and logs
-`media_library.create.enqueue_error`; the library has no fingerprint, so the
-next sweep scans it.
+Creating a library stores the row, writes an empty-items `library.json` in the
+same request, and then queues the first scan to fill it. If the index cannot be
+written, the row is deleted and the request fails (`422` when it exceeds the
+quota). If queueing fails, the request still returns `201` with
+`scanning: false` and logs `media_library.create.enqueue_error`; the library
+has no fingerprint, so the next sweep scans it.
+
+Deleting a library purges the index first, then the row. If deleting the row
+fails, the library is already off and the next sweep drops it.
 
 The file manager shows "Set as media library", "Rescan media library", and
 "Remove media library" on folders, and the details sheet shows status, last
@@ -202,7 +217,8 @@ scan, and the index path. It loads the workspace's libraries once and joins
 them to folders by id, so the object DTO is unchanged. The list loads
 regardless of entitlement. Without it, "Set as media library" and "Rescan
 media library" carry a Pro badge and open an upgrade prompt, while "Remove
-media library" and the details still work for existing libraries.
+media library" and the details still work for existing libraries. "Remove
+media library" asks for confirmation and names the `library.json` it deletes.
 
 ## 7. Future phases
 
@@ -219,8 +235,6 @@ media library" and the details still work for existing libraries.
 
 ## 8. Open decisions
 
-- **Removal.** Removing a library leaves a stale `library.json`. Trashing it
-  on removal would avoid clients reading a frozen index.
 - **Non-video changes.** Any change in the subtree (a new `.txt`) rewrites the
   index, and `generatedAt` changes the ETag even when items are equal.
   Skipping the write when the item list is unchanged needs a stored digest.
@@ -232,7 +246,6 @@ media library" and the details still work for existing libraries.
   then does the sweep queue a new scan.
 - **Concurrent scans.** The lease check and the job insert are not atomic, so
   a manual rescan and the sweep enqueuing in the same instant can run two
-  scans. The later write wins; on a first scan the second create fails on the
-  name conflict, and on later scans the earlier scan's object can be left
+  scans. The later write wins, and the earlier scan's object can be left
   orphaned in storage. A partial unique index on active scan jobs would close
   this.

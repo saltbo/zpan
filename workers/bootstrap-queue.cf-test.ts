@@ -60,6 +60,9 @@ describe('[CF] media library scans on the Workers queue', () => {
       objects.set(key, bytes)
       return bytes.byteLength
     })
+    vi.spyOn(S3Service.prototype, 'deleteObject').mockImplementation(async (_storage, key) => {
+      objects.delete(key)
+    })
 
     const matters = createMatterRepo(db)
     const add = (parent: string, name: string, dirtype: number = DirType.FILE) =>
@@ -98,6 +101,17 @@ describe('[CF] media library scans on the Workers queue', () => {
       createdBy: { type: 'user', ref: userId, issuer: null },
     })
     if (!library) throw new Error('library not created')
+    const seededIndex = await matters.create({
+      orgId,
+      name: 'library.json',
+      type: 'application/feed+json',
+      size: 0,
+      dirtype: DirType.FILE,
+      parent: libraryPath,
+      object: `objects/${generateId()}`,
+      storageId,
+      status: 'active',
+    })
     const request = { type: 'media_library_scan' as const, libraryId: library.id }
     const job = await createBackgroundJobRepo(db).create({
       orgId,
@@ -124,6 +138,7 @@ describe('[CF] media library scans on the Workers queue', () => {
     })
     const index = await matters.findActiveConflict(orgId, libraryPath, 'library.json')
     if (!index) throw new Error('library.json not written')
+    expect(index.id).toBe(seededIndex.id)
     const feed = mediaLibraryFeedSchema.parse(JSON.parse(new TextDecoder().decode(objects.get(index.object))))
     expect(feed.items.map((item) => item.id)).toEqual([direct.id, nested.id])
     const stored = await createMediaLibraryRepo(db).get(orgId, library.id)

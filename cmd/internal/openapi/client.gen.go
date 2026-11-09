@@ -23711,6 +23711,7 @@ type CreateMediaLibraryResponse struct {
 	JSON402      *Error
 	JSON404      *Error
 	JSON409      *Error
+	JSON422      *Error
 	JSON503      *Error
 }
 
@@ -31614,6 +31615,13 @@ func ParseCreateMediaLibraryResponse(rsp *http.Response) (*CreateMediaLibraryRes
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest Error

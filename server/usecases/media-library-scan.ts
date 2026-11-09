@@ -1,24 +1,22 @@
 // Media library scans: enqueueing, the change-detection sweep, and the job
-// processor that writes <library>/library.json. Scans never hook into
+// processor that rewrites <library>/library.json. Scans never hook into
 // write paths; the sweep compares a cheap subtree fingerprint instead, so
-// uploads, WebDAV writes, and downloads into a library are all covered.
+// uploads, WebDAV writes, and downloads into a library are all covered. A
+// library whose index is gone is off: the sweep and the scan delete it and
+// never recreate the index.
 
-import { DirType, ObjectStatus } from '@shared/constants'
-import type { MediaLibraryScanJobRequest } from '@shared/schemas'
+import type { MediaLibraryFeed, MediaLibraryScanJobRequest } from '@shared/schemas'
 import type { BackgroundJob } from '@shared/types'
 import { hasFeature } from '../domain/licensing'
 import {
   buildMediaLibraryFeed,
-  joinMatterPath,
-  MEDIA_LIBRARY_INDEX_FILE,
-  MEDIA_LIBRARY_INDEX_MIME,
   type MediaLibraryRoot,
   olderOverlappingLibrary,
   VIDEO_EXTENSIONS,
 } from '../domain/media-library'
 import { formatError } from '../lib/errors'
-import { buildObjectKey } from '../lib/path-template'
 import type { Deps } from './deps'
+import { findMediaLibraryIndex, rewriteMediaLibraryIndex } from './media-library-index'
 import {
   type ActorIdentity,
   type BackgroundJobMessage,
@@ -28,7 +26,6 @@ import {
   StorageQuotaExceededError,
 } from './ports'
 import { loadBindingState } from './site/licensing'
-import { withStorageUsageReservation } from './storage-usage'
 
 const SWEEP_ACTOR: ActorIdentity = { type: 'system', ref: null, issuer: null }
 
@@ -59,7 +56,7 @@ export async function enqueueMediaLibraryScan(
 // they just stop being scanned until the instance is entitled again. The cloud
 // URL decides which certificate issuer is trusted, as in the licensing refresh.
 export async function sweepMediaLibraries(
-  deps: Pick<Deps, 'licenseBinding' | 'mediaLibraries' | 'backgroundJobs' | 'jobQueue'>,
+  deps: Pick<Deps, 'licenseBinding' | 'mediaLibraries' | 'matter' | 'backgroundJobs' | 'jobQueue'>,
   options: { cloudBaseUrl: string },
 ): Promise<void> {
   if (!hasFeature('media_library', await loadBindingState(deps, options))) return
@@ -75,7 +72,7 @@ export async function sweepMediaLibraries(
 }
 
 async function sweepLibrary(
-  deps: Pick<Deps, 'mediaLibraries' | 'backgroundJobs' | 'jobQueue'>,
+  deps: Pick<Deps, 'mediaLibraries' | 'matter' | 'backgroundJobs' | 'jobQueue'>,
   library: MediaLibraryState,
 ): Promise<void> {
   const { folder } = library
@@ -84,7 +81,13 @@ async function sweepLibrary(
     console.log(`media_library.sweep.deleted library=${library.id} org=${library.orgId} reason=folder_purged`)
     return
   }
-  if (folder.trashed || library.scanning) return
+  if (folder.trashed) return
+  if (!(await findMediaLibraryIndex(deps, library.orgId, folder.path))) {
+    await deps.mediaLibraries.delete(library.orgId, library.id)
+    console.log(`media_library.sweep.deleted library=${library.id} org=${library.orgId} reason=index_removed`)
+    return
+  }
+  if (library.scanning) return
   const fingerprint = await deps.mediaLibraries.fingerprint(library.orgId, folder.path)
   if (fingerprint === library.fingerprint) return
   await enqueueMediaLibraryScan(deps, {
@@ -131,6 +134,11 @@ async function scanLibrary(
   }
   if (library.folder.trashed) throw new Error('Media library folder is in trash')
   const { path, name } = library.folder
+  const existing = await findMediaLibraryIndex(deps, orgId, path)
+  if (!existing) {
+    await deps.mediaLibraries.delete(orgId, library.id)
+    throw new Error('Media library index was removed, so the library was turned off')
+  }
 
   // Taken before listing: a change that races the listing then shows up as a
   // fingerprint mismatch and triggers one more scan instead of being lost.
@@ -147,7 +155,7 @@ async function scanLibrary(
       files,
       generatedAt: new Date(),
     })
-    const index = await writeLibraryIndex(deps, message, path, new TextEncoder().encode(JSON.stringify(feed)))
+    const index = await writeIndex(deps, message, existing, feed)
     await deps.mediaLibraries.recordScan(orgId, library.id, { fingerprint, scannedAt: new Date() })
     await deps.webdavPath.invalidateFolders(orgId, [path])
     return { index, itemCount: feed.items.length }
@@ -175,80 +183,17 @@ async function assertNoOlderOverlap(
   }
 }
 
-// Each write gets a fresh object key and the old object is deleted afterwards,
-// so a reader holding a cached matter row never pairs new bytes with an old size.
-async function writeLibraryIndex(
+async function writeIndex(
   deps: Deps,
   message: BackgroundJobMessage,
-  folderPath: string,
-  bytes: Uint8Array,
+  existing: Matter,
+  feed: MediaLibraryFeed,
 ): Promise<Matter> {
-  const { orgId, userId, createdBy } = message
-  const existing = await findIndexEntry(deps, orgId, folderPath)
-  const storage = existing ? await deps.storages.get(existing.storageId) : await deps.storages.select()
+  const storage = await deps.storages.get(existing.storageId)
   if (!storage) throw new MediaLibraryScanBlockedError('Storage for the media library index not found')
-
-  const key = buildObjectKey({ uid: userId, orgId, rawExt: '.json' })
-  const sizeDelta = bytes.byteLength - (existing?.size ?? 0)
-  const index = await withStorageUsageReservation(
-    deps,
-    { orgId, storageId: storage.id, bytes: Math.max(0, sizeDelta) },
-    async (ctx): Promise<Matter> => {
-      await deps.s3.putObject(storage, key, bytes, MEDIA_LIBRARY_INDEX_MIME, bytes.byteLength)
-      ctx.onRollback(() => deps.s3.deleteObject(storage, key))
-      if (!existing) {
-        return deps.matter.create({
-          orgId,
-          name: MEDIA_LIBRARY_INDEX_FILE,
-          type: MEDIA_LIBRARY_INDEX_MIME,
-          size: bytes.byteLength,
-          dirtype: DirType.FILE,
-          parent: folderPath,
-          object: key,
-          storageId: storage.id,
-          status: ObjectStatus.ACTIVE,
-          createdByActorType: createdBy.type,
-          createdByActorRef: createdBy.ref,
-          createdByActorIssuer: createdBy.issuer,
-        })
-      }
-      const fields = { type: MEDIA_LIBRARY_INDEX_MIME, size: bytes.byteLength, object: key }
-      await deps.matter.applyUpload(orgId, existing, fields)
-      return { ...existing, ...fields }
-    },
-  ).catch((error: unknown) => {
+  return rewriteMediaLibraryIndex(deps, message, storage, existing, feed).catch((error: unknown) => {
     throw error instanceof StorageQuotaExceededError
       ? new MediaLibraryScanBlockedError('Quota exceeded for the media library index')
       : error
   })
-
-  if (existing) {
-    // The new index is already live, so a leftover old object is only garbage.
-    await deps.s3.deleteObject(storage, existing.object).catch((error: unknown) => {
-      console.error(
-        `media_library.scan.old_index_delete_error org=${orgId} storage=${storage.id} object=${existing.object} code=${formatError(error)}`,
-      )
-    })
-    if (sizeDelta < 0) await deps.storageUsage.reconcile(orgId, [storage.id])
-  }
-  return index
-}
-
-// The index shares the library root with user files. Only a file that looks
-// like one ZPan wrote is overwritten; any other entry occupying the name, a
-// case variant included (live sibling names are unique case-insensitively, but
-// WebDAV paths are case-sensitive), is the user's and blocks the scan.
-async function findIndexEntry(deps: Deps, orgId: string, folderPath: string): Promise<Matter | null> {
-  const entry = await deps.matter.findActiveConflict(orgId, folderPath, MEDIA_LIBRARY_INDEX_FILE)
-  if (!entry) return null
-  if (
-    entry.name !== MEDIA_LIBRARY_INDEX_FILE ||
-    entry.dirtype !== DirType.FILE ||
-    entry.type !== MEDIA_LIBRARY_INDEX_MIME
-  ) {
-    throw new MediaLibraryScanBlockedError(
-      `"${joinMatterPath(folderPath, entry.name)}" is not a ZPan media library index; rename or remove it so the index can be written`,
-    )
-  }
-  return entry
 }

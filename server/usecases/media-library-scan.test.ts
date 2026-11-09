@@ -27,7 +27,20 @@ const message = {
   request: { type: 'media_library_scan' as const, libraryId: 'lib-1' },
 }
 
-function makeDeps(overrides: { library?: MediaLibraryState | null; blocking?: Partial<Matter>; quota?: boolean } = {}) {
+const index = {
+  id: 'index-1',
+  name: 'library.json',
+  parent: 'Movies',
+  type: 'application/feed+json',
+  dirtype: DirType.FILE,
+  size: 1,
+  object: 'objects/index-1.json',
+  storageId: 'storage-1',
+} as Matter
+
+function makeDeps(
+  overrides: { library?: MediaLibraryState | null; index?: Partial<Matter> | null; quota?: boolean } = {},
+) {
   const updates: Record<string, unknown>[] = []
   const deps = {
     backgroundJobs: {
@@ -45,12 +58,12 @@ function makeDeps(overrides: { library?: MediaLibraryState | null; blocking?: Pa
       recordScan: vi.fn(async () => {}),
     },
     matter: {
-      findActiveConflict: vi.fn(async (_orgId: string, _parent: string, name: string) =>
-        overrides.blocking && name === 'library.json' ? (overrides.blocking as Matter) : null,
+      findActiveConflict: vi.fn(async () =>
+        overrides.index === null ? null : ({ ...index, ...overrides.index } as Matter),
       ),
-      create: vi.fn(async (input: Record<string, unknown>) => ({ id: `created-${input.name}`, ...input })),
+      applyUpload: vi.fn(async () => {}),
     },
-    storages: { select: vi.fn(async () => ({ id: 'storage-1' })) },
+    storages: { get: vi.fn(async () => ({ id: 'storage-1' })) },
     s3: { putObject: vi.fn(async () => 0), deleteObject: vi.fn(async () => {}) },
     quota: { incrementUsageIfEffectiveQuotaAllows: vi.fn(async () => overrides.quota ?? true) },
     storageUsage: { rollbackReservations: vi.fn(async () => {}) },
@@ -61,19 +74,20 @@ function makeDeps(overrides: { library?: MediaLibraryState | null; blocking?: Pa
 
 describe('processMediaLibraryScan', () => {
   it.each([
-    ['a case variant', { name: 'Library.json', dirtype: DirType.FILE, type: 'application/feed+json' }],
-    ['a folder', { name: 'library.json', dirtype: DirType.USER_FOLDER, type: 'folder' }],
-    ['a user file', { name: 'library.json', dirtype: DirType.FILE, type: 'application/json' }],
-  ])('fails the job and keeps the attempted fingerprint when %s holds the index name', async (_label, blocking) => {
-    const { deps, typed, updates } = makeDeps({ blocking })
+    ['missing', null],
+    ['a case variant', { name: 'Library.json' }],
+    ['a folder', { dirtype: DirType.USER_FOLDER, type: 'folder' }],
+    ['a file of another type', { type: 'application/json' }],
+  ])('turns the library off without writing an index when the index is %s', async (_label, entry) => {
+    const { deps, typed, updates } = makeDeps({ index: entry })
 
     await processMediaLibraryScan(typed, message)
 
     expect(updates.at(-1)).toMatchObject({
       status: 'failed',
-      errorMessage: `"Movies/${blocking.name}" is not a ZPan media library index; rename or remove it so the index can be written`,
+      errorMessage: 'Media library index was removed, so the library was turned off',
     })
-    expect(deps.mediaLibraries.recordScan).toHaveBeenCalledWith('org-1', 'lib-1', { fingerprint: '3:30:100:300' })
+    expect(deps.mediaLibraries.delete).toHaveBeenCalledWith('org-1', 'lib-1')
     expect(deps.s3.putObject).not.toHaveBeenCalled()
   })
 
