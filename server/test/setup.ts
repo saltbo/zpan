@@ -686,6 +686,22 @@ const APP_SCHEMA_SQL = `
   );
   CREATE UNIQUE INDEX IF NOT EXISTS media_libraries_org_folder_uniq ON media_libraries(org_id, folder_id);
   CREATE INDEX IF NOT EXISTS media_libraries_org_page_idx ON media_libraries(org_id, created_at, id);
+  CREATE TABLE IF NOT EXISTS media_scrapes (
+    matter_id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    library_id TEXT NOT NULL REFERENCES media_libraries(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    tmdb_type TEXT,
+    tmdb_id INTEGER,
+    season INTEGER,
+    episode INTEGER,
+    language TEXT NOT NULL,
+    source TEXT NOT NULL,
+    match_key TEXT NOT NULL,
+    file_updated_at INTEGER NOT NULL,
+    scraped_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS media_scrapes_library_idx ON media_scrapes(library_id);
   CREATE TABLE IF NOT EXISTS downloaders (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
