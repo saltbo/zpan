@@ -47,6 +47,28 @@ export function folderPathsOverlap(a: string, b: string): boolean {
   return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)
 }
 
+export interface MediaLibraryRoot {
+  id: string
+  createdAt: Date
+  path: string
+}
+
+// Moves and restores can still make two libraries overlap after creation. The
+// older one (createdAt, then id) keeps its index; the newer one is not scanned.
+export function olderOverlappingLibrary<T extends MediaLibraryRoot>(
+  library: MediaLibraryRoot,
+  others: readonly T[],
+): T | undefined {
+  return others.find(
+    (other) => other.id !== library.id && folderPathsOverlap(other.path, library.path) && precedes(other, library),
+  )
+}
+
+function precedes(a: MediaLibraryRoot, b: MediaLibraryRoot): boolean {
+  const delta = a.createdAt.getTime() - b.createdAt.getTime()
+  return delta === 0 ? a.id < b.id : delta < 0
+}
+
 export interface MediaLibraryFile {
   id: string
   parent: string

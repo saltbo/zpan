@@ -30,13 +30,14 @@ export async function createMediaLibrary(
   }
   const folderPath = joinMatterPath(folder.parent, folder.name)
 
-  const liveLibraries = (await deps.mediaLibraries.listByOrg(orgId)).flatMap((library) =>
-    library.folder && !library.folder.trashed ? [{ id: library.folderId, path: library.folder.path }] : [],
+  // Trashed libraries count: restoring their folder would bring them back.
+  const libraries = (await deps.mediaLibraries.listByOrg(orgId)).flatMap((library) =>
+    library.folder ? [{ id: library.folderId, path: library.folder.path }] : [],
   )
-  if (liveLibraries.some((library) => library.id === folder.id)) {
+  if (libraries.some((library) => library.id === folder.id)) {
     throw conflict('Folder is already a media library', 'MEDIA_LIBRARY_EXISTS')
   }
-  const overlapping = liveLibraries.find((library) => folderPathsOverlap(library.path, folderPath))
+  const overlapping = libraries.find((library) => folderPathsOverlap(library.path, folderPath))
   if (overlapping) {
     throw conflict(`Media libraries cannot be nested: "${overlapping.path}" is a media library`, 'MEDIA_LIBRARY_NESTED')
   }

@@ -37,9 +37,40 @@ Feature: Media libraries
 
   @media-library/no-nesting @api
   Scenario: Libraries cannot overlap
-    Given a folder that is a media library
+    Given a folder that is a media library, live or in trash
     When its ancestor, its descendant, or the same folder is marked
     Then each request is rejected with a specific reason
+
+  @media-library/overlap-after-move @api
+  Scenario: The older of two overlapping libraries keeps its index
+    Given two libraries that came to overlap after creation
+    When the sweep runs
+    Then the older library is scanned and the newer one's scan fails naming the older one
+    And the newer library is not retried until its subtree changes
+
+  @media-library/sweep-isolates-failures @api
+  Scenario: One failing library does not stop the sweep
+    Given two changed libraries where checking one of them fails
+    When the sweep runs
+    Then the failure is logged with the library id and the other library is still scanned
+
+  @media-library/transient-scan-retry @api
+  Scenario: A transient scan failure is retried by the next sweep
+    Given a library whose first scan failed on a storage error
+    When the sweep runs without any change to the library
+    Then a new scan is queued and writes the index
+
+  @media-library/index-cleanup-failure @api
+  Scenario: Failing to delete the previous index object does not fail the scan
+    Given a scanned media library
+    When a rescan cannot delete the previous index object
+    Then the scan completes with the new index and the failure is logged
+
+  @media-library/scan-holds-lease @api
+  Scenario: A long scan keeps its lease
+    Given a scan whose file listing outlasts the scan lease
+    When the scan writes the index
+    Then the library still reports a scan in progress
 
   @media-library/sweep-lifecycle @api
   Scenario: The sweep skips trashed library folders and drops purged ones

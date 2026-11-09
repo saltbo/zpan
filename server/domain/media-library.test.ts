@@ -1,6 +1,12 @@
 import { mediaLibraryFeedSchema } from '@shared/schemas'
 import { describe, expect, it } from 'vitest'
-import { buildMediaLibraryFeed, folderPathsOverlap, type MediaLibraryFile, videoMimeType } from './media-library'
+import {
+  buildMediaLibraryFeed,
+  folderPathsOverlap,
+  type MediaLibraryFile,
+  olderOverlappingLibrary,
+  videoMimeType,
+} from './media-library'
 
 const modified = new Date('2026-01-02T03:04:05.000Z')
 
@@ -34,6 +40,24 @@ describe('folderPathsOverlap', () => {
     ['Movies', 'TV', false],
   ])('%s vs %s → %s', (a, b, expected) => {
     expect(folderPathsOverlap(a, b)).toBe(expected)
+  })
+})
+
+describe('olderOverlappingLibrary', () => {
+  const at = (minute: number) => new Date(Date.UTC(2026, 0, 1, 0, minute))
+  const media = { id: 'b', createdAt: at(1), path: 'Media' }
+  const libraries = [
+    media,
+    { id: 'a', createdAt: at(1), path: 'Media/Movies' },
+    { id: 'c', createdAt: at(0), path: 'Media Archive' },
+    { id: 'd', createdAt: at(2), path: 'Media/Shows' },
+  ]
+
+  it('names the overlapping library created first, breaking createdAt ties by id', () => {
+    expect(olderOverlappingLibrary(media, libraries)?.id).toBe('a')
+    expect(olderOverlappingLibrary(libraries[1], libraries)).toBeUndefined()
+    expect(olderOverlappingLibrary(libraries[3], libraries)?.id).toBe('b')
+    expect(olderOverlappingLibrary(libraries[2], libraries)).toBeUndefined()
   })
 })
 

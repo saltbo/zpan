@@ -13,14 +13,18 @@ import {
   MEDIA_LIBRARY_INDEX_FILE,
   MEDIA_LIBRARY_INDEX_FOLDER,
   MEDIA_LIBRARY_INDEX_MIME,
+  type MediaLibraryRoot,
+  olderOverlappingLibrary,
   VIDEO_EXTENSIONS,
 } from '../domain/media-library'
+import { formatError } from '../lib/errors'
 import { buildObjectKey } from '../lib/path-template'
 import type { Deps } from './deps'
 import {
   type ActorIdentity,
   type BackgroundJobMessage,
   type Matter,
+  type MediaLibraryState,
   type MediaLibraryView,
   StorageQuotaExceededError,
 } from './ports'
@@ -28,6 +32,11 @@ import { loadBindingState } from './site/licensing'
 import { withStorageUsageReservation } from './storage-usage'
 
 const SWEEP_ACTOR: ActorIdentity = { type: 'system', ref: null, issuer: null }
+
+// A failure that repeats until the library's files or the workspace change.
+// Only these record the attempted fingerprint; any other failure leaves it, so
+// the next sweep retries.
+class MediaLibraryScanBlockedError extends Error {}
 
 export async function enqueueMediaLibraryScan(
   deps: Pick<Deps, 'backgroundJobs' | 'jobQueue'>,
@@ -57,20 +66,33 @@ export async function sweepMediaLibraries(
   if (!hasFeature('media_library', await loadBindingState(deps, options))) return
 
   for (const library of await deps.mediaLibraries.listAll()) {
-    const { folder } = library
-    if (!folder) {
-      await deps.mediaLibraries.delete(library.orgId, library.id)
-      continue
-    }
-    if (folder.trashed || library.scanning) continue
-    const fingerprint = await deps.mediaLibraries.fingerprint(library.orgId, folder.path)
-    if (fingerprint === library.fingerprint) continue
-    await enqueueMediaLibraryScan(deps, {
-      library: { ...library, folder },
-      userId: library.createdByUserId,
-      createdBy: SWEEP_ACTOR,
+    // One library's failure must not stop the sweep for the rest.
+    await sweepLibrary(deps, library).catch((error: unknown) => {
+      console.error(
+        `media_library.sweep.library_error library=${library.id} org=${library.orgId} code=${formatError(error)}`,
+      )
     })
   }
+}
+
+async function sweepLibrary(
+  deps: Pick<Deps, 'mediaLibraries' | 'backgroundJobs' | 'jobQueue'>,
+  library: MediaLibraryState,
+): Promise<void> {
+  const { folder } = library
+  if (!folder) {
+    await deps.mediaLibraries.delete(library.orgId, library.id)
+    console.log(`media_library.sweep.deleted library=${library.id} org=${library.orgId} reason=folder_purged`)
+    return
+  }
+  if (folder.trashed || library.scanning) return
+  const fingerprint = await deps.mediaLibraries.fingerprint(library.orgId, folder.path)
+  if (fingerprint === library.fingerprint) return
+  await enqueueMediaLibraryScan(deps, {
+    library: { ...library, folder },
+    userId: library.createdByUserId,
+    createdBy: SWEEP_ACTOR,
+  })
 }
 
 export async function processMediaLibraryScan(
@@ -101,7 +123,7 @@ async function scanLibrary(
   deps: Deps,
   message: BackgroundJobMessage<MediaLibraryScanJobRequest>,
 ): Promise<{ index: Matter; itemCount: number }> {
-  const { orgId } = message
+  const { orgId, jobId } = message
   const library = await deps.mediaLibraries.get(orgId, message.request.libraryId)
   if (!library) throw new Error('Media library not found')
   if (!library.folder) {
@@ -115,7 +137,10 @@ async function scanLibrary(
   // fingerprint mismatch and triggers one more scan instead of being lost.
   const fingerprint = await deps.mediaLibraries.fingerprint(orgId, path)
   try {
+    await assertNoOlderOverlap(deps, orgId, { id: library.id, createdAt: library.createdAt, path })
     const files = await deps.mediaLibraries.listVideoFiles(orgId, path, VIDEO_EXTENSIONS)
+    // Renews the scan lease: a listing of a large library can outlast it.
+    await deps.backgroundJobs.update(orgId, jobId, { progress: { fileCount: files.length, currentFilename: null } })
     const feed = buildMediaLibraryFeed({
       libraryId: library.id,
       folderPath: path,
@@ -128,11 +153,26 @@ async function scanLibrary(
     await deps.webdavPath.invalidateFolders(orgId, [path, joinMatterPath(path, MEDIA_LIBRARY_INDEX_FOLDER)])
     return { index, itemCount: feed.items.length }
   } catch (error) {
-    // Remember the attempted state so a deterministic failure (quota, a blocking
-    // .zpan file) does not re-enqueue on every sweep; the next change or a manual
-    // rescan retries.
-    await deps.mediaLibraries.recordScan(orgId, library.id, { fingerprint })
+    if (error instanceof MediaLibraryScanBlockedError) {
+      await deps.mediaLibraries.recordScan(orgId, library.id, { fingerprint })
+    }
     throw error
+  }
+}
+
+async function assertNoOlderOverlap(
+  deps: Pick<Deps, 'mediaLibraries'>,
+  orgId: string,
+  library: MediaLibraryRoot,
+): Promise<void> {
+  const liveLibraries = (await deps.mediaLibraries.listByOrg(orgId)).flatMap((other) =>
+    other.folder && !other.folder.trashed
+      ? [{ id: other.id, createdAt: other.createdAt, path: other.folder.path }]
+      : [],
+  )
+  const older = olderOverlappingLibrary(library, liveLibraries)
+  if (older) {
+    throw new MediaLibraryScanBlockedError(`Media library overlaps the older media library at "${older.path}"`)
   }
 }
 
@@ -180,11 +220,18 @@ async function writeLibraryIndex(
       return { ...existing, ...fields }
     },
   ).catch((error: unknown) => {
-    throw error instanceof StorageQuotaExceededError ? new Error('Quota exceeded for the media library index') : error
+    throw error instanceof StorageQuotaExceededError
+      ? new MediaLibraryScanBlockedError('Quota exceeded for the media library index')
+      : error
   })
 
   if (existing) {
-    await deps.s3.deleteObject(storage, existing.object)
+    // The new index is already live, so a leftover old object is only garbage.
+    await deps.s3.deleteObject(storage, existing.object).catch((error: unknown) => {
+      console.error(
+        `media_library.scan.old_index_delete_error org=${orgId} storage=${storage.id} object=${existing.object} code=${formatError(error)}`,
+      )
+    })
     if (sizeDelta < 0) await deps.storageUsage.reconcile(orgId, [storage.id])
   }
   return index
@@ -228,7 +275,7 @@ async function findIndexEntry(
   const entry = await deps.matter.findActiveConflict(orgId, parent, name)
   if (!entry) return null
   if (entry.name !== name || (entry.dirtype === DirType.FILE) !== expected.file) {
-    throw new Error(`"${joinMatterPath(parent, entry.name)}" blocks the media library index`)
+    throw new MediaLibraryScanBlockedError(`"${joinMatterPath(parent, entry.name)}" blocks the media library index`)
   }
   return entry
 }

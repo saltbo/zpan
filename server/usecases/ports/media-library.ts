@@ -5,7 +5,7 @@ export interface MediaLibraryRecord {
   id: string
   orgId: string
   folderId: string
-  // Subtree fingerprint of the last scan attempt, successful or not.
+  // Subtree fingerprint of the last successful scan or deterministic failure.
   fingerprint: string | null
   lastScannedAt: Date | null
   createdByUserId: string

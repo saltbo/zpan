@@ -38,6 +38,7 @@ function makeDeps(overrides: { library?: MediaLibraryState | null; blocking?: Pa
     mediaLibraries: {
       get: vi.fn(async () => (overrides.library === undefined ? library : overrides.library)),
       delete: vi.fn(async () => true),
+      listByOrg: vi.fn(async () => [library]),
       fingerprint: vi.fn(async () => '3:30:100:300'),
       listVideoFiles: vi.fn(async () => []),
       recordScan: vi.fn(async () => {}),

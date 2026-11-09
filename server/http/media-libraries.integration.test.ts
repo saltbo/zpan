@@ -82,6 +82,20 @@ async function setup(options: { licensed?: boolean; env?: Record<string, string>
   }
 }
 
+// Inserts a library row without the create-time checks or a first scan, the
+// way a later move or restore can leave libraries.
+async function seedLibrary(ctx: Awaited<ReturnType<typeof setup>>, folderId: string, createdAt: Date) {
+  const library = await createMediaLibraryRepo(ctx.db).create({
+    orgId: ctx.orgId,
+    folderId,
+    createdByUserId: ctx.userId,
+    createdBy: { type: 'user', ref: ctx.userId, issuer: null },
+  })
+  if (!library) throw new Error('library not created')
+  await ctx.db.run(sql`UPDATE media_libraries SET created_at = ${createdAt.getTime()} WHERE id = ${library.id}`)
+  return library
+}
+
 async function scanJobs(db: TestApp['db'], orgId: string) {
   return (await createBackgroundJobRepo(db).list(orgId, { type: 'media_library_scan', pageSize: 100 })).items
 }
@@ -236,17 +250,26 @@ describe('media libraries API', () => {
     const movies = await ctx.add('Media', 'Movies', 'folder')
     const other = await ctx.add('', 'Other', 'folder')
     const inner = await ctx.add('Other', 'Inner', 'folder')
+    const archive = await ctx.add('', 'Archive', 'folder')
+    const old = await ctx.add('Archive', 'Old', 'folder')
     const file = await ctx.add('', 'clip.mkv')
 
     expect((await ctx.createLibrary(media.id)).status).toBe(201)
     expect((await ctx.createLibrary(inner.id)).status).toBe(201)
+    expect((await ctx.createLibrary(old.id)).status).toBe(201)
+    await ctx.matters.trash(ctx.orgId, old.id)
     const reasons = []
-    for (const id of [movies.id, other.id, media.id]) {
+    for (const id of [movies.id, other.id, media.id, archive.id]) {
       const res = await ctx.createLibrary(id)
       expect(res.status).toBe(409)
       reasons.push(((await res.json()) as { error: { details: { reason: string }[] } }).error.details[0].reason)
     }
-    expect(reasons).toEqual(['MEDIA_LIBRARY_NESTED', 'MEDIA_LIBRARY_NESTED', 'MEDIA_LIBRARY_EXISTS'])
+    expect(reasons).toEqual([
+      'MEDIA_LIBRARY_NESTED',
+      'MEDIA_LIBRARY_NESTED',
+      'MEDIA_LIBRARY_EXISTS',
+      'MEDIA_LIBRARY_NESTED',
+    ])
     expect((await ctx.createLibrary(file.id)).status).toBe(400)
     expect((await ctx.createLibrary('missing-folder')).status).toBe(404)
   })
@@ -263,7 +286,9 @@ describe('media libraries API', () => {
     await ctx.matters.trash(ctx.orgId, trashed.id)
     const purgeIds = (await ctx.matters.collectForPurge(ctx.orgId, purged.id))?.map((matter) => matter.id) ?? []
     await ctx.matters.purge(ctx.orgId, purgeIds)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
     await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(`library=${purgedLibrary.id}`))
 
     expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(2)
     const libraries = createMediaLibraryRepo(ctx.db)
@@ -362,5 +387,104 @@ describe('media libraries API', () => {
 
     expect((await ctx.createLibrary(movies.id)).status).toBe(503)
     expect(await ctx.db.all(sql`SELECT id FROM media_libraries`)).toEqual([])
+  })
+  it('scans the older of two overlapping libraries and fails the newer one [spec: media-library/overlap-after-move]', async () => {
+    const ctx = await setup()
+    const media = await ctx.add('', 'Media', 'folder')
+    const movies = await ctx.add('Media', 'Movies', 'folder')
+    await ctx.add('Media/Movies', 'Dune (2021).mkv')
+    const older = await seedLibrary(ctx, media.id, new Date(Date.now() - 60_000))
+    const newer = await seedLibrary(ctx, movies.id, new Date())
+
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+    const jobs = await waitForScans(ctx.db, ctx.orgId)
+
+    const jobFor = (libraryId: string) => jobs.find((job) => job.metadata?.libraryId === libraryId)
+    expect(jobFor(older.id)).toMatchObject({ status: 'completed' })
+    expect(jobFor(newer.id)).toMatchObject({
+      status: 'failed',
+      errorMessage: 'Media library overlaps the older media library at "Media"',
+    })
+    expect((await readIndex(ctx, 'Media')).feed.items.map((item) => item.title)).toEqual(['Dune'])
+    await expect(readIndex(ctx, 'Media/Movies')).rejects.toThrow('library.json not found')
+
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+    expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(2)
+  })
+
+  it('keeps sweeping other libraries when one of them fails [spec: media-library/sweep-isolates-failures]', async () => {
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    const shows = await ctx.add('', 'Shows', 'folder')
+    const healthy = await seedLibrary(ctx, movies.id, new Date(Date.now() - 60_000))
+    const broken = await seedLibrary(ctx, shows.id, new Date())
+    const fingerprint = ctx.deps.mediaLibraries.fingerprint
+    vi.spyOn(ctx.deps.mediaLibraries, 'fingerprint').mockImplementation((orgId, path) =>
+      path === 'Shows' ? Promise.reject(new Error('D1 unavailable')) : fingerprint(orgId, path),
+    )
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await expect(sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })).resolves.toBeUndefined()
+
+    const jobs = await waitForScans(ctx.db, ctx.orgId)
+    expect(jobs.map((job) => job.metadata?.libraryId)).toEqual([healthy.id])
+    expect(error).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`library=${broken.id}.*D1 unavailable`)))
+  })
+
+  it('retries a scan that failed on a transient error at the next sweep [spec: media-library/transient-scan-retry]', async () => {
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    await ctx.add('Movies', 'Dune (2021).mkv')
+    vi.mocked(S3Service.prototype.putObject).mockRejectedValueOnce(new Error('S3 unavailable'))
+
+    expect((await ctx.createLibrary(movies.id)).status).toBe(201)
+    expect(await waitForScans(ctx.db, ctx.orgId)).toEqual([
+      expect.objectContaining({ status: 'failed', errorMessage: 'S3 unavailable' }),
+    ])
+
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+    const jobs = await waitForScans(ctx.db, ctx.orgId)
+    expect(jobs.map((job) => job.status).sort()).toEqual(['completed', 'failed'])
+    expect((await readIndex(ctx, 'Movies')).feed.items.map((item) => item.title)).toEqual(['Dune'])
+  })
+
+  it('completes a rescan when the previous index object cannot be deleted [spec: media-library/index-cleanup-failure]', async () => {
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    expect((await ctx.createLibrary(movies.id)).status).toBe(201)
+    await waitForScans(ctx.db, ctx.orgId)
+    const before = await readIndex(ctx, 'Movies')
+
+    await ctx.add('Movies', 'Dune (2021).mkv')
+    vi.mocked(S3Service.prototype.deleteObject).mockRejectedValueOnce(new Error('S3 unavailable'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+
+    const jobs = await waitForScans(ctx.db, ctx.orgId)
+    expect(jobs.map((job) => job.status)).toEqual(['completed', 'completed'])
+    expect((await readIndex(ctx, 'Movies')).feed.items.map((item) => item.title)).toEqual(['Dune'])
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(before.matter.object))
+  })
+
+  it('holds the scan lease through a listing that outlasts it [spec: media-library/scan-holds-lease]', async () => {
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    const library = await seedLibrary(ctx, movies.id, new Date())
+    const listVideoFiles = ctx.deps.mediaLibraries.listVideoFiles
+    vi.spyOn(ctx.deps.mediaLibraries, 'listVideoFiles').mockImplementation(async (...args) => {
+      const files = await listVideoFiles(...args)
+      await ctx.db.run(sql`UPDATE background_jobs SET updated_at = ${Date.now() - 2 * 60 * 60 * 1000}`)
+      return files
+    })
+    const scanningAtWrite: boolean[] = []
+    vi.mocked(S3Service.prototype.putObject).mockImplementationOnce(async () => {
+      scanningAtWrite.push((await createMediaLibraryRepo(ctx.db).get(ctx.orgId, library.id))?.scanning ?? false)
+      return 0
+    })
+
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+    await waitForScans(ctx.db, ctx.orgId)
+
+    expect(scanningAtWrite).toEqual([true])
   })
 })
