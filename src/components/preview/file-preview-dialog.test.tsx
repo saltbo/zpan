@@ -57,6 +57,16 @@ describe('FilePreviewDialog', () => {
     expect(dialog.className).toContain('w-[min(92vw,1280px,calc((90dvh_-_4rem)*16/9))]')
   })
 
+  it.each([
+    ['song.mp3', 'audio/mpeg', 'sm:max-w-md'],
+    ['report.pdf', 'application/pdf', 'sm:max-w-4xl'],
+    ['notes.md', 'text/markdown', 'sm:max-w-5xl'],
+    ['archive.zip', 'application/zip', 'sm:max-w-3xl'],
+  ])('applies the %s width at the same breakpoint as the default cap', (name, type, width) => {
+    renderDialog(name, type)
+    expect(screen.getByRole('dialog').className).toContain(width)
+  })
+
   it('shows the header menu on mobile too', () => {
     isMobile.value = true
     renderDialog('movie.mkv', 'video/x-matroska')

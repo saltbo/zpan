@@ -31,22 +31,22 @@ function dialogClass(previewType: PreviewType, fullscreen: boolean): string {
     return 'h-[100dvh] w-[100dvw] max-w-none rounded-none border-0 sm:max-w-none'
   }
 
+  // DialogContent caps width with sm:max-w-lg; each override must use the same breakpoint to take effect.
   switch (previewType) {
     case 'video':
-      // DialogContent caps width with sm:max-w-lg, so the override needs the same breakpoint. Width also
-      // follows the viewport height to keep a 16:9 frame fully visible.
+      // Width also follows the viewport height so a 16:9 frame stays fully visible.
       return 'h-auto w-[min(92vw,1280px,calc((90dvh_-_4rem)*16/9))] max-w-none sm:max-w-none'
     case 'audio':
-      return 'max-w-md h-auto'
+      return 'sm:max-w-md h-auto'
     case 'pdf':
-      return 'max-w-4xl h-[85vh]'
+      return 'sm:max-w-4xl h-[85vh]'
     case 'markdown':
     case 'code':
     case 'text':
     case 'nfo':
-      return 'max-w-5xl h-[85vh]'
+      return 'sm:max-w-5xl h-[85vh]'
     default:
-      return 'max-w-3xl h-[75vh]'
+      return 'sm:max-w-3xl h-[75vh]'
   }
 }
 
