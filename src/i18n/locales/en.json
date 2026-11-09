@@ -157,6 +157,7 @@
   "tasks.type.archiveCompress": "Compress archive",
   "tasks.type.archiveExtract": "Extract archive",
   "tasks.type.mediaLibraryScan": "Media library scan",
+  "tasks.type.mediaLibraryScrape": "Media library metadata scrape",
   "tasks.colTask": "Task",
   "tasks.colStatus": "Status",
   "tasks.colProgress": "Progress",

@@ -36,6 +36,7 @@ export type {
   CreateBackgroundJobRequest,
   ListBackgroundJobsQuery,
   MediaLibraryScanJobRequest,
+  MediaLibraryScrapeJobRequest,
 } from './background-jobs'
 export {
   archiveCompressJobRequestSchema,
@@ -46,6 +47,7 @@ export {
   createBackgroundJobRequestSchema,
   listBackgroundJobsQuerySchema,
   mediaLibraryScanJobRequestSchema,
+  mediaLibraryScrapeJobRequestSchema,
 } from './background-jobs'
 export type {
   CapacityPurchaseResult,

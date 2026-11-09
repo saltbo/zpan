@@ -4,6 +4,7 @@
 // entrypoints can reuse it; request-bound capabilities are passed to usecases as
 // function parameters, never stored here.
 
+import { ZPAN_CLOUD_URL_DEFAULT } from '@shared/constants'
 import { type CloudflareKvNamespaceLike, createCloudflareKvBackend } from './adapters/cache/cloudflare-kv'
 import { createRuntimeCache, resolveCacheMode } from './adapters/cache/runtime-cache'
 import { createAgentInfoGateway } from './adapters/gateways/agent-info'
@@ -94,7 +95,9 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     apiKeys: createApiKeyGateway(),
     archiveTargetFolders: createArchiveTargetFolderRepo(db),
     backgroundJobs: createBackgroundJobRepo(db),
-    jobQueue: createBackgroundJobQueue(platform, (message) => runBackgroundJob(deps, message)),
+    jobQueue: createBackgroundJobQueue(platform, (message) =>
+      runBackgroundJob(deps, message, { cloudBaseUrl: platform.getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT }),
+    ),
     cache,
     imageDomains: createImageDomainProviderGateway(systemOptions),
     changelog: createChangelogProvider(),

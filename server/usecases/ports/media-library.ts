@@ -1,3 +1,4 @@
+import type { MediaScrapeResult, PreviousMediaScrape } from '../../domain/media-scrape'
 import type { ActorIdentity } from './audit'
 import type { Matter } from './matter'
 
@@ -25,6 +26,8 @@ export interface MediaLibraryState extends MediaLibraryRecord {
   folder: MediaLibraryFolder | null
   // A scan job for this library is queued or running within the scan lease.
   scanning: boolean
+  // Likewise for a scrape job.
+  scraping: boolean
 }
 
 export type MediaLibraryView = MediaLibraryState & { folder: MediaLibraryFolder }
@@ -45,6 +48,23 @@ export interface CreateMediaLibraryInput {
 }
 
 export type MediaLibraryFileCursor = Pick<Matter, 'parent' | 'name'>
+
+// A video that needs scraping, with its last scrape if it has one.
+export interface MediaLibraryScrapeCandidate {
+  file: Matter
+  previous: PreviousMediaScrape | null
+}
+
+export interface RecordMediaScrapeInput {
+  matterId: string
+  orgId: string
+  libraryId: string
+  language: string
+  matchKey: string
+  // The video's updatedAt when it was scraped.
+  fileUpdatedAt: Date
+  result: MediaScrapeResult
+}
 
 export interface MediaLibraryRepo {
   // null when the folder already is a media library.
@@ -72,4 +92,21 @@ export interface MediaLibraryRepo {
     extensions: readonly string[],
     page: { after: MediaLibraryFileCursor | null; limit: number },
   ): Promise<Matter[]>
+  // A video needs scraping when it was never scraped, changed after its last
+  // scrape, or was scraped in another language. One predicate answers both of these.
+  hasVideosToScrape(
+    orgId: string,
+    folderPath: string,
+    extensions: readonly string[],
+    language: string,
+  ): Promise<boolean>
+  // One page of the videos that need scraping, in listVideoFilesPage order.
+  listVideosToScrape(
+    orgId: string,
+    folderPath: string,
+    extensions: readonly string[],
+    language: string,
+    page: { after: MediaLibraryFileCursor | null; limit: number },
+  ): Promise<MediaLibraryScrapeCandidate[]>
+  recordScrape(input: RecordMediaScrapeInput): Promise<void>
 }

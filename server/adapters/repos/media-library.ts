@@ -1,9 +1,26 @@
 import { DirType, ObjectStatus } from '@shared/constants'
 import type { ActorType } from '@shared/schemas'
-import { and, desc, eq, exists, gte, inArray, isNotNull, isNull, like, lt, not, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  desc,
+  eq,
+  exists,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  like,
+  lt,
+  ne,
+  not,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import { type AnySQLiteColumn, alias } from 'drizzle-orm/sqlite-core'
 import { generateId } from '../../../shared/ids'
-import { backgroundJobs, matters, mediaLibraries } from '../../db/schema'
+import { backgroundJobs, matters, mediaLibraries, mediaScrapes } from '../../db/schema'
 import { D1_MAX_BOUND_PARAMS, executeWriteTransaction } from '../../db/transaction'
 import {
   joinMatterPath,
@@ -11,9 +28,11 @@ import {
   MEDIA_LIBRARY_INDEX_MIME,
   MEDIA_LIBRARY_SCAN_LEASE_MS,
 } from '../../domain/media-library'
+import type { MediaScrapeResult, MediaScrapeSource } from '../../domain/media-scrape'
 import { chunk } from '../../lib/chunk'
 import type { Database } from '../../platform/interface'
 import type {
+  MediaLibraryFileCursor,
   MediaLibraryRecord,
   MediaLibraryRepo,
   MediaLibraryState,
@@ -22,8 +41,9 @@ import type {
 } from '../../usecases/ports'
 
 type MediaLibraryRow = typeof mediaLibraries.$inferSelect
+type MediaScrapeRow = typeof mediaScrapes.$inferSelect
 
-const MEDIA_LIBRARY_SCAN = 'media_library_scan'
+type LeasedJobType = 'media_library_scan' | 'media_library_scrape'
 
 function toRecord(row: MediaLibraryRow): MediaLibraryRecord {
   return {
@@ -49,6 +69,7 @@ type StateRow = {
   folderName: string | null
   folderTrashedAt: number | null
   scanning: number
+  scraping: number
 }
 
 function toState(row: StateRow): MediaLibraryState {
@@ -63,7 +84,20 @@ function toState(row: StateRow): MediaLibraryState {
             trashed: row.folderTrashedAt !== null,
           },
     scanning: Boolean(row.scanning),
+    scraping: Boolean(row.scraping),
   }
+}
+
+function toScrapeResult(row: MediaScrapeRow): MediaScrapeResult {
+  const source = row.source as MediaScrapeSource
+  if (row.status !== 'matched' || row.tmdbId === null) return { status: 'unmatched', source }
+  return row.tmdbType === 'tv'
+    ? {
+        status: 'matched',
+        source,
+        match: { type: 'tv', id: row.tmdbId, season: row.season as number, episode: row.episode as number },
+      }
+    : { status: 'matched', source, match: { type: 'movie', id: row.tmdbId } }
 }
 
 // `parent` = path or starts with `path/`, as one range over the (org_id,
@@ -94,6 +128,36 @@ function liveMatter(table: LiveColumns = matters): SQL {
 
 type LiveColumns = { status: AnySQLiteColumn; trashedAt: AnySQLiteColumn; purgedAt: AnySQLiteColumn }
 
+// The live files of the subtree with a video MIME type or extension, starting
+// after `after` in (parent, name) order.
+function videoFiles(
+  orgId: string,
+  folderPath: string,
+  extensions: readonly string[],
+  after: MediaLibraryFileCursor | null,
+): SQL {
+  const keyset = after ? sql`(${matters.parent}, ${matters.name}) > (${after.parent}, ${after.name})` : undefined
+  return and(
+    eq(matters.orgId, orgId),
+    liveMatter(),
+    eq(matters.dirtype, DirType.FILE),
+    subtree(sql`${folderPath}`, keyset),
+    notIndexFile(sql`${folderPath}`),
+    or(like(matters.type, 'video/%'), ...extensions.map((extension) => like(matters.name, `%.${extension}`))),
+  ) as SQL
+}
+
+// With media_scrapes left-joined on the video: never scraped, changed since
+// (updated_at moves on rename, move, and overwrite), or scraped in another
+// language. An unmatched video stays out until one of these changes.
+function needsScrape(language: string): SQL {
+  return or(
+    isNull(mediaScrapes.matterId),
+    gt(matters.updatedAt, mediaScrapes.fileUpdatedAt),
+    ne(mediaScrapes.language, language),
+  ) as SQL
+}
+
 // The live subtree a fingerprint covers: everything under the library except its index.
 function fingerprintedMatters(orgId: SQL | AnySQLiteColumn, path: SQL): SQL {
   return and(eq(matters.orgId, orgId), liveMatter(), subtree(path), notIndexFile(path)) as SQL
@@ -112,7 +176,8 @@ const indexFile = alias(matters, 'library_index')
 const folderPath = sql`CASE WHEN ${folder.parent} = '' THEN ${folder.name} ELSE ${folder.parent} || '/' || ${folder.name} END`
 
 export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
-  function scanLeaseHeld(): SQL {
+  // A job of this type for the library is queued or running and was updated within the lease.
+  function leaseHeld(type: LeasedJobType): SQL {
     return exists(
       db
         .select({ id: backgroundJobs.id })
@@ -120,7 +185,7 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
         .where(
           and(
             eq(backgroundJobs.orgId, mediaLibraries.orgId),
-            eq(backgroundJobs.type, MEDIA_LIBRARY_SCAN),
+            eq(backgroundJobs.type, type),
             inArray(backgroundJobs.status, ['queued', 'running']),
             gte(backgroundJobs.updatedAt, new Date(Date.now() - MEDIA_LIBRARY_SCAN_LEASE_MS)),
             sql`json_extract(${backgroundJobs.metadata}, '$.libraryId') = ${mediaLibraries.id}`,
@@ -135,7 +200,8 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
       folderParent: folder.parent,
       folderName: folder.name,
       folderTrashedAt: folder.trashedAt,
-      scanning: sql<number>`${scanLeaseHeld()}`,
+      scanning: sql<number>`${leaseHeld('media_library_scan')}`,
+      scraping: sql<number>`${leaseHeld('media_library_scrape')}`,
     }
   }
 
@@ -288,23 +354,58 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
     // the library is. (parent, name) is unique among live rows because
     // matters_active_name_uniq is unique on (org_id, parent, LOWER(name)).
     async listVideoFilesPage(orgId, folderPath, extensions, page) {
-      const { after } = page
-      const keyset = after ? sql`(${matters.parent}, ${matters.name}) > (${after.parent}, ${after.name})` : undefined
       return db
         .select()
         .from(matters)
-        .where(
-          and(
-            eq(matters.orgId, orgId),
-            liveMatter(),
-            eq(matters.dirtype, DirType.FILE),
-            subtree(sql`${folderPath}`, keyset),
-            notIndexFile(sql`${folderPath}`),
-            or(like(matters.type, 'video/%'), ...extensions.map((extension) => like(matters.name, `%.${extension}`))),
-          ),
-        )
+        .where(videoFiles(orgId, folderPath, extensions, page.after))
         .orderBy(matters.parent, matters.name)
         .limit(page.limit)
+    },
+
+    async hasVideosToScrape(orgId, folderPath, extensions, language) {
+      const rows = await db
+        .select({ id: matters.id })
+        .from(matters)
+        .leftJoin(mediaScrapes, eq(mediaScrapes.matterId, matters.id))
+        .where(and(videoFiles(orgId, folderPath, extensions, null), needsScrape(language)))
+        .limit(1)
+      return rows.length > 0
+    },
+
+    async listVideosToScrape(orgId, folderPath, extensions, language, page) {
+      const rows = await db
+        .select({ file: matters, scrape: mediaScrapes })
+        .from(matters)
+        .leftJoin(mediaScrapes, eq(mediaScrapes.matterId, matters.id))
+        .where(and(videoFiles(orgId, folderPath, extensions, page.after), needsScrape(language)))
+        .orderBy(matters.parent, matters.name)
+        .limit(page.limit)
+      return rows.map(({ file, scrape }) => ({
+        file,
+        previous: scrape && { result: toScrapeResult(scrape), matchKey: scrape.matchKey, language: scrape.language },
+      }))
+    },
+
+    async recordScrape(input) {
+      const { result } = input
+      const match = result.status === 'matched' ? result.match : null
+      const row: MediaScrapeRow = {
+        matterId: input.matterId,
+        orgId: input.orgId,
+        libraryId: input.libraryId,
+        status: result.status,
+        tmdbType: match?.type ?? null,
+        tmdbId: match?.id ?? null,
+        season: match?.type === 'tv' ? match.season : null,
+        episode: match?.type === 'tv' ? match.episode : null,
+        language: input.language,
+        source: result.source,
+        matchKey: input.matchKey,
+        fileUpdatedAt: input.fileUpdatedAt,
+        scrapedAt: new Date(),
+      }
+      const { matterId: _matterId, ...update } = row
+      await db.insert(mediaScrapes).values(row).onConflictDoUpdate({ target: mediaScrapes.matterId, set: update })
     },
   }
 }

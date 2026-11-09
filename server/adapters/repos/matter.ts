@@ -22,6 +22,7 @@ import { generateId, generateToken } from '../../../shared/ids'
 import { matters } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { suggestRenamed } from '../../domain/matter-name-conflict'
+import { chunk } from '../../lib/chunk'
 import type { Database } from '../../platform/interface'
 import type {
   ConflictPlan,
@@ -892,6 +893,31 @@ export function createMatterRepo(db: Database): MatterRepo {
 
     findActiveConflict(orgId, parent, name, excludeId) {
       return findActiveConflict(orgId, parent, name, excludeId)
+    },
+
+    // Two bound parameters per path plus two fixed ones, so 40 paths stay under D1's 100.
+    async findActiveAt(orgId, paths) {
+      const found: Matter[] = []
+      for (const batch of chunk(paths, 40)) {
+        const rows = await db
+          .select()
+          .from(matters)
+          .where(
+            and(
+              eq(matters.orgId, orgId),
+              eq(matters.status, ObjectStatus.ACTIVE),
+              isNull(matters.trashedAt),
+              isNull(matters.purgedAt),
+              or(
+                ...batch.map((path) =>
+                  and(eq(matters.parent, path.parent), sql`lower(${matters.name}) = lower(${path.name})`),
+                ),
+              ),
+            ),
+          )
+        found.push(...rows.map(toMatter))
+      }
+      return found
     },
 
     planConflictResolution(orgId, parent, name, strategy, options) {

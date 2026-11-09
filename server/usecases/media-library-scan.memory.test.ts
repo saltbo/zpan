@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { setFlagsFromString } from 'node:v8'
 import { runInNewContext } from 'node:vm'
-import { DirType } from '@shared/constants'
+import { DirType, ZPAN_CLOUD_URL_DEFAULT } from '@shared/constants'
 import type { BackgroundJob } from '@shared/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../adapters/gateways/s3'
@@ -25,6 +25,7 @@ const library: MediaLibraryState = {
   fingerprint: null,
   lastScannedAt: null,
   scanning: true,
+  scraping: false,
   createdByUserId: 'user-1',
   createdBy: { type: 'user', ref: 'user-1', issuer: null },
   createdAt: generatedAt,
@@ -146,15 +147,20 @@ describe('media library scan memory', () => {
       quota: { incrementUsageIfEffectiveQuotaAllows: vi.fn(async () => true) },
       storageUsage: { rollbackReservations: vi.fn(async () => {}) },
       webdavPath: { invalidateFolders: vi.fn(async () => {}) },
+      tmdb: { getConfig: vi.fn(async () => null) },
     }
 
-    const job = await processMediaLibraryScan(deps as unknown as Deps, {
-      jobId: 'job-1',
-      orgId: 'org-1',
-      userId: 'user-1',
-      createdBy: { type: 'user', ref: 'user-1', issuer: null },
-      request: { type: 'media_library_scan', libraryId: 'lib-1' },
-    })
+    const job = await processMediaLibraryScan(
+      deps as unknown as Deps,
+      {
+        jobId: 'job-1',
+        orgId: 'org-1',
+        userId: 'user-1',
+        createdBy: { type: 'user', ref: 'user-1', issuer: null },
+        request: { type: 'media_library_scan', libraryId: 'lib-1' },
+      },
+      { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT },
+    )
     expect(job).toMatchObject({ status: 'completed', resultMetadata: { itemCount: VIDEO_COUNT } })
 
     // The whole-feed write this replaced held every row, item, the JSON string,

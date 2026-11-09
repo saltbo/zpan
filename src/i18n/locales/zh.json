@@ -157,6 +157,7 @@
   "tasks.type.archiveCompress": "压缩归档",
   "tasks.type.archiveExtract": "解压归档",
   "tasks.type.mediaLibraryScan": "媒体库扫描",
+  "tasks.type.mediaLibraryScrape": "媒体库元数据刮削",
   "tasks.colTask": "任务",
   "tasks.colStatus": "状态",
   "tasks.colProgress": "进度",

@@ -15,6 +15,7 @@ export const mediaLibrarySchema = z
     folderId: opaqueIdSchema,
     folderPath: z.string().describe('Current slash-delimited path of the library folder within the workspace.'),
     scanning: z.boolean().describe('Whether a scan is queued or running.'),
+    scraping: z.boolean().describe('Whether a TMDB scrape is queued or running.'),
     lastScannedAt: z.string().nullable(),
     createdBy: actorIdentitySchema,
     createdAt: z.string(),

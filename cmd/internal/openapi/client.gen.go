@@ -5965,7 +5965,10 @@ type MediaLibrary struct {
 	OrgId         string  `json:"orgId"`
 
 	// Scanning Whether a scan is queued or running.
-	Scanning  bool   `json:"scanning"`
+	Scanning bool `json:"scanning"`
+
+	// Scraping Whether a TMDB scrape is queued or running.
+	Scraping  bool   `json:"scraping"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
@@ -11246,6 +11249,9 @@ type ClientInterface interface {
 	// CreateMediaLibraryScan request
 	CreateMediaLibraryScan(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateMediaLibraryScrape request
+	CreateMediaLibraryScrape(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListNotifications request
 	ListNotifications(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -12404,6 +12410,18 @@ func (c *Client) DeleteMediaLibrary(ctx context.Context, id string, reqEditors .
 
 func (c *Client) CreateMediaLibraryScan(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateMediaLibraryScanRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateMediaLibraryScrape(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMediaLibraryScrapeRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -16238,6 +16256,40 @@ func NewCreateMediaLibraryScanRequest(server string, id string) (*http.Request, 
 	}
 
 	operationPath := fmt.Sprintf("/api/media-libraries/%s/scans", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateMediaLibraryScrapeRequest generates requests for CreateMediaLibraryScrape
+func NewCreateMediaLibraryScrapeRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/media-libraries/%s/scrapes", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -21936,6 +21988,9 @@ type ClientWithResponsesInterface interface {
 	// CreateMediaLibraryScanWithResponse request
 	CreateMediaLibraryScanWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CreateMediaLibraryScanResponse, error)
 
+	// CreateMediaLibraryScrapeWithResponse request
+	CreateMediaLibraryScrapeWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CreateMediaLibraryScrapeResponse, error)
+
 	// ListNotificationsWithResponse request
 	ListNotificationsWithResponse(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*ListNotificationsResponse, error)
 
@@ -23797,6 +23852,41 @@ func (r CreateMediaLibraryScanResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateMediaLibraryScanResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateMediaLibraryScrapeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *BackgroundJob
+	JSON402      *Error
+	JSON404      *Error
+	JSON409      *Error
+	JSON412      *Error
+	JSON503      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateMediaLibraryScrapeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateMediaLibraryScrapeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateMediaLibraryScrapeResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -28460,6 +28550,15 @@ func (c *ClientWithResponses) CreateMediaLibraryScanWithResponse(ctx context.Con
 	return ParseCreateMediaLibraryScanResponse(rsp)
 }
 
+// CreateMediaLibraryScrapeWithResponse request returning *CreateMediaLibraryScrapeResponse
+func (c *ClientWithResponses) CreateMediaLibraryScrapeWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CreateMediaLibraryScrapeResponse, error) {
+	rsp, err := c.CreateMediaLibraryScrape(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateMediaLibraryScrapeResponse(rsp)
+}
+
 // ListNotificationsWithResponse request returning *ListNotificationsResponse
 func (c *ClientWithResponses) ListNotificationsWithResponse(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*ListNotificationsResponse, error) {
 	rsp, err := c.ListNotifications(ctx, params, reqEditors...)
@@ -31702,6 +31801,67 @@ func ParseCreateMediaLibraryScanResponse(rsp *http.Response) (*CreateMediaLibrar
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateMediaLibraryScrapeResponse parses an HTTP response from a CreateMediaLibraryScrapeWithResponse call
+func ParseCreateMediaLibraryScrapeResponse(rsp *http.Response) (*CreateMediaLibraryScrapeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateMediaLibraryScrapeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest BackgroundJob
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest Error

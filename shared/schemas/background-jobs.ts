@@ -27,24 +27,42 @@ export const mediaLibraryScanJobRequestSchema = z.object({
   libraryId: opaqueIdSchema,
 })
 
+export const mediaLibraryScrapeJobRequestSchema = z.object({
+  type: z.literal('media_library_scrape'),
+  libraryId: opaqueIdSchema,
+  // Carried by the messages that continue a scrape after a batch: where the next
+  // batch starts and what earlier batches did. A stored job never has it.
+  resume: z
+    .object({
+      after: z.object({ parent: z.string(), name: z.string() }).nullable(),
+      processed: z.number().int().nonnegative(),
+      matched: z.number().int().nonnegative(),
+      changed: z.number().int().nonnegative(),
+    })
+    .optional(),
+})
+
 // The job types a client may create through POST /api/background-jobs.
 export const createBackgroundJobRequestSchema = z.discriminatedUnion('type', [
   archiveCompressJobRequestSchema,
   archiveExtractJobRequestSchema,
 ])
 
-// Every request a queued job can carry. Media library scans are created through
-// /api/media-libraries and the sweep, never through the generic jobs endpoint.
+// Every request a queued job can carry. Media library scans and scrapes are
+// created through /api/media-libraries and the media library jobs, never through
+// the generic jobs endpoint.
 export const backgroundJobRequestSchema = z.discriminatedUnion('type', [
   archiveCompressJobRequestSchema,
   archiveExtractJobRequestSchema,
   mediaLibraryScanJobRequestSchema,
+  mediaLibraryScrapeJobRequestSchema,
 ])
 
 export type ArchiveCompressJobRequest = z.infer<typeof archiveCompressJobRequestSchema>
 export type ArchiveExtractJobRequest = z.infer<typeof archiveExtractJobRequestSchema>
 export type CreateBackgroundJobRequest = z.infer<typeof createBackgroundJobRequestSchema>
 export type MediaLibraryScanJobRequest = z.infer<typeof mediaLibraryScanJobRequestSchema>
+export type MediaLibraryScrapeJobRequest = z.infer<typeof mediaLibraryScrapeJobRequestSchema>
 export type BackgroundJobRequest = z.infer<typeof backgroundJobRequestSchema>
 
 export const listBackgroundJobsQuerySchema = z.object({

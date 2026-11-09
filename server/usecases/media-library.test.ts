@@ -26,6 +26,7 @@ const library: MediaLibraryState = {
   fingerprint: null,
   lastScannedAt: null,
   scanning: false,
+  scraping: false,
   createdByUserId: 'user-1',
   createdBy: requester.createdBy,
   createdAt: new Date(),
