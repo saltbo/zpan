@@ -14,9 +14,10 @@ Feature: Media libraries
 
   @media-library/build-feed @domain
   Scenario: The index is a deterministic JSON Feed snapshot of the library videos
-    Given video and non-video files under a library folder
-    When the feed is built
-    Then it lists only the videos, ordered by path, with library-relative encoded URLs
+    Given pages of video and non-video files under a library folder
+    When the feed is serialized
+    Then it lists only the videos, in listing order, with library-relative encoded URLs
+    And the text is exactly the JSON of the whole feed however the files are paged
 
   @media-library/create-and-scan @api
   Scenario: Marking a folder writes the index and queues a scan that fills it
@@ -99,6 +100,20 @@ Feature: Media libraries
     Given a scan whose file listing outlasts the scan lease
     When the scan writes the index
     Then the library still reports a scan in progress
+
+  @media-library/large-library-single-index @api
+  Scenario: A library larger than one listing page still gets one index
+    Given a library on D1 with more videos than one listing page holds
+    When the scan job runs on the Workers queue consumer
+    Then library.json is one JSON Feed with every video, ordered by folder and then file name
+
+  @media-library/bounded-memory-scan @usecase
+  Scenario: Scanning a large library holds one page at a time
+    Given a library with 200,000 videos
+    When the scan streams the index into a multipart upload
+    Then memory stays within a fixed bound far below holding the whole feed
+    And the uploaded bytes equal the JSON of the whole feed
+    And the scan renews its lease at least every 10 pages
 
   @media-library/sweep-lifecycle @api
   Scenario: The sweep skips trashed library folders and drops purged ones
