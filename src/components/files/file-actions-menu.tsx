@@ -15,6 +15,7 @@ import {
   Pencil,
   RefreshCw,
   Share2,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react'
@@ -141,6 +142,11 @@ function MediaLibraryMenuItems({
       <MenuItem kind={kind} onClick={() => actions.onRescan(library)}>
         <RefreshCw />
         <span className="flex-1">{t('mediaLibrary.rescan')}</span>
+        {actions.locked && <ProBadge />}
+      </MenuItem>
+      <MenuItem kind={kind} onClick={() => actions.onScrape(library)}>
+        <Sparkles />
+        <span className="flex-1">{t('mediaLibrary.scrape')}</span>
         {actions.locked && <ProBadge />}
       </MenuItem>
       <MenuItem kind={kind} onClick={() => actions.onRemove(library)}>

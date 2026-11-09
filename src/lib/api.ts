@@ -574,6 +574,10 @@ export function scanMediaLibrary(id: string) {
   return unwrap<BackgroundJob>(mediaLibrariesApi[':id'].scans.$post({ param: { id } }))
 }
 
+export function scrapeMediaLibrary(id: string) {
+  return unwrap<BackgroundJob>(mediaLibrariesApi[':id'].scrapes.$post({ param: { id } }))
+}
+
 // Admin dashboard stats
 
 export interface AdminStatsRangeFilter {

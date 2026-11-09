@@ -26,6 +26,7 @@ export interface MediaLibraryActions {
   onSet: (folder: StorageObject) => void
   onRemove: (library: MediaLibrary) => void
   onRescan: (library: MediaLibrary) => void
+  onScrape: (library: MediaLibrary) => void
 }
 
 export interface BreadcrumbItem {

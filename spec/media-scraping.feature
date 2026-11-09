@@ -142,3 +142,10 @@ Feature: Media library scraping
     When they save a language and a TMDB API Read Access Token, then save again without a token, then with an empty one
     Then the settings show only whether a token is saved, a save without a token keeps it, and an empty one removes it
     And a community instance cannot save scraping settings
+
+  @media-scraping/folder-menu @web
+  Scenario: Users start a scrape from the folder menu and follow it in the task list
+    Given a folder that is a media library
+    When its menu opens
+    Then it offers Scrape metadata next to Rescan, with a Pro badge when the instance is not entitled
+    And a completed scrape task shows how many videos matched, and the details sheet shows a running scrape

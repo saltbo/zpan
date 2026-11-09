@@ -93,6 +93,30 @@ describe('BackgroundTaskList', () => {
     expect(view.queryAllByTestId('progress')).toHaveLength(0)
   })
 
+  it('labels metadata scrapes and shows how many videos matched [spec: media-scraping/folder-menu]', () => {
+    const view = render(
+      <BackgroundTaskList
+        jobs={[
+          makeJob({
+            id: 'scrape-done',
+            type: 'media_library_scrape',
+            status: 'completed',
+            resultMetadata: { matched: 4, unmatched: 1 },
+          }),
+        ]}
+        total={1}
+        filter="completed"
+        onFilterChange={vi.fn()}
+        onCancel={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    )
+
+    expect(view.getByText('tasks.type.mediaLibraryScrape')).toBeTruthy()
+    expect(view.getByText('tasks.result.mediaMatched')).toBeTruthy()
+    expect(view.queryAllByTestId('progress')).toHaveLength(0)
+  })
+
   it('calls retry and cancel handlers for actionable jobs', () => {
     const onCancel = vi.fn()
     const onRetry = vi.fn()

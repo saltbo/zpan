@@ -140,6 +140,7 @@ import {
   saveImageDomainProvider,
   saveShareToDrive,
   scanMediaLibrary,
+  scrapeMediaLibrary,
   sendDownloaderHeartbeat,
   serverEventsUrl,
   setSharePrivacy,
@@ -1630,6 +1631,34 @@ describe('api', () => {
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toBe('/api/media-libraries/lib-1/scans')
       expect(init.method).toBe('POST')
+    })
+
+    it('queues a media library metadata scrape', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'job-2', type: 'media_library_scrape' }, true, 201))
+
+      await expect(scrapeMediaLibrary('lib-1')).resolves.toMatchObject({ id: 'job-2', type: 'media_library_scrape' })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/media-libraries/lib-1/scrapes')
+      expect(init.method).toBe('POST')
+    })
+
+    it('throws ApiError when scraping is not configured', async () => {
+      const body = {
+        error: {
+          code: 412,
+          message: 'TMDB is not configured.',
+          status: 'FAILED_PRECONDITION',
+          details: [{ reason: 'MEDIA_SCRAPER_NOT_CONFIGURED', domain: 'zpan.dev' }],
+        },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(body, false, 412))
+
+      await expect(scrapeMediaLibrary('lib-1')).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 412,
+        reason: 'MEDIA_SCRAPER_NOT_CONFIGURED',
+      })
     })
 
     it('throws ApiError for media library failures', async () => {
