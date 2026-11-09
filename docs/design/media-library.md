@@ -82,7 +82,7 @@ library root). Any other file counts, including one in a folder a user happens
 to name `.zpan`:
 
 ```
-count(*) : sum(size) : max(updated_at) : sum(updated_at)
+count(id) : sum(size) : max(updated_at) : sum(updated_at)
 ```
 
 Every write that changes what a scan sees moves one term: create, copy,
@@ -93,10 +93,15 @@ through `cascadeParentPath`). `updated_at` has second precision, so
 previous maximum. The remaining blind spot is a second edit to a row already
 modified in the same second the fingerprint was taken.
 
-The subtree match is `parent = P OR (parent >= 'P/' AND parent < 'P0')`: an
-index range on `(org_id, parent)` with no LIKE, so `%` and `_` in folder names
-are literal and D1's LIKE pattern limits do not apply. `'0'` is the code point
-after `/` under SQLite's binary collation.
+The subtree match is `parent >= P AND parent < 'P0' AND (parent = P OR
+parent >= 'P/')`: one index range on `(org_id, parent)` with no LIKE, so `%`
+and `_` in folder names are literal and D1's LIKE pattern limits do not apply.
+`'0'` is the code point after `/` under SQLite's binary collation, so the range
+holds `P`, everything under `P/`, and siblings such as `P-2` that sort before
+`P/`; the residual test drops those siblings. It means the same as
+`parent = P OR (parent >= 'P/' AND parent < 'P0')`, but SQLite cannot use the
+index for that OR once `P` comes from a joined row, and falls back to scanning
+the whole organization per library.
 
 The sweep queues a scan when the fingerprint differs from the stored one and
 no scan for the library holds the lease (a `queued` or `running`
@@ -108,11 +113,42 @@ immediately, and `POST /api/media-libraries/{id}/scans` requests one on demand
 
 The sweep runs only when the instance is entitled (`media_library`), and it
 verifies the license certificate against the configured `ZPAN_CLOUD_URL`.
-Each library is swept on its own: an error on one library is logged as
-`media_library.sweep.library_error library=<id> org=<id>` and the sweep moves
-on, so one broken library cannot stall the others or fail the shared cron
-tick. Deleting a library whose folder was purged is logged as
-`media_library.sweep.deleted`.
+
+A Workers invocation caps its subrequests, and every D1 call and queue send is
+one, so the sweep's calls do not grow with the number of libraries:
+
+1. One read returns every library on the instance with what the decision
+   needs: the library row, its folder (purged, trashed, path), whether its
+   index exists, whether a scan holds the lease, and the current fingerprint.
+   It is a grouped join of `media_libraries` to the live matters of each
+   subtree, and it shares the fingerprint expression with the scan job, so
+   the two cannot drift. Its bound parameters are fixed.
+2. A pure function decides each library, in order: folder purged → delete;
+   folder trashed → skip; index gone → delete; lease held → skip; fingerprint
+   unchanged → skip; otherwise scan.
+3. One D1 batch deletes every dead library (`DELETE ... WHERE id IN`, at most
+   99 ids per statement), then logs `media_library.sweep.deleted
+   library=<id> org=<id> reason=folder_purged|index_removed` for each.
+4. Changed libraries are queued 100 at a time, the most one Cloudflare Queues
+   `sendBatch` call takes. Per chunk, one D1 batch inserts every job row and
+   its resource change (multi-row inserts sized under D1's 100 bound
+   parameters), and one `sendBatch` sends the messages. The Node in-process
+   queue pushes each message.
+
+So a sweep makes `2 + (dead > 0 ? 1 : 0) + ceil(changed / 100)` D1 round
+trips, counting the license read, and `ceil(changed / 100)` queue calls.
+Measured on D1 in `workers/media-library-sweep.cf-test.ts`: 3 round trips and
+1 queue call for one changed library; 5 round trips and 2 queue calls for 150
+changed plus 150 dead libraries; 2 round trips when nothing changed. The
+statements inside the batches still scale with the rows written (56 for the
+150 + 150 case), which stays within one call each.
+
+A failure is isolated per chunk instead of per library. A failed delete is
+logged as `media_library.sweep.delete_error libraries=<ids>` and the
+enqueueing still runs; a failed chunk is logged as
+`media_library.sweep.enqueue_error libraries=<ids>` and the next chunk still
+goes out, so one bad chunk cannot fail the shared cron tick. A failed read
+fails the sweep, since there is nothing to decide without it.
 
 ## 4. Scan job
 
@@ -241,9 +277,10 @@ media library" asks for confirmation and names the `library.json` it deletes.
 - **Naming.** `ZPAN_ARCHIVE_JOBS_ENABLED`, the `ARCHIVE_QUEUE` binding, and
   configz `services.archive.enabled` now cover every background job. Renaming
   them is an operator and API contract change left for a separate pass.
-- **Lost dispatch.** If the job row is created but the queue send fails, the
-  `queued` row holds the scan lease until it expires an hour later, and only
-  then does the sweep queue a new scan.
+- **Lost dispatch.** If the job rows are created but the queue send fails, the
+  `queued` rows hold the scan lease until it expires an hour later, and only
+  then does the sweep queue new scans. For the sweep this covers a whole
+  chunk of up to 100 libraries.
 - **Concurrent scans.** The lease check and the job insert are not atomic, so
   a manual rescan and the sweep enqueuing in the same instant can run two
   scans. The later write wins, and the earlier scan's object can be left
