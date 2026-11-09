@@ -391,6 +391,27 @@ describe('media library scraping', () => {
     expect((await ctx.index('Media')).get('Arrival (2016).mkv')).toEqual({ id: 329865, type: 'movie' })
   })
 
+  it('drops the scrape record of a purged video [spec: media-scraping/purged-videos]', async () => {
+    const ctx = await setup()
+    const media = await ctx.add('', 'Media')
+    const inception = await ctx.video('Media', 'Inception (2010).mkv')
+    await ctx.video('Media', 'Arrival (2016).mkv')
+    await createLibrary(ctx, media.id)
+    await ctx.settle()
+    const scraped = async () =>
+      (await ctx.db.all<{ matterId: string }>(sql`SELECT matter_id AS matterId FROM media_scrapes`)).map(
+        (row) => row.matterId,
+      )
+    expect(await scraped()).toHaveLength(2)
+
+    await ctx.matters.trashByIds(ctx.orgId, [inception.id])
+    expect(await scraped()).toHaveLength(2)
+    await ctx.matters.purge(ctx.orgId, [inception.id])
+
+    expect(await scraped()).toHaveLength(1)
+    expect(await scraped()).not.toContain(inception.id)
+  })
+
   it('reuses matches after a rename or a language change and searches again only what did not match [spec: media-scraping/rescrape-changes]', async () => {
     const ctx = await setup()
     const media = await seedLibrary(ctx)

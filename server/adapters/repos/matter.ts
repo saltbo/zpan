@@ -19,7 +19,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { generateId, generateToken } from '../../../shared/ids'
-import { matters } from '../../db/schema'
+import { matters, mediaScrapes } from '../../db/schema'
 import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { suggestRenamed } from '../../domain/matter-name-conflict'
 import { chunk } from '../../lib/chunk'
@@ -713,6 +713,12 @@ export function createMatterRepo(db: Database): MatterRepo {
               isNull(matters.purgedAt),
             ),
           ),
+        db.delete(mediaScrapes).where(
+          inArray(
+            mediaScrapes.matterId,
+            rows.map((row) => row.id),
+          ),
+        ),
         ...matterChanges(
           orgId,
           rows.map((row) => row.id),

@@ -67,6 +67,12 @@ Feature: Media library scraping
     When the next sweep runs
     Then the recorded match has changed the library's fingerprint, so a scan publishes the id
 
+  @media-scraping/purged-videos @api
+  Scenario: Purging a video drops its scrape record
+    Given a scraped library
+    When one of its videos is trashed and then purged
+    Then its media_scrapes row is deleted with the purge, and the other videos keep theirs
+
   @media-scraping/rescrape-changes @api
   Scenario: A renamed video or a new language is scraped again without searching for known matches
     Given a scraped library
