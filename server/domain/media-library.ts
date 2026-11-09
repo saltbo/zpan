@@ -56,6 +56,8 @@ export interface MediaLibraryFile {
   updatedAt: Date
 }
 
+// Attachment URLs resolve against the feed's own URL (RFC 3986), which lives in
+// <library>/.zpan/, so each one climbs back to the library root first.
 export function buildMediaLibraryFeed(input: {
   libraryId: string
   folderPath: string
@@ -80,7 +82,7 @@ export function buildMediaLibraryFeed(input: {
           date_modified: file.updatedAt.toISOString(),
           attachments: [
             {
-              url: path.split('/').map(encodeURIComponent).join('/'),
+              url: `../${path.split('/').map(encodeURIComponent).join('/')}`,
               mime_type: mimeType,
               size_in_bytes: file.size ?? 0,
             },

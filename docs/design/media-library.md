@@ -129,7 +129,7 @@ and the sweep does not run.
       "title": "Inception",
       "content_text": "Inception (2010).mkv",
       "date_modified": "2026-11-09T15:59:35.000Z",
-      "attachments": [{ "url": "Inception%20(2010).mkv", "mime_type": "video/x-matroska", "size_in_bytes": 42 }],
+      "attachments": [{ "url": "../Inception%20(2010).mkv", "mime_type": "video/x-matroska", "size_in_bytes": 42 }],
       "_media": { "type": "movie", "title": "Inception", "year": 2010 }
     }
   ]
@@ -137,8 +137,10 @@ and the sweep does not run.
 ```
 
 - `id` is the video's matter id, stable across renames and moves.
-- `attachments[0].url` is relative to the **library folder**, each segment
-  percent-encoded. Clients join it with their WebDAV URL for the library.
+- `attachments[0].url` is relative to the feed's own URL (`../` climbs from
+  `.zpan/` to the library root), each segment percent-encoded. Standard RFC
+  3986 resolution against the URL the client fetched yields the video's WebDAV
+  URL.
 - `content_text` is the library-relative path (JSON Feed requires
   `content_text` or `content_html`).
 - Items are ordered by path, so equal trees produce equal item lists.
@@ -174,10 +176,6 @@ entitlement, the set action carries a Pro badge and opens an upgrade prompt.
 
 ## 8. Open decisions
 
-- **URL base.** Attachment URLs are relative to the library folder, as
-  specified. A generic client that resolves them against the feed URL per RFC
-  3986 would look inside `.zpan/`. Emitting `../`-prefixed URLs would make
-  standard resolution correct for every client.
 - **Removal.** Removing a library leaves a stale `.zpan/library.json`.
   Trashing `.zpan` on removal would avoid clients reading a frozen index.
 - **Non-video changes.** Any change in the subtree (a new `.txt`) rewrites the

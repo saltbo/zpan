@@ -137,8 +137,8 @@ describe('media libraries API', () => {
     expect(matter).toMatchObject({ type: 'application/feed+json', parent: 'Movies/.zpan' })
     expect(feed.title).toBe('Movies')
     expect(feed.items.map((item) => [item.id, item.attachments[0].url, item._media])).toEqual([
-      [inception.id, 'Inception%20(2010).mkv', { type: 'movie', title: 'Inception', year: 2010 }],
-      [episode.id, 'Shows/Season%201/S01E02.mkv', { type: 'episode', title: 'Shows', season: 1, episode: 2 }],
+      [inception.id, '../Inception%20(2010).mkv', { type: 'movie', title: 'Inception', year: 2010 }],
+      [episode.id, '../Shows/Season%201/S01E02.mkv', { type: 'episode', title: 'Shows', season: 1, episode: 2 }],
     ])
 
     const list = await ctx.app.request('/api/media-libraries', { headers: ctx.headers })

@@ -63,7 +63,7 @@ describe('buildMediaLibraryFeed', () => {
           title: 'Inception',
           content_text: 'Inception (2010).mp4',
           date_modified: '2026-01-02T03:04:05.000Z',
-          attachments: [{ url: 'Inception%20(2010).mp4', mime_type: 'video/mp4', size_in_bytes: 10 }],
+          attachments: [{ url: '../Inception%20(2010).mp4', mime_type: 'video/mp4', size_in_bytes: 10 }],
           _media: { type: 'movie', title: 'Inception', year: 2010 },
         },
         {
@@ -71,7 +71,7 @@ describe('buildMediaLibraryFeed', () => {
           title: 'Dune',
           content_text: 'Sci-Fi/Dune (2021).mkv',
           date_modified: '2026-01-02T03:04:05.000Z',
-          attachments: [{ url: 'Sci-Fi/Dune%20(2021).mkv', mime_type: 'video/x-matroska', size_in_bytes: 2048 }],
+          attachments: [{ url: '../Sci-Fi/Dune%20(2021).mkv', mime_type: 'video/x-matroska', size_in_bytes: 2048 }],
           _media: { type: 'movie', title: 'Dune', year: 2021 },
         },
         {
@@ -80,7 +80,7 @@ describe('buildMediaLibraryFeed', () => {
           content_text: 'Shows/Season 1/S01E02 #1?.mkv',
           date_modified: '2026-01-02T03:04:05.000Z',
           attachments: [
-            { url: 'Shows/Season%201/S01E02%20%231%3F.mkv', mime_type: 'video/x-matroska', size_in_bytes: 10 },
+            { url: '../Shows/Season%201/S01E02%20%231%3F.mkv', mime_type: 'video/x-matroska', size_in_bytes: 10 },
           ],
           _media: { type: 'episode', title: 'Shows', season: 1, episode: 2 },
         },
