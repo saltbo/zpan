@@ -30,6 +30,7 @@ import type {
   LicenseBindingRepo,
   LicensingCloudGateway,
   MatterRepo,
+  MediaLibraryRepo,
   MemberCountRepo,
   NotificationRepo,
   OAuthGateway,
@@ -86,6 +87,7 @@ export interface Deps {
   licenseBinding: LicenseBindingRepo
   licensingCloud: LicensingCloudGateway
   matter: MatterRepo
+  mediaLibraries: MediaLibraryRepo
   memberCount: MemberCountRepo
   notifications: NotificationRepo
   objectUploadSessions: ObjectUploadSessionRepo

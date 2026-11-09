@@ -1856,6 +1856,7 @@
   "features.imageCustomDomains": "Image Custom Domains",
   "features.whiteLabel": "Custom Branding",
   "features.auditLog": "Audit Logs",
+  "features.mediaLibrary": "Media Library Indexing",
   "features.cloudStore": "Sell Storage & Traffic",
   "features.siteAnnouncements": "Site Announcements",
   "features.webhooks": "Event Webhooks",

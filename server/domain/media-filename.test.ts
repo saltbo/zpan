@@ -23,7 +23,7 @@ describe('parseMediaFilename', () => {
     ['holiday-clip.mov', { type: 'unknown', title: 'holiday-clip' }],
     ['2012.mkv', { type: 'unknown', title: '2012' }],
     ['Movie.1920x1080.mkv', { type: 'unknown', title: 'Movie.1920x1080' }],
-  ])('parses %s', (fileName, expected) => {
+  ])('parses %s [spec: media-library/parse-filenames]', (fileName, expected) => {
     expect(parseMediaFilename(fileName)).toEqual(expected)
   })
 })

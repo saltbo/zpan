@@ -22,21 +22,29 @@ export const archiveExtractJobRequestSchema = z.object({
   targetFolder: z.string().optional(),
 })
 
+export const mediaLibraryScanJobRequestSchema = z.object({
+  type: z.literal('media_library_scan'),
+  libraryId: opaqueIdSchema,
+})
+
 // The job types a client may create through POST /api/background-jobs.
 export const createBackgroundJobRequestSchema = z.discriminatedUnion('type', [
   archiveCompressJobRequestSchema,
   archiveExtractJobRequestSchema,
 ])
 
-// Every request a queued job can carry, including server-initiated job types.
+// Every request a queued job can carry. Media library scans are created through
+// /api/media-libraries and the sweep, never through the generic jobs endpoint.
 export const backgroundJobRequestSchema = z.discriminatedUnion('type', [
   archiveCompressJobRequestSchema,
   archiveExtractJobRequestSchema,
+  mediaLibraryScanJobRequestSchema,
 ])
 
 export type ArchiveCompressJobRequest = z.infer<typeof archiveCompressJobRequestSchema>
 export type ArchiveExtractJobRequest = z.infer<typeof archiveExtractJobRequestSchema>
 export type CreateBackgroundJobRequest = z.infer<typeof createBackgroundJobRequestSchema>
+export type MediaLibraryScanJobRequest = z.infer<typeof mediaLibraryScanJobRequestSchema>
 export type BackgroundJobRequest = z.infer<typeof backgroundJobRequestSchema>
 
 export const listBackgroundJobsQuerySchema = z.object({

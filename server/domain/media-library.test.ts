@@ -38,7 +38,7 @@ describe('folderPathsOverlap', () => {
 })
 
 describe('buildMediaLibraryFeed', () => {
-  it('builds a JSON Feed 1.1 snapshot of the videos under the library, ordered by path', () => {
+  it('builds a JSON Feed 1.1 snapshot of the videos under the library, ordered by path [spec: media-library/build-feed]', () => {
     const feed = buildMediaLibraryFeed({
       libraryId: 'lib-1',
       folderPath: 'Media/Movies',

@@ -52,7 +52,7 @@ export interface MediaLibraryFile {
   parent: string
   name: string
   type: string
-  size: number
+  size: number | null
   updatedAt: Date
 }
 
@@ -82,7 +82,7 @@ export function buildMediaLibraryFeed(input: {
             {
               url: path.split('/').map(encodeURIComponent).join('/'),
               mime_type: mimeType,
-              size_in_bytes: file.size,
+              size_in_bytes: file.size ?? 0,
             },
           ],
           _media: media,

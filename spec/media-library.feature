@@ -1,0 +1,78 @@
+Feature: Media libraries
+  A folder marked as a media library gets a JSON Feed index at
+  <folder>/.zpan/library.json that WebDAV clients fetch conditionally instead of
+  walking the folder tree. A 10-minute sweep rescans a library when its subtree
+  fingerprint changes. Media libraries are a Pro and Business feature.
+
+  @media-library/parse-filenames @domain
+  Scenario: Video filenames are parsed into movie, episode, or unknown metadata
+    Given release-style movie, episode, Chinese, and junk filenames
+    When they are parsed
+    Then each yields its media type, title, year, season, and episode
+
+  @media-library/build-feed @domain
+  Scenario: The index is a deterministic JSON Feed snapshot of the library videos
+    Given video and non-video files under a library folder
+    When the feed is built
+    Then it lists only the videos, ordered by path, with library-relative encoded URLs
+
+  @media-library/create-and-scan @api
+  Scenario: Marking a folder queues a scan that writes the index
+    Given a licensed workspace with videos in a folder
+    When the folder is marked as a media library
+    Then a scan job completes and .zpan/library.json lists the videos
+    And a WebDAV GET with the returned ETag answers 304
+
+  @media-library/sweep-rescans-on-change @api
+  Scenario: The sweep rescans only libraries whose subtree changed
+    Given a scanned media library
+    When the sweep runs without changes, then after a video is added and another renamed
+    Then only the changed state queues scans and the index is rewritten in place
+
+  @media-library/manual-rescan @api
+  Scenario: A rescan is refused while another scan is active
+    Given a media library with a queued scan
+    When a rescan is requested
+    Then it is rejected until the queued scan's lease expires
+
+  @media-library/no-nesting @api
+  Scenario: Libraries cannot overlap
+    Given a folder that is a media library
+    When its ancestor, its descendant, or the same folder is marked
+    Then each request is rejected with a specific reason
+
+  @media-library/sweep-lifecycle @api
+  Scenario: The sweep skips trashed library folders and drops purged ones
+    Given one library whose folder is trashed and one whose folder is purged
+    When the sweep runs
+    Then the trashed library is kept without a scan and the purged library is removed
+
+  @media-library/requires-license @api
+  Scenario: Community instances cannot use media libraries
+    Given an instance without a Pro or Business license
+    When a user lists or creates media libraries
+    Then the requests are blocked as a paid feature
+
+  @media-library/sweep-requires-license @api
+  Scenario: The sweep does nothing without a license
+    Given an existing media library on an instance without a license
+    When its subtree changes and the sweep runs
+    Then no scan is queued and the library stays in place
+
+  @media-library/editor-only @api
+  Scenario: Only editors manage media libraries
+    Given a workspace viewer and an anonymous caller
+    When they try to mark a folder as a media library
+    Then the viewer is forbidden and the anonymous caller is unauthenticated
+
+  @media-library/jobs-disabled @api
+  Scenario: Media libraries need background jobs
+    Given an environment with background jobs disabled
+    When a folder is marked as a media library
+    Then the request is rejected as unavailable
+
+  @media-library/queue-consumer @api
+  Scenario: The Workers queue consumer runs media library scans on D1
+    Given a media library scan message on the background job queue
+    When the Workers queue consumer receives it
+    Then the scan job completes and the index matter exists in D1

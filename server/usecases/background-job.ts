@@ -16,6 +16,7 @@ import { enqueueArchiveJob, processArchiveJob } from './archive-processing'
 // create dispatches on top of enqueueArchiveJob, which reaches across the archive
 // ports, so it forwards the whole Deps; the reads need only the narrow ports.
 import type { Deps } from './deps'
+import { processMediaLibraryScan } from './media-library-scan'
 import type { ActorIdentity, BackgroundJobMessage, ListBackgroundJobsOptions } from './ports'
 
 type JobType = BackgroundJobRequest['type']
@@ -27,6 +28,7 @@ type JobProcessor<T extends JobType> = (
 const JOB_PROCESSORS: { [T in JobType]: JobProcessor<T> } = {
   archive_compress: processArchiveJob,
   archive_extract: processArchiveJob,
+  media_library_scan: processMediaLibraryScan,
 }
 
 export async function runBackgroundJob(deps: Deps, message: BackgroundJobMessage): Promise<void> {

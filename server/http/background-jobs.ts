@@ -34,7 +34,7 @@ const backgroundJobProgressSchema = z.object({
   currentFilename: z.string().nullable(),
 })
 
-const backgroundJobSchema = z
+export const backgroundJobSchema = z
   .object({
     id: opaqueIdSchema,
     orgId: opaqueIdSchema,

@@ -23,6 +23,7 @@ import { events } from './http/events'
 import ihostConfig from './http/image-hosting/config'
 import ihost from './http/image-hosting/images'
 import internal from './http/internal'
+import { mediaLibraries } from './http/media-libraries'
 import { notifications } from './http/notifications'
 import { oauthAuthorizationDetails } from './http/oauth-authorization-details'
 import { oauthGrants } from './http/oauth-grants'
@@ -382,6 +383,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/site', system)
   app.route('/api/notifications', notifications)
   app.route('/api/background-jobs', backgroundJobs)
+  app.route('/api/media-libraries', mediaLibraries)
   app.route('/api/downloads/tasks', downloadTasks)
   app.route('/api/events', events)
   app.route('/api/downloads/downloaders', downloaderSelfRoute)
@@ -501,6 +503,7 @@ export type TeamsRoute = typeof teams
 export type PublicTeamsRoute = typeof publicTeams
 export type NotificationsRoute = typeof notifications
 export type BackgroundJobsRoute = typeof backgroundJobs
+export type MediaLibrariesRoute = typeof mediaLibraries
 export type DownloadTasksRoute = typeof downloadTasks
 export type EventsRoute = typeof events
 export type DownloadersRoute = typeof downloaders

@@ -34,6 +34,7 @@ import { createInstanceRepo } from './adapters/repos/instance'
 import { createInviteRepo } from './adapters/repos/invite'
 import { createLicenseBindingRepo } from './adapters/repos/license-binding'
 import { createMatterRepo } from './adapters/repos/matter'
+import { createMediaLibraryRepo } from './adapters/repos/media-library'
 import { createMemberCountRepo } from './adapters/repos/member-count'
 import { createNotificationRepo } from './adapters/repos/notification'
 import { createOAuthGateway } from './adapters/repos/oauth'
@@ -111,6 +112,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     licenseBinding,
     licensingCloud,
     matter: createMatterRepo(db),
+    mediaLibraries: createMediaLibraryRepo(db),
     memberCount: createMemberCountRepo(db),
     notifications: createNotificationRepo(db),
     objectUploadSessions: createObjectUploadSessionRepo(db),

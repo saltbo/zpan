@@ -13,7 +13,7 @@ import { join } from 'node:path'
 
 const ROOT = process.cwd()
 const SPEC_DIR = join(ROOT, 'spec')
-const TEST_DIRS = ['server', 'src', 'shared', 'e2e']
+const TEST_DIRS = ['server', 'src', 'shared', 'workers', 'e2e']
 const TEST_RE = /\.(test|integration\.test|cf-test|libsql-test|spec)\.[jt]sx?$/
 const ID_RE = /@([a-z0-9-]+\/[a-z0-9-]+)\b/g
 const REF_RE = /\[spec:\s*([a-z0-9-]+\/[a-z0-9-]+)\s*\]/g

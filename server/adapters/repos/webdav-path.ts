@@ -256,6 +256,13 @@ export function createWebDavPathRepo(db: Database, cache?: CacheService): WebDav
       }
       await Promise.all([...keys].map((key) => cache.invalidate(WEB_DAV_CHILDREN_CACHE_POLICY, key)))
     },
+
+    async invalidateFolders(orgId, folderPaths) {
+      if (!cache) return
+      await Promise.all(
+        folderPaths.map((path) => cache.invalidate(WEB_DAV_CHILDREN_CACHE_POLICY, childrenCacheKey(orgId, path))),
+      )
+    },
   }
 }
 

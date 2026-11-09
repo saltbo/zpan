@@ -1856,6 +1856,7 @@
   "features.imageCustomDomains": "图床自定义域名",
   "features.whiteLabel": "自定义品牌",
   "features.auditLog": "审计日志",
+  "features.mediaLibrary": "媒体库索引",
   "features.cloudStore": "售卖存储与流量",
   "features.siteAnnouncements": "站点公告",
   "features.webhooks": "事件 Webhooks",
