@@ -2717,6 +2717,10 @@ const (
 	GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesRead           GetOAuthConsentContext200JSONResponseBodyScopes = "invite-codes:read"
 	GetOAuthConsentContext200JSONResponseBodyScopesLicensingRead             GetOAuthConsentContext200JSONResponseBodyScopes = "licensing:read"
 	GetOAuthConsentContext200JSONResponseBodyScopesLicensingUpdate           GetOAuthConsentContext200JSONResponseBodyScopes = "licensing:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesCreate      GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesDelete      GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesRead        GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesUpdate      GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:update"
 	GetOAuthConsentContext200JSONResponseBodyScopesNotificationsRead         GetOAuthConsentContext200JSONResponseBodyScopes = "notifications:read"
 	GetOAuthConsentContext200JSONResponseBodyScopesNotificationsUpdate       GetOAuthConsentContext200JSONResponseBodyScopes = "notifications:update"
 	GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsCreate         GetOAuthConsentContext200JSONResponseBodyScopes = "oauth-grants:create"
@@ -2844,6 +2848,14 @@ func (e GetOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
 	case GetOAuthConsentContext200JSONResponseBodyScopesLicensingRead:
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesLicensingUpdate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesCreate:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesUpdate:
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesNotificationsRead:
 		return true
@@ -2984,6 +2996,10 @@ const (
 	ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "invite-codes:read"
 	ListOAuthGrants200JSONResponseBodyItemsScopesLicensingRead             ListOAuthGrants200JSONResponseBodyItemsScopes = "licensing:read"
 	ListOAuthGrants200JSONResponseBodyItemsScopesLicensingUpdate           ListOAuthGrants200JSONResponseBodyItemsScopes = "licensing:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesCreate      ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesDelete      ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesRead        ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesUpdate      ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:update"
 	ListOAuthGrants200JSONResponseBodyItemsScopesNotificationsRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "notifications:read"
 	ListOAuthGrants200JSONResponseBodyItemsScopesNotificationsUpdate       ListOAuthGrants200JSONResponseBodyItemsScopes = "notifications:update"
 	ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsCreate         ListOAuthGrants200JSONResponseBodyItemsScopes = "oauth-grants:create"
@@ -3111,6 +3127,14 @@ func (e ListOAuthGrants200JSONResponseBodyItemsScopes) Valid() bool {
 	case ListOAuthGrants200JSONResponseBodyItemsScopesLicensingRead:
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesLicensingUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesCreate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesUpdate:
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesNotificationsRead:
 		return true
@@ -5928,6 +5952,29 @@ type Matter struct {
 	UpdatedAt string `json:"updatedAt"`
 }
 
+// MediaLibrary defines model for MediaLibrary.
+type MediaLibrary struct {
+	CreatedAt string         `json:"createdAt"`
+	CreatedBy *ActorIdentity `json:"createdBy"`
+	FolderId  string         `json:"folderId"`
+
+	// FolderPath Current slash-delimited path of the library folder within the workspace.
+	FolderPath    string  `json:"folderPath"`
+	Id            string  `json:"id"`
+	LastScannedAt *string `json:"lastScannedAt"`
+	OrgId         string  `json:"orgId"`
+
+	// Scanning Whether a scan is queued or running.
+	Scanning  bool   `json:"scanning"`
+	UpdatedAt string `json:"updatedAt"`
+}
+
+// MediaLibraryPage defines model for MediaLibraryPage.
+type MediaLibraryPage struct {
+	Items         []MediaLibrary `json:"items"`
+	NextPageToken *string        `json:"nextPageToken"`
+}
+
 // Notification defines model for Notification.
 type Notification struct {
 	Body      string  `json:"body"`
@@ -7046,6 +7093,18 @@ type PresignImageHostingUploadJSONBody struct {
 // PresignImageHostingUploadJSONBodyMime defines parameters for PresignImageHostingUpload.
 type PresignImageHostingUploadJSONBodyMime string
 
+// ListMediaLibrariesParams defines parameters for ListMediaLibraries.
+type ListMediaLibrariesParams struct {
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+}
+
+// CreateMediaLibraryJSONBody defines parameters for CreateMediaLibrary.
+type CreateMediaLibraryJSONBody struct {
+	// FolderId ID of the folder to index as a media library.
+	FolderId string `json:"folderId"`
+}
+
 // ListNotificationsParams defines parameters for ListNotifications.
 type ListNotificationsParams struct {
 	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
@@ -7682,6 +7741,9 @@ type UpdateImageHostingConfigJSONRequestBody UpdateImageHostingConfigJSONBody
 
 // PresignImageHostingUploadJSONRequestBody defines body for PresignImageHostingUpload for application/json ContentType.
 type PresignImageHostingUploadJSONRequestBody PresignImageHostingUploadJSONBody
+
+// CreateMediaLibraryJSONRequestBody defines body for CreateMediaLibrary for application/json ContentType.
+type CreateMediaLibraryJSONRequestBody CreateMediaLibraryJSONBody
 
 // SubmitOAuthConsentJSONRequestBody defines body for SubmitOAuthConsent for application/json ContentType.
 type SubmitOAuthConsentJSONRequestBody SubmitOAuthConsentJSONBody
@@ -11170,6 +11232,20 @@ type ClientInterface interface {
 	// ConfirmImageHosting request
 	ConfirmImageHosting(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListMediaLibraries request
+	ListMediaLibraries(ctx context.Context, params *ListMediaLibrariesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateMediaLibraryWithBody request with any body
+	CreateMediaLibraryWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateMediaLibrary(ctx context.Context, body CreateMediaLibraryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteMediaLibrary request
+	DeleteMediaLibrary(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateMediaLibraryScan request
+	CreateMediaLibraryScan(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListNotifications request
 	ListNotifications(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -12268,6 +12344,66 @@ func (c *Client) GetImageHosting(ctx context.Context, id string, reqEditors ...R
 
 func (c *Client) ConfirmImageHosting(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewConfirmImageHostingRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListMediaLibraries(ctx context.Context, params *ListMediaLibrariesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListMediaLibrariesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateMediaLibraryWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMediaLibraryRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateMediaLibrary(ctx context.Context, body CreateMediaLibraryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMediaLibraryRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteMediaLibrary(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteMediaLibraryRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateMediaLibraryScan(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMediaLibraryScanRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -15938,6 +16074,180 @@ func NewConfirmImageHostingRequest(server string, id string) (*http.Request, err
 	}
 
 	req, err := http.NewRequest(http.MethodPut, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListMediaLibrariesRequest generates requests for ListMediaLibraries
+func NewListMediaLibrariesRequest(server string, params *ListMediaLibrariesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/media-libraries")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateMediaLibraryRequest calls the generic CreateMediaLibrary builder with application/json body
+func NewCreateMediaLibraryRequest(server string, body CreateMediaLibraryJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateMediaLibraryRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateMediaLibraryRequestWithBody generates requests for CreateMediaLibrary with any type of body
+func NewCreateMediaLibraryRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/media-libraries")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteMediaLibraryRequest generates requests for DeleteMediaLibrary
+func NewDeleteMediaLibraryRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/media-libraries/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateMediaLibraryScanRequest generates requests for CreateMediaLibraryScan
+func NewCreateMediaLibraryScanRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/media-libraries/%s/scans", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -21612,6 +21922,20 @@ type ClientWithResponsesInterface interface {
 	// ConfirmImageHostingWithResponse request
 	ConfirmImageHostingWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*ConfirmImageHostingResponse, error)
 
+	// ListMediaLibrariesWithResponse request
+	ListMediaLibrariesWithResponse(ctx context.Context, params *ListMediaLibrariesParams, reqEditors ...RequestEditorFn) (*ListMediaLibrariesResponse, error)
+
+	// CreateMediaLibraryWithBodyWithResponse request with any body
+	CreateMediaLibraryWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMediaLibraryResponse, error)
+
+	CreateMediaLibraryWithResponse(ctx context.Context, body CreateMediaLibraryJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMediaLibraryResponse, error)
+
+	// DeleteMediaLibraryWithResponse request
+	DeleteMediaLibraryWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteMediaLibraryResponse, error)
+
+	// CreateMediaLibraryScanWithResponse request
+	CreateMediaLibraryScanWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CreateMediaLibraryScanResponse, error)
+
 	// ListNotificationsWithResponse request
 	ListNotificationsWithResponse(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*ListNotificationsResponse, error)
 
@@ -23343,6 +23667,136 @@ func (r ConfirmImageHostingResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ConfirmImageHostingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListMediaLibrariesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MediaLibraryPage
+}
+
+// Status returns HTTPResponse.Status
+func (r ListMediaLibrariesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListMediaLibrariesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListMediaLibrariesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateMediaLibraryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *MediaLibrary
+	JSON400      *Error
+	JSON402      *Error
+	JSON404      *Error
+	JSON409      *Error
+	JSON422      *Error
+	JSON503      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateMediaLibraryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateMediaLibraryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateMediaLibraryResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteMediaLibraryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteMediaLibraryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteMediaLibraryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteMediaLibraryResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateMediaLibraryScanResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *BackgroundJob
+	JSON402      *Error
+	JSON404      *Error
+	JSON409      *Error
+	JSON503      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateMediaLibraryScanResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateMediaLibraryScanResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateMediaLibraryScanResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -27962,6 +28416,50 @@ func (c *ClientWithResponses) ConfirmImageHostingWithResponse(ctx context.Contex
 	return ParseConfirmImageHostingResponse(rsp)
 }
 
+// ListMediaLibrariesWithResponse request returning *ListMediaLibrariesResponse
+func (c *ClientWithResponses) ListMediaLibrariesWithResponse(ctx context.Context, params *ListMediaLibrariesParams, reqEditors ...RequestEditorFn) (*ListMediaLibrariesResponse, error) {
+	rsp, err := c.ListMediaLibraries(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListMediaLibrariesResponse(rsp)
+}
+
+// CreateMediaLibraryWithBodyWithResponse request with arbitrary body returning *CreateMediaLibraryResponse
+func (c *ClientWithResponses) CreateMediaLibraryWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMediaLibraryResponse, error) {
+	rsp, err := c.CreateMediaLibraryWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateMediaLibraryResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateMediaLibraryWithResponse(ctx context.Context, body CreateMediaLibraryJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMediaLibraryResponse, error) {
+	rsp, err := c.CreateMediaLibrary(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateMediaLibraryResponse(rsp)
+}
+
+// DeleteMediaLibraryWithResponse request returning *DeleteMediaLibraryResponse
+func (c *ClientWithResponses) DeleteMediaLibraryWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteMediaLibraryResponse, error) {
+	rsp, err := c.DeleteMediaLibrary(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteMediaLibraryResponse(rsp)
+}
+
+// CreateMediaLibraryScanWithResponse request returning *CreateMediaLibraryScanResponse
+func (c *ClientWithResponses) CreateMediaLibraryScanWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CreateMediaLibraryScanResponse, error) {
+	rsp, err := c.CreateMediaLibraryScan(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateMediaLibraryScanResponse(rsp)
+}
+
 // ListNotificationsWithResponse request returning *ListNotificationsResponse
 func (c *ClientWithResponses) ListNotificationsWithResponse(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*ListNotificationsResponse, error) {
 	rsp, err := c.ListNotifications(ctx, params, reqEditors...)
@@ -31037,6 +31535,180 @@ func ParseConfirmImageHostingResponse(rsp *http.Response) (*ConfirmImageHostingR
 			return nil, err
 		}
 		response.JSON422 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListMediaLibrariesResponse parses an HTTP response from a ListMediaLibrariesWithResponse call
+func ParseListMediaLibrariesResponse(rsp *http.Response) (*ListMediaLibrariesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListMediaLibrariesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MediaLibraryPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateMediaLibraryResponse parses an HTTP response from a CreateMediaLibraryWithResponse call
+func ParseCreateMediaLibraryResponse(rsp *http.Response) (*CreateMediaLibraryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateMediaLibraryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest MediaLibrary
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteMediaLibraryResponse parses an HTTP response from a DeleteMediaLibraryWithResponse call
+func ParseDeleteMediaLibraryResponse(rsp *http.Response) (*DeleteMediaLibraryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteMediaLibraryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateMediaLibraryScanResponse parses an HTTP response from a CreateMediaLibraryScanWithResponse call
+func ParseCreateMediaLibraryScanResponse(rsp *http.Response) (*CreateMediaLibraryScanResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateMediaLibraryScanResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest BackgroundJob
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 

@@ -13,6 +13,7 @@ const FEATURE_LABELS: Record<ProFeature, string> = {
   site_announcements: 'site announcements',
   analytics: 'analytics',
   image_custom_domains: 'image custom domains',
+  media_library: 'media library indexing',
 }
 
 export interface UpgradeHintProps {

@@ -1,16 +1,18 @@
 import type { BackgroundJob, BackgroundJobStatus } from '@shared/types'
 import { and, count, desc, eq, inArray, lt, or, type SQL, sql } from 'drizzle-orm'
 import { generateId } from '../../../shared/ids'
-import { backgroundJobs } from '../../db/schema'
-import { executeWriteTransaction } from '../../db/transaction'
+import { backgroundJobs, resourceChanges } from '../../db/schema'
+import { executeWriteTransaction, rowsPerInsert } from '../../db/transaction'
+import { chunk } from '../../lib/chunk'
 import type { Database } from '../../platform/interface'
 import {
   BackgroundJobError,
   type BackgroundJobMetadata,
   type BackgroundJobRepo,
+  type CreateBackgroundJobInput,
   type ListBackgroundJobsOptions,
 } from '../../usecases/ports'
-import { resourceChangeQuery } from './resource-change'
+import { resourceChangeQuery, resourceChangeRow } from './resource-change'
 
 type BackgroundJobRow = typeof backgroundJobs.$inferSelect
 
@@ -77,6 +79,33 @@ function toBackgroundJob(row: BackgroundJobRow): BackgroundJob {
   }
 }
 
+function newJobRow(input: CreateBackgroundJobInput, now: Date): BackgroundJobRow {
+  return {
+    id: generateId(),
+    orgId: input.orgId,
+    userId: input.userId,
+    type: input.type,
+    status: 'queued',
+    targetFolder: input.targetFolder ?? null,
+    targetPath: input.targetPath ?? null,
+    metadata: stringifyMetadata(input.metadata),
+    inputBytes: input.progress?.inputBytes ?? 0,
+    outputBytes: input.progress?.outputBytes ?? 0,
+    processedBytes: input.progress?.processedBytes ?? 0,
+    fileCount: input.progress?.fileCount ?? 0,
+    currentFilename: input.progress?.currentFilename ?? null,
+    errorMessage: null,
+    resultMetadata: null,
+    retryable: input.retryable ?? false,
+    cancelable: input.cancelable ?? true,
+    retriedFromJobId: null,
+    createdAt: now,
+    updatedAt: now,
+    startedAt: null,
+    finishedAt: null,
+  }
+}
+
 export function createBackgroundJobRepo(db: Database): BackgroundJobRepo {
   async function getRow(orgId: string, id: string): Promise<BackgroundJobRow | null> {
     const rows = await db
@@ -89,44 +118,29 @@ export function createBackgroundJobRepo(db: Database): BackgroundJobRepo {
 
   const repo: BackgroundJobRepo = {
     async create(input) {
+      const [job] = await repo.createMany([input])
+      return job
+    },
+
+    async createMany(inputs) {
       const now = new Date()
-      const row: typeof backgroundJobs.$inferInsert = {
-        id: generateId(),
-        orgId: input.orgId,
-        userId: input.userId,
-        type: input.type,
-        status: 'queued',
-        targetFolder: input.targetFolder ?? null,
-        targetPath: input.targetPath ?? null,
-        metadata: stringifyMetadata(input.metadata),
-        inputBytes: input.progress?.inputBytes ?? 0,
-        outputBytes: input.progress?.outputBytes ?? 0,
-        processedBytes: input.progress?.processedBytes ?? 0,
-        fileCount: input.progress?.fileCount ?? 0,
-        currentFilename: input.progress?.currentFilename ?? null,
-        errorMessage: null,
-        resultMetadata: null,
-        retryable: input.retryable ?? false,
-        cancelable: input.cancelable ?? true,
-        retriedFromJobId: null,
-        createdAt: now,
-        updatedAt: now,
-        startedAt: null,
-        finishedAt: null,
-      }
-      await executeWriteTransaction(db, [
-        db.insert(backgroundJobs).values(row),
-        resourceChangeQuery(db, {
+      const rows = inputs.map((input) => newJobRow(input, now))
+      const changes = rows.map((row) =>
+        resourceChangeRow({
           scopeType: 'organization',
-          scopeId: input.orgId,
+          scopeId: row.orgId,
           resourceType: 'background_job',
           resourceId: row.id,
           changeType: 'upsert',
           action: 'created',
           occurredAt: now,
         }),
+      )
+      await executeWriteTransaction(db, [
+        ...chunk(rows, rowsPerInsert(rows[0])).map((values) => db.insert(backgroundJobs).values(values)),
+        ...chunk(changes, rowsPerInsert(changes[0])).map((values) => db.insert(resourceChanges).values(values)),
       ])
-      return toBackgroundJob(row as BackgroundJobRow)
+      return rows.map(toBackgroundJob)
     },
 
     async list(orgId, opts) {

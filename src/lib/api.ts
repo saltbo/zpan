@@ -17,6 +17,7 @@ import type {
   DownloadTaskActionInput,
   EmailSettings,
   ImageDomainProviderResponse,
+  MediaLibrary,
   OAuthConsentContext,
   OAuthConsentResult,
   OAuthConsentSubmit,
@@ -120,6 +121,7 @@ import {
   inviteCodes,
   licensingAdminApi,
   licensingApi,
+  mediaLibrariesApi,
   notificationsApi,
   oauthGrantsApi,
   objects,
@@ -538,6 +540,33 @@ export function cancelBackgroundJob(id: string) {
 
 export function retryBackgroundJob(id: string) {
   return unwrap<BackgroundJob>(backgroundJobsApi[':id'].retries.$post({ param: { id } }))
+}
+
+// Media Libraries API
+
+// The file manager joins libraries to folders by id, so it needs every page.
+export async function listMediaLibraries(): Promise<MediaLibrary[]> {
+  const libraries: MediaLibrary[] = []
+  let pageToken: string | undefined
+  do {
+    const query: Record<string, string> = { pageSize: '100', ...(pageToken ? { pageToken } : {}) }
+    const page = await unwrap<CursorPage<MediaLibrary>>(mediaLibrariesApi.index.$get({ query }))
+    libraries.push(...page.items)
+    pageToken = page.nextPageToken ?? undefined
+  } while (pageToken)
+  return libraries
+}
+
+export function createMediaLibrary(folderId: string) {
+  return unwrap<MediaLibrary>(mediaLibrariesApi.index.$post({ json: { folderId } }))
+}
+
+export function deleteMediaLibrary(id: string) {
+  return discard(mediaLibrariesApi[':id'].$delete({ param: { id } }))
+}
+
+export function scanMediaLibrary(id: string) {
+  return unwrap<BackgroundJob>(mediaLibrariesApi[':id'].scans.$post({ param: { id } }))
 }
 
 // Admin dashboard stats

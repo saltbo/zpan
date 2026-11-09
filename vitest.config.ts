@@ -78,6 +78,7 @@ const isolatedCloudflareTests = [
   'workers/bootstrap-image-domain.cf-test.ts',
   'workers/bootstrap-init.cf-test.ts',
   'workers/bootstrap.cf-test.ts',
+  'workers/media-library-sweep.cf-test.ts',
 ]
 
 const backendHttpIntegrationTests = [

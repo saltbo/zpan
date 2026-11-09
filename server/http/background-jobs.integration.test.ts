@@ -1,10 +1,11 @@
 import { sql } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ARCHIVE_QUEUE_BINDING, createArchiveJobsGateway } from '../adapters/gateways/archive-jobs'
+import { BACKGROUND_JOB_QUEUE_BINDING } from '../adapters/gateways/background-job-queue'
 import { S3Service } from '../adapters/gateways/s3'
 import { createBackgroundJobRepo } from '../adapters/repos/background-job'
 import { authedHeaders, createTestApp } from '../test/setup.js'
-import type { ArchiveJobMessage } from '../usecases/ports'
+import { runBackgroundJob } from '../usecases/background-job'
+import type { BackgroundJobMessage } from '../usecases/ports'
 
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
 
@@ -187,9 +188,9 @@ describe('background jobs API', () => {
   })
 
   it('dispatches archive jobs to Cloudflare Queue bindings and lets the consumer complete them [spec: background-jobs/queue-dispatch]', async () => {
-    const messages: ArchiveJobMessage[] = []
-    const queue = { send: async (message: ArchiveJobMessage) => messages.push(message) }
-    const { app, db, platform } = await createTestApp({}, { [ARCHIVE_QUEUE_BINDING]: queue })
+    const messages: BackgroundJobMessage[] = []
+    const queue = { send: async (message: BackgroundJobMessage) => messages.push(message) }
+    const { app, db, deps } = await createTestApp({}, { [BACKGROUND_JOB_QUEUE_BINDING]: queue })
     const headers = await authedHeaders(app, 'jobs-queue@example.com')
     const { orgId } = await getUserOrg(db, 'jobs-queue@example.com')
     await seedStorage(db)
@@ -239,7 +240,7 @@ describe('background jobs API', () => {
     expect(messages[0].createdBy).toMatchObject({ type: 'user', issuer: null })
     await expect(createBackgroundJobRepo(db).get(orgId, created.id)).resolves.toMatchObject({ status: 'queued' })
 
-    await createArchiveJobsGateway(platform).runMessage(messages[0])
+    await runBackgroundJob(deps, messages[0])
 
     await expect(createBackgroundJobRepo(db).get(orgId, created.id)).resolves.toMatchObject({
       status: 'completed',

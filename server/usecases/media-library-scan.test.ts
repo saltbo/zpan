@@ -1,0 +1,134 @@
+import { DirType } from '@shared/constants'
+import type { BackgroundJob } from '@shared/types'
+import { describe, expect, it, vi } from 'vitest'
+import type { Deps } from './deps'
+import { processMediaLibraryScan } from './media-library-scan'
+import type { Matter, MediaLibraryState } from './ports'
+
+const library: MediaLibraryState = {
+  id: 'lib-1',
+  orgId: 'org-1',
+  folderId: 'folder-1',
+  folder: { path: 'Movies', name: 'Movies', trashed: false },
+  fingerprint: null,
+  lastScannedAt: null,
+  scanning: true,
+  createdByUserId: 'user-1',
+  createdBy: { type: 'user', ref: 'user-1', issuer: null },
+  createdAt: new Date(),
+  updatedAt: new Date(),
+}
+
+const message = {
+  jobId: 'job-1',
+  orgId: 'org-1',
+  userId: 'user-1',
+  createdBy: { type: 'user' as const, ref: 'user-1', issuer: null },
+  request: { type: 'media_library_scan' as const, libraryId: 'lib-1' },
+}
+
+const index = {
+  id: 'index-1',
+  name: 'library.json',
+  parent: 'Movies',
+  type: 'application/feed+json',
+  dirtype: DirType.FILE,
+  size: 1,
+  object: 'objects/index-1.json',
+  storageId: 'storage-1',
+} as Matter
+
+function makeDeps(
+  overrides: { library?: MediaLibraryState | null; index?: Partial<Matter> | null; quota?: boolean } = {},
+) {
+  const updates: Record<string, unknown>[] = []
+  const deps = {
+    backgroundJobs: {
+      update: vi.fn(async (_orgId: string, _id: string, input: Record<string, unknown>) => {
+        updates.push(input)
+        return input as unknown as BackgroundJob
+      }),
+    },
+    mediaLibraries: {
+      get: vi.fn(async () => (overrides.library === undefined ? library : overrides.library)),
+      delete: vi.fn(async () => true),
+      listByOrg: vi.fn(async () => [library]),
+      fingerprint: vi.fn(async () => '3:30:100:300'),
+      listVideoFilesPage: vi.fn(async () => []),
+      recordScan: vi.fn(async () => {}),
+    },
+    matter: {
+      findActiveConflict: vi.fn(async () =>
+        overrides.index === null ? null : ({ ...index, ...overrides.index } as Matter),
+      ),
+      applyUpload: vi.fn(async () => {}),
+    },
+    storages: { get: vi.fn(async () => ({ id: 'storage-1' })) },
+    s3: {
+      putObject: vi.fn(async (_storage: unknown, _key: string, body: ReadableStream) => {
+        return (await new Response(body).arrayBuffer()).byteLength
+      }),
+      deleteObject: vi.fn(async () => {}),
+    },
+    quota: { incrementUsageIfEffectiveQuotaAllows: vi.fn(async () => overrides.quota ?? true) },
+    storageUsage: { rollbackReservations: vi.fn(async () => {}) },
+    webdavPath: { invalidateFolders: vi.fn(async () => {}) },
+  }
+  return { deps, updates, typed: deps as unknown as Deps }
+}
+
+describe('processMediaLibraryScan', () => {
+  it.each([
+    ['missing', null],
+    ['a case variant', { name: 'Library.json' }],
+    ['a folder', { dirtype: DirType.USER_FOLDER, type: 'folder' }],
+    ['a file of another type', { type: 'application/json' }],
+  ])('turns the library off without writing an index when the index is %s', async (_label, entry) => {
+    const { deps, typed, updates } = makeDeps({ index: entry })
+
+    await processMediaLibraryScan(typed, message)
+
+    expect(updates.at(-1)).toMatchObject({
+      status: 'failed',
+      errorMessage: 'Media library index was removed, so the library was turned off',
+    })
+    expect(deps.mediaLibraries.delete).toHaveBeenCalledWith('org-1', 'lib-1')
+    expect(deps.s3.putObject).not.toHaveBeenCalled()
+  })
+
+  it('reports a quota failure for the index and deletes the object it wrote', async () => {
+    const { deps, typed, updates } = makeDeps({ quota: false })
+
+    await processMediaLibraryScan(typed, message)
+
+    expect(updates.at(-1)).toMatchObject({
+      status: 'failed',
+      errorMessage: 'Quota exceeded for the media library index',
+    })
+    const [[, written]] = deps.s3.putObject.mock.calls
+    expect(deps.s3.deleteObject.mock.calls).toEqual([[{ id: 'storage-1' }, written]])
+    expect(deps.matter.applyUpload).not.toHaveBeenCalled()
+    expect(deps.mediaLibraries.recordScan).toHaveBeenCalledWith('org-1', 'lib-1', { fingerprint: '3:30:100:300' })
+  })
+
+  it('drops the library and fails the job when its folder was purged', async () => {
+    const { deps, typed, updates } = makeDeps({ library: { ...library, folder: null } })
+
+    await processMediaLibraryScan(typed, message)
+
+    expect(deps.mediaLibraries.delete).toHaveBeenCalledWith('org-1', 'lib-1')
+    expect(updates.at(-1)).toMatchObject({ status: 'failed', errorMessage: 'Media library folder no longer exists' })
+  })
+
+  it.each([
+    [null, 'Media library not found'],
+    [{ ...library, folder: { path: 'Movies', name: 'Movies', trashed: true } }, 'Media library folder is in trash'],
+  ])('fails without scanning when the library is unavailable (%#)', async (state, errorMessage) => {
+    const { deps, typed, updates } = makeDeps({ library: state })
+
+    await processMediaLibraryScan(typed, message)
+
+    expect(updates.at(-1)).toMatchObject({ status: 'failed', errorMessage })
+    expect(deps.mediaLibraries.fingerprint).not.toHaveBeenCalled()
+  })
+})
