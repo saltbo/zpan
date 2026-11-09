@@ -7,6 +7,7 @@ export const BACKGROUND_JOB_QUEUE_BINDING = 'ARCHIVE_QUEUE'
 
 interface QueueProducer {
   send(message: BackgroundJobMessage): Promise<void>
+  sendBatch(messages: Iterable<{ body: BackgroundJobMessage }>): Promise<void>
 }
 
 // When no queue binding is present (Node/dev), jobs run in-process. The queue
@@ -58,6 +59,15 @@ export function createBackgroundJobQueue(
         return
       }
       localQueue.push(message)
+    },
+
+    async dispatchBatch(messages) {
+      const queue = platform.getBinding<QueueProducer>(BACKGROUND_JOB_QUEUE_BINDING)
+      if (queue) {
+        await queue.sendBatch(messages.map((body) => ({ body })))
+        return
+      }
+      for (const message of messages) localQueue.push(message)
     },
   }
 }

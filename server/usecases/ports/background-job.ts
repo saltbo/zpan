@@ -44,6 +44,8 @@ export class BackgroundJobError extends Error {
 
 export interface BackgroundJobRepo {
   create(input: CreateBackgroundJobInput): Promise<BackgroundJob>
+  // One atomic write for all jobs; returns them in input order.
+  createMany(inputs: readonly CreateBackgroundJobInput[]): Promise<BackgroundJob[]>
   list(
     orgId: string,
     opts: ListBackgroundJobsOptions,

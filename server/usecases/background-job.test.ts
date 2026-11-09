@@ -31,6 +31,7 @@ function makeDeps(
 ) {
   const backgroundJobs: BackgroundJobRepo = {
     create: vi.fn(async () => sampleJob),
+    createMany: vi.fn(async () => [sampleJob]),
     list: vi.fn(async () => ({ items: [], nextBoundary: null })),
     activeSummary: vi.fn(async () => ({ count: 0, fingerprint: '' })),
     get: vi.fn(async () => sampleJob),
