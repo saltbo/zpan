@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   updateSiteCaptcha,
   updateSiteIdentity,
+  updateSiteMediaScraping,
   updateSiteQuotas,
   updateSiteRegistration,
   updateSiteWebDav,
@@ -15,6 +16,7 @@ import { SettingsPage } from './index'
 
 const state = vi.hoisted(() => ({
   whiteLabel: true,
+  mediaLibrary: true,
   settings: {
     identity: { name: 'ZPan', description: 'File hosting', publicUrl: 'https://zpan.example.com' },
     registration: { configuredMode: 'open', effectiveMode: 'open' },
@@ -39,6 +41,7 @@ const state = vi.hoisted(() => ({
       lastVerifiedAt: null,
       error: null,
     },
+    mediaScraping: { language: 'ja-JP' as const, tmdbTokenConfigured: true },
   },
 }))
 
@@ -58,13 +61,17 @@ vi.mock('@/hooks/use-site-settings', () => ({
 }))
 vi.mock('@/hooks/use-site-config', () => ({ siteConfigQueryKey: ['site', 'config'] }))
 vi.mock('@/hooks/useEntitlement', () => ({
-  useEntitlement: () => ({ hasFeature: (feature: string) => feature !== 'white_label' || state.whiteLabel }),
+  useEntitlement: () => ({
+    hasFeature: (feature: string) =>
+      feature === 'white_label' ? state.whiteLabel : feature === 'media_library' ? state.mediaLibrary : true,
+  }),
 }))
 vi.mock('@/lib/api', () => ({
   updateSiteIdentity: vi.fn(),
   updateSiteRegistration: vi.fn(),
   updateSiteWebDav: vi.fn(),
   updateSiteCaptcha: vi.fn(),
+  updateSiteMediaScraping: vi.fn(),
   updateSiteQuotas: vi.fn(),
   verifySiteWebDav: vi.fn(),
 }))
@@ -104,6 +111,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   state.whiteLabel = true
+  state.mediaLibrary = true
 })
 
 describe('SettingsPage', () => {
@@ -192,6 +200,34 @@ describe('SettingsPage', () => {
         minScore: null,
       }),
     )
+  })
+
+  it('saves the scraping language and sends a TMDB token only when one is entered [spec: media-scraping/settings]', async () => {
+    vi.mocked(updateSiteMediaScraping).mockResolvedValue(state.settings.mediaScraping)
+    const view = renderSettingsPage()
+    expect(view.getByText('日本語 (日本) · ja-JP · admin.settings.tmdbTokenConfigured')).toBeTruthy()
+
+    openSection(view, 'admin.settings.scrapingTitle')
+    expect(view.getByLabelText('admin.settings.tmdbAccessToken')).toHaveProperty('placeholder', '••••••••')
+    fireEvent.click(view.getByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(updateSiteMediaScraping).toHaveBeenCalledWith({ language: 'ja-JP' }))
+
+    openSection(view, 'admin.settings.scrapingTitle')
+    fireEvent.change(view.getByLabelText('admin.settings.tmdbAccessToken'), { target: { value: ' new-token ' } })
+    fireEvent.click(view.getByRole('button', { name: 'common.save' }))
+    await waitFor(() =>
+      expect(updateSiteMediaScraping).toHaveBeenLastCalledWith({ language: 'ja-JP', tmdbAccessToken: 'new-token' }),
+    )
+  })
+
+  it('locks scraping settings without the media library feature [spec: media-scraping/settings]', () => {
+    state.mediaLibrary = false
+    const view = renderSettingsPage()
+    openSection(view, 'admin.settings.scrapingTitle')
+
+    expect(view.getByLabelText('admin.settings.tmdbAccessToken')).toHaveProperty('disabled', true)
+    expect(view.getByRole('button', { name: 'common.save' })).toHaveProperty('disabled', true)
+    expect(view.getByText('admin.settings.scrapingUpgradeHint')).toBeTruthy()
   })
 
   it('shows email configuration on the settings page', () => {

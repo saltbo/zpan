@@ -3,21 +3,25 @@ import { AuthorizationScope } from '@shared/authorization'
 import {
   siteCaptchaSettingsSchema,
   siteIdentitySettingsSchema,
+  siteMediaScrapingSettingsSchema,
   siteQuotaSettingsSchema,
   siteRegistrationSettingsSchema,
   siteSettingsSchema,
   siteWebDavSettingsSchema,
   updateSiteCaptchaSchema,
   updateSiteIdentitySchema,
+  updateSiteMediaScrapingSchema,
   updateSiteQuotasSchema,
   updateSiteRegistrationSchema,
   updateSiteWebDavSchema,
 } from '@shared/schemas'
 import type { Env } from '../../middleware/platform'
+import { requireFeature } from '../../middleware/require-feature'
 import {
   getSiteSettings,
   updateSiteCaptcha,
   updateSiteIdentity,
+  updateSiteMediaScraping,
   updateSiteQuotas,
   updateSiteRegistration,
   updateSiteWebDav,
@@ -99,6 +103,25 @@ const updateQuotasRoute = authRoute(
   },
 )
 
+const updateMediaScrapingRoute = authRoute(
+  { scopes: [AuthorizationScope.SITE_SETTINGS_UPDATE], siteRole: 'admin' },
+  {
+    operationId: 'updateSiteMediaScraping',
+    summary: 'Update media library scraping settings',
+    description:
+      'Sets the TMDB language and the TMDB API Read Access Token. The token is write-only: omit it to keep the saved one, or send an empty string to remove it.',
+    tags: ['Site Settings'],
+    method: 'put',
+    path: '/media-scraping',
+    middleware: [requireFeature('media_library')] as const,
+    request: jsonBody(updateSiteMediaScrapingSchema),
+    responses: {
+      200: jsonContent(siteMediaScrapingSettingsSchema, 'Updated scraping settings'),
+      402: errorResponse('Media libraries require a Pro or Business license'),
+    },
+  },
+)
+
 const verifyWebDavRoute = authRoute(
   { scopes: [AuthorizationScope.SITE_SETTINGS_UPDATE], siteRole: 'admin' },
   {
@@ -139,3 +162,6 @@ export const siteSettings = new OpenAPIHono<Env>()
     c.json(await updateSiteWebDav(c.get('deps'), c.req.valid('json'), c.req.url), 200),
   )
   .openapi(verifyWebDavRoute, async (c) => c.json(await verifySiteWebDav(c.get('deps'), c.req.url, fetch), 200))
+  .openapi(updateMediaScrapingRoute, async (c) =>
+    c.json(await updateSiteMediaScraping(c.get('deps'), c.req.valid('json')), 200),
+  )

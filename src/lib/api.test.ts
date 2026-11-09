@@ -156,6 +156,7 @@ import {
   updateOrgEntitlement,
   updateSiteCaptcha,
   updateSiteIdentity,
+  updateSiteMediaScraping,
   updateSiteQuotas,
   updateSiteRegistration,
   updateSiteWebDav,
@@ -2253,6 +2254,33 @@ describe('api', () => {
       expect(url).toContain('/api/site/settings/captcha')
       expect(init.method).toBe('PUT')
       expect(JSON.parse(String(init.body))).toEqual(input)
+    })
+
+    it('updates the scraping language and sends a token only when given', async () => {
+      const result = { language: 'zh-CN', tmdbTokenConfigured: true }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(result))
+      await expect(updateSiteMediaScraping({ language: 'zh-CN', tmdbAccessToken: 'token' })).resolves.toEqual(result)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/media-scraping')
+      expect(init.method).toBe('PUT')
+      expect(JSON.parse(String(init.body))).toEqual({ language: 'zh-CN', tmdbAccessToken: 'token' })
+    })
+
+    it('throws ApiError when scraping settings need a license', async () => {
+      const body = {
+        error: {
+          code: 402,
+          message: 'Feature not available',
+          status: 'FAILED_PRECONDITION',
+          details: [{ reason: 'FEATURE_NOT_AVAILABLE', domain: 'zpan.dev' }],
+        },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(body, false, 402))
+      await expect(updateSiteMediaScraping({ language: 'en-US' })).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 402,
+        reason: 'FEATURE_NOT_AVAILABLE',
+      })
     })
 
     it('throws when updating captcha fails', async () => {

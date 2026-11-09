@@ -135,3 +135,10 @@ Feature: Media library scraping
     When their query plans are explained
     Then each searches one subtree range of matters and joins media_scrapes on its primary key
     And the bound parameters stay fixed whatever the library size
+
+  @media-scraping/settings @api
+  Scenario: An administrator saves the scraping language and a write-only TMDB token
+    Given a site administrator on a licensed instance
+    When they save a language and a TMDB API Read Access Token, then save again without a token, then with an empty one
+    Then the settings show only whether a token is saved, a save without a token keeps it, and an empty one removes it
+    And a community instance cannot save scraping settings
