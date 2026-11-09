@@ -57,7 +57,7 @@ const KNOWN_METADATA_FIELDS = new Set([
   'jwks_uri',
   'grant_types',
   'response_types',
-  'type',
+  'application_type',
   'subject_type',
   'dpop_bound_access_tokens',
   'resources',
@@ -92,7 +92,7 @@ const oauthClientMetadataOpenApiProperties = {
   post_logout_redirect_uris: { type: 'array', items: { type: 'string', format: 'uri' } },
   backchannel_logout_uri: { type: 'string', format: 'uri' },
   backchannel_logout_session_required: { type: 'boolean' },
-  type: { type: 'string', enum: ['web', 'native', 'user-agent-based'] },
+  application_type: { type: 'string', enum: ['web', 'native'] },
   subject_type: { type: 'string', enum: ['public', 'pairwise'] },
   dpop_bound_access_tokens: { type: 'boolean' },
   authorization_details_types: { type: 'array', items: { type: 'string' } },
@@ -129,7 +129,7 @@ const updateSchema = z
     jwks_uri: absoluteUrl.optional(),
     grant_types: z.array(z.string().min(1)).default(['authorization_code']),
     response_types: z.array(z.literal('code')).optional(),
-    type: z.enum(['web', 'native', 'user-agent-based']).optional(),
+    application_type: z.enum(['web', 'native']).optional(),
     subject_type: z.enum(['public', 'pairwise']).optional(),
     dpop_bound_access_tokens: z.boolean().optional(),
     authorization_details_types: z.array(z.string().min(1)).optional(),
@@ -317,6 +317,7 @@ async function updateClient(
   if (!raw) return invalidClientMetadata('Request body must be a JSON object')
   const forbidden = FORBIDDEN_UPDATE_FIELDS.find((field) => field in raw)
   if (forbidden) return invalidClientMetadata(`${forbidden} must not be included in an update request`)
+  if ('type' in raw) return invalidClientMetadata('type is no longer supported; use application_type (web or native)')
 
   const parsed = updateSchema.safeParse(raw)
   if (!parsed.success) return invalidClientMetadata(parsed.error.issues[0]?.message ?? 'Invalid client metadata')
@@ -367,7 +368,7 @@ async function updateClient(
       jwksUri: metadata.jwks_uri ?? null,
       grantTypes: JSON.stringify(metadata.grant_types),
       responseTypes: json(metadata.response_types),
-      type: metadata.type ?? null,
+      applicationType: metadata.application_type ?? null,
       requirePKCE: metadata.require_pkce ?? null,
       dpopBoundAccessTokens: metadata.dpop_bound_access_tokens ?? false,
       subjectType: metadata.subject_type ?? null,
@@ -451,7 +452,7 @@ async function clientInformation(
     jwks_uri: client.jwksUri,
     grant_types: parseArray(client.grantTypes),
     response_types: parseArray(client.responseTypes),
-    type: client.type,
+    application_type: client.applicationType,
     require_pkce: client.requirePKCE,
     dpop_bound_access_tokens: client.dpopBoundAccessTokens,
     subject_type: client.subjectType,

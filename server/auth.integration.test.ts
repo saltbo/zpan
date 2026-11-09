@@ -1048,6 +1048,8 @@ describe('OAuth consent guards', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         client_name: 'Local External Resource Broker',
+        // RFC 8252 §7.3: plain-HTTP loopback redirects belong to native clients.
+        application_type: 'native',
         redirect_uris: ['http://localhost:4179/api/account-connections/oauth/callback'],
         grant_types: [
           'authorization_code',
@@ -1196,6 +1198,68 @@ describe('OAuth consent guards', () => {
     const readDeleted = await ctx.app.request(registered.registration_client_uri, { headers: authorization })
     expect(readDeleted.status).toBe(401)
     expect(await ctx.db.select().from(authSchema.oauthClientRegistration)).toEqual([])
+  })
+
+  it('manages application_type through RFC 7592 and rejects the legacy type field', async () => {
+    const ctx = await createTestApp()
+    const registration = await ctx.app.request('/api/auth/oauth2/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Native Broker',
+        application_type: 'native',
+        redirect_uris: ['http://127.0.0.1:4180/oauth/callback'],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'client_secret_basic',
+        scope: 'openid offline_access',
+      }),
+    })
+    const registered = (await registration.json()) as {
+      client_id: string
+      client_secret: string
+      registration_access_token: string
+      registration_client_uri: string
+    }
+    expect(registration.status, JSON.stringify(registered)).toBe(201)
+    const authorization = { Authorization: `Bearer ${registered.registration_access_token}` }
+    const [stored] = await ctx.db
+      .select()
+      .from(authSchema.oauthClient)
+      .where(eq(authSchema.oauthClient.clientId, registered.client_id))
+    expect(stored?.applicationType).toBe('native')
+
+    const read = await ctx.app.request(registered.registration_client_uri, { headers: authorization })
+    const current = (await read.json()) as Record<string, unknown>
+    expect(current).toMatchObject({ application_type: 'native' })
+    expect(current).not.toHaveProperty('type')
+
+    const base = {
+      client_id: registered.client_id,
+      client_secret: registered.client_secret,
+      redirect_uris: ['https://broker.example.com/oauth/callback'],
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'client_secret_basic',
+    }
+    const update = await ctx.app.request(registered.registration_client_uri, {
+      method: 'PUT',
+      headers: { ...authorization, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...base, application_type: 'web' }),
+    })
+    expect(update.status, await update.clone().text()).toBe(200)
+    await expect(update.json()).resolves.toMatchObject({ application_type: 'web' })
+
+    const legacy = await ctx.app.request(registered.registration_client_uri, {
+      method: 'PUT',
+      headers: { ...authorization, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...base, type: 'native' }),
+    })
+    expect(legacy.status).toBe(400)
+    await expect(legacy.json()).resolves.toMatchObject({
+      error: 'invalid_client_metadata',
+      error_description: 'type is no longer supported; use application_type (web or native)',
+    })
   })
 
   it('rejects unsupported authorization detail types during dynamic client registration', async () => {

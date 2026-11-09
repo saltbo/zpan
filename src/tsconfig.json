@@ -1,7 +1,9 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    // Server modules reached through the Hono RPC AppType import use Node built-ins.
+    "types": ["node"]
   },
   "include": [".", "../shared"]
 }

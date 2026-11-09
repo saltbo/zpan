@@ -214,6 +214,7 @@ export const deviceCode = sqliteTable(
     userId: text('user_id'),
     clientId: text('client_id'),
     scope: text('scope'),
+    resource: text('resource'),
     status: text('status').notNull(),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
     lastPolledAt: integer('last_polled_at', { mode: 'timestamp_ms' }),
@@ -239,11 +240,13 @@ export const oauthClient = sqliteTable(
     id: text('id').primaryKey(),
     clientId: text('client_id').notNull().unique(),
     clientSecret: text('client_secret'),
+    clientDiscoveryId: text('client_discovery_id'),
     disabled: integer('disabled', { mode: 'boolean' }).default(false),
     skipConsent: integer('skip_consent', { mode: 'boolean' }),
     enableEndSession: integer('enable_end_session', { mode: 'boolean' }),
     subjectType: text('subject_type'),
     scopes: text('scopes'), // JSON-serialized string[]
+    clientCredentialsScopes: text('client_credentials_scopes'), // JSON-serialized string[]
     userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
     createdAt: integer('created_at', { mode: 'timestamp_ms' })
       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -266,6 +269,7 @@ export const oauthClient = sqliteTable(
     backchannelLogoutUri: text('backchannel_logout_uri'),
     backchannelLogoutSessionRequired: integer('backchannel_logout_session_required', { mode: 'boolean' }),
     tokenEndpointAuthMethod: text('token_endpoint_auth_method'),
+    applicationType: text('application_type'),
     jwks: text('jwks'),
     jwksUri: text('jwks_uri'),
     grantTypes: text('grant_types'), // JSON-serialized string[]
