@@ -29,6 +29,12 @@ Feature: Media libraries
     When the sweep runs without changes, then after a video is added and another renamed
     Then only the changed state queues scans and the index is rewritten in place
 
+  @media-library/first-scan-enqueue-failure @api
+  Scenario: A library is kept when its first scan cannot be queued
+    Given queueing the first scan fails after the library is stored
+    When a folder is marked as a media library
+    Then the library is created without a running scan and the next sweep scans it
+
   @media-library/manual-rescan @api
   Scenario: A rescan is refused while another scan is active
     Given a media library with a queued scan

@@ -4,6 +4,7 @@
 import { DirType, ObjectStatus } from '@shared/constants'
 import type { BackgroundJob } from '@shared/types'
 import { folderPathsOverlap, joinMatterPath } from '../domain/media-library'
+import { formatError } from '../lib/errors'
 import type { Deps } from './deps'
 import { enqueueMediaLibraryScan } from './media-library-scan'
 import { type ActorIdentity, badRequest, conflict, type MediaLibraryView, notFound } from './ports'
@@ -49,8 +50,15 @@ export async function createMediaLibrary(
     folder: { path: folderPath, name: folder.name, trashed: false },
     scanning: true,
   }
-  await enqueueMediaLibraryScan(deps, { library, userId, createdBy })
-  return library
+  // The library exists either way, and the sweep scans a library that has no
+  // fingerprint yet, so a failed enqueue only delays the first index.
+  try {
+    await enqueueMediaLibraryScan(deps, { library, userId, createdBy })
+    return library
+  } catch (error) {
+    console.error(`media_library.create.enqueue_error library=${library.id} org=${orgId} code=${formatError(error)}`)
+    return { ...library, scanning: false }
+  }
 }
 
 export async function deleteMediaLibrary(deps: Pick<Deps, 'mediaLibraries'>, orgId: string, id: string) {

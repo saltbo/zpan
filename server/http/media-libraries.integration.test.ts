@@ -215,6 +215,24 @@ describe('media libraries API', () => {
     expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(2)
   })
 
+  it('keeps the library when its first scan cannot be queued and lets the sweep scan it [spec: media-library/first-scan-enqueue-failure]', async () => {
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    await ctx.add('Movies', 'Dune (2021).mkv')
+    vi.spyOn(ctx.deps.backgroundJobs, 'create').mockRejectedValueOnce(new Error('D1 unavailable'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const created = await ctx.createLibrary(movies.id)
+    expect(created.status).toBe(201)
+    const library = (await created.json()) as { id: string; scanning: boolean }
+    expect(library.scanning).toBe(false)
+    expect(error).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`library=${library.id}.*D1 unavailable`)))
+
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+    expect(await waitForScans(ctx.db, ctx.orgId)).toEqual([expect.objectContaining({ status: 'completed' })])
+    expect((await readIndex(ctx, 'Movies')).feed.items.map((item) => item.title)).toEqual(['Dune'])
+  })
+
   it('refuses a rescan while a scan holds the lease [spec: media-library/manual-rescan]', async () => {
     const ctx = await setup()
     const movies = await ctx.add('', 'Movies', 'folder')
