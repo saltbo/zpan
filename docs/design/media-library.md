@@ -24,7 +24,7 @@ When it changes, the client downloads one JSON document and diffs items by
 | --- | --- |
 | `id`, `org_id` | `org_id` cascades with the organization |
 | `folder_id` | The folder's matter id. Matters store their location as a `parent` path string, but ids are stable, so REST and WebDAV renames and moves keep the library attached. Unique per org. |
-| `fingerprint` | Subtree fingerprint of the last scan attempt, successful or not |
+| `fingerprint` | Subtree fingerprint of the last successful scan or deterministic scan failure |
 | `last_scanned_at` | Last successful scan |
 | `created_by_user_id`, `created_by_actor_*` | Creator; sweep-queued jobs run as this user |
 
@@ -35,8 +35,16 @@ Rules:
 
 - The target must be a live folder in the caller's workspace.
 - Libraries never nest. Marking a folder that is, contains, or sits inside a
-  live library fails with `409` and reason `MEDIA_LIBRARY_EXISTS` or
-  `MEDIA_LIBRARY_NESTED`.
+  library fails with `409` and reason `MEDIA_LIBRARY_EXISTS` or
+  `MEDIA_LIBRARY_NESTED`. Libraries whose folder is in trash count, because
+  restoring the folder brings them back.
+- The create-time check is the only guard: moves, restores, and a race between
+  two creates can still leave libraries overlapping, and move and restore do
+  not consult libraries. Overlap is made harmless at scan time instead. Of two
+  overlapping live libraries in a workspace, the older one (`created_at`, then
+  `id`) is scanned. The newer one's scan fails with
+  `Media library overlaps the older media library at "<path>"`, so the conflict
+  shows in the task list until the user removes one of them.
 - A library whose folder is trashed is skipped by the sweep. A library whose
   folder was purged is deleted by the sweep (or by a scan that finds it).
 - Removing a library leaves the folder and its `.zpan` files in place.
@@ -78,6 +86,11 @@ immediately, and `POST /api/media-libraries/{id}/scans` requests one on demand
 
 The sweep runs only when the instance is entitled (`media_library`), and it
 verifies the license certificate against the configured `ZPAN_CLOUD_URL`.
+Each library is swept on its own: an error on one library is logged as
+`media_library.sweep.library_error library=<id> org=<id>` and the sweep moves
+on, so one broken library cannot stall the others or fail the shared cron
+tick. Deleting a library whose folder was purged is logged as
+`media_library.sweep.deleted`.
 
 ## 4. Scan job
 
@@ -93,20 +106,29 @@ The processor:
 2. Computes the fingerprint **before** listing, so a change that races the
    listing produces one extra scan instead of being lost. The `.zpan`
    exclusion means the job's own write never retriggers a scan.
-3. Lists live files in the subtree whose stored MIME is `video/*` or whose
-   extension is a known video extension, and builds the feed.
-4. Writes `library.json` as a real matter: a fresh object key per write,
+3. Fails if an older live library overlaps this one (see the nesting rule).
+4. Lists live files in the subtree whose stored MIME is `video/*` or whose
+   extension is a known video extension, and builds the feed. Recording the
+   file count on the job here also renews its `updated_at`, so a listing of a
+   large library does not lose the scan lease before the write.
+5. Writes `library.json` as a real matter: a fresh object key per write,
    quota reserved for growth, `applyUpload` on the existing row (so size and
    `updated_at`, and therefore the WebDAV ETag, change), then the old object is
    deleted. A new key means a reader holding a cached matter row never pairs
-   new bytes with an old `Content-Length`.
-5. Stores the fingerprint and `last_scanned_at`, and drops the WebDAV child
+   new bytes with an old `Content-Length`. The new index is live once the row
+   is updated, so a failed delete of the old object is logged
+   (`media_library.scan.old_index_delete_error`) and leaves an orphaned object
+   instead of failing the job.
+6. Stores the fingerprint and `last_scanned_at`, and drops the WebDAV child
    listing cache for the library folder and `.zpan`.
 
-A failed scan still stores the attempted fingerprint, so a deterministic
-failure (quota, a `.ZPAN` folder or a `library.json` folder occupying the
-index name) does not re-enqueue on every sweep. The next change or a manual
-rescan retries.
+Failures split in two. A deterministic failure stores the attempted
+fingerprint, so it does not re-enqueue on every sweep; the next change in the
+subtree or a manual rescan retries. These are a quota exceeded by the index, a
+`.ZPAN` folder or a `library.json` folder occupying the index name, and an
+overlap with an older library. Any other failure (a storage or database error)
+leaves the fingerprint untouched, so the next sweep retries it, including a
+failed first scan.
 
 When background jobs are disabled (`ZPAN_ARCHIVE_JOBS_ENABLED=false`, as in
 Branch Previews, which have no queue consumer), create and rescan return `503`
@@ -153,14 +175,23 @@ and the sweep does not run.
 
 `/api/media-libraries` lists (cursor page), creates `{folderId}`, deletes
 `/{id}`, and creates scans at `/{id}/scans`. Scopes are
-`media-libraries:read|create|update|delete`; writes need the editor role, and
-every route needs the `media_library` feature (`402` otherwise).
+`media-libraries:read|create|update|delete`; writes need the editor role.
+Create and rescan need the `media_library` feature (`402` otherwise). List and
+delete do not, so after a license lapses users still see their libraries and
+can remove them.
+
+Creating a library stores the row and then queues the first scan. If queueing
+fails, the request still returns `201` with `scanning: false` and logs
+`media_library.create.enqueue_error`; the library has no fingerprint, so the
+next sweep scans it.
 
 The file manager shows "Set as media library", "Rescan media library", and
 "Remove media library" on folders, and the details sheet shows status, last
 scan, and the index path. It loads the workspace's libraries once and joins
-them to folders by id, so the object DTO is unchanged. Without the
-entitlement, the set action carries a Pro badge and opens an upgrade prompt.
+them to folders by id, so the object DTO is unchanged. The list loads
+regardless of entitlement. Without it, "Set as media library" and "Rescan
+media library" carry a Pro badge and open an upgrade prompt, while "Remove
+media library" and the details still work for existing libraries.
 
 ## 7. Future phases
 
@@ -184,6 +215,9 @@ entitlement, the set action carries a Pro badge and opens an upgrade prompt.
 - **Naming.** `ZPAN_ARCHIVE_JOBS_ENABLED`, the `ARCHIVE_QUEUE` binding, and
   configz `services.archive.enabled` now cover every background job. Renaming
   them is an operator and API contract change left for a separate pass.
+- **Lost dispatch.** If the job row is created but the queue send fails, the
+  `queued` row holds the scan lease until it expires an hour later, and only
+  then does the sweep queue a new scan.
 - **Concurrent scans.** The lease check and the job insert are not atomic, so
   a manual rescan and the sweep enqueuing in the same instant can run two
   scans. The later write wins; on a first scan the second create fails on the
