@@ -75,6 +75,12 @@ importers:
       '@libsql/client':
         specifier: ^0.17.2
         version: 0.17.2
+      '@mediabunny/ac3':
+        specifier: 1.65.0
+        version: 1.65.0(mediabunny@1.65.0)
+      '@mediabunny/dts':
+        specifier: 1.65.0
+        version: 1.65.0(mediabunny@1.65.0)
       '@scalar/hono-api-reference':
         specifier: ^0.11.3
         version: 0.11.3(hono@4.13.5)
@@ -135,6 +141,9 @@ importers:
       lucide-react:
         specifier: ^0.577.0
         version: 0.577.0(react@19.2.5)
+      mediabunny:
+        specifier: 1.65.0
+        version: 1.65.0
       nanoid:
         specifier: ^5.1.16
         version: 5.1.16
@@ -1572,6 +1581,16 @@ packages:
     resolution: {integrity: sha512-4/0CvEdhi6+KjMxMaVbFM2n2Z44escBRoEYpR+gZg64DdetzGnYm8mcNLcoySaDJZNaBd6wz5DNdgRmcI4hXcg==}
     cpu: [x64]
     os: [win32]
+
+  '@mediabunny/ac3@1.65.0':
+    resolution: {integrity: sha512-xHvE9wIfCzIzzP5XTIr5BDdrE6F5Yty2nDjDKg/hHYws2XGMjqg+7mg1ZoDaS1jzpeaXfTjT8OfVmMTMsvVTQA==}
+    peerDependencies:
+      mediabunny: ^1.0.0
+
+  '@mediabunny/dts@1.65.0':
+    resolution: {integrity: sha512-vV0ewGAG4tIL9f2XQW5tps1GrBfIkiNyMxpfPXBLit/AAqbS4Rtk024ry6gHdH/DR+x5yvZ4Vg5CMoGC0XoGgw==}
+    peerDependencies:
+      mediabunny: ^1.0.0
 
   '@napi-rs/canvas-android-arm64@0.1.100':
     resolution: {integrity: sha512-hjhCKhntPv9+t4ckHymdx0phYNcVW+GKQR6Lzw2zE+pOVjOplSmtx9nNNknTjbEDLcuLZqA1y8ufKg1XfgftzQ==}
@@ -3426,6 +3445,12 @@ packages:
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
 
+  '@types/dom-mediacapture-transform@0.1.12':
+    resolution: {integrity: sha512-d7/QsLRwF864A5mgIM/YrfiglHoYn7zgCcAoJgW404r+2DwnNr7EBbLnCWpmOMgH8y0te73L1AV6H1bmauaWFw==}
+
+  '@types/dom-webcodecs@0.1.13':
+    resolution: {integrity: sha512-O5hkiFIcjjszPIYyUSyvScyvrBoV3NOEEZx/pMlsu44TKzWNkLVBBxnxJz42in5n3QIolYOcBYFCPZZ0h8SkwQ==}
+
   '@types/estree-jsx@1.0.5':
     resolution: {integrity: sha512-52CcUVNFyfb1A2ALocQw/Dd1BQFNmSdkuC3BkZ6iqhdMfQz7JWOFRuJFloOzjk+6WijU56m9oKXFAXc7o3Towg==}
 
@@ -4879,6 +4904,9 @@ packages:
   media-captions@1.0.4:
     resolution: {integrity: sha512-cyDNmuZvvO4H27rcBq2Eudxo9IZRDCOX/I7VEyqbxsEiD2Ei7UYUhG/Sc5fvMZjmathgz3fEK7iAKqvpY+Ux1w==}
     engines: {node: '>=16'}
+
+  mediabunny@1.65.0:
+    resolution: {integrity: sha512-TNnDNOmD5Fme4rwMGWuNv485a9iQwd9lgw88PI9zQ0FMnzEUoo6EJpG7ZhdJ2iwZFWo8AzNkP1KPq5IAHaktKw==}
 
   merge-refs@2.0.0:
     resolution: {integrity: sha512-3+B21mYK2IqUWnd2EivABLT7ueDhb0b8/dGK8LoFQPrU61YITeCMn14F7y7qZafWNZhUEKb24cJdiT5Wxs3prg==}
@@ -7376,6 +7404,14 @@ snapshots:
   '@libsql/win32-x64-msvc@0.5.29':
     optional: true
 
+  '@mediabunny/ac3@1.65.0(mediabunny@1.65.0)':
+    dependencies:
+      mediabunny: 1.65.0
+
+  '@mediabunny/dts@1.65.0(mediabunny@1.65.0)':
+    dependencies:
+      mediabunny: 1.65.0
+
   '@napi-rs/canvas-android-arm64@0.1.100':
     optional: true
 
@@ -9069,6 +9105,12 @@ snapshots:
 
   '@types/deep-eql@4.0.2': {}
 
+  '@types/dom-mediacapture-transform@0.1.12':
+    dependencies:
+      '@types/dom-webcodecs': 0.1.13
+
+  '@types/dom-webcodecs@0.1.13': {}
+
   '@types/estree-jsx@1.0.5':
     dependencies:
       '@types/estree': 1.0.9
@@ -10472,6 +10514,11 @@ snapshots:
   mdn-data@2.27.1: {}
 
   media-captions@1.0.4: {}
+
+  mediabunny@1.65.0:
+    dependencies:
+      '@types/dom-mediacapture-transform': 0.1.12
+      '@types/dom-webcodecs': 0.1.13
 
   merge-refs@2.0.0(@types/react@19.2.14):
     optionalDependencies:

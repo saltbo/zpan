@@ -1,28 +1,46 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { PreparedPlayback } from '@/lib/media-pipeline'
 import { MediaPreview, mimeFromExt } from './media-preview'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }))
 
+const preparePlayback = vi.hoisted(() =>
+  vi.fn<(url: string, onError: (e: unknown) => void) => Promise<PreparedPlayback>>(),
+)
+vi.mock('@/lib/media-pipeline', () => ({ preparePlayback }))
+
+type TestSrc = { src: string | object; type?: string } | string
+
 vi.mock('@vidstack/react', () => ({
+  isVideoProvider: (provider: { type?: string }) => provider.type === 'video',
   MediaPlayer: ({
     children,
     src,
     onError,
+    onProviderSetup,
   }: {
     children: ReactNode
-    src: { src: string } | string
+    src: TestSrc
     onError: () => void
+    onProviderSetup?: (provider: unknown) => void
   }) => {
-    const url = typeof src === 'string' ? src : src.src
+    const value = typeof src === 'string' ? src : src.src
+    const isObject = typeof value !== 'string'
     return (
-      <div data-testid="media-player">
+      <div data-testid="media-player" data-src-kind={isObject ? 'object' : 'url'}>
         {/* biome-ignore lint/a11y/useMediaCaption: test double */}
-        <video data-testid="video" onError={onError}>
-          <source data-testid="source" src={url} />
+        <video
+          data-testid="video"
+          onError={onError}
+          ref={(video) => {
+            if (video) onProviderSetup?.({ type: 'video', video })
+          }}
+        >
+          {!isObject && <source data-testid="source" src={value as string} />}
         </video>
         {children}
       </div>
@@ -37,9 +55,13 @@ vi.mock('@vidstack/react/player/layouts/default', () => ({
   defaultLayoutIcons: {},
 }))
 
-afterEach(cleanup)
-
 const URL = 'https://s3.example.com/movie?X-Amz-Signature=abc'
+
+beforeEach(() => {
+  preparePlayback.mockReset()
+})
+
+afterEach(cleanup)
 
 describe('mimeFromExt', () => {
   it('maps video extensions to types the HTML5 provider accepts', () => {
@@ -56,30 +78,108 @@ describe('mimeFromExt', () => {
   })
 })
 
-describe('MediaPreview', () => {
-  it('lets the browser try MKV instead of rejecting it up front', () => {
+describe('MediaPreview video', () => {
+  it('shows a checking state while the file is probed', async () => {
+    preparePlayback.mockReturnValue(new Promise(() => {}))
     render(<MediaPreview url={URL} filename="movie.mkv" previewType="video" />)
-    expect(screen.getByTestId('media-player')).toBeTruthy()
-    expect(screen.getByText('preview.openWith')).toBeTruthy()
-    expect(screen.queryByText('preview.videoUnsupported')).toBeNull()
+    expect(screen.getByText('preview.analyzingVideo')).toBeTruthy()
+    await waitFor(() => expect(preparePlayback).toHaveBeenCalledWith(URL, expect.any(Function)))
   })
 
-  it('falls back when the <source> fails even though the media element reports no error', () => {
+  it('plays the URL directly when the browser supports the file', async () => {
+    const dispose = vi.fn()
+    preparePlayback.mockResolvedValue({ kind: 'native', dispose })
+    render(<MediaPreview url={URL} filename="movie.mkv" previewType="video" />)
+
+    const player = await screen.findByTestId('media-player')
+    expect(player.dataset.srcKind).toBe('url')
+    expect(screen.getByTestId('source').getAttribute('src')).toBe(URL)
+    expect(dispose).toHaveBeenCalled()
+  })
+
+  it('feeds the Media Source stream to the player and attaches it to the <video>', async () => {
+    const attach = vi.fn()
+    const dispose = vi.fn()
+    const mediaSource = {}
+    preparePlayback.mockResolvedValue({ kind: 'mse', stream: { mediaSource, attach } as never, dispose })
+    const { unmount } = render(<MediaPreview url={URL} filename="movie.mkv" previewType="video" />)
+
+    const player = await screen.findByTestId('media-player')
+    expect(player.dataset.srcKind).toBe('object')
+    expect(attach).toHaveBeenCalledWith(screen.getByTestId('video'))
+    expect(dispose).not.toHaveBeenCalled()
+
+    unmount()
+    expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    ['container', 'preview.videoUnsupportedContainer'],
+    ['video-codec', 'preview.videoUnsupportedVideoCodec'],
+    ['audio-codec', 'preview.videoUnsupportedAudioCodec'],
+  ] as const)('explains a %s rejection and offers external players', async (reason, message) => {
+    preparePlayback.mockResolvedValue({ kind: 'unsupported', reason, dispose: vi.fn() })
     render(<MediaPreview url={URL} filename="movie.avi" previewType="video" />)
-    fireEvent.error(screen.getByTestId('source'))
-    expect(screen.getByText('preview.videoUnsupported')).toBeTruthy()
+
+    expect(await screen.findByText(message)).toBeTruthy()
     expect(screen.getByText('preview.openWith')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'preview.download' }).getAttribute('href')).toBe(URL)
+    expect(screen.queryByTestId('media-player')).toBeNull()
+  })
+
+  it('reports playback failure when the stream errors mid-play', async () => {
+    let reportError: (error: unknown) => void = () => {}
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    preparePlayback.mockImplementation(async (_url, onError) => {
+      reportError = onError
+      return { kind: 'mse', stream: { mediaSource: {}, attach: vi.fn() } as never, dispose: vi.fn() }
+    })
+    render(<MediaPreview url={URL} filename="movie.mkv" previewType="video" />)
+    await screen.findByTestId('media-player')
+
+    reportError(new Error('decode failed'))
+    expect(await screen.findByText('preview.videoUnsupported')).toBeTruthy()
+  })
+
+  it('lets the browser try when the probe itself fails (e.g. storage refuses range reads)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    preparePlayback.mockRejectedValue(new Error('CORS'))
+    render(<MediaPreview url={URL} filename="movie.mp4" previewType="video" />)
+
+    expect((await screen.findByTestId('media-player')).dataset.srcKind).toBe('url')
+  })
+
+  it('falls back when the native <source> fails even though the media element reports no error', async () => {
+    preparePlayback.mockResolvedValue({ kind: 'native', dispose: vi.fn() })
+    render(<MediaPreview url={URL} filename="movie.mp4" previewType="video" />)
+
+    fireEvent.error(await screen.findByTestId('source'))
+    expect(screen.getByText('preview.videoUnsupported')).toBeTruthy()
+  })
+
+  it('disposes a stream that resolves after the preview closed', async () => {
+    let resolve: (value: PreparedPlayback) => void = () => {}
+    preparePlayback.mockReturnValue(new Promise((r) => (resolve = r)))
+    const { unmount } = render(<MediaPreview url={URL} filename="movie.mkv" previewType="video" />)
+    unmount()
+
+    const dispose = vi.fn()
+    resolve({ kind: 'mse', stream: { mediaSource: {}, attach: vi.fn() } as never, dispose })
+    await waitFor(() => expect(dispose).toHaveBeenCalledOnce())
+  })
+})
+
+describe('MediaPreview audio', () => {
+  it('plays audio directly without probing', () => {
+    render(<MediaPreview url={URL} filename="song.mp3" previewType="audio" />)
+    expect(screen.getByTestId('media-player')).toBeTruthy()
+    expect(preparePlayback).not.toHaveBeenCalled()
+    expect(screen.queryByText('preview.openWith')).toBeNull()
   })
 
   it('falls back when the media element itself errors', () => {
     render(<MediaPreview url={URL} filename="song.wma" previewType="audio" />)
     fireEvent.error(screen.getByTestId('video'))
     expect(screen.getByText('preview.audioUnsupported')).toBeTruthy()
-  })
-
-  it('does not offer external players under audio playback', () => {
-    render(<MediaPreview url={URL} filename="song.mp3" previewType="audio" />)
-    expect(screen.queryByText('preview.openWith')).toBeNull()
   })
 })
