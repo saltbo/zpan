@@ -188,7 +188,7 @@ async function writeLibraryIndex(
   const indexFolder = joinMatterPath(folderPath, MEDIA_LIBRARY_INDEX_FOLDER)
   const existing = await findIndexEntry(deps, orgId, indexFolder, MEDIA_LIBRARY_INDEX_FILE, { file: true })
   const storage = existing ? await deps.storages.get(existing.storageId) : await deps.storages.select()
-  if (!storage) throw new Error('Storage for the media library index not found')
+  if (!storage) throw new MediaLibraryScanBlockedError('Storage for the media library index not found')
   if (!existing) await ensureIndexFolder(deps, message, folderPath, storage.id)
 
   const key = buildObjectKey({ uid: userId, orgId, rawExt: '.json' })
