@@ -671,6 +671,21 @@ const APP_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS background_jobs_org_created_idx ON background_jobs(org_id, created_at);
   CREATE INDEX IF NOT EXISTS background_jobs_org_status_idx ON background_jobs(org_id, status);
   CREATE INDEX IF NOT EXISTS background_jobs_org_type_idx ON background_jobs(org_id, type);
+  CREATE TABLE IF NOT EXISTS media_libraries (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+    folder_id TEXT NOT NULL,
+    fingerprint TEXT,
+    last_scanned_at INTEGER,
+    created_by_user_id TEXT NOT NULL,
+    created_by_actor_type TEXT NOT NULL,
+    created_by_actor_ref TEXT,
+    created_by_actor_issuer TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS media_libraries_org_folder_uniq ON media_libraries(org_id, folder_id);
+  CREATE INDEX IF NOT EXISTS media_libraries_org_page_idx ON media_libraries(org_id, created_at, id);
   CREATE TABLE IF NOT EXISTS downloaders (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

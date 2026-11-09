@@ -666,6 +666,13 @@
       "when": 1794200890155,
       "tag": "0095_backfill_oauth_client_application_type",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "6",
+      "when": 1794238525719,
+      "tag": "0096_media-libraries",
+      "breakpoints": true
     }
   ]
 }

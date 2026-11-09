@@ -370,6 +370,32 @@ export const backgroundJobs = sqliteTable(
   ],
 )
 
+// A folder whose subtree ZPan indexes into <folder>/.zpan/library.json. Keyed by
+// the folder's matter id so renames and moves keep the library attached.
+export const mediaLibraries = sqliteTable(
+  'media_libraries',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    folderId: text('folder_id').notNull(),
+    // Subtree fingerprint of the last scan attempt; the sweep rescans when it differs.
+    fingerprint: text('fingerprint'),
+    lastScannedAt: integer('last_scanned_at', { mode: 'timestamp_ms' }),
+    createdByUserId: text('created_by_user_id').notNull(),
+    createdByActorType: text('created_by_actor_type').notNull(),
+    createdByActorRef: text('created_by_actor_ref'),
+    createdByActorIssuer: text('created_by_actor_issuer'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('media_libraries_org_folder_uniq').on(t.orgId, t.folderId),
+    index('media_libraries_org_page_idx').on(t.orgId, t.createdAt, t.id),
+  ],
+)
+
 export const downloaders = sqliteTable(
   'downloaders',
   {
