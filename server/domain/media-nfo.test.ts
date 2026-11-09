@@ -101,7 +101,27 @@ describe('readNfoIdentity', () => {
     ],
     ['text that is not an nfo', 'https://www.themoviedb.org/movie/27205', { kind: null, tmdbId: null }],
     ['malformed XML', '<movie><title>Unclosed<uniqueid type="tmdb">27205</uniqueid>', { kind: 'movie', tmdbId: 27205 }],
+    [
+      'a commented-out id before the real one',
+      '<movie><!-- <uniqueid type="tmdb">1</uniqueid> --><uniqueid type="tmdb">27205</uniqueid></movie>',
+      { kind: 'movie', tmdbId: 27205 },
+    ],
   ])('reads %s [spec: media-scraping/nfo-files]', (_label, text, identity) => {
     expect(readNfoIdentity(text)).toEqual(identity)
+  })
+
+  const nfoLimit = 64 * 1024
+  it.each([
+    ['unclosed processing instructions', '<?'],
+    ['unclosed comments', '<!--'],
+    ['unclosed declarations', '<!'],
+    ['start tags that never close', '<a '],
+    ['tmdb uniqueids that never close', '<uniqueid type="tmdb">1'],
+    ['an endless tag name', 'a'],
+  ])('reads 64 KB of %s in linear time [spec: media-scraping/nfo-files]', (_label, unit) => {
+    const text = `<${unit.repeat(Math.ceil(nfoLimit / unit.length))}`.slice(0, nfoLimit)
+    const started = performance.now()
+    readNfoIdentity(text)
+    expect(performance.now() - started).toBeLessThan(50)
   })
 })

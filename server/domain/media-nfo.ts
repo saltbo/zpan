@@ -1,6 +1,6 @@
 // Kodi/Jellyfin .nfo files: rendering the ones a scrape writes, and reading the
-// TMDB id out of one a user already has. Reading is a tolerant regex over the
-// text rather than an XML parse, so a malformed file still yields its id.
+// TMDB id out of one a user already has. Reading scans the tags rather than
+// parsing XML, so a malformed file still yields its id.
 
 import type { TmdbEpisode, TmdbMovie, TmdbShow } from './tmdb'
 
@@ -18,6 +18,16 @@ const XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 // Characters XML 1.0 cannot carry, even escaped.
 // biome-ignore lint/suspicious/noControlCharactersInRegex: matching these control characters is the point.
 const INVALID_XML_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g
+
+// Markup that is not an element, and the text that ends it.
+const MARKUP_ENDS: ReadonlyArray<[start: string, end: string]> = [
+  ['<?', '?>'],
+  ['<!--', '-->'],
+  ['<!', '>'],
+]
+const TAG_NAME = /<([A-Za-z][\w.-]{0,63})(?=[\s/>])/y
+const TMDB_TYPE = /\btype\s*=\s*["']tmdb["']/i
+const ELEMENT_NUMBER = /^\s*(\d{1,10})\s*$/
 
 export function movieNfo(movie: TmdbMovie): string {
   return document('movie', [
@@ -55,14 +65,40 @@ export function episodeNfo(episode: TmdbEpisode): string {
   ])
 }
 
+// One left-to-right pass over the tags, so the cost stays linear in the text
+// whatever it holds: every lookup starts where the previous one ended, and an
+// unclosed comment, declaration, or tag ends the pass.
 export function readNfoIdentity(text: string): NfoIdentity {
-  const body = text.replace(/<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE[^>]*>/gi, '')
-  const root = /<([A-Za-z][\w.-]*)/.exec(body)?.[1].toLowerCase()
+  let root: string | undefined
+  let uniqueId: number | undefined
+  let tmdbId: number | undefined
+  let position = 0
+  while (uniqueId === undefined) {
+    const open = text.indexOf('<', position)
+    if (open === -1) break
+    const close = text.indexOf(MARKUP_ENDS.find(([start]) => text.startsWith(start, open))?.[1] ?? '>', open + 1)
+    if (close === -1) break
+    position = close + 1
+    TAG_NAME.lastIndex = open
+    const name = TAG_NAME.exec(text)?.[1].toLowerCase()
+    if (name === undefined) continue
+    root ??= name
+    if (name === 'uniqueid' && TMDB_TYPE.test(text.slice(TAG_NAME.lastIndex, close))) {
+      uniqueId = elementNumber(text, position, name)
+    } else if (name === 'tmdbid') {
+      tmdbId ??= elementNumber(text, position, name)
+    }
+  }
   const kind = root === 'movie' || root === 'tvshow' || root === 'episodedetails' ? root : null
-  const id =
-    /<uniqueid\b(?=[^>]*\btype\s*=\s*["']tmdb["'])[^>]*>\s*(\d+)\s*<\/uniqueid>/i.exec(body)?.[1] ??
-    /<tmdbid>\s*(\d+)\s*<\/tmdbid>/i.exec(body)?.[1]
-  return { kind, tmdbId: id === undefined ? null : Number(id) }
+  return { kind, tmdbId: uniqueId ?? tmdbId ?? null }
+}
+
+// The number an element holds, read up to the next tag, which must close it.
+function elementNumber(text: string, start: number, name: string): number | undefined {
+  const end = text.indexOf('<', start)
+  if (end === -1 || text.slice(end, end + name.length + 3).toLowerCase() !== `</${name}>`) return undefined
+  const digits = ELEMENT_NUMBER.exec(text.slice(start, end))?.[1]
+  return digits === undefined ? undefined : Number(digits)
 }
 
 function document(root: NfoKind, fields: readonly Field[]): string {

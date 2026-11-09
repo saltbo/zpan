@@ -67,8 +67,8 @@ import { withStorageUsageReservation } from './storage-usage'
 const SCRAPE_BATCH_SIZE = 20
 // A TMDB Retry-After longer than this is shortened to it.
 const MAX_RETRY_DELAY_SECONDS = 300
-// A larger .nfo is not read for its TMDB id.
-const MAX_NFO_BYTES = 1024 * 1024
+// Only this much of an .nfo is read for its TMDB id.
+const MAX_NFO_BYTES = 64 * 1024
 const NFO_MIME = 'text/xml'
 // Sidecars are machine-written, whoever asked for the scrape.
 const SIDECAR_ACTOR: ActorIdentity = { type: 'system', ref: null, issuer: null }
@@ -398,11 +398,12 @@ async function nfoTmdbId(
   kind: NfoKind,
 ): Promise<number | null> {
   for (const entry of entries) {
-    if (!entry || entry.dirtype !== DirType.FILE || (entry.size ?? 0) > MAX_NFO_BYTES) continue
+    if (!entry || entry.dirtype !== DirType.FILE || !entry.size) continue
     const storage = await session.deps.storages.get(entry.storageId)
     if (!storage) throw new Error(`Storage ${entry.storageId} of ${entry.name} not found`)
+    const range = entry.size > MAX_NFO_BYTES ? `bytes=0-${MAX_NFO_BYTES - 1}` : undefined
     const identity = readNfoIdentity(
-      new TextDecoder().decode(await session.deps.s3.getObjectBytes(storage, entry.object)),
+      new TextDecoder().decode(await session.deps.s3.getObjectBytes(storage, entry.object, range)),
     )
     if (identity.tmdbId !== null && (identity.kind === null || identity.kind === kind)) return identity.tmdbId
   }

@@ -68,10 +68,11 @@ beforeEach(() => {
   vi.spyOn(S3Service.prototype, 'deleteObject').mockImplementation(async (_storage, key) => {
     objects.delete(key)
   })
-  vi.spyOn(S3Service.prototype, 'getObjectBytes').mockImplementation(async (_storage, key) => {
+  vi.spyOn(S3Service.prototype, 'getObjectBytes').mockImplementation(async (_storage, key, range) => {
     const bytes = objects.get(key)
     if (!bytes) throw new Error(`missing ${key}`)
-    return bytes.slice()
+    const [, start, end] = /^bytes=(\d+)-(\d+)$/.exec(range ?? '') ?? []
+    return range === undefined ? bytes.slice() : bytes.slice(Number(start), Number(end) + 1)
   })
 })
 
@@ -292,6 +293,27 @@ describe('media library scraping', () => {
       { status: 'matched', source: 'search', tmdbId: 27205, episode: null },
       { status: 'matched', source: 'nfo', tmdbId: 329865, episode: null },
     ])
+  })
+
+  it('reads the TMDB id from the first 64 KB of a large .nfo [spec: media-scraping/scrape-library]', async () => {
+    const ctx = await setup()
+    const media = await ctx.add('', 'Media')
+    await ctx.video('Media', 'Arrival (2016).mkv')
+    const padding = '<!-- padding -->'.repeat(128 * 1024)
+    await ctx.add('Media', 'Arrival (2016).nfo', `<movie><uniqueid type="tmdb">329865</uniqueid>${padding}</movie>`)
+
+    await createLibrary(ctx, media.id)
+    await ctx.settle()
+
+    expect(tmdb.apiCalls()).toEqual(['/movie/329865'])
+    expect(S3Service.prototype.getObjectBytes).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(String),
+      'bytes=0-65535',
+    )
+    expect(Object.fromEntries(await ctx.index('Media'))).toEqual({
+      'Arrival (2016).mkv': { id: 329865, type: 'movie' },
+    })
   })
 
   it('stops once nothing changed: the sweep, a rescan, and a manual scrape find nothing to do [spec: media-scraping/loop-terminates]', async () => {
