@@ -189,8 +189,6 @@
   "mediaLibrary.lastScanned": "上次扫描于 {{date}}",
   "mediaLibrary.notScanned": "尚未扫描",
   "mediaLibrary.indexFile": "索引文件",
-  "mediaLibrary.upgradeTitle": "解锁媒体库",
-  "mediaLibrary.upgradeDescription": "媒体库索引是 ZPan 专业版和商业版功能。ZPan 会在文件夹中维护 library.json 索引，WebDAV 视频播放器读取它即可，无需遍历每个文件夹。",
   "downloads.title": "远程下载",
   "downloads.sourceType": "来源",
   "downloads.sourceTypes.http": "HTTP 链接",

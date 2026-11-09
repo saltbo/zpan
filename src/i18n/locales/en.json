@@ -189,8 +189,6 @@
   "mediaLibrary.lastScanned": "Last scanned {{date}}",
   "mediaLibrary.notScanned": "Not scanned yet",
   "mediaLibrary.indexFile": "Index file",
-  "mediaLibrary.upgradeTitle": "Unlock media libraries",
-  "mediaLibrary.upgradeDescription": "Media library indexing is part of ZPan Pro and Business. ZPan keeps a library.json index in the folder that WebDAV video players read instead of walking every folder.",
   "downloads.title": "Remote Download",
   "downloads.sourceType": "Source",
   "downloads.sourceTypes.http": "HTTP URL",

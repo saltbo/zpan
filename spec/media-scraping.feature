@@ -163,5 +163,5 @@ Feature: Media library scraping
   Scenario: Users start a scrape from the folder menu and follow it in the task list
     Given a folder that is a media library
     When its menu opens
-    Then it offers Scrape metadata next to Rescan, with a Pro badge when the instance is not entitled
+    Then it offers Scrape metadata next to Rescan, and hides both when the instance is not entitled
     And a completed scrape task shows how many videos matched, and the details sheet shows a running scrape

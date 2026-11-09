@@ -331,14 +331,12 @@ describe('FileRowActions — component rendering', () => {
     expect(marked.onRemove).toHaveBeenCalledWith(library)
     cleanup()
 
-    expect(labels(folder, actions({ locked: true })).text).toContain('mediaLibrary.setPro')
+    expect(labels(folder, actions({ locked: true })).text.some((text) => text?.startsWith('mediaLibrary.'))).toBe(false)
     cleanup()
 
     const lapsed = actions({ locked: true, libraryFor: () => library })
     const lapsedView = labels(folder, lapsed)
-    expect(lapsedView.text).toEqual(
-      expect.arrayContaining(['mediaLibrary.rescanPro', 'mediaLibrary.scrapePro', 'mediaLibrary.remove']),
-    )
+    expect(lapsedView.text.filter((text) => text?.startsWith('mediaLibrary.'))).toEqual(['mediaLibrary.remove'])
     fireEvent.click(lapsedView.items.find((el) => el.textContent === 'mediaLibrary.remove')!)
     expect(lapsed.onRemove).toHaveBeenCalledWith(library)
     cleanup()

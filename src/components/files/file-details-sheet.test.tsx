@@ -119,7 +119,7 @@ describe('FileDetailsSheet', () => {
     cleanup()
 
     renderSheet(actions({ locked: true }))
-    expect(screen.getByText('Pro')).toBeTruthy()
+    expect(screen.queryByText('mediaLibrary.title')).toBeNull()
     expect(screen.queryByText('mediaLibrary.indexFile')).toBeNull()
     cleanup()
 

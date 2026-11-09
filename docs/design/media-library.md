@@ -604,9 +604,10 @@ The file manager shows "Set as media library", "Rescan media library",
 sheet shows status (including a running scrape), last scan, and the index
 path. It loads the workspace's libraries once and joins them to folders by
 id, so the object DTO is unchanged. The list loads regardless of
-entitlement. Without it, "Set as media library", "Rescan media library", and
-"Scrape metadata" carry a Pro badge and open an upgrade prompt, while
-"Remove media library" and the details still work for existing libraries.
+entitlement. Without it, the folder menu offers no way to mark a library:
+"Set as media library", "Rescan media library", and "Scrape metadata" are
+hidden, while "Remove media library" and the details still work for existing
+libraries.
 "Remove media library" asks for confirmation and names the `library.json` it
 deletes. The task list labels scrape jobs and shows how many videos matched.
 
