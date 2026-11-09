@@ -48,11 +48,13 @@ export async function enqueueMediaLibraryScan(
 }
 
 // Runs on the 10-minute cron. Libraries stay in place when the license lapses;
-// they just stop being scanned until the instance is entitled again.
+// they just stop being scanned until the instance is entitled again. The cloud
+// URL decides which certificate issuer is trusted, as in the licensing refresh.
 export async function sweepMediaLibraries(
   deps: Pick<Deps, 'licenseBinding' | 'mediaLibraries' | 'backgroundJobs' | 'jobQueue'>,
+  options: { cloudBaseUrl: string },
 ): Promise<void> {
-  if (!hasFeature('media_library', await loadBindingState(deps))) return
+  if (!hasFeature('media_library', await loadBindingState(deps, options))) return
 
   for (const library of await deps.mediaLibraries.listAll()) {
     const { folder } = library

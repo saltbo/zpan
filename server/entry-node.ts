@@ -104,7 +104,7 @@ setInterval(() => {
   void syncPendingCloudTrafficReports(deps, { cloudBaseUrl })
   void syncPendingRemoteDownloadUsageReports(deps, { cloudBaseUrl })
   if (backgroundJobsEnabled(platform)) {
-    sweepMediaLibraries(deps).catch((err) => {
+    sweepMediaLibraries(deps, { cloudBaseUrl }).catch((err) => {
       console.error(`media_library.sweep.error code=${err instanceof Error ? err.message : String(err)}`)
     })
   }

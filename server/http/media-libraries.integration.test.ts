@@ -1,4 +1,4 @@
-import { DirType } from '@shared/constants'
+import { DirType, ZPAN_CLOUD_URL_DEFAULT } from '@shared/constants'
 import { type MediaLibraryFeed, mediaLibraryFeedSchema } from '@shared/schemas'
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -176,7 +176,7 @@ describe('media libraries API', () => {
     await waitForScans(ctx.db, ctx.orgId)
     const before = await readIndex(ctx, 'Movies')
 
-    await sweepMediaLibraries(ctx.deps)
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
     expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(1)
 
     // Age the existing rows so the rename below lands in a later second than
@@ -184,7 +184,7 @@ describe('media libraries API', () => {
     await ctx.db.run(sql`UPDATE matters SET updated_at = updated_at - 60 WHERE org_id = ${ctx.orgId}`)
     await ctx.matters.update(old.id, ctx.orgId, { name: 'Renamed.Movie.1999.mkv' })
     await ctx.add('Movies', 'Dune (2021).mkv')
-    await sweepMediaLibraries(ctx.deps)
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
     const jobs = await waitForScans(ctx.db, ctx.orgId)
     expect(jobs.map((job) => job.status)).toEqual(['completed', 'completed'])
 
@@ -197,7 +197,7 @@ describe('media libraries API', () => {
       expect.objectContaining({ name: 'library.json', parent: 'Movies/.zpan' }),
     ])
 
-    await sweepMediaLibraries(ctx.deps)
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
     expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(2)
   })
 
@@ -263,7 +263,7 @@ describe('media libraries API', () => {
     await ctx.matters.trash(ctx.orgId, trashed.id)
     const purgeIds = (await ctx.matters.collectForPurge(ctx.orgId, purged.id))?.map((matter) => matter.id) ?? []
     await ctx.matters.purge(ctx.orgId, purgeIds)
-    await sweepMediaLibraries(ctx.deps)
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
 
     expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(2)
     const libraries = createMediaLibraryRepo(ctx.db)
@@ -297,12 +297,26 @@ describe('media libraries API', () => {
     if (!library) throw new Error('library not created')
     await ctx.add('Movies', 'Dune (2021).mkv')
 
-    await sweepMediaLibraries(ctx.deps)
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
 
     expect(await scanJobs(ctx.db, ctx.orgId)).toEqual([])
     await expect(createMediaLibraryRepo(ctx.db).get(ctx.orgId, library.id)).resolves.toMatchObject({
       fingerprint: null,
     })
+  })
+
+  it('trusts only certificates from the configured cloud when sweeping [spec: media-library/sweep-requires-license]', async () => {
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    expect((await ctx.createLibrary(movies.id)).status).toBe(201)
+    await waitForScans(ctx.db, ctx.orgId)
+    await ctx.add('Movies', 'Dune (2021).mkv')
+
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: 'https://staging-cloud.example' })
+    expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(1)
+
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+    expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(2)
   })
 
   it('lets only workspace editors mark folders [spec: media-library/editor-only]', async () => {

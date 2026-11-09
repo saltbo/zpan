@@ -44,7 +44,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
     await Promise.all([
       syncPendingCloudTrafficReports(deps, { cloudBaseUrl }),
       syncPendingRemoteDownloadUsageReports(deps, { cloudBaseUrl }),
-      backgroundJobsEnabled(platform) ? sweepMediaLibraries(deps) : undefined,
+      backgroundJobsEnabled(platform) ? sweepMediaLibraries(deps, { cloudBaseUrl }) : undefined,
     ])
     return
   }

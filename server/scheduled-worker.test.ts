@@ -89,7 +89,7 @@ describe('handleScheduled', () => {
     expect(syncPendingRemoteDownloadUsageReports).toHaveBeenCalledWith(fakeDeps, {
       cloudBaseUrl: 'https://cloud.example',
     })
-    expect(sweepMediaLibraries).toHaveBeenCalledWith(fakeDeps)
+    expect(sweepMediaLibraries).toHaveBeenCalledWith(fakeDeps, { cloudBaseUrl: 'https://cloud.example' })
     expect(refreshHourlyRollups).not.toHaveBeenCalled()
     expect(reconcileFreePlanBaselines).toHaveBeenCalledOnce()
     expect(runLicensingRefresh).not.toHaveBeenCalled()
