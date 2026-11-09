@@ -89,7 +89,7 @@ describe('[CF] media library scans on the Workers queue', () => {
     for (const outside of [
       `${libraryPath}-sibling`,
       `${libraryPath}0`,
-      `${libraryPath.replace('_', 'X').replace('%', 'Y')}/sub`,
+      `${libraryPath.replaceAll('_', 'X').replaceAll('%', 'Y')}/sub`,
     ]) {
       await add(outside, 'Outside.2020.mkv')
     }
