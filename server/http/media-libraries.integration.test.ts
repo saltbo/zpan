@@ -115,7 +115,7 @@ async function waitForScans(db: TestApp['db'], orgId: string) {
 }
 
 async function readIndex(ctx: Awaited<ReturnType<typeof setup>>, folderPath: string) {
-  const matter = await ctx.matters.findActiveConflict(ctx.orgId, `${folderPath}/.zpan`, 'library.json')
+  const matter = await ctx.matters.findActiveConflict(ctx.orgId, folderPath, 'library.json')
   if (!matter) throw new Error('library.json not found')
   const bytes = objects.get(matter.object)
   if (!bytes) throw new Error(`index object ${matter.object} missing`)
@@ -148,11 +148,11 @@ describe('media libraries API', () => {
     const [job] = await waitForScans(ctx.db, ctx.orgId)
     expect(job).toMatchObject({ status: 'completed', progress: { fileCount: 2 } })
     const { matter, feed } = await readIndex(ctx, 'Movies')
-    expect(matter).toMatchObject({ type: 'application/feed+json', parent: 'Movies/.zpan' })
+    expect(matter).toMatchObject({ type: 'application/feed+json', parent: 'Movies' })
     expect(feed.title).toBe('Movies')
     expect(feed.items.map((item) => [item.id, item.attachments[0].url, item._media])).toEqual([
-      [inception.id, '../Inception%20(2010).mkv', { type: 'movie', title: 'Inception', year: 2010 }],
-      [episode.id, '../Shows/Season%201/S01E02.mkv', { type: 'episode', title: 'Shows', season: 1, episode: 2 }],
+      [inception.id, 'Inception%20(2010).mkv', { type: 'movie', title: 'Inception', year: 2010 }],
+      [episode.id, 'Shows/Season%201/S01E02.mkv', { type: 'episode', title: 'Shows', season: 1, episode: 2 }],
     ])
 
     const list = await ctx.app.request('/api/media-libraries', { headers: ctx.headers })
@@ -161,11 +161,11 @@ describe('media libraries API', () => {
     expect(listed.items[0].lastScannedAt).not.toBeNull()
 
     const dav = await webDavKey(ctx)
-    const first = await ctx.app.request(`/dav/${ctx.slug}/Movies/.zpan/library.json`, { headers: dav })
+    const first = await ctx.app.request(`/dav/${ctx.slug}/Movies/library.json`, { headers: dav })
     expect(first.status).toBe(200)
     expect(mediaLibraryFeedSchema.parse(await first.json()).items).toHaveLength(2)
     const etag = first.headers.get('ETag')
-    const revalidated = await ctx.app.request(`/dav/${ctx.slug}/Movies/.zpan/library.json`, {
+    const revalidated = await ctx.app.request(`/dav/${ctx.slug}/Movies/library.json`, {
       headers: { ...dav, 'If-None-Match': etag ?? '' },
     })
     expect(revalidated.status).toBe(304)
@@ -207,9 +207,10 @@ describe('media libraries API', () => {
     expect(after.matter.size).not.toBe(before.matter.size)
     expect(objects.has(before.matter.object)).toBe(false)
     expect(after.feed.items.map((item) => item.title)).toEqual(['Dune', 'Renamed Movie'])
-    expect(await ctx.matters.listActiveDescendants(ctx.orgId, 'Movies')).toEqual([
-      expect.objectContaining({ name: 'library.json', parent: 'Movies/.zpan' }),
-    ])
+    const children = await ctx.db.all<{ name: string }>(
+      sql`SELECT name FROM matters WHERE org_id = ${ctx.orgId} AND parent = 'Movies' AND status = 'active' ORDER BY name`,
+    )
+    expect(children.map((child) => child.name)).toEqual(['Dune (2021).mkv', 'Renamed.Movie.1999.mkv', 'library.json'])
 
     await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
     expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(2)
@@ -498,6 +499,38 @@ describe('media libraries API', () => {
     expect(jobs.map((job) => job.status)).toEqual(['completed', 'completed'])
     expect((await readIndex(ctx, 'Movies')).feed.items.map((item) => item.title)).toEqual(['Dune'])
     expect(error).toHaveBeenCalledWith(expect.stringContaining(before.matter.object))
+  })
+
+  it('leaves a user-uploaded library.json in place and fails the scan [spec: media-library/user-index-file-blocks]', async () => {
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    await ctx.add('Movies', 'Dune (2021).mkv')
+    const userFile = await ctx.matters.create({
+      orgId: ctx.orgId,
+      name: 'library.json',
+      type: 'application/json',
+      size: 12,
+      dirtype: DirType.FILE,
+      parent: 'Movies',
+      object: 'objects/user-library.json',
+      storageId: STORAGE_ID,
+      status: 'active',
+    })
+
+    expect((await ctx.createLibrary(movies.id)).status).toBe(201)
+    expect(await waitForScans(ctx.db, ctx.orgId)).toEqual([
+      expect.objectContaining({
+        status: 'failed',
+        errorMessage:
+          '"Movies/library.json" is not a ZPan media library index; rename or remove it so the index can be written',
+      }),
+    ])
+    expect(await ctx.matters.findActiveConflict(ctx.orgId, 'Movies', 'library.json')).toMatchObject({
+      id: userFile.id,
+      type: 'application/json',
+      object: 'objects/user-library.json',
+    })
+    expect(S3Service.prototype.putObject).not.toHaveBeenCalled()
   })
 
   it('holds the scan lease through a listing that outlasts it [spec: media-library/scan-holds-lease]', async () => {

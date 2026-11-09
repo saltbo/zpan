@@ -76,7 +76,7 @@ function MediaLibraryDetails({ folder, actions }: { folder: StorageObject; actio
       {library && (
         <>
           <dt className="text-muted-foreground">{t('mediaLibrary.indexFile')}</dt>
-          <dd className="min-w-0 break-words font-mono text-xs">/{library.folderPath}/.zpan/library.json</dd>
+          <dd className="min-w-0 break-words font-mono text-xs">/{library.folderPath}/library.json</dd>
         </>
       )}
     </>

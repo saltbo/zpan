@@ -49,8 +49,8 @@ export interface MediaLibraryRepo {
   listAll(): Promise<MediaLibraryState[]>
   delete(orgId: string, id: string): Promise<boolean>
   recordScan(orgId: string, id: string, scan: { fingerprint: string; scannedAt?: Date }): Promise<void>
-  // Cheap change detector over the live subtree, excluding the .zpan index folder.
+  // Cheap change detector over the live subtree, excluding the library.json index.
   fingerprint(orgId: string, folderPath: string): Promise<string>
-  // Live files in the subtree (outside .zpan) with a video MIME type or extension.
+  // Live files in the subtree with a video MIME type or extension.
   listVideoFiles(orgId: string, folderPath: string, extensions: readonly string[]): Promise<Matter[]>
 }

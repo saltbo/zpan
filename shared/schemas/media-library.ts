@@ -24,7 +24,7 @@ export const mediaLibrarySchema = z
 
 export type MediaLibrary = z.infer<typeof mediaLibrarySchema>
 
-// ─── <library>/.zpan/library.json — JSON Feed 1.1 ───────────────────────────
+// ─── <library>/library.json — JSON Feed 1.1 ─────────────────────────────────
 
 export const MEDIA_LIBRARY_FEED_VERSION = 'https://jsonfeed.org/version/1.1'
 

@@ -72,7 +72,7 @@ const createRoute = authRoute(
   {
     operationId: 'createMediaLibrary',
     summary: 'Mark a folder as a media library',
-    description: 'Queues the first scan, which writes `<folder>/.zpan/library.json` (JSON Feed 1.1).',
+    description: 'Queues the first scan, which writes `<folder>/library.json` (JSON Feed 1.1).',
     tags: ['Media Libraries'],
     method: 'post',
     path: '/',
@@ -94,7 +94,7 @@ const deleteRoute = authRoute(
   {
     operationId: 'deleteMediaLibrary',
     summary: 'Remove a media library',
-    description: 'The folder and its existing `.zpan` index files are left in place.',
+    description: 'The folder and its existing `library.json` index are left in place.',
     tags: ['Media Libraries'],
     method: 'delete',
     path: '/{id}',

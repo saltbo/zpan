@@ -99,7 +99,7 @@ describe('FileDetailsSheet', () => {
     expect(
       screen.getByText(`mediaLibrary.lastScanned:{"date":"${new Date(lastScannedAt).toLocaleDateString()}"}`),
     ).toBeTruthy()
-    expect(screen.getByText('/Movies/.zpan/library.json')).toBeTruthy()
+    expect(screen.getByText('/Movies/library.json')).toBeTruthy()
     cleanup()
 
     renderSheet(actions({}))
@@ -121,6 +121,6 @@ describe('FileDetailsSheet', () => {
       }),
     )
     expect(screen.getByText('mediaLibrary.notScanned')).toBeTruthy()
-    expect(screen.getByText('/Movies/.zpan/library.json')).toBeTruthy()
+    expect(screen.getByText('/Movies/library.json')).toBeTruthy()
   })
 })

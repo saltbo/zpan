@@ -11,7 +11,7 @@ every refresh. ZPan already knows the file tree, so it can publish the tree
 once per media folder and let clients fetch only that.
 
 A folder marked as a **media library** gets a generated index at
-`<folder>/.zpan/library.json`. A client fetches it over plain WebDAV with
+`<folder>/library.json`. A client fetches it over plain WebDAV with
 `If-None-Match`; an unchanged index answers `304` without touching storage.
 When it changes, the client downloads one JSON document and diffs items by
 `id`. No client-side protocol beyond WebDAV GET is required.
@@ -47,7 +47,7 @@ Rules:
   shows in the task list until the user removes one of them.
 - A library whose folder is trashed is skipped by the sweep. A library whose
   folder was purged is deleted by the sweep (or by a scan that finds it).
-- Removing a library leaves the folder and its `.zpan` files in place.
+- Removing a library leaves the folder and its `library.json` in place.
 
 ## 3. Change detection
 
@@ -57,7 +57,9 @@ on the existing 10-minute cron (`*/10 * * * *` on Workers, the matching
 `setInterval` on Node).
 
 For each library the sweep computes one aggregate over live matters in the
-subtree, excluding the `.zpan` folder and its contents:
+subtree, excluding only the index file itself (`library.json` directly in the
+library root). Any other file counts, including one in a folder a user happens
+to name `.zpan`:
 
 ```
 count(*) : sum(size) : max(updated_at) : sum(updated_at)
@@ -104,14 +106,14 @@ The processor:
 1. Loads the library and its folder; fails the job if either is gone or
    trashed.
 2. Computes the fingerprint **before** listing, so a change that races the
-   listing produces one extra scan instead of being lost. The `.zpan`
-   exclusion means the job's own write never retriggers a scan.
+   listing produces one extra scan instead of being lost. Excluding the index
+   file means the job's own write never retriggers a scan.
 3. Fails if an older live library overlaps this one (see the nesting rule).
 4. Lists live files in the subtree whose stored MIME is `video/*` or whose
    extension is a known video extension, and builds the feed. Recording the
    file count on the job here also renews its `updated_at`, so a listing of a
    large library does not lose the scan lease before the write.
-5. Writes `library.json` as a real matter: a fresh object key per write,
+5. Writes `<library>/library.json` as a real matter: a fresh object key per write,
    quota reserved for growth, `applyUpload` on the existing row (so size and
    `updated_at`, and therefore the WebDAV ETag, change), then the old object is
    deleted. A new key means a reader holding a cached matter row never pairs
@@ -120,13 +122,22 @@ The processor:
    (`media_library.scan.old_index_delete_error`) and leaves an orphaned object
    instead of failing the job.
 6. Stores the fingerprint and `last_scanned_at`, and drops the WebDAV child
-   listing cache for the library folder and `.zpan`.
+   listing cache for the library folder.
+
+The index shares the library root with user files, so a scan overwrites an
+existing `library.json` only when it looks like one ZPan wrote: a file whose
+name matches exactly and whose type is `application/feed+json`. Anything else
+holding the name (a user's own `library.json`, a folder, or a case variant
+such as `Library.json`, since live sibling names are unique
+case-insensitively while WebDAV paths are case-sensitive) fails the scan with
+`"<path>" is not a ZPan media library index; rename or remove it so the index
+can be written` and is left untouched.
 
 Failures split in two. A deterministic failure stores the attempted
 fingerprint, so it does not re-enqueue on every sweep; the next change in the
-subtree or a manual rescan retries. These are a quota exceeded by the index, a
-`.ZPAN` folder or a `library.json` folder occupying the index name, and an
-overlap with an older library. Any other failure (a storage or database error)
+subtree or a manual rescan retries. These are a quota exceeded by the index,
+an entry ZPan does not own occupying the index name, and an overlap with an
+older library. Any other failure (a storage or database error)
 leaves the fingerprint untouched, so the next sweep retries it, including a
 failed first scan.
 
@@ -136,7 +147,7 @@ and the sweep does not run.
 
 ## 5. Index format
 
-`<library>/.zpan/library.json`, `application/feed+json`, a full snapshot in
+`<library>/library.json`, `application/feed+json`, a full snapshot in
 [JSON Feed 1.1](https://jsonfeed.org/version/1.1). The schema lives in
 `shared/schemas/media-library.ts`.
 
@@ -151,7 +162,7 @@ and the sweep does not run.
       "title": "Inception",
       "content_text": "Inception (2010).mkv",
       "date_modified": "2026-11-09T15:59:35.000Z",
-      "attachments": [{ "url": "../Inception%20(2010).mkv", "mime_type": "video/x-matroska", "size_in_bytes": 42 }],
+      "attachments": [{ "url": "Inception%20(2010).mkv", "mime_type": "video/x-matroska", "size_in_bytes": 42 }],
       "_media": { "type": "movie", "title": "Inception", "year": 2010 }
     }
   ]
@@ -159,9 +170,9 @@ and the sweep does not run.
 ```
 
 - `id` is the video's matter id, stable across renames and moves.
-- `attachments[0].url` is relative to the feed's own URL (`../` climbs from
-  `.zpan/` to the library root), each segment percent-encoded. Standard RFC
-  3986 resolution against the URL the client fetched yields the video's WebDAV
+- `attachments[0].url` is the library-relative path, each segment
+  percent-encoded. The feed sits in the library root, so standard RFC 3986
+  resolution against the URL the client fetched yields the video's WebDAV
   URL.
 - `content_text` is the library-relative path (JSON Feed requires
   `content_text` or `content_html`).
@@ -201,14 +212,15 @@ media library" and the details still work for existing libraries.
   other secrets.
 - **Sidecars.** Write `.nfo` files and posters next to videos (Kodi/Jellyfin
   layout) so players that ignore the feed still get metadata. Sidecars are
-  library content and count toward the fingerprint; `.zpan` stays excluded.
+  library content and count toward the fingerprint; only `library.json` stays
+  excluded.
 - **Subtitles and extras.** List sidecar subtitles per item as additional
   attachments.
 
 ## 8. Open decisions
 
-- **Removal.** Removing a library leaves a stale `.zpan/library.json`.
-  Trashing `.zpan` on removal would avoid clients reading a frozen index.
+- **Removal.** Removing a library leaves a stale `library.json`. Trashing it
+  on removal would avoid clients reading a frozen index.
 - **Non-video changes.** Any change in the subtree (a new `.txt`) rewrites the
   index, and `generatedAt` changes the ETag even when items are equal.
   Skipping the write when the item list is unchanged needs a stored digest.

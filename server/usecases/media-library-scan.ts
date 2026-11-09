@@ -1,5 +1,5 @@
 // Media library scans: enqueueing, the change-detection sweep, and the job
-// processor that writes <library>/.zpan/library.json. Scans never hook into
+// processor that writes <library>/library.json. Scans never hook into
 // write paths; the sweep compares a cheap subtree fingerprint instead, so
 // uploads, WebDAV writes, and downloads into a library are all covered.
 
@@ -11,7 +11,6 @@ import {
   buildMediaLibraryFeed,
   joinMatterPath,
   MEDIA_LIBRARY_INDEX_FILE,
-  MEDIA_LIBRARY_INDEX_FOLDER,
   MEDIA_LIBRARY_INDEX_MIME,
   type MediaLibraryRoot,
   olderOverlappingLibrary,
@@ -150,7 +149,7 @@ async function scanLibrary(
     })
     const index = await writeLibraryIndex(deps, message, path, new TextEncoder().encode(JSON.stringify(feed)))
     await deps.mediaLibraries.recordScan(orgId, library.id, { fingerprint, scannedAt: new Date() })
-    await deps.webdavPath.invalidateFolders(orgId, [path, joinMatterPath(path, MEDIA_LIBRARY_INDEX_FOLDER)])
+    await deps.webdavPath.invalidateFolders(orgId, [path])
     return { index, itemCount: feed.items.length }
   } catch (error) {
     if (error instanceof MediaLibraryScanBlockedError) {
@@ -185,11 +184,9 @@ async function writeLibraryIndex(
   bytes: Uint8Array,
 ): Promise<Matter> {
   const { orgId, userId, createdBy } = message
-  const indexFolder = joinMatterPath(folderPath, MEDIA_LIBRARY_INDEX_FOLDER)
-  const existing = await findIndexEntry(deps, orgId, indexFolder, MEDIA_LIBRARY_INDEX_FILE, { file: true })
+  const existing = await findIndexEntry(deps, orgId, folderPath)
   const storage = existing ? await deps.storages.get(existing.storageId) : await deps.storages.select()
   if (!storage) throw new MediaLibraryScanBlockedError('Storage for the media library index not found')
-  if (!existing) await ensureIndexFolder(deps, message, folderPath, storage.id)
 
   const key = buildObjectKey({ uid: userId, orgId, rawExt: '.json' })
   const sizeDelta = bytes.byteLength - (existing?.size ?? 0)
@@ -206,7 +203,7 @@ async function writeLibraryIndex(
           type: MEDIA_LIBRARY_INDEX_MIME,
           size: bytes.byteLength,
           dirtype: DirType.FILE,
-          parent: indexFolder,
+          parent: folderPath,
           object: key,
           storageId: storage.id,
           status: ObjectStatus.ACTIVE,
@@ -237,45 +234,21 @@ async function writeLibraryIndex(
   return index
 }
 
-async function ensureIndexFolder(
-  deps: Deps,
-  message: BackgroundJobMessage,
-  folderPath: string,
-  storageId: string,
-): Promise<void> {
-  const { orgId, createdBy } = message
-  const existing = await findIndexEntry(deps, orgId, folderPath, MEDIA_LIBRARY_INDEX_FOLDER, { file: false })
-  if (existing) return
-  await deps.matter.create({
-    orgId,
-    name: MEDIA_LIBRARY_INDEX_FOLDER,
-    type: 'folder',
-    size: 0,
-    dirtype: DirType.USER_FOLDER,
-    parent: folderPath,
-    object: '',
-    storageId,
-    status: ObjectStatus.ACTIVE,
-    createdByActorType: createdBy.type,
-    createdByActorRef: createdBy.ref,
-    createdByActorIssuer: createdBy.issuer,
-  })
-}
-
-// Live sibling names are unique case-insensitively, so a ".ZPAN" folder or a
-// "library.json" folder occupies the index name. WebDAV paths are
-// case-sensitive, so writing there would not serve the contract path: fail.
-async function findIndexEntry(
-  deps: Deps,
-  orgId: string,
-  parent: string,
-  name: string,
-  expected: { file: boolean },
-): Promise<Matter | null> {
-  const entry = await deps.matter.findActiveConflict(orgId, parent, name)
+// The index shares the library root with user files. Only a file that looks
+// like one ZPan wrote is overwritten; any other entry occupying the name, a
+// case variant included (live sibling names are unique case-insensitively, but
+// WebDAV paths are case-sensitive), is the user's and blocks the scan.
+async function findIndexEntry(deps: Deps, orgId: string, folderPath: string): Promise<Matter | null> {
+  const entry = await deps.matter.findActiveConflict(orgId, folderPath, MEDIA_LIBRARY_INDEX_FILE)
   if (!entry) return null
-  if (entry.name !== name || (entry.dirtype === DirType.FILE) !== expected.file) {
-    throw new MediaLibraryScanBlockedError(`"${joinMatterPath(parent, entry.name)}" blocks the media library index`)
+  if (
+    entry.name !== MEDIA_LIBRARY_INDEX_FILE ||
+    entry.dirtype !== DirType.FILE ||
+    entry.type !== MEDIA_LIBRARY_INDEX_MIME
+  ) {
+    throw new MediaLibraryScanBlockedError(
+      `"${joinMatterPath(folderPath, entry.name)}" is not a ZPan media library index; rename or remove it so the index can be written`,
+    )
   }
   return entry
 }

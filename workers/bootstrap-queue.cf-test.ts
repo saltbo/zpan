@@ -122,7 +122,7 @@ describe('[CF] media library scans on the Workers queue', () => {
       errorMessage: null,
       progress: { fileCount: 2 },
     })
-    const index = await matters.findActiveConflict(orgId, `${libraryPath}/.zpan`, 'library.json')
+    const index = await matters.findActiveConflict(orgId, libraryPath, 'library.json')
     if (!index) throw new Error('library.json not written')
     const feed = mediaLibraryFeedSchema.parse(JSON.parse(new TextDecoder().decode(objects.get(index.object))))
     expect(feed.items.map((item) => item.id)).toEqual([direct.id, nested.id])

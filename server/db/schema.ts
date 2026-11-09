@@ -370,7 +370,7 @@ export const backgroundJobs = sqliteTable(
   ],
 )
 
-// A folder whose subtree ZPan indexes into <folder>/.zpan/library.json. Keyed by
+// A folder whose subtree ZPan indexes into <folder>/library.json. Keyed by
 // the folder's matter id so renames and moves keep the library attached.
 export const mediaLibraries = sqliteTable(
   'media_libraries',

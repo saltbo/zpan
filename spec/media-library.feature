@@ -1,6 +1,6 @@
 Feature: Media libraries
   A folder marked as a media library gets a JSON Feed index at
-  <folder>/.zpan/library.json that WebDAV clients fetch conditionally instead of
+  <folder>/library.json that WebDAV clients fetch conditionally instead of
   walking the folder tree. A 10-minute sweep rescans a library when its subtree
   fingerprint changes. Media libraries are a Pro and Business feature.
 
@@ -20,7 +20,7 @@ Feature: Media libraries
   Scenario: Marking a folder queues a scan that writes the index
     Given a licensed workspace with videos in a folder
     When the folder is marked as a media library
-    Then a scan job completes and .zpan/library.json lists the videos
+    Then a scan job completes and library.json lists the videos
     And a WebDAV GET with the returned ETag answers 304
 
   @media-library/sweep-rescans-on-change @api
@@ -71,6 +71,12 @@ Feature: Media libraries
     Given a scanned media library
     When a rescan cannot delete the previous index object
     Then the scan completes with the new index and the failure is logged
+
+  @media-library/user-index-file-blocks @api
+  Scenario: A user's own library.json is never overwritten
+    Given a library folder whose root already holds a user file named library.json
+    When the library is scanned
+    Then the scan fails naming that file and the file is left untouched
 
   @media-library/scan-holds-lease @api
   Scenario: A long scan keeps its lease

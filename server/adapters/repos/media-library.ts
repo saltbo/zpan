@@ -19,7 +19,7 @@ import {
 } from 'drizzle-orm'
 import { generateId } from '../../../shared/ids'
 import { backgroundJobs, matters, mediaLibraries } from '../../db/schema'
-import { joinMatterPath, MEDIA_LIBRARY_INDEX_FOLDER, MEDIA_LIBRARY_SCAN_LEASE_MS } from '../../domain/media-library'
+import { joinMatterPath, MEDIA_LIBRARY_INDEX_FILE, MEDIA_LIBRARY_SCAN_LEASE_MS } from '../../domain/media-library'
 import type { Database } from '../../platform/interface'
 import type { MediaLibraryRecord, MediaLibraryRepo, MediaLibraryState, MediaLibraryView } from '../../usecases/ports'
 
@@ -53,11 +53,8 @@ function subtree(path: string): SQL {
   return or(eq(matters.parent, path), and(gte(matters.parent, `${path}/`), lt(matters.parent, `${path}0`))) as SQL
 }
 
-function outsideIndexFolder(path: string): SQL {
-  return and(
-    not(and(eq(matters.parent, path), eq(matters.name, MEDIA_LIBRARY_INDEX_FOLDER)) as SQL),
-    not(subtree(`${path}/${MEDIA_LIBRARY_INDEX_FOLDER}`)),
-  ) as SQL
+function notIndexFile(path: string): SQL {
+  return not(and(eq(matters.parent, path), eq(matters.name, MEDIA_LIBRARY_INDEX_FILE)) as SQL)
 }
 
 function liveMatter(): SQL {
@@ -205,7 +202,7 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
           total: sql<number>`COALESCE(SUM(${matters.updatedAt}), 0)`,
         })
         .from(matters)
-        .where(and(eq(matters.orgId, orgId), liveMatter(), subtree(folderPath), outsideIndexFolder(folderPath)))
+        .where(and(eq(matters.orgId, orgId), liveMatter(), subtree(folderPath), notIndexFile(folderPath)))
       return `${row.count}:${row.bytes}:${row.latest}:${row.total}`
     },
 
@@ -219,7 +216,7 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
             liveMatter(),
             eq(matters.dirtype, DirType.FILE),
             subtree(folderPath),
-            outsideIndexFolder(folderPath),
+            notIndexFile(folderPath),
             or(like(matters.type, 'video/%'), ...extensions.map((extension) => like(matters.name, `%.${extension}`))),
           ),
         )

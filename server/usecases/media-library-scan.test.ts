@@ -1,3 +1,4 @@
+import { DirType } from '@shared/constants'
 import type { BackgroundJob } from '@shared/types'
 import { describe, expect, it, vi } from 'vitest'
 import type { Deps } from './deps'
@@ -45,7 +46,7 @@ function makeDeps(overrides: { library?: MediaLibraryState | null; blocking?: Pa
     },
     matter: {
       findActiveConflict: vi.fn(async (_orgId: string, _parent: string, name: string) =>
-        overrides.blocking && name === '.zpan' ? (overrides.blocking as Matter) : null,
+        overrides.blocking && name === 'library.json' ? (overrides.blocking as Matter) : null,
       ),
       create: vi.fn(async (input: Record<string, unknown>) => ({ id: `created-${input.name}`, ...input })),
     },
@@ -59,14 +60,18 @@ function makeDeps(overrides: { library?: MediaLibraryState | null; blocking?: Pa
 }
 
 describe('processMediaLibraryScan', () => {
-  it('fails the job and keeps the attempted fingerprint when another entry holds the index name', async () => {
-    const { deps, typed, updates } = makeDeps({ blocking: { name: '.ZPAN', dirtype: 1 } })
+  it.each([
+    ['a case variant', { name: 'Library.json', dirtype: DirType.FILE, type: 'application/feed+json' }],
+    ['a folder', { name: 'library.json', dirtype: DirType.USER_FOLDER, type: 'folder' }],
+    ['a user file', { name: 'library.json', dirtype: DirType.FILE, type: 'application/json' }],
+  ])('fails the job and keeps the attempted fingerprint when %s holds the index name', async (_label, blocking) => {
+    const { deps, typed, updates } = makeDeps({ blocking })
 
     await processMediaLibraryScan(typed, message)
 
     expect(updates.at(-1)).toMatchObject({
       status: 'failed',
-      errorMessage: '"Movies/.ZPAN" blocks the media library index',
+      errorMessage: `"Movies/${blocking.name}" is not a ZPan media library index; rename or remove it so the index can be written`,
     })
     expect(deps.mediaLibraries.recordScan).toHaveBeenCalledWith('org-1', 'lib-1', { fingerprint: '3:30:100:300' })
     expect(deps.s3.putObject).not.toHaveBeenCalled()
