@@ -55,6 +55,7 @@ import {
   type TmdbConfig,
   type TmdbImageSize,
   TmdbRateLimitError,
+  TmdbUnavailableError,
 } from './ports'
 import { loadBindingState } from './site/licensing'
 import { withStorageUsageReservation } from './storage-usage'
@@ -67,6 +68,8 @@ import { withStorageUsageReservation } from './storage-usage'
 const SCRAPE_BATCH_SIZE = 20
 // A TMDB Retry-After longer than this is shortened to it.
 const MAX_RETRY_DELAY_SECONDS = 300
+// 429s in a row without a finished video before the job fails.
+const MAX_RATE_LIMITED_RETRIES = 10
 // Only this much of an .nfo is read for its TMDB id.
 const MAX_NFO_BYTES = 64 * 1024
 const NFO_MIME = 'text/xml'
@@ -77,6 +80,17 @@ export const TMDB_NOT_CONFIGURED_MESSAGE =
   'TMDB is not configured. An administrator can add a TMDB access token in the scraping settings.'
 
 type ScrapeProgress = NonNullable<MediaLibraryScrapeJobRequest['resume']>
+const INITIAL_PROGRESS: ScrapeProgress = {
+  after: null,
+  processed: 0,
+  matched: 0,
+  changed: 0,
+  failed: 0,
+  unavailable: 0,
+  firstFailure: null,
+  rateLimited: 0,
+  quotaExceeded: false,
+}
 type ScrapeMessage = BackgroundJobMessage<MediaLibraryScrapeJobRequest>
 type EpisodeInfo = Extract<MediaInfo, { type: 'episode' }>
 
@@ -94,6 +108,7 @@ interface ScrapeSession {
   userId: string
   library: MediaLibraryView
   config: TmdbConfig
+  progress: ScrapeProgress
   storage: Promise<StorageRecord> | null
   shows: Map<string, Promise<ResolvedId>>
   showDetails: Map<string, Promise<TmdbShow | null>>
@@ -129,7 +144,7 @@ export async function enqueueScrapeAfterScan(
 // redelivered message repeats no work.
 export async function processMediaLibraryScrape(deps: Deps, message: ScrapeMessage): Promise<void> {
   const { orgId, jobId, request } = message
-  const progress: ScrapeProgress = { ...(request.resume ?? { after: null, processed: 0, matched: 0, changed: 0 }) }
+  const progress: ScrapeProgress = { ...(request.resume ?? INITIAL_PROGRESS) }
   const inFlight = { path: null as string | null }
   if (!request.resume) await deps.backgroundJobs.update(orgId, jobId, { status: 'running', startedAt: new Date() })
   try {
@@ -139,12 +154,7 @@ export async function processMediaLibraryScrape(deps: Deps, message: ScrapeMessa
       await deps.jobQueue.dispatch(continuation(message, progress))
       return
     }
-    await deps.backgroundJobs.update(orgId, jobId, {
-      status: 'completed',
-      progress: { fileCount: progress.processed, currentFilename: null },
-      resultMetadata: { matched: progress.matched, unmatched: progress.processed - progress.matched },
-      cancelable: false,
-    })
+    await finish(deps, message, progress)
     if (progress.changed > 0) {
       await rescanIndex(deps, message, library).catch((error: unknown) => {
         console.error(
@@ -153,7 +163,8 @@ export async function processMediaLibraryScrape(deps: Deps, message: ScrapeMessa
       })
     }
   } catch (error) {
-    if (error instanceof TmdbRateLimitError) {
+    if (error instanceof TmdbRateLimitError && progress.rateLimited < MAX_RATE_LIMITED_RETRIES) {
+      progress.rateLimited++
       await renewLease(deps, message, progress)
       const delaySeconds = Math.min(Math.max(error.retryAfterSeconds, 1), MAX_RETRY_DELAY_SECONDS)
       await deps.jobQueue.dispatch(continuation(message, progress), { delaySeconds })
@@ -162,11 +173,39 @@ export async function processMediaLibraryScrape(deps: Deps, message: ScrapeMessa
     await deps.backgroundJobs.update(orgId, jobId, {
       status: 'failed',
       errorMessage: failureMessage(error),
-      progress: { fileCount: progress.processed, currentFilename: inFlight.path },
+      progress: { fileCount: videosDone(progress), currentFilename: inFlight.path },
       retryable: !(error instanceof MediaLibraryScrapeStoppedError || error instanceof TmdbAuthError),
       cancelable: false,
     })
   }
+}
+
+// A run where TMDB was unavailable for every video it tried fails, so the user
+// sees the outage and can retry; any other run completes and reports what failed.
+async function finish(deps: Deps, message: ScrapeMessage, progress: ScrapeProgress): Promise<void> {
+  const { firstFailure } = progress
+  if (firstFailure && progress.processed === 0 && progress.unavailable === progress.failed) {
+    await deps.backgroundJobs.update(message.orgId, message.jobId, {
+      status: 'failed',
+      errorMessage: firstFailure.message,
+      progress: { fileCount: videosDone(progress), currentFilename: firstFailure.path },
+      retryable: true,
+      cancelable: false,
+    })
+    return
+  }
+  await deps.backgroundJobs.update(message.orgId, message.jobId, {
+    status: 'completed',
+    progress: { fileCount: videosDone(progress), currentFilename: null },
+    resultMetadata: {
+      matched: progress.matched,
+      unmatched: progress.processed - progress.matched,
+      failed: progress.failed,
+      firstFailed: firstFailure?.path ?? null,
+      quotaExceeded: progress.quotaExceeded,
+    },
+    cancelable: false,
+  })
 }
 
 async function scrapeBatch(
@@ -194,6 +233,7 @@ async function scrapeBatch(
     userId: message.userId,
     library,
     config,
+    progress,
     storage: null,
     shows: new Map(),
     showDetails: new Map(),
@@ -203,11 +243,9 @@ async function scrapeBatch(
   try {
     for (const candidate of candidates) {
       inFlight.path = joinMatterPath(candidate.file.parent, candidate.file.name)
-      const { result, changed } = await scrapeVideo(session, candidate)
+      await scrapeCandidate(session, candidate)
       progress.after = { parent: candidate.file.parent, name: candidate.file.name }
-      progress.processed++
-      if (result.status === 'matched') progress.matched++
-      if (changed) progress.changed++
+      progress.rateLimited = 0
     }
     inFlight.path = null
   } finally {
@@ -218,6 +256,27 @@ async function scrapeBatch(
     }
   }
   return { library, done: candidates.length < SCRAPE_BATCH_SIZE }
+}
+
+// A video that fails gets no record, so the next scrape tries it again, and
+// the job moves on to the rest. Only a rejected token or a rate limit stops it.
+async function scrapeCandidate(session: ScrapeSession, candidate: MediaLibraryScrapeCandidate): Promise<void> {
+  const { progress } = session
+  try {
+    const { result, changed } = await scrapeVideo(session, candidate)
+    progress.processed++
+    if (result.status === 'matched') progress.matched++
+    if (changed) progress.changed++
+  } catch (error) {
+    if (error instanceof TmdbAuthError || error instanceof TmdbRateLimitError) throw error
+    const { file } = candidate
+    console.error(
+      `media_library.scrape.video_error library=${session.library.id} org=${session.orgId} matter=${file.id} code=${formatError(error)}`,
+    )
+    progress.failed++
+    if (error instanceof TmdbUnavailableError) progress.unavailable++
+    progress.firstFailure ??= { path: joinMatterPath(file.parent, file.name), message: failureMessage(error) }
+  }
 }
 
 async function scrapeVideo(
@@ -452,14 +511,15 @@ async function findExisting(session: ScrapeSession, paths: SidecarPath[]): Promi
 
 // Writes the sidecar unless something already lives at its path. The create
 // never replaces: an entry that appears between the lookup and the write wins,
-// and the uploaded object is deleted.
+// and the uploaded object is deleted. Once a write exceeds the quota, the job
+// writes no more sidecars but still matches and records its videos.
 async function writeSidecar(
   session: ScrapeSession,
   existing: ReadonlyMap<string, Matter>,
   path: SidecarPath,
   content: () => Promise<SidecarFile | null>,
 ): Promise<void> {
-  if (existing.has(sidecarKey(path))) return
+  if (session.progress.quotaExceeded || existing.has(sidecarKey(path))) return
   const file = await content()
   if (!file) return
   const { deps, orgId, userId } = session
@@ -487,8 +547,16 @@ async function writeSidecar(
       }),
     )
   } catch (error) {
-    await deps.s3.deleteObject(storage, key)
+    await deps.s3.deleteObject(storage, key).catch((cleanupError: unknown) => {
+      console.error(
+        `media_library.scrape.sidecar_cleanup_error library=${session.library.id} org=${orgId} key=${key} code=${formatError(cleanupError)}`,
+      )
+    })
     if (error instanceof NameConflictError) return
+    if (error instanceof StorageQuotaExceededError) {
+      session.progress.quotaExceeded = true
+      return
+    }
     throw error
   }
   session.writtenFolders.add(path.parent)
@@ -549,8 +617,12 @@ async function rescanIndex(deps: Deps, message: ScrapeMessage, library: MediaLib
 
 function renewLease(deps: Pick<Deps, 'backgroundJobs'>, message: ScrapeMessage, progress: ScrapeProgress) {
   return deps.backgroundJobs.update(message.orgId, message.jobId, {
-    progress: { fileCount: progress.processed, currentFilename: null },
+    progress: { fileCount: videosDone(progress), currentFilename: null },
   })
+}
+
+function videosDone(progress: ScrapeProgress): number {
+  return progress.processed + progress.failed
 }
 
 function continuation(message: ScrapeMessage, progress: ScrapeProgress): ScrapeMessage {
@@ -561,8 +633,8 @@ function failureMessage(error: unknown): string {
   if (error instanceof TmdbAuthError) {
     return 'TMDB rejected the access token. An administrator can update it in the scraping settings.'
   }
-  if (error instanceof StorageQuotaExceededError) {
-    return 'Quota exceeded while writing metadata files. The files written so far are kept.'
+  if (error instanceof TmdbRateLimitError) {
+    return `TMDB rate limited the scrape ${MAX_RATE_LIMITED_RETRIES} times in a row. Retry it later.`
   }
   return error instanceof Error ? error.message : String(error)
 }

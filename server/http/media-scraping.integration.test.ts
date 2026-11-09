@@ -410,7 +410,17 @@ describe('media library scraping', () => {
       scrapeMessages.map((message) => message.request.type === 'media_library_scrape' && message.request.resume),
     ).toEqual([
       undefined,
-      { after: { parent: 'Media', name: 'Film 19 (2001).mkv' }, processed: 20, matched: 20, changed: 20 },
+      {
+        after: { parent: 'Media', name: 'Film 19 (2001).mkv' },
+        processed: 20,
+        matched: 20,
+        changed: 20,
+        failed: 0,
+        unavailable: 0,
+        firstFailure: null,
+        rateLimited: 0,
+        quotaExceeded: false,
+      },
     ])
     expect(new Set(scrapeMessages.map((message) => message.jobId)).size).toBe(1)
     const [job] = await ctx.jobs('media_library_scrape')

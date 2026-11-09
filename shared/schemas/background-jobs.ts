@@ -35,9 +35,18 @@ export const mediaLibraryScrapeJobRequestSchema = z.object({
   resume: z
     .object({
       after: z.object({ parent: z.string(), name: z.string() }).nullable(),
+      // Videos recorded, of which matched, and of which changed their published id.
       processed: z.number().int().nonnegative(),
       matched: z.number().int().nonnegative(),
       changed: z.number().int().nonnegative(),
+      // Videos that failed and got no record, of which TMDB was unavailable for.
+      failed: z.number().int().nonnegative(),
+      unavailable: z.number().int().nonnegative(),
+      firstFailure: z.object({ path: z.string(), message: z.string() }).nullable(),
+      // TMDB 429s in a row since the last video finished.
+      rateLimited: z.number().int().nonnegative(),
+      // A sidecar write exceeded the quota, so the job writes no more.
+      quotaExceeded: z.boolean(),
     })
     .optional(),
 })

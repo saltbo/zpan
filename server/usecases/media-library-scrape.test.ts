@@ -1,7 +1,7 @@
 import { ZPAN_CLOUD_URL_DEFAULT } from '@shared/constants'
 import type { MediaLibraryScrapeJobRequest } from '@shared/schemas'
 import type { BackgroundJob } from '@shared/types'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TmdbMovie } from '../domain/tmdb'
 import type { Deps } from './deps'
 import { enqueueScrapeAfterScan, processMediaLibraryScrape } from './media-library-scrape'
@@ -64,6 +64,20 @@ function movie(id: number): TmdbMovie {
   }
 }
 
+function initialResume(): NonNullable<MediaLibraryScrapeJobRequest['resume']> {
+  return {
+    after: null,
+    processed: 0,
+    matched: 0,
+    changed: 0,
+    failed: 0,
+    unavailable: 0,
+    firstFailure: null,
+    rateLimited: 0,
+    quotaExceeded: false,
+  }
+}
+
 function makeDeps(
   options: {
     videos?: Matter[]
@@ -113,6 +127,10 @@ function makeDeps(
   return { deps, updates, typed: deps as unknown as Deps }
 }
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('processMediaLibraryScrape', () => {
   it.each([
     [7, 7],
@@ -135,7 +153,17 @@ describe('processMediaLibraryScrape', () => {
         ...message,
         request: {
           ...message.request,
-          resume: { after: { parent: 'Movies', name: 'First (2010).mkv' }, processed: 1, matched: 1, changed: 1 },
+          resume: {
+            after: { parent: 'Movies', name: 'First (2010).mkv' },
+            processed: 1,
+            matched: 1,
+            changed: 1,
+            failed: 0,
+            unavailable: 0,
+            firstFailure: null,
+            rateLimited: 1,
+            quotaExceeded: false,
+          },
         },
       },
       { delaySeconds },
@@ -143,9 +171,51 @@ describe('processMediaLibraryScrape', () => {
     expect(updates.at(-1)).toEqual({ progress: { fileCount: 1, currentFilename: null } })
   })
 
-  it('fails as retryable on a TMDB outage, naming the video it stopped at [spec: media-scraping/transient-failure]', async () => {
+  it('fails the job after 10 rate limits in a row [spec: media-scraping/rate-limited]', async () => {
     const { deps, typed, updates } = makeDeps({
       videos: [video('First (2010).mkv')],
+      search: async () => {
+        throw new TmdbRateLimitError(7)
+      },
+    })
+    let delivered = message
+    deps.jobQueue.dispatch.mockImplementation((async (next: typeof message) => {
+      delivered = next
+    }) as never)
+
+    for (let attempt = 0; attempt <= 10; attempt++) await processMediaLibraryScrape(typed, delivered)
+
+    expect(deps.jobQueue.dispatch).toHaveBeenCalledTimes(10)
+    expect(updates.at(-1)).toMatchObject({
+      status: 'failed',
+      retryable: true,
+      errorMessage: 'TMDB rate limited the scrape 10 times in a row. Retry it later.',
+    })
+  })
+
+  it('starts counting rate limits again once a video finishes [spec: media-scraping/rate-limited]', async () => {
+    const { deps, typed } = makeDeps({
+      videos: [video('First (2010).mkv'), video('Second (2010).mkv')],
+      search: async (title) => {
+        if (title === 'Second') throw new TmdbRateLimitError(7)
+        return [{ id: 1, title, originalTitle: title, year: 2010 }]
+      },
+    })
+    const resume = { ...initialResume(), rateLimited: 10 }
+
+    await processMediaLibraryScrape(typed, { ...message, request: { ...message.request, resume } })
+
+    expect(deps.jobQueue.dispatch).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        request: expect.objectContaining({ resume: expect.objectContaining({ rateLimited: 1 }) }),
+      }),
+      { delaySeconds: 7 },
+    )
+  })
+
+  it('fails as retryable when TMDB was unavailable for every video, naming the first [spec: media-scraping/transient-failure]', async () => {
+    const { deps, typed, updates } = makeDeps({
+      videos: [video('First (2010).mkv'), video('Second (2010).mkv')],
       search: async () => {
         throw new TmdbUnavailableError('TMDB request failed (HTTP 503)')
       },
@@ -157,24 +227,70 @@ describe('processMediaLibraryScrape', () => {
       status: 'failed',
       retryable: true,
       errorMessage: 'TMDB request failed (HTTP 503)',
-      progress: { fileCount: 0, currentFilename: 'Movies/First (2010).mkv' },
+      progress: { fileCount: 2, currentFilename: 'Movies/First (2010).mkv' },
     })
     expect(deps.mediaLibraries.recordScrape).not.toHaveBeenCalled()
     expect(deps.jobQueue.dispatch).not.toHaveBeenCalled()
   })
 
-  it('stops on a quota failure and deletes the object it could not keep [spec: media-scraping/quota]', async () => {
-    const { deps, typed, updates } = makeDeps({ videos: [video('First (2010).mkv')], quota: false })
+  it.each([
+    ['TMDB is unavailable', new TmdbUnavailableError('TMDB request failed (HTTP 503)')],
+    ['TMDB rejects the request', new Error('TMDB rejected /search/movie (HTTP 422)')],
+  ])('moves past a video when %s, leaving it unrecorded for the next scrape [spec: media-scraping/transient-failure]', async (_label, failure) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { deps, typed, updates } = makeDeps({
+      videos: [video('First (2010).mkv'), video('Second (2010).mkv')],
+      search: async (title) => {
+        if (title === 'First') throw failure
+        return [{ id: 2, title, originalTitle: title, year: 2010 }]
+      },
+    })
 
     await processMediaLibraryScrape(typed, message)
 
+    expect(deps.mediaLibraries.recordScrape).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ matterId: 'id-Second (2010).mkv' }),
+    )
     expect(updates.at(-1)).toMatchObject({
-      status: 'failed',
-      errorMessage: 'Quota exceeded while writing metadata files. The files written so far are kept.',
+      status: 'completed',
+      progress: { fileCount: 2 },
+      resultMetadata: { matched: 1, unmatched: 0, failed: 1, firstFailed: 'Movies/First (2010).mkv' },
     })
+    expect(errors).toHaveBeenCalledWith(expect.stringContaining('matter=id-First (2010).mkv'))
+    expect(errors).toHaveBeenCalledWith(expect.stringContaining(failure.message))
+  })
+
+  it('completes when every video failed for a reason other than an outage [spec: media-scraping/transient-failure]', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { typed, updates } = makeDeps({
+      videos: [video('First (2010).mkv')],
+      search: async () => {
+        throw new Error('TMDB rejected /search/movie (HTTP 422)')
+      },
+    })
+
+    await processMediaLibraryScrape(typed, message)
+
+    expect(updates.at(-1)).toMatchObject({ status: 'completed', resultMetadata: { matched: 0, failed: 1 } })
+  })
+
+  it('stops writing sidecars once the quota is exceeded but still records every video [spec: media-scraping/quota]', async () => {
+    const { deps, typed, updates } = makeDeps({
+      videos: [video('First (2010).mkv'), video('Second (2010).mkv')],
+      quota: false,
+    })
+
+    await processMediaLibraryScrape(typed, message)
+
     const [[, key]] = deps.s3.putObject.mock.calls as unknown as [[unknown, string]]
+    expect(deps.s3.putObject).toHaveBeenCalledOnce()
     expect(deps.s3.deleteObject).toHaveBeenCalledExactlyOnceWith({ id: 'storage-1' }, key)
     expect(deps.matter.create).not.toHaveBeenCalled()
+    expect(deps.mediaLibraries.recordScrape).toHaveBeenCalledTimes(2)
+    expect(updates.at(-1)).toMatchObject({
+      status: 'completed',
+      resultMetadata: { matched: 2, unmatched: 0, failed: 0, quotaExceeded: true },
+    })
   })
 
   it('leaves a sidecar that appears during the write to its owner [spec: media-scraping/scrape-library]', async () => {
@@ -190,6 +306,22 @@ describe('processMediaLibraryScrape', () => {
     const [[, key]] = deps.s3.putObject.mock.calls as unknown as [[unknown, string]]
     expect(deps.s3.deleteObject).toHaveBeenCalledWith({ id: 'storage-1' }, key)
     expect(updates.at(-1)).toMatchObject({ status: 'completed', resultMetadata: { matched: 1, unmatched: 0 } })
+  })
+
+  it('keeps the outcome of a write whose cleanup fails, and logs the cleanup [spec: media-scraping/scrape-library]', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { deps, typed, updates } = makeDeps({
+      videos: [video('First (2010).mkv')],
+      create: async () => {
+        throw new NameConflictError('First (2010).nfo', 'other')
+      },
+    })
+    deps.s3.deleteObject.mockRejectedValue(new Error('S3 delete failed'))
+
+    await processMediaLibraryScrape(typed, message)
+
+    expect(updates.at(-1)).toMatchObject({ status: 'completed', resultMetadata: { matched: 1, failed: 0 } })
+    expect(errors).toHaveBeenCalledWith(expect.stringMatching(/sidecar_cleanup_error .*S3 delete failed/))
   })
 
   it.each([

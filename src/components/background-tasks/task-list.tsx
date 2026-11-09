@@ -183,9 +183,13 @@ export function formatTaskType(type: string, t: (key: string) => string): string
 
 export function formatResult(job: BackgroundJob, t: (key: string, values?: Record<string, unknown>) => string): string {
   if (job.status === 'failed') return job.errorMessage ?? '-'
-  const { matched, unmatched } = job.resultMetadata ?? {}
-  if (typeof matched === 'number' && typeof unmatched === 'number') {
-    return t('tasks.result.mediaMatched', { matched, total: matched + unmatched })
+  const { matched, unmatched, failed = 0, quotaExceeded } = job.resultMetadata ?? {}
+  if (typeof matched === 'number' && typeof unmatched === 'number' && typeof failed === 'number') {
+    return [
+      t('tasks.result.mediaMatched', { matched, total: matched + unmatched + failed }),
+      ...(failed > 0 ? [t('tasks.result.mediaFailed', { count: failed })] : []),
+      ...(quotaExceeded === true ? [t('tasks.result.mediaQuotaExceeded')] : []),
+    ].join('; ')
   }
   const itemCount = typeof job.resultMetadata?.itemCount === 'number' ? job.resultMetadata.itemCount : null
   if (itemCount !== null) return t('tasks.result.mediaItems', { count: itemCount })
