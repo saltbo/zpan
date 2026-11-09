@@ -5,7 +5,6 @@ import {
   desc,
   eq,
   exists,
-  gt,
   gte,
   inArray,
   isNotNull,
@@ -150,11 +149,13 @@ function videoFiles(
 
 // With media_scrapes left-joined on the video: never scraped, changed since
 // (updated_at moves on rename, move, and overwrite), or scraped in another
-// language. An unmatched video stays out until one of these changes.
+// language. An unmatched video stays out until one of these changes. The row
+// keeps the exact updated_at it saw, so any other value means a change, even
+// one stamped by a clock behind the scrape's, and recording it ends the match.
 function needsScrape(language: string): SQL {
   return or(
     isNull(mediaScrapes.matterId),
-    gt(matters.updatedAt, mediaScrapes.fileUpdatedAt),
+    ne(matters.updatedAt, mediaScrapes.fileUpdatedAt),
     ne(mediaScrapes.language, language),
   ) as SQL
 }

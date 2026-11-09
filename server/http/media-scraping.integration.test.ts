@@ -412,6 +412,27 @@ describe('media library scraping', () => {
     expect(await scraped()).not.toContain(inception.id)
   })
 
+  it('scrapes again a video whose updated_at differs from the scraped one in either direction [spec: media-scraping/rescrape-changes]', async () => {
+    const ctx = await setup()
+    const media = await ctx.add('', 'Media')
+    const inception = await ctx.video('Media', 'Inception (2010).mkv')
+    const libraryId = await createLibrary(ctx, media.id)
+    await ctx.settle()
+    await ctx.db.run(sql`UPDATE matters SET updated_at = updated_at - 1 WHERE id = ${inception.id}`)
+
+    expect((await ctx.request(`/api/media-libraries/${libraryId}/scrapes`)).status).toBe(201)
+    await ctx.settle()
+
+    expect((await ctx.jobs('media_library_scrape')).at(-1)).toMatchObject({
+      status: 'completed',
+      progress: { fileCount: 1 },
+    })
+    const [row] = await ctx.db.all<{ stale: number }>(sql`
+      SELECT s.file_updated_at <> m.updated_at AS stale FROM media_scrapes s JOIN matters m ON m.id = s.matter_id
+    `)
+    expect(row).toEqual({ stale: 0 })
+  })
+
   it('reuses matches after a rename or a language change and searches again only what did not match [spec: media-scraping/rescrape-changes]', async () => {
     const ctx = await setup()
     const media = await seedLibrary(ctx)
