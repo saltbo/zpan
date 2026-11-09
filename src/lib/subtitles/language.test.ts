@@ -32,6 +32,14 @@ describe('languageFromSidecarTag', () => {
     expect(languageFromSidecarTag('zh-CN')).toBe('zh-Hans')
   })
 
+  it('understands Subs-folder file names', () => {
+    expect(languageFromSidecarTag('2_English')).toBe('en')
+    expect(languageFromSidecarTag('Chinese (Simplified)')).toBe('zh-Hans')
+    expect(languageFromSidecarTag('5_Chinese_Traditional')).toBe('zh-Hant')
+    expect(languageFromSidecarTag('3_Chinese')).toBe('zh')
+    expect(languageFromSidecarTag('[eng] SDH')).toBe('en')
+  })
+
   it('returns null when no part names a language', () => {
     expect(languageFromSidecarTag('')).toBeNull()
     expect(languageFromSidecarTag('forced.sdh')).toBeNull()

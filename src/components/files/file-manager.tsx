@@ -308,7 +308,15 @@ export function FileManager({
       try {
         const [file, subtitles] = await Promise.all([
           resolvePreviewFile(item, dataSource?.getPreviewFile),
-          resolveSidecarSubtitles(item, items, dataSource?.getPreviewFile),
+          resolveSidecarSubtitles({
+            video: item,
+            folderPath: currentPath,
+            siblings: items,
+            listFolder: async (path) =>
+              (dataSource ? await dataSource.list(path, {}) : await listObjectsByPath(path, undefined, FILES_PAGE_SIZE))
+                .items,
+            fromDataSource: dataSource?.getPreviewFile,
+          }),
         ])
         if (!file) {
           toast.error(t('common.error'))

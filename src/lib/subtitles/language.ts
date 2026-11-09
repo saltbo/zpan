@@ -81,16 +81,25 @@ export function normalizeLanguage(code: string): string | null {
   return canonical
 }
 
-/** Finds the language among the dot- or ampersand-separated parts of a sidecar tag (zh.forced, chs&eng). */
+/**
+ * Finds the language among the parts of a sidecar tag: "zh.forced", "chs&eng", or Subs-folder
+ * names like "2_English" and "Chinese (Simplified)".
+ */
 export function languageFromSidecarTag(tag: string): string | null {
-  for (const part of tag.split(/[.&_\s]+/)) {
+  for (const part of tag.split(/[.&_\s()[\],]+/)) {
     const lower = part.toLowerCase()
     if (SIDECAR_TAGS[lower] || ISO_639_2[lower] || /^[a-z]{2}(-[a-z0-9]{2,8})*$/.test(lower)) {
       const language = normalizeLanguage(part)
-      if (language) return language
+      if (language) return language === 'zh' ? chineseScript(tag) : language
     }
   }
   return null
+}
+
+function chineseScript(tag: string): string {
+  if (/simplified|hans|简/i.test(tag)) return 'zh-Hans'
+  if (/traditional|hant|繁/i.test(tag)) return 'zh-Hant'
+  return 'zh'
 }
 
 export function languageLabel(language: string, displayLanguage: string): string | null {

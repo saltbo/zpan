@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { httpRangeReader, loadSubtitleSources, type SubtitleCue, type SubtitleSource, streamEmbeddedCues } from '.'
+import {
+  httpRangeReader,
+  loadSubtitleSources,
+  type SidecarSubtitle,
+  type SubtitleCue,
+  type SubtitleSource,
+  streamEmbeddedCues,
+} from '.'
 import type { MkvSubtitleFile } from './mkv'
 
 const VIDEO_URL = 'https://s3.example.com/Movie.mkv?sig=1'
@@ -25,7 +32,14 @@ function serve(files: Record<string, Uint8Array | number>) {
 
 const text = (value: string) => new TextEncoder().encode(value)
 
-function load(sidecars: Array<{ name: string; url: string }>, videoName = 'Movie.mkv', uiLanguage = 'zh') {
+const sidecar = (name: string, tag: string): SidecarSubtitle => ({
+  name,
+  url: `https://s3/${name}`,
+  format: 'srt',
+  tag,
+})
+
+function load(sidecars: SidecarSubtitle[], videoName = 'Movie.mkv', uiLanguage = 'zh') {
   return loadSubtitleSources({
     videoUrl: VIDEO_URL,
     videoName,
@@ -45,16 +59,23 @@ afterEach(() => {
 
 describe('loadSubtitleSources', () => {
   it('offers sidecar files first, then the Matroska text tracks, with one default', async () => {
-    serve({ [VIDEO_URL]: mkv, 'https://s3/Movie.chs.srt': text(SRT), 'https://s3/Movie.srt': text(SRT) })
+    serve({
+      [VIDEO_URL]: mkv,
+      'https://s3/Movie.chs.srt': text(SRT),
+      'https://s3/Movie.srt': text(SRT),
+      'https://s3/Subs/4_English_SDH.srt': text(SRT),
+    })
     const sources = await load([
-      { name: 'Movie.chs.srt', url: 'https://s3/Movie.chs.srt' },
-      { name: 'Movie.srt', url: 'https://s3/Movie.srt' },
+      sidecar('Movie.chs.srt', 'chs'),
+      sidecar('Movie.srt', ''),
+      sidecar('Subs/4_English_SDH.srt', '4_English_SDH'),
     ])
     expect(summary(sources)).toEqual([
       { kind: 'file', id: 'file:Movie.chs.srt', label: '简体中文', language: 'zh-Hans', isDefault: true },
       { kind: 'file', id: 'file:Movie.srt', label: 'Movie.srt', language: null, isDefault: false },
+      { kind: 'file', id: 'file:Subs/4_English_SDH.srt', label: '英语', language: 'en', isDefault: false },
       { kind: 'embedded', id: 'embedded:2', label: '简体中文 (2)', language: 'zh-Hans', isDefault: false },
-      { kind: 'embedded', id: 'embedded:3', label: '英语', language: 'en', isDefault: false },
+      { kind: 'embedded', id: 'embedded:3', label: '英语 (2)', language: 'en', isDefault: false },
       { kind: 'embedded', id: 'embedded:4', label: '日语', language: 'ja', isDefault: false },
     ])
     expect(sources[0]).toMatchObject({ format: 'srt', content: SRT })
@@ -69,15 +90,10 @@ describe('loadSubtitleSources', () => {
   it('skips sidecars that fail to load and files that are not Matroska', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
     const fetchMock = serve({ 'https://s3/Movie.srt': 500 })
-    const sources = await load([{ name: 'Movie.srt', url: 'https://s3/Movie.srt' }], 'Movie.mp4')
+    const sources = await load([sidecar('Movie.srt', '')], 'Movie.mp4')
     expect(sources).toEqual([])
     expect(errors).toHaveBeenCalledWith('Failed to load subtitle Movie.srt', expect.any(Error))
     expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('ignores sidecars that do not belong to the video', async () => {
-    serve({})
-    expect(await load([{ name: 'Other.srt', url: 'https://s3/Other.srt' }], 'Movie.mp4')).toEqual([])
   })
 
   it('leaves embedded tracks out when the storage ignores range requests', async () => {

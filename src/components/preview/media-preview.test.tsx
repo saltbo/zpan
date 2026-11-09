@@ -149,7 +149,9 @@ describe('MediaPreview video', () => {
 
   it('hands the video and its sidecar subtitles to the player', async () => {
     preparePlayback.mockResolvedValue({ kind: 'native', dispose: vi.fn() })
-    const subtitles = [{ name: 'movie.chs.srt', url: 'https://s3.example.com/movie.chs.srt' }]
+    const subtitles = [
+      { name: 'movie.chs.srt', url: 'https://s3.example.com/movie.chs.srt', format: 'srt' as const, tag: 'chs' },
+    ]
     render(<MediaPreview url={URL} filename="movie.mkv" previewType="video" subtitles={subtitles} />)
 
     const tracks = await screen.findByTestId('subtitle-tracks')

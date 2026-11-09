@@ -69,7 +69,7 @@ const embedded = (id: string, isDefault: boolean) =>
     track: { number: 1 },
   }) as unknown as SubtitleSource
 
-const sidecars = [{ name: 'Movie.chs.srt', url: 'https://s3/Movie.chs.srt' }]
+const sidecars = [{ name: 'Movie.chs.srt', url: 'https://s3/Movie.chs.srt', format: 'srt' as const, tag: 'chs' }]
 
 function added() {
   return player.textTracks.add.mock.calls.map(([track]) => track as FakeTextTrack)

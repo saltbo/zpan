@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { decodeSubtitleText, matchSidecarSubtitle, sanitizeSidecarContent } from './sidecar'
+import {
+  baseName,
+  decodeSubtitleText,
+  matchSidecarSubtitle,
+  matchSubtitleFile,
+  sanitizeSidecarContent,
+} from './sidecar'
 
 describe('matchSidecarSubtitle', () => {
   it('matches subtitle files named after the video', () => {
@@ -13,6 +19,18 @@ describe('matchSidecarSubtitle', () => {
     expect(matchSidecarSubtitle('Movie.mkv', 'Movie2.srt')).toBeNull()
     expect(matchSidecarSubtitle('Movie.mkv', 'Movie.nfo')).toBeNull()
     expect(matchSidecarSubtitle('Movie.mkv', 'Movie.sub')).toBeNull()
+  })
+})
+
+describe('matchSubtitleFile', () => {
+  it('accepts any subtitle file and keeps its base name as the tag', () => {
+    expect(matchSubtitleFile('2_English.SRT')).toEqual({ format: 'srt', tag: '2_English' })
+    expect(matchSubtitleFile('Chinese (Simplified).ass')).toEqual({ format: 'ass', tag: 'Chinese (Simplified)' })
+    expect(matchSubtitleFile('cover.jpg')).toBeNull()
+  })
+
+  it('exposes base names for folder matching', () => {
+    expect(baseName('Show.S01E01.mkv')).toBe('Show.S01E01')
   })
 })
 

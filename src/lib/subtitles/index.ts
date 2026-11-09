@@ -1,9 +1,11 @@
 import { cueTextFromPayload } from './cue-text'
 import { languageFromSidecarTag, languageLabel, normalizeLanguage, pickDefaultSubtitle } from './language'
 import { type MkvSubtitleEntry, MkvSubtitleFile, type MkvSubtitleTrack, type RangeReader } from './mkv'
-import { decodeSubtitleText, matchSidecarSubtitle, type SidecarFormat, sanitizeSidecarContent } from './sidecar'
+import { decodeSubtitleText, type SidecarFormat, type SidecarMatch, sanitizeSidecarContent } from './sidecar'
 
-export interface SidecarSubtitle {
+/** A subtitle file found for a video, with what its name says about format and language. */
+export interface SidecarSubtitle extends SidecarMatch {
+  /** Path relative to the video's folder, e.g. "Movie.chs.srt" or "Subs/2_English.srt". */
   name: string
   url: string
 }
@@ -43,7 +45,7 @@ const MATROSKA_EXTENSIONS = /\.(mkv|mk3d|webm)$/i
 export async function loadSubtitleSources(options: LoadOptions): Promise<SubtitleSource[]> {
   const { videoUrl, videoName, sidecars, uiLanguage, signal } = options
   const [files, embedded] = await Promise.all([
-    Promise.all(sidecars.map((sidecar) => loadSidecar(videoName, sidecar, uiLanguage, signal))),
+    Promise.all(sidecars.map((sidecar) => loadSidecar(sidecar, uiLanguage, signal))),
     MATROSKA_EXTENSIONS.test(videoName) ? loadEmbedded(videoUrl, uiLanguage, signal) : [],
   ])
   const sources = dedupeLabels([...files.filter((source) => source !== null), ...embedded])
@@ -52,29 +54,26 @@ export async function loadSubtitleSources(options: LoadOptions): Promise<Subtitl
 }
 
 async function loadSidecar(
-  videoName: string,
   sidecar: SidecarSubtitle,
   uiLanguage: string,
   signal: AbortSignal,
 ): Promise<SubtitleSource | null> {
-  const match = matchSidecarSubtitle(videoName, sidecar.name)
-  if (!match) return null
   try {
     const response = await fetch(sidecar.url, { signal })
     if (!response.ok) throw new Error(`Subtitle request returned ${response.status}`)
     const content = sanitizeSidecarContent(
-      match.format,
+      sidecar.format,
       decodeSubtitleText(new Uint8Array(await response.arrayBuffer())),
     )
-    const language = languageFromSidecarTag(match.tag)
+    const language = languageFromSidecarTag(sidecar.tag)
     return {
       kind: 'file',
       id: `file:${sidecar.name}`,
-      label: (language && languageLabel(language, uiLanguage)) || match.tag || sidecar.name,
+      label: (language && languageLabel(language, uiLanguage)) || sidecar.tag || sidecar.name,
       language,
       isDefault: false,
-      isForced: /(^|[.&_\s])forced($|[.&_\s])/i.test(match.tag),
-      format: match.format,
+      isForced: /(^|[.&_\s(])forced($|[.&_\s)])/i.test(sidecar.tag),
+      format: sidecar.format,
       content,
     }
   } catch (error) {

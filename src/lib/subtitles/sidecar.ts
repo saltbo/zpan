@@ -6,13 +6,26 @@ const SIDECAR_FORMATS: ReadonlySet<string> = new Set<SidecarFormat>(['srt', 'vtt
 
 export interface SidecarMatch {
   format: SidecarFormat
-  /** What sits between the video's base name and the extension: "chs" for movie.chs.srt, "" for movie.srt. */
+  /**
+   * The part of the name that can say which language it is: "chs" for movie.chs.srt next to
+   * movie.mkv, "" for movie.srt, or the whole base name ("2_English") for files in a Subs folder.
+   */
   tag: string
 }
 
 function splitExtension(name: string): [string, string] {
   const dot = name.lastIndexOf('.')
   return dot <= 0 ? [name, ''] : [name.slice(0, dot), name.slice(dot + 1).toLowerCase()]
+}
+
+export function baseName(name: string): string {
+  return splitExtension(name)[0]
+}
+
+/** Any subtitle file, for folders (like Subs/) where every subtitle belongs to one video. */
+export function matchSubtitleFile(name: string): SidecarMatch | null {
+  const [base, extension] = splitExtension(name)
+  return SIDECAR_FORMATS.has(extension) ? { format: extension as SidecarFormat, tag: base } : null
 }
 
 /** Whether `name` is a subtitle file for `videoName`, following the movie[.tag].ext convention players use. */
