@@ -4,10 +4,10 @@
 // `tvshow.nfo`, `poster.jpg`, `fanart.jpg`, and `seasonNN-poster.jpg`, with
 // `X.nfo` and `X-thumb.jpg` per episode.
 
-import type { MediaInfo } from '@shared/schemas'
+import type { MediaInfo, TmdbRef } from '@shared/schemas'
 import { isSeasonFolder, titleAndYear } from './media-filename'
 import { joinMatterPath } from './media-library'
-import { normalizeTitle, TITLE_MATCH_THRESHOLD, type TmdbRef, titleSimilarity } from './tmdb'
+import { normalizeTitle, TITLE_MATCH_THRESHOLD, titleSimilarity } from './tmdb'
 
 // For an episode, the id is the series and season and episode locate it.
 export type TmdbMatch = { type: 'movie'; id: number } | { type: 'tv'; id: number; season: number; episode: number }

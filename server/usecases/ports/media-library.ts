@@ -1,3 +1,4 @@
+import type { TmdbRef } from '@shared/schemas'
 import type { MediaScrapeResult, PreviousMediaScrape } from '../../domain/media-scrape'
 import type { ActorIdentity } from './audit'
 import type { Matter } from './matter'
@@ -49,6 +50,9 @@ export interface CreateMediaLibraryInput {
 
 export type MediaLibraryFileCursor = Pick<Matter, 'parent' | 'name'>
 
+// A video with the TMDB match its last scrape found, for the index.
+export type MediaLibraryVideo = Matter & { tmdb: TmdbRef | null }
+
 // A video that needs scraping, with its last scrape if it has one.
 export interface MediaLibraryScrapeCandidate {
   file: Matter
@@ -91,7 +95,7 @@ export interface MediaLibraryRepo {
     folderPath: string,
     extensions: readonly string[],
     page: { after: MediaLibraryFileCursor | null; limit: number },
-  ): Promise<Matter[]>
+  ): Promise<MediaLibraryVideo[]>
   // A video needs scraping when it was never scraped, changed after its last
   // scrape, or was scraped in another language. One predicate answers both of these.
   hasVideosToScrape(

@@ -3,13 +3,9 @@
 // accents, and a leading English article do not matter, and it rejects a result
 // whose year is more than one off.
 
-export type TmdbMediaType = 'movie' | 'tv'
+import type { TmdbRef } from '@shared/schemas'
 
-// A match as stored and published: for an episode, the id is the series.
-export interface TmdbRef {
-  type: TmdbMediaType
-  id: number
-}
+export type TmdbMediaType = TmdbRef['type']
 
 export interface TmdbSearchHit {
   id: number

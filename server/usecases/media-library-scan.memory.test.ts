@@ -8,7 +8,7 @@ import { S3Service } from '../adapters/gateways/s3'
 import { MEDIA_LIBRARY_INDEX_MIME, mediaLibraryFeedItems } from '../domain/media-library'
 import type { Deps } from './deps'
 import { processMediaLibraryScan } from './media-library-scan'
-import type { Matter, MediaLibraryFileCursor, MediaLibraryState } from './ports'
+import type { MediaLibraryFileCursor, MediaLibraryState, MediaLibraryVideo } from './ports'
 
 setFlagsFromString('--expose-gc')
 const gc = runInNewContext('gc') as () => void
@@ -34,7 +34,7 @@ const library: MediaLibraryState = {
 
 // File i sits on shelf floor(i / 1000); names sort in index order, so the
 // cursor alone says where the next page starts.
-function video(i: number): Matter {
+function video(i: number): MediaLibraryVideo {
   return {
     id: `video-${i}`,
     orgId: 'org-1',
@@ -44,7 +44,8 @@ function video(i: number): Matter {
     size: 1_000_000 + i,
     dirtype: DirType.FILE,
     updatedAt: generatedAt,
-  } as Matter
+    tmdb: null,
+  } as MediaLibraryVideo
 }
 
 function indexAfter(cursor: MediaLibraryFileCursor | null): number {

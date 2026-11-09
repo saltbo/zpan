@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers'
 import { DirType, ZPAN_CLOUD_URL_DEFAULT } from '@shared/constants'
+import { mediaLibraryFeedSchema } from '@shared/schemas'
 import { sql } from 'drizzle-orm'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +11,7 @@ import { createMatterRepo } from '../server/adapters/repos/matter'
 import { createMediaLibraryRepo } from '../server/adapters/repos/media-library'
 import { createSystemOptionsRepo } from '../server/adapters/repos/system-options'
 import { orgQuotaEntitlements, orgQuotas } from '../server/db/schema'
+import { VIDEO_EXTENSIONS } from '../server/domain/media-library'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { createFakeTmdb, FAKE_TMDB_TOKEN } from '../server/test/fake-tmdb'
 import type { BackgroundJobMessage } from '../server/usecases/ports'
@@ -133,7 +135,7 @@ describe('[CF] media library scrapes on the Workers queue', () => {
     const { orgId, userId, matters, add } = await seedWorkspace()
     const folder = await add('', 'Movies', DirType.USER_FOLDER)
     for (const movie of movies) await add('Movies', `${movie.title} (2001).mkv`, DirType.FILE)
-    await add('Movies', 'library.json', DirType.FILE, 'application/feed+json')
+    const index = await add('Movies', 'library.json', DirType.FILE, 'application/feed+json')
     const library = await createMediaLibraryRepo(db).create({
       orgId,
       folderId: folder.id,
@@ -180,5 +182,53 @@ describe('[CF] media library scrapes on the Workers queue', () => {
     expect(sent.map((message) => message.request.type)).toEqual(['media_library_scan'])
     await deliver(sent.splice(0)[0])
     expect(sent).toEqual([])
+    const rewritten = await matters.get(index.id, orgId)
+    const feed = mediaLibraryFeedSchema.parse(
+      JSON.parse(new TextDecoder().decode(objects.get(rewritten?.object ?? ''))),
+    )
+    expect(feed.items.map((item) => item._media.tmdb)).toEqual(movies.map((movie) => ({ id: movie.id, type: 'movie' })))
+  })
+
+  it('pages the index and the videos to scrape over one index range with scrapes joined on their key [spec: media-scraping/index-query-plan]', async () => {
+    const statements: Array<{ query: string; values: unknown[] }> = []
+    const recording = {
+      prepare(query: string) {
+        const statement = env.DB.prepare(query)
+        return {
+          bind(...values: unknown[]) {
+            statements.push({ query, values })
+            return statement.bind(...values)
+          },
+        }
+      },
+    }
+    const repo = createMediaLibraryRepo(
+      createCloudflarePlatform({ ...testEnv, DB: recording as unknown as D1Database }).db,
+    )
+
+    const after = { parent: 'Movies', name: 'Film 00 (2001).mkv' }
+    await repo.listVideoFilesPage('org-plan', 'Movies', VIDEO_EXTENSIONS, { after: null, limit: 1000 })
+    await repo.listVideoFilesPage('org-plan', 'Movies', VIDEO_EXTENSIONS, { after, limit: 1000 })
+    await repo.hasVideosToScrape('org-plan', 'Movies', VIDEO_EXTENSIONS, 'en-US')
+    await repo.listVideosToScrape('org-plan', 'Movies', VIDEO_EXTENSIONS, 'en-US', { after, limit: 20 })
+
+    expect(statements.map((statement) => statement.values.length)).toEqual([26, 27, 27, 28])
+    const plans = []
+    for (const { query, values } of statements) {
+      const plan = await env.DB.prepare(`EXPLAIN QUERY PLAN ${query}`)
+        .bind(...values)
+        .all<{ detail: string }>()
+      plans.push(plan.results.map((row) => row.detail))
+    }
+    const join = 'SEARCH media_scrapes USING INDEX sqlite_autoindex_media_scrapes_1 (matter_id=?) LEFT-JOIN'
+    const subtree = 'org_id=? AND parent>? AND parent<?'
+    const keyset = 'org_id=? AND (parent,name)>(?,?) AND parent<?'
+    // The unordered probe may take the smaller partial name index; the ordered pages need the path index.
+    expect(plans).toEqual([
+      [`SEARCH matters USING INDEX matters_webdav_path_idx (${subtree})`, join],
+      [`SEARCH matters USING INDEX matters_webdav_path_idx (${keyset})`, join],
+      [`SEARCH matters USING INDEX matters_active_name_uniq (${subtree})`, join],
+      [`SEARCH matters USING INDEX matters_webdav_path_idx (${keyset})`, join],
+    ])
   })
 })

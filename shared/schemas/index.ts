@@ -164,14 +164,17 @@ export type {
   MediaLibrary,
   MediaLibraryFeed,
   MediaLibraryFeedItem,
+  TmdbRef,
 } from './media-library'
 export {
   createMediaLibraryRequestSchema,
   MEDIA_LIBRARY_FEED_VERSION,
   mediaInfoSchema,
   mediaLibraryFeedItemSchema,
+  mediaLibraryFeedMediaSchema,
   mediaLibraryFeedSchema,
   mediaLibrarySchema,
+  tmdbRefSchema,
 } from './media-library'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'

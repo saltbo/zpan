@@ -4,6 +4,7 @@ import {
   type MediaInfo,
   type MediaLibraryFeed,
   type MediaLibraryFeedItem,
+  type TmdbRef,
 } from '@shared/schemas'
 import { parseMediaPath } from './media-filename'
 
@@ -91,6 +92,8 @@ export interface MediaLibraryFile {
   type: string
   size: number | null
   updatedAt: Date
+  // The match of the video's last scrape, when it found one.
+  tmdb: TmdbRef | null
 }
 
 export interface MediaLibraryFeedSource {
@@ -136,7 +139,7 @@ export function mediaLibraryFeedItems(
             size_in_bytes: file.size ?? 0,
           },
         ],
-        _media: media,
+        _media: file.tmdb ? { ...media, tmdb: file.tmdb } : media,
       },
     ]
   })

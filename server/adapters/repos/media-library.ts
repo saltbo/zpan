@@ -29,6 +29,7 @@ import {
   MEDIA_LIBRARY_SCAN_LEASE_MS,
 } from '../../domain/media-library'
 import type { MediaScrapeResult, MediaScrapeSource } from '../../domain/media-scrape'
+import type { TmdbMediaType } from '../../domain/tmdb'
 import { chunk } from '../../lib/chunk'
 import type { Database } from '../../platform/interface'
 import type {
@@ -353,13 +354,20 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
     // every page costs the same and binds the same parameters however large
     // the library is. (parent, name) is unique among live rows because
     // matters_active_name_uniq is unique on (org_id, parent, LOWER(name)).
+    // media_scrapes joins on its primary key and binds nothing, so a page
+    // still binds the same parameters and walks the same index.
     async listVideoFilesPage(orgId, folderPath, extensions, page) {
-      return db
-        .select()
+      const rows = await db
+        .select({ file: matters, status: mediaScrapes.status, type: mediaScrapes.tmdbType, id: mediaScrapes.tmdbId })
         .from(matters)
+        .leftJoin(mediaScrapes, eq(mediaScrapes.matterId, matters.id))
         .where(videoFiles(orgId, folderPath, extensions, page.after))
         .orderBy(matters.parent, matters.name)
         .limit(page.limit)
+      return rows.map(({ file, status, type, id }) => ({
+        ...file,
+        tmdb: status === 'matched' && id !== null ? { id, type: type as TmdbMediaType } : null,
+      }))
     },
 
     async hasVideosToScrape(orgId, folderPath, extensions, language) {

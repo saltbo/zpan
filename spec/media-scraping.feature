@@ -121,3 +121,17 @@ Feature: Media library scraping
     Given an instance without a Pro or Business license
     When a scrape is requested or a scan completes
     Then the request is blocked as a paid feature and no scrape is queued
+
+  @media-scraping/publish-ids @domain
+  Scenario: library.json publishes only the TMDB id of each matched video
+    Given pages of videos, some with a TMDB match
+    When the feed is serialized
+    Then each matched item carries _media.tmdb with its id and type, last, and unmatched items carry none
+    And the text is still exactly the JSON of the whole feed
+
+  @media-scraping/index-query-plan @api
+  Scenario: Joining scrape results keeps the index pages on one index range
+    Given the index page query and the needs-scraping queries on D1
+    When their query plans are explained
+    Then each searches one subtree range of matters and joins media_scrapes on its primary key
+    And the bound parameters stay fixed whatever the library size

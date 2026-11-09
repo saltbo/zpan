@@ -1,4 +1,5 @@
 import { DirType, ZPAN_CLOUD_URL_DEFAULT } from '@shared/constants'
+import { mediaLibraryFeedSchema } from '@shared/schemas'
 import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateId } from '../../shared/ids'
@@ -164,6 +165,12 @@ async function setup(options: { licensed?: boolean; token?: string | null; langu
         ]),
       )
     },
+    index: async (folder: string) => {
+      const matter = await matters.findActiveConflict(owner.orgId, folder, 'library.json')
+      if (!matter) throw new Error('library.json not found')
+      const feed = mediaLibraryFeedSchema.parse(JSON.parse(new TextDecoder().decode(objects.get(matter.object))))
+      return new Map(feed.items.map((item) => [item.content_text, item._media.tmdb]))
+    },
   }
 }
 
@@ -263,6 +270,13 @@ describe('media library scraping', () => {
       '/tv/1396/season/1',
     ])
 
+    expect(Object.fromEntries(await ctx.index('Media'))).toEqual({
+      'Arrival (2016).mkv': { id: 329865, type: 'movie' },
+      'Inception (2010).mkv': { id: 27205, type: 'movie' },
+      'Zzyzx Road (1999).mkv': undefined,
+      'Breaking Bad/Season 1/Breaking.Bad.S01E01.mkv': { id: 1396, type: 'tv' },
+      'Breaking Bad/Season 1/Breaking.Bad.S01E02.mkv': { id: 1396, type: 'tv' },
+    })
     const rows = await ctx.db.all<{
       status: string
       source: string
@@ -326,6 +340,10 @@ describe('media library scraping', () => {
     const files = await ctx.files()
     expect(files.has('Media/Inception.2010.1080p.nfo')).toBe(true)
     expect(files.has('Media/Inception (2010).nfo')).toBe(true)
+    // The rename changed the subtree, so the sweep rescans and the index keeps the id under the new name.
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+    await ctx.settle()
+    expect((await ctx.index('Media')).get('Inception.2010.1080p.mkv')).toEqual({ id: 27205, type: 'movie' })
 
     await ctx.deps.systemOptions.set('media_scraper_language', 'zh-CN')
     const afterRename = tmdb.apiCalls().length
@@ -375,6 +393,7 @@ describe('media library scraping', () => {
     expect(new Set(scrapeMessages.map((message) => message.jobId)).size).toBe(1)
     const [job] = await ctx.jobs('media_library_scrape')
     expect(job).toMatchObject({ status: 'completed', progress: { fileCount: 25 }, resultMetadata: { matched: 25 } })
+    expect([...(await ctx.index('Media')).values()].filter(Boolean)).toHaveLength(25)
   })
 
   it('gives loose episodes only their own sidecars, files specials under season00, and never searches unclassified files [spec: media-scraping/show-folders]', async () => {
