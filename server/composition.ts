@@ -15,6 +15,7 @@ import { S3Service } from './adapters/gateways/s3'
 import { createZipGateway } from './adapters/gateways/zip'
 import { createChangelogProvider } from './adapters/providers/changelog'
 import { createImageDomainProviderGateway } from './adapters/providers/image-domain-provider'
+import { createTmdbGateway } from './adapters/providers/tmdb'
 import { createAdminStatsRepo } from './adapters/repos/admin-stats'
 import { createAnnouncementRepo } from './adapters/repos/announcement'
 import { createApiKeyGateway } from './adapters/repos/api-keys'
@@ -131,6 +132,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     systemOptions,
     teams: createTeamRepo(db),
     teamInvites: createTeamInviteRepo(db),
+    tmdb: createTmdbGateway(systemOptions),
     userAdmin: createUserAdminRepo(db),
     webdavPath: createWebDavPathRepo(db, cache),
     webdavState: createWebDavStateRepo(db),

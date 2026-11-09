@@ -31,3 +31,10 @@ Feature: Media library scraping
     Given an earlier matched or unmatched scrape of a video
     When the video changes or the language changes
     Then a match is reused while the parsed title is the same, and no match is retried only in a new language
+
+  @media-scraping/tmdb-gateway @usecase
+  Scenario: The TMDB gateway reads its token from settings and maps TMDB responses and failures
+    Given an access token and language saved by an administrator
+    When the gateway searches, fetches details, seasons, and images
+    Then requests carry the bearer token and the language, and images include the language, textless, and English
+    And 401, 429 with Retry-After, 5xx, and network failures become typed errors while a 404 is no result
