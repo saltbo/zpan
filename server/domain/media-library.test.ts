@@ -1,11 +1,12 @@
 import { mediaLibraryFeedSchema } from '@shared/schemas'
 import { describe, expect, it } from 'vitest'
 import {
-  buildMediaLibraryFeed,
   decideMediaLibrarySweep,
   folderPathsOverlap,
   type MediaLibraryFile,
+  mediaLibraryFeedItems,
   olderOverlappingLibrary,
+  serializeMediaLibraryFeed,
   videoMimeType,
 } from './media-library'
 
@@ -94,21 +95,35 @@ describe('olderOverlappingLibrary', () => {
   })
 })
 
-describe('buildMediaLibraryFeed', () => {
-  it('builds a JSON Feed 1.1 snapshot of the videos under the library, ordered by path [spec: media-library/build-feed]', () => {
-    const feed = buildMediaLibraryFeed({
-      libraryId: 'lib-1',
-      folderPath: 'Media/Movies',
-      folderName: 'Movies',
-      generatedAt: new Date('2026-02-01T00:00:00.000Z'),
-      files: [
-        file('Media/Movies/Sci-Fi', 'Dune (2021).mkv', { size: 2048 }),
-        file('Media/Movies', 'Inception (2010).mp4', { type: 'video/mp4' }),
-        file('Media/Movies', 'poster.jpg', { type: 'image/jpeg' }),
-        file('Media/Movies/Shows/Season 1', 'S01E02 #1?.mkv'),
-      ],
-    })
+async function feedText(
+  source: Parameters<typeof serializeMediaLibraryFeed>[0],
+  pages: Parameters<typeof serializeMediaLibraryFeed>[1],
+): Promise<string> {
+  let text = ''
+  for await (const chunk of serializeMediaLibraryFeed(source, pages)) text += chunk
+  return text
+}
 
+describe('serializeMediaLibraryFeed', () => {
+  const movies = {
+    libraryId: 'lib-1',
+    folderPath: 'Media/Movies',
+    folderName: 'Movies',
+    generatedAt: new Date('2026-02-01T00:00:00.000Z'),
+  }
+
+  it('streams a JSON Feed 1.1 snapshot of the videos in listing order [spec: media-library/build-feed]', async () => {
+    const page = (...files: MediaLibraryFile[]) => mediaLibraryFeedItems(movies, files)
+    const text = await feedText(movies, [
+      page(file('Media/Movies', 'Inception (2010).mp4', { type: 'video/mp4' }), file('Media/Movies', 'poster.jpg')),
+      page(),
+      page(file('Media/Movies/Sci-Fi', 'Dune (2021).mkv', { size: 2048 })),
+      page(file('Media/Movies/Sci-Fi', 'notes.txt', { type: 'text/plain' })),
+      page(file('Media/Movies/Shows/Season 1', 'S01E02 #1?.mkv')),
+    ])
+
+    const feed = JSON.parse(text)
+    expect(text).toBe(JSON.stringify(feed))
     expect(mediaLibraryFeedSchema.parse(feed)).toEqual(feed)
     expect(feed).toEqual({
       version: 'https://jsonfeed.org/version/1.1',
@@ -145,14 +160,40 @@ describe('buildMediaLibraryFeed', () => {
     })
   })
 
+  it('emits exactly JSON.stringify of the whole feed however the items are paged', async () => {
+    const source = { ...movies, folderPath: '媒体/电影 "4K"', folderName: '电影 "4K"' }
+    const names = [
+      '盗梦空间.Inception.2010.mkv',
+      '流浪地球 第1季第2集.mp4',
+      'Quote "Cut" \\ Back.slash.mkv',
+      'Tab\tand\u0001control.mkv',
+      'Line\u2028Sep 😀 emoji.webm',
+      'S01E01.mkv',
+    ]
+    const items = mediaLibraryFeedItems(
+      source,
+      names.map((name, i) => file(i % 2 ? `${source.folderPath}/剧集/Season 1` : source.folderPath, name)),
+    )
+    const whole = (feedItems: unknown[]) =>
+      JSON.stringify({
+        version: 'https://jsonfeed.org/version/1.1',
+        title: source.folderName,
+        _zpan: { generatedAt: '2026-02-01T00:00:00.000Z', libraryId: 'lib-1' },
+        items: feedItems,
+      })
+
+    expect(items).toHaveLength(names.length)
+    for (const pages of [[items], items.map((item) => [item]), [[], items.slice(0, 2), [], items.slice(2)]]) {
+      expect(await feedText(source, pages)).toBe(whole(items))
+    }
+    expect(await feedText(source, [])).toBe(whole([]))
+    expect(await feedText(source, [[], []])).toBe(whole([]))
+  })
+
   it('falls back to the file name when nothing yields a title', () => {
-    const feed = buildMediaLibraryFeed({
-      libraryId: 'lib-1',
-      folderPath: 'Season 1',
-      folderName: 'Season 1',
-      generatedAt: modified,
-      files: [file('Season 1', 'S01E01.mkv')],
-    })
-    expect(feed.items[0]).toMatchObject({ title: 'S01E01.mkv', _media: { type: 'episode', title: '' } })
+    const [item] = mediaLibraryFeedItems({ folderPath: 'Season 1', folderName: 'Season 1' }, [
+      file('Season 1', 'S01E01.mkv'),
+    ])
+    expect(item).toMatchObject({ title: 'S01E01.mkv', _media: { type: 'episode', title: '' } })
   })
 })

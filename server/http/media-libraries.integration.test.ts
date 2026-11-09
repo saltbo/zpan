@@ -6,7 +6,7 @@ import { S3Service } from '../adapters/gateways/s3'
 import { createBackgroundJobRepo } from '../adapters/repos/background-job'
 import { createMatterRepo } from '../adapters/repos/matter'
 import { createMediaLibraryRepo } from '../adapters/repos/media-library'
-import { buildMediaLibraryFeed, joinMatterPath } from '../domain/media-library'
+import { joinMatterPath, serializeMediaLibraryFeed } from '../domain/media-library'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup'
 import { createMediaLibraryIndex } from '../usecases/media-library-index'
 import { sweepMediaLibraries } from '../usecases/media-library-scan'
@@ -102,13 +102,10 @@ async function seedLibrary(ctx: Awaited<ReturnType<typeof setup>>, folderId: str
     ctx.deps,
     { orgId: ctx.orgId, userId: ctx.userId, createdBy },
     folderPath,
-    buildMediaLibraryFeed({
-      libraryId: library.id,
-      folderPath,
-      folderName: folder.name,
-      files: [],
-      generatedAt: new Date(),
-    }),
+    serializeMediaLibraryFeed(
+      { libraryId: library.id, folderPath, folderName: folder.name, generatedAt: new Date() },
+      [],
+    ),
   )
   await ctx.db.run(sql`UPDATE media_libraries SET created_at = ${createdAt.getTime()} WHERE id = ${library.id}`)
   return library
@@ -632,17 +629,19 @@ describe('media libraries API', () => {
   it('holds the scan lease through a listing that outlasts it [spec: media-library/scan-holds-lease]', async () => {
     const ctx = await setup()
     const movies = await ctx.add('', 'Movies', 'folder')
+    await ctx.add('Movies', 'Dune (2021).mkv')
     const library = await seedLibrary(ctx, movies.id, new Date())
-    const listVideoFiles = ctx.deps.mediaLibraries.listVideoFiles
-    vi.spyOn(ctx.deps.mediaLibraries, 'listVideoFiles').mockImplementation(async (...args) => {
-      const files = await listVideoFiles(...args)
+    const listVideoFilesPage = ctx.deps.mediaLibraries.listVideoFilesPage
+    vi.spyOn(ctx.deps.mediaLibraries, 'listVideoFilesPage').mockImplementation(async (...args) => {
+      const files = await listVideoFilesPage(...args)
       await ctx.db.run(sql`UPDATE background_jobs SET updated_at = ${Date.now() - 2 * 60 * 60 * 1000}`)
       return files
     })
     const scanningAtWrite: boolean[] = []
-    vi.mocked(S3Service.prototype.putObject).mockImplementationOnce(async () => {
+    vi.mocked(S3Service.prototype.putObject).mockImplementationOnce(async (_storage, _key, body) => {
+      const bytes = await new Response(body as ReadableStream).arrayBuffer()
       scanningAtWrite.push((await createMediaLibraryRepo(ctx.db).get(ctx.orgId, library.id))?.scanning ?? false)
-      return 0
+      return bytes.byteLength
     })
 
     await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })

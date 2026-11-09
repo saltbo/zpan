@@ -72,10 +72,13 @@ function toState(row: StateRow): MediaLibraryState {
 // holds path, every string starting with `path/`, and siblings such as
 // `path-2` that sort before `path/`; the residual test drops those siblings.
 // Written as an OR of the two cases, SQLite gives up the range and scans the
-// whole org once the path comes from a joined row.
-function subtree(path: SQL): SQL {
+// whole org once the path comes from a joined row. A caller paging through
+// the subtree passes its keyset as the lower bound instead: SQLite takes only
+// one lower bound for the index range, so keeping `parent >= path` beside it
+// makes every page rescan from the start of the subtree.
+function subtree(path: SQL, lowerBound: SQL = gte(matters.parent, path)): SQL {
   return and(
-    gte(matters.parent, path),
+    lowerBound,
     lt(matters.parent, sql`${path} || '0'`),
     or(eq(matters.parent, path), gte(matters.parent, sql`${path} || '/'`)),
   ) as SQL
@@ -280,7 +283,13 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
       return row.fingerprint
     },
 
-    async listVideoFiles(orgId, folderPath, extensions) {
+    // Keyset pages over matters_webdav_path_idx (org_id, parent, name), so
+    // every page costs the same and binds the same parameters however large
+    // the library is. (parent, name) is unique among live rows because
+    // matters_active_name_uniq is unique on (org_id, parent, LOWER(name)).
+    async listVideoFilesPage(orgId, folderPath, extensions, page) {
+      const { after } = page
+      const keyset = after ? sql`(${matters.parent}, ${matters.name}) > (${after.parent}, ${after.name})` : undefined
       return db
         .select()
         .from(matters)
@@ -289,11 +298,13 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
             eq(matters.orgId, orgId),
             liveMatter(),
             eq(matters.dirtype, DirType.FILE),
-            subtree(sql`${folderPath}`),
+            subtree(sql`${folderPath}`, keyset),
             notIndexFile(sql`${folderPath}`),
             or(like(matters.type, 'video/%'), ...extensions.map((extension) => like(matters.name, `%.${extension}`))),
           ),
         )
+        .orderBy(matters.parent, matters.name)
+        .limit(page.limit)
     },
   }
 }

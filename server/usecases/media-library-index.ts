@@ -3,7 +3,6 @@
 // library whose index is gone is off; a scan only ever rewrites it in place.
 
 import { DirType, ObjectStatus } from '@shared/constants'
-import type { MediaLibraryFeed } from '@shared/schemas'
 import { isMediaLibraryIndex, MEDIA_LIBRARY_INDEX_FILE, MEDIA_LIBRARY_INDEX_MIME } from '../domain/media-library'
 import { formatError } from '../lib/errors'
 import { buildObjectKey } from '../lib/path-template'
@@ -28,17 +27,16 @@ export async function createMediaLibraryIndex(
   deps: Deps,
   owner: IndexOwner,
   folderPath: string,
-  feed: MediaLibraryFeed,
+  feed: AsyncIterable<string>,
 ): Promise<Matter> {
   const { orgId, createdBy } = owner
   const storage = await deps.storages.select()
-  const bytes = encodeFeed(feed)
-  return putIndexObject(deps, owner, storage, bytes, bytes.byteLength, (object) =>
+  return putIndexObject(deps, owner, storage, feed, 0, (object, size) =>
     deps.matter.create({
       orgId,
       name: MEDIA_LIBRARY_INDEX_FILE,
       type: MEDIA_LIBRARY_INDEX_MIME,
-      size: bytes.byteLength,
+      size,
       dirtype: DirType.FILE,
       parent: folderPath,
       object,
@@ -59,13 +57,12 @@ export async function rewriteMediaLibraryIndex(
   owner: IndexOwner,
   storage: StorageRecord,
   existing: Matter,
-  feed: MediaLibraryFeed,
+  feed: AsyncIterable<string>,
 ): Promise<Matter> {
   const { orgId } = owner
-  const bytes = encodeFeed(feed)
-  const sizeDelta = bytes.byteLength - (existing.size ?? 0)
-  const index = await putIndexObject(deps, owner, storage, bytes, Math.max(0, sizeDelta), async (object) => {
-    const fields = { type: MEDIA_LIBRARY_INDEX_MIME, size: bytes.byteLength, object }
+  const previousSize = existing.size ?? 0
+  const index = await putIndexObject(deps, owner, storage, feed, previousSize, async (object, size) => {
+    const fields = { type: MEDIA_LIBRARY_INDEX_MIME, size, object }
     await deps.matter.applyUpload(orgId, existing, fields)
     return { ...existing, ...fields }
   })
@@ -75,7 +72,7 @@ export async function rewriteMediaLibraryIndex(
       `media_library.scan.old_index_delete_error org=${orgId} storage=${storage.id} object=${existing.object} code=${formatError(error)}`,
     )
   })
-  if (sizeDelta < 0) await deps.storageUsage.reconcile(orgId, [storage.id])
+  if ((index.size ?? 0) < previousSize) await deps.storageUsage.reconcile(orgId, [storage.id])
   return index
 }
 
@@ -84,23 +81,42 @@ export async function purgeMediaLibraryIndex(deps: Deps, orgId: string, folderPa
   if (index) await purgeRecursively(deps, orgId, [index])
 }
 
+// The feed streams into a multipart upload with no length, so its size is
+// known only after the write: quota for the growth over `replacedBytes` is
+// reserved then, and the new object is deleted if it does not fit.
 async function putIndexObject(
   deps: Deps,
   owner: IndexOwner,
   storage: StorageRecord,
-  bytes: Uint8Array,
-  reserveBytes: number,
-  commit: (object: string) => Promise<Matter>,
+  feed: AsyncIterable<string>,
+  replacedBytes: number,
+  commit: (object: string, size: number) => Promise<Matter>,
 ): Promise<Matter> {
   const { orgId, userId } = owner
   const key = buildObjectKey({ uid: userId, orgId, rawExt: '.json' })
-  return withStorageUsageReservation(deps, { orgId, storageId: storage.id, bytes: reserveBytes }, async (ctx) => {
-    await deps.s3.putObject(storage, key, bytes, MEDIA_LIBRARY_INDEX_MIME, bytes.byteLength)
-    ctx.onRollback(() => deps.s3.deleteObject(storage, key))
-    return commit(key)
-  })
+  const size = await deps.s3.putObject(storage, key, encodeText(feed), MEDIA_LIBRARY_INDEX_MIME)
+  try {
+    return await withStorageUsageReservation(deps, { orgId, storageId: storage.id, bytes: size - replacedBytes }, () =>
+      commit(key, size),
+    )
+  } catch (error) {
+    await deps.s3.deleteObject(storage, key)
+    throw error
+  }
 }
 
-function encodeFeed(feed: MediaLibraryFeed): Uint8Array {
-  return new TextEncoder().encode(JSON.stringify(feed))
+// Pull-based, so the feed advances only as fast as the upload reads it.
+function encodeText(chunks: AsyncIterable<string>): ReadableStream<Uint8Array> {
+  const iterator = chunks[Symbol.asyncIterator]()
+  const encoder = new TextEncoder()
+  return new ReadableStream({
+    async pull(controller) {
+      const { done, value } = await iterator.next()
+      if (done) controller.close()
+      else controller.enqueue(encoder.encode(value))
+    },
+    async cancel() {
+      await iterator.return?.()
+    },
+  })
 }

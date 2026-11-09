@@ -44,6 +44,8 @@ export interface CreateMediaLibraryInput {
   createdBy: ActorIdentity
 }
 
+export type MediaLibraryFileCursor = Pick<Matter, 'parent' | 'name'>
+
 export interface MediaLibraryRepo {
   // null when the folder already is a media library.
   create(input: CreateMediaLibraryInput): Promise<MediaLibraryRecord | null>
@@ -61,6 +63,13 @@ export interface MediaLibraryRepo {
   recordScan(orgId: string, id: string, scan: { fingerprint: string; scannedAt?: Date }): Promise<void>
   // Cheap change detector over the live subtree, excluding the library.json index.
   fingerprint(orgId: string, folderPath: string): Promise<string>
-  // Live files in the subtree with a video MIME type or extension.
-  listVideoFiles(orgId: string, folderPath: string, extensions: readonly string[]): Promise<Matter[]>
+  // One page of the live files in the subtree with a video MIME type or
+  // extension, ordered by (parent, name) under binary collation and starting
+  // after the `after` file.
+  listVideoFilesPage(
+    orgId: string,
+    folderPath: string,
+    extensions: readonly string[],
+    page: { after: MediaLibraryFileCursor | null; limit: number },
+  ): Promise<Matter[]>
 }

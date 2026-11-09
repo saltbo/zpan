@@ -54,7 +54,7 @@ function makeDeps(
       delete: vi.fn(async () => true),
       listByOrg: vi.fn(async () => [library]),
       fingerprint: vi.fn(async () => '3:30:100:300'),
-      listVideoFiles: vi.fn(async () => []),
+      listVideoFilesPage: vi.fn(async () => []),
       recordScan: vi.fn(async () => {}),
     },
     matter: {
@@ -64,7 +64,12 @@ function makeDeps(
       applyUpload: vi.fn(async () => {}),
     },
     storages: { get: vi.fn(async () => ({ id: 'storage-1' })) },
-    s3: { putObject: vi.fn(async () => 0), deleteObject: vi.fn(async () => {}) },
+    s3: {
+      putObject: vi.fn(async (_storage: unknown, _key: string, body: ReadableStream) => {
+        return (await new Response(body).arrayBuffer()).byteLength
+      }),
+      deleteObject: vi.fn(async () => {}),
+    },
     quota: { incrementUsageIfEffectiveQuotaAllows: vi.fn(async () => overrides.quota ?? true) },
     storageUsage: { rollbackReservations: vi.fn(async () => {}) },
     webdavPath: { invalidateFolders: vi.fn(async () => {}) },
@@ -91,7 +96,7 @@ describe('processMediaLibraryScan', () => {
     expect(deps.s3.putObject).not.toHaveBeenCalled()
   })
 
-  it('reports a quota failure for the index without writing it', async () => {
+  it('reports a quota failure for the index and deletes the object it wrote', async () => {
     const { deps, typed, updates } = makeDeps({ quota: false })
 
     await processMediaLibraryScan(typed, message)
@@ -100,7 +105,9 @@ describe('processMediaLibraryScan', () => {
       status: 'failed',
       errorMessage: 'Quota exceeded for the media library index',
     })
-    expect(deps.s3.putObject).not.toHaveBeenCalled()
+    const [[, written]] = deps.s3.putObject.mock.calls
+    expect(deps.s3.deleteObject.mock.calls).toEqual([[{ id: 'storage-1' }, written]])
+    expect(deps.matter.applyUpload).not.toHaveBeenCalled()
     expect(deps.mediaLibraries.recordScan).toHaveBeenCalledWith('org-1', 'lib-1', { fingerprint: '3:30:100:300' })
   })
 

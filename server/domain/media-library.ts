@@ -88,48 +88,65 @@ export interface MediaLibraryFile {
   updatedAt: Date
 }
 
-export function buildMediaLibraryFeed(input: {
+export interface MediaLibraryFeedSource {
   libraryId: string
   folderPath: string
   folderName: string
-  files: readonly MediaLibraryFile[]
   generatedAt: Date
-}): MediaLibraryFeed {
-  const rootPrefix = `${input.folderPath}/`
-  const items = input.files.flatMap((file): { path: string; item: MediaLibraryFeedItem }[] => {
+}
+
+// The feed items for a page of files, in the same order; non-videos are dropped.
+export function mediaLibraryFeedItems(
+  library: Pick<MediaLibraryFeedSource, 'folderPath' | 'folderName'>,
+  files: readonly MediaLibraryFile[],
+): MediaLibraryFeedItem[] {
+  return files.flatMap((file) => {
     const mimeType = videoMimeType(file.name, file.type)
     if (!mimeType) return []
-    const path = joinMatterPath(file.parent, file.name).slice(rootPrefix.length)
-    const folders = [input.folderName, ...path.split('/').slice(0, -1)]
-    const media = parseMediaPath(folders, file.name)
+    const path = joinMatterPath(file.parent, file.name).slice(library.folderPath.length + 1)
+    const media = parseMediaPath([library.folderName, ...path.split('/').slice(0, -1)], file.name)
     return [
       {
-        path,
-        item: {
-          id: file.id,
-          title: media.title || file.name,
-          content_text: path,
-          date_modified: file.updatedAt.toISOString(),
-          attachments: [
-            {
-              url: path.split('/').map(encodeURIComponent).join('/'),
-              mime_type: mimeType,
-              size_in_bytes: file.size ?? 0,
-            },
-          ],
-          _media: media,
-        },
+        id: file.id,
+        title: media.title || file.name,
+        content_text: path,
+        date_modified: file.updatedAt.toISOString(),
+        attachments: [
+          {
+            url: path.split('/').map(encodeURIComponent).join('/'),
+            mime_type: mimeType,
+            size_in_bytes: file.size ?? 0,
+          },
+        ],
+        _media: media,
       },
     ]
   })
-  items.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+}
 
-  return {
+// The feed as text chunks: the header, one chunk per non-empty page of items,
+// then the footer. Their concatenation is exactly JSON.stringify of the whole
+// feed, so a library of any size is written holding one page at a time.
+export async function* serializeMediaLibraryFeed(
+  library: MediaLibraryFeedSource,
+  pages: AsyncIterable<readonly MediaLibraryFeedItem[]> | Iterable<readonly MediaLibraryFeedItem[]>,
+): AsyncGenerator<string> {
+  const empty: MediaLibraryFeed = {
     version: MEDIA_LIBRARY_FEED_VERSION,
-    title: input.folderName,
-    _zpan: { generatedAt: input.generatedAt.toISOString(), libraryId: input.libraryId },
-    items: items.map(({ item }) => item),
+    title: library.folderName,
+    _zpan: { generatedAt: library.generatedAt.toISOString(), libraryId: library.libraryId },
+    items: [],
   }
+  const shell = JSON.stringify(empty)
+  // items is the last key, so the shell ends with the empty array's `[]}`.
+  yield shell.slice(0, -2)
+  let separator = ''
+  for await (const items of pages) {
+    if (items.length === 0) continue
+    yield separator + items.map((item) => JSON.stringify(item)).join(',')
+    separator = ','
+  }
+  yield shell.slice(-2)
 }
 
 export interface MediaLibrarySweepFacts<F extends { trashed: boolean }> {

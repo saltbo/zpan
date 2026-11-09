@@ -5,15 +5,17 @@
 // library whose index is gone is off: the sweep and the scan delete it and
 // never recreate the index.
 
-import type { MediaLibraryFeed, MediaLibraryScanJobRequest } from '@shared/schemas'
+import type { MediaLibraryFeedItem, MediaLibraryScanJobRequest } from '@shared/schemas'
 import type { BackgroundJob } from '@shared/types'
 import { hasFeature } from '../domain/licensing'
 import {
-  buildMediaLibraryFeed,
   decideMediaLibrarySweep,
   type MediaLibraryDeleteReason,
+  type MediaLibraryFeedSource,
   type MediaLibraryRoot,
+  mediaLibraryFeedItems,
   olderOverlappingLibrary,
+  serializeMediaLibraryFeed,
   VIDEO_EXTENSIONS,
 } from '../domain/media-library'
 import { chunk } from '../lib/chunk'
@@ -26,6 +28,7 @@ import {
   type BackgroundJobMessage,
   type CreateBackgroundJobInput,
   type Matter,
+  type MediaLibraryFileCursor,
   type MediaLibraryState,
   type MediaLibraryView,
   StorageQuotaExceededError,
@@ -33,6 +36,12 @@ import {
 import { loadBindingState } from './site/licensing'
 
 const SWEEP_ACTOR: ActorIdentity = { type: 'system', ref: null, issuer: null }
+
+// Files listed per query while the index streams out. Each page binds the same
+// parameters and is the most the scan holds in memory.
+const SCAN_PAGE_SIZE = 1000
+// The scan renews its lease after the first page and then every this many.
+const LEASE_RENEWAL_PAGES = 10
 
 // A failure that repeats until the library's files or the workspace change.
 // Only these record the attempted fingerprint; any other failure leaves it, so
@@ -163,7 +172,7 @@ async function scanLibrary(
   deps: Deps,
   message: BackgroundJobMessage<MediaLibraryScanJobRequest>,
 ): Promise<{ index: Matter; itemCount: number }> {
-  const { orgId, jobId } = message
+  const { orgId } = message
   const library = await deps.mediaLibraries.get(orgId, message.request.libraryId)
   if (!library) throw new Error('Media library not found')
   if (!library.folder) {
@@ -183,25 +192,44 @@ async function scanLibrary(
   const fingerprint = await deps.mediaLibraries.fingerprint(orgId, path)
   try {
     await assertNoOlderOverlap(deps, orgId, { id: library.id, createdAt: library.createdAt, path })
-    const files = await deps.mediaLibraries.listVideoFiles(orgId, path, VIDEO_EXTENSIONS)
-    // Renews the scan lease: a listing of a large library can outlast it.
-    await deps.backgroundJobs.update(orgId, jobId, { progress: { fileCount: files.length, currentFilename: null } })
-    const feed = buildMediaLibraryFeed({
-      libraryId: library.id,
-      folderPath: path,
-      folderName: name,
-      files,
-      generatedAt: new Date(),
-    })
+    const source = { libraryId: library.id, folderPath: path, folderName: name, generatedAt: new Date() }
+    const listed = { items: 0 }
+    const feed = serializeMediaLibraryFeed(source, feedItemPages(deps, message, source, listed))
     const index = await writeIndex(deps, message, existing, feed)
     await deps.mediaLibraries.recordScan(orgId, library.id, { fingerprint, scannedAt: new Date() })
     await deps.webdavPath.invalidateFolders(orgId, [path])
-    return { index, itemCount: feed.items.length }
+    return { index, itemCount: listed.items }
   } catch (error) {
     if (error instanceof MediaLibraryScanBlockedError) {
       await deps.mediaLibraries.recordScan(orgId, library.id, { fingerprint })
     }
     throw error
+  }
+}
+
+// Pages the library's videos into feed items as the upload pulls them, and
+// renews the scan lease on the way: writing a large library can outlast it.
+async function* feedItemPages(
+  deps: Pick<Deps, 'mediaLibraries' | 'backgroundJobs'>,
+  message: BackgroundJobMessage,
+  source: MediaLibraryFeedSource,
+  listed: { items: number },
+): AsyncGenerator<MediaLibraryFeedItem[]> {
+  const { orgId, jobId } = message
+  let after: MediaLibraryFileCursor | null = null
+  for (let page = 0; ; page++) {
+    const files = await deps.mediaLibraries.listVideoFilesPage(orgId, source.folderPath, VIDEO_EXTENSIONS, {
+      after,
+      limit: SCAN_PAGE_SIZE,
+    })
+    const items = mediaLibraryFeedItems(source, files)
+    listed.items += items.length
+    if (page % LEASE_RENEWAL_PAGES === 0) {
+      await deps.backgroundJobs.update(orgId, jobId, { progress: { fileCount: listed.items, currentFilename: null } })
+    }
+    yield items
+    if (files.length < SCAN_PAGE_SIZE) return
+    after = files[files.length - 1]
   }
 }
 
@@ -225,7 +253,7 @@ async function writeIndex(
   deps: Deps,
   message: BackgroundJobMessage,
   existing: Matter,
-  feed: MediaLibraryFeed,
+  feed: AsyncIterable<string>,
 ): Promise<Matter> {
   const storage = await deps.storages.get(existing.storageId)
   if (!storage) throw new MediaLibraryScanBlockedError('Storage for the media library index not found')

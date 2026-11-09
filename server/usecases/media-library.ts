@@ -5,10 +5,10 @@
 import { DirType, ObjectStatus } from '@shared/constants'
 import type { BackgroundJob } from '@shared/types'
 import {
-  buildMediaLibraryFeed,
   folderPathsOverlap,
   joinMatterPath,
   MEDIA_LIBRARY_INDEX_FILE,
+  serializeMediaLibraryFeed,
 } from '../domain/media-library'
 import { formatError } from '../lib/errors'
 import type { Deps } from './deps'
@@ -71,13 +71,10 @@ export async function createMediaLibrary(
   // The index is the library's on switch, so it exists before the request
   // returns; the first scan fills it in.
   try {
-    const feed = buildMediaLibraryFeed({
-      libraryId: record.id,
-      folderPath,
-      folderName: folder.name,
-      files: [],
-      generatedAt: new Date(),
-    })
+    const feed = serializeMediaLibraryFeed(
+      { libraryId: record.id, folderPath, folderName: folder.name, generatedAt: new Date() },
+      [],
+    )
     await createMediaLibraryIndex(deps, input, folderPath, feed)
   } catch (error) {
     await deps.mediaLibraries.delete(orgId, record.id)
