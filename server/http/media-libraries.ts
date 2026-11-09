@@ -60,11 +60,9 @@ const listRoute = authRoute(
     tags: ['Media Libraries'],
     method: 'get',
     path: '/',
-    middleware: [requireFeature('media_library')] as const,
     request: { query: cursorPageQuerySchema },
     responses: {
       200: jsonContent(cursorPageSchema(mediaLibrarySchema, 'MediaLibraryPage'), 'Media libraries'),
-      402: errorResponse('Media libraries require a Pro or Business license'),
     },
   },
 )
@@ -100,11 +98,9 @@ const deleteRoute = authRoute(
     tags: ['Media Libraries'],
     method: 'delete',
     path: '/{id}',
-    middleware: [requireFeature('media_library')] as const,
     request: { params: mediaLibraryParams },
     responses: {
       204: { description: 'Media library removed' },
-      402: errorResponse('Media libraries require a Pro or Business license'),
       404: errorResponse('Media library not found'),
     },
   },

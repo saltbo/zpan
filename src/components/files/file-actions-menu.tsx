@@ -140,7 +140,8 @@ function MediaLibraryMenuItems({
     <>
       <MenuItem kind={kind} onClick={() => actions.onRescan(library)}>
         <RefreshCw />
-        {t('mediaLibrary.rescan')}
+        <span className="flex-1">{t('mediaLibrary.rescan')}</span>
+        {actions.locked && <ProBadge />}
       </MenuItem>
       <MenuItem kind={kind} onClick={() => actions.onRemove(library)}>
         <X />

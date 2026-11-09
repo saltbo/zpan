@@ -109,5 +109,18 @@ describe('FileDetailsSheet', () => {
     renderSheet(actions({ locked: true }))
     expect(screen.getByText('Pro')).toBeTruthy()
     expect(screen.queryByText('mediaLibrary.indexFile')).toBeNull()
+    cleanup()
+
+    renderSheet(
+      actions({
+        locked: true,
+        libraryFor: () =>
+          ({ id: 'lib-1', folderPath: 'Movies', scanning: false, lastScannedAt: null }) as ReturnType<
+            MediaLibraryActions['libraryFor']
+          >,
+      }),
+    )
+    expect(screen.getByText('mediaLibrary.notScanned')).toBeTruthy()
+    expect(screen.getByText('/Movies/.zpan/library.json')).toBeTruthy()
   })
 })

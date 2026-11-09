@@ -76,13 +76,14 @@ Feature: Media libraries
   Scenario: The sweep skips trashed library folders and drops purged ones
     Given one library whose folder is trashed and one whose folder is purged
     When the sweep runs
-    Then the trashed library is kept without a scan and the purged library is removed
+    Then the trashed library is kept without a scan and the purged library is removed and logged
 
   @media-library/requires-license @api
-  Scenario: Community instances cannot use media libraries
-    Given an instance without a Pro or Business license
-    When a user lists or creates media libraries
+  Scenario: Community instances cannot create or rescan media libraries
+    Given an instance without a Pro or Business license and an existing media library
+    When a user creates or rescans a media library
     Then the requests are blocked as a paid feature
+    But the user can still list and remove the existing library
 
   @media-library/sweep-requires-license @api
   Scenario: The sweep does nothing without a license

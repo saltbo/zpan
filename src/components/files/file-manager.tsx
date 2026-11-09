@@ -228,7 +228,7 @@ export function FileManager({
   const mediaLibrariesQuery = useQuery({
     queryKey: ['media-libraries'],
     queryFn: listMediaLibraries,
-    enabled: resolvedCapabilities.mediaLibrary && mediaLibraryEntitled,
+    enabled: resolvedCapabilities.mediaLibrary,
   })
   useServerEventSubscription('media-libraries', ['background_job'], () => {
     void queryClient.invalidateQueries({ queryKey: ['media-libraries'] })
@@ -323,13 +323,12 @@ export function FileManager({
     if (!resolvedCapabilities.mediaLibrary || entitlement.isLoading) return undefined
     const libraries = new Map((mediaLibrariesQuery.data ?? []).map((library) => [library.folderId, library]))
     const request = mediaLibraryMutation.mutate
+    const upgrade = () => setMediaLibraryUpgradeOpen(true)
     return {
       locked: !mediaLibraryEntitled,
       libraryFor: (folder) => libraries.get(folder.id),
-      onSet: mediaLibraryEntitled
-        ? (folder) => request({ type: 'set', id: folder.id })
-        : () => setMediaLibraryUpgradeOpen(true),
-      onRescan: (library) => request({ type: 'rescan', id: library.id }),
+      onSet: mediaLibraryEntitled ? (folder) => request({ type: 'set', id: folder.id }) : upgrade,
+      onRescan: mediaLibraryEntitled ? (library) => request({ type: 'rescan', id: library.id }) : upgrade,
       onRemove: (library) => request({ type: 'remove', id: library.id }),
     }
   }, [

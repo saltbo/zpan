@@ -19,7 +19,8 @@ export interface FileActionHandlers {
 }
 
 export interface MediaLibraryActions {
-  // Without the media_library entitlement the menu offers an upgrade prompt.
+  // Without the media_library entitlement, set and rescan offer an upgrade
+  // prompt; existing libraries stay listed so they can be removed.
   locked: boolean
   libraryFor: (folder: StorageObject) => MediaLibrary | undefined
   onSet: (folder: StorageObject) => void

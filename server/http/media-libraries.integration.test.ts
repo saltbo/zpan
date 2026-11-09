@@ -296,17 +296,33 @@ describe('media libraries API', () => {
     await expect(libraries.get(ctx.orgId, purgedLibrary.id)).resolves.toBeNull()
   })
 
-  it('blocks media libraries without a Pro or Business license [spec: media-library/requires-license]', async () => {
+  it('keeps existing libraries visible and removable without a Pro or Business license [spec: media-library/requires-license]', async () => {
     const ctx = await setup({ licensed: false })
     const movies = await ctx.add('', 'Movies', 'folder')
+    const shows = await ctx.add('', 'Shows', 'folder')
+    const library = await seedLibrary(ctx, shows.id, new Date())
 
     const create = await ctx.createLibrary(movies.id)
-    const list = await ctx.app.request('/api/media-libraries', { headers: ctx.headers })
-
-    expect([create.status, list.status]).toEqual([402, 402])
+    const rescan = await ctx.app.request(`/api/media-libraries/${library.id}/scans`, {
+      method: 'POST',
+      headers: ctx.headers,
+    })
+    expect([create.status, rescan.status]).toEqual([402, 402])
     expect(await create.json()).toMatchObject({
       error: { details: [{ reason: 'FEATURE_NOT_AVAILABLE', metadata: { feature: 'media_library' } }] },
     })
+    expect(await scanJobs(ctx.db, ctx.orgId)).toEqual([])
+
+    const list = await ctx.app.request('/api/media-libraries', { headers: ctx.headers })
+    expect(list.status).toBe(200)
+    expect(((await list.json()) as { items: unknown[] }).items).toEqual([
+      expect.objectContaining({ id: library.id, folderPath: 'Shows' }),
+    ])
+    const removed = await ctx.app.request(`/api/media-libraries/${library.id}`, {
+      method: 'DELETE',
+      headers: ctx.headers,
+    })
+    expect(removed.status).toBe(204)
     expect(await ctx.db.all(sql`SELECT id FROM media_libraries`)).toEqual([])
   })
 

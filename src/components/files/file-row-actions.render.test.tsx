@@ -330,6 +330,13 @@ describe('FileRowActions — component rendering', () => {
     expect(labels(folder, actions({ locked: true })).text).toContain('mediaLibrary.setPro')
     cleanup()
 
+    const lapsed = actions({ locked: true, libraryFor: () => library })
+    const lapsedView = labels(folder, lapsed)
+    expect(lapsedView.text).toEqual(expect.arrayContaining(['mediaLibrary.rescanPro', 'mediaLibrary.remove']))
+    fireEvent.click(lapsedView.items.find((el) => el.textContent === 'mediaLibrary.remove')!)
+    expect(lapsed.onRemove).toHaveBeenCalledWith(library)
+    cleanup()
+
     expect(labels(makeObject(DirType.FILE), plain).text.some((text) => text?.startsWith('mediaLibrary.'))).toBe(false)
   })
 })

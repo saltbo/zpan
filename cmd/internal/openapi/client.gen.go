@@ -23677,7 +23677,6 @@ type ListMediaLibrariesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *MediaLibraryPage
-	JSON402      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -23742,7 +23741,6 @@ func (r CreateMediaLibraryResponse) ContentType() string {
 type DeleteMediaLibraryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON402      *Error
 	JSON404      *Error
 }
 
@@ -31563,13 +31561,6 @@ func ParseListMediaLibrariesResponse(rsp *http.Response) (*ListMediaLibrariesRes
 		}
 		response.JSON200 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON402 = &dest
-
 	}
 
 	return response, nil
@@ -31650,13 +31641,6 @@ func ParseDeleteMediaLibraryResponse(rsp *http.Response) (*DeleteMediaLibraryRes
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON402 = &dest
-
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

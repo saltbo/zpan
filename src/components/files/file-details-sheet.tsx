@@ -56,17 +56,18 @@ export function FileDetailsSheet({ item, onOpenChange, mediaLibrary }: FileDetai
 function MediaLibraryDetails({ folder, actions }: { folder: StorageObject; actions: MediaLibraryActions }) {
   const { t } = useTranslation()
   const library = actions.libraryFor(folder)
-  const status = actions.locked ? (
-    <ProBadge />
-  ) : !library ? (
-    t('mediaLibrary.none')
-  ) : library.scanning ? (
-    t('mediaLibrary.scanning')
-  ) : library.lastScannedAt ? (
-    t('mediaLibrary.lastScanned', { date: formatDate(library.lastScannedAt) })
-  ) : (
-    t('mediaLibrary.notScanned')
-  )
+  const status =
+    !library && actions.locked ? (
+      <ProBadge />
+    ) : !library ? (
+      t('mediaLibrary.none')
+    ) : library.scanning ? (
+      t('mediaLibrary.scanning')
+    ) : library.lastScannedAt ? (
+      t('mediaLibrary.lastScanned', { date: formatDate(library.lastScannedAt) })
+    ) : (
+      t('mediaLibrary.notScanned')
+    )
 
   return (
     <>
