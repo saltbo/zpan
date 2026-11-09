@@ -17,6 +17,12 @@ export interface Platform {
   getBinding<T = unknown>(key: string): T | undefined
 }
 
+// Branch Previews have no queue consumer, so they switch background jobs off.
+// The variable keeps its original archive-era name for existing deployments.
+export function backgroundJobsEnabled(platform: Pick<Platform, 'getEnv'>): boolean {
+  return platform.getEnv('ZPAN_ARCHIVE_JOBS_ENABLED') !== 'false'
+}
+
 // R2 bucket binding for self-hosted avatar storage. Present on Cloudflare when the
 // `PUBLIC_IMAGES` binding is configured; absent on Node/Docker (callers then fall back to the
 // Cloud avatar service).

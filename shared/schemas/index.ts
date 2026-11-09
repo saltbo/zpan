@@ -30,6 +30,7 @@ export { listAdminAuditQuerySchema } from './audit'
 export type {
   ArchiveCompressJobRequest,
   ArchiveExtractJobRequest,
+  BackgroundJobRequest,
   BackgroundJobStatusInput,
   BackgroundJobTypeInput,
   CreateBackgroundJobRequest,
@@ -38,6 +39,7 @@ export type {
 export {
   archiveCompressJobRequestSchema,
   archiveExtractJobRequestSchema,
+  backgroundJobRequestSchema,
   backgroundJobStatusSchema,
   backgroundJobTypeSchema,
   createBackgroundJobRequestSchema,

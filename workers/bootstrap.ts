@@ -1,7 +1,6 @@
 import { waitUntil } from 'cloudflare:workers'
 import { createCloudflareKvBackend } from '../server/adapters/cache/cloudflare-kv'
 import { createRuntimeCache, resolveCacheMode } from '../server/adapters/cache/runtime-cache'
-import { createArchiveJobsGateway } from '../server/adapters/gateways/archive-jobs'
 import { createShareRepo } from '../server/adapters/repos/share'
 import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
@@ -12,8 +11,9 @@ import { isHandledError, standaloneJsonError } from '../server/middleware/error-
 import { handleImageHostingDomainRequest } from '../server/middleware/image-hosting-domain'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { platformContext } from '../server/platform/context'
+import { runBackgroundJob } from '../server/usecases/background-job'
 import type { Deps } from '../server/usecases/deps'
-import type { ArchiveJobMessage, CacheService } from '../server/usecases/ports'
+import type { BackgroundJobMessage, CacheService } from '../server/usecases/ports'
 import { DirType } from '../shared/constants'
 import { handleScheduled } from './scheduled'
 
@@ -194,11 +194,10 @@ export default {
     await handleScheduled(event, env)
   },
 
-  async queue(batch: MessageBatch<ArchiveJobMessage>, env: Env): Promise<void> {
-    const runtime = runtimeFor(env)
-    const archiveJobs = createArchiveJobsGateway(runtime.platform)
+  async queue(batch: MessageBatch<BackgroundJobMessage>, env: Env): Promise<void> {
+    const { deps } = runtimeFor(env)
     for (const message of batch.messages) {
-      await archiveJobs.runMessage(message.body)
+      await runBackgroundJob(deps, message.body)
       message.ack()
     }
   },

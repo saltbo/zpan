@@ -7,10 +7,10 @@ import type {
   AgentInfoGateway,
   AnnouncementRepo,
   ApiKeyGateway,
-  ArchiveJobsGateway,
   ArchiveTargetFolderRepo,
   AuditActorDirectory,
   AuditRepo,
+  BackgroundJobQueue,
   BackgroundJobRepo,
   CacheService,
   ChangelogProvider,
@@ -65,9 +65,9 @@ export interface Deps {
   oauth: OAuthGateway
   announcements: AnnouncementRepo
   apiKeys: ApiKeyGateway
-  archiveJobs: ArchiveJobsGateway
   archiveTargetFolders: ArchiveTargetFolderRepo
   backgroundJobs: BackgroundJobRepo
+  jobQueue: BackgroundJobQueue
   cache: CacheService
   imageDomains: ImageDomainProviderGateway
   changelog: ChangelogProvider
