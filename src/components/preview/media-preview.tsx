@@ -4,7 +4,7 @@ import '@vidstack/react/player/styles/default/theme.css'
 import '@vidstack/react/player/styles/default/layouts/audio.css'
 import '@vidstack/react/player/styles/default/layouts/video.css'
 import { AlertCircleIcon, DownloadIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import type { PreviewType } from '@/lib/file-types'
@@ -45,7 +45,21 @@ export function mimeFromExt(filename: string, previewType: PreviewType): string 
 
 export function MediaPreview({ url, filename, previewType }: MediaPreviewProps) {
   const [error, setError] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
+
+  // Vidstack renders the URL as a <source> child. When the browser can't play it, the
+  // error fires on <source> only (media.error stays null, the event doesn't bubble), so
+  // MediaPlayer's onError never runs. A capture listener on the container catches it.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const onSourceError = (event: Event) => {
+      if (event.target instanceof HTMLSourceElement) setError(true)
+    }
+    container.addEventListener('error', onSourceError, true)
+    return () => container.removeEventListener('error', onSourceError, true)
+  }, [])
 
   if (error) {
     return (
@@ -73,7 +87,7 @@ export function MediaPreview({ url, filename, previewType }: MediaPreviewProps) 
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center">
+    <div ref={containerRef} className="flex h-full flex-col items-center justify-center">
       <MediaPlayer
         title={filename}
         src={previewType === 'video' ? { src: url, type: mimeFromExt(filename, previewType) as 'video/mp4' } : url}
