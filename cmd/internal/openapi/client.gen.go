@@ -2169,8 +2169,11 @@ func (e WebDavVerificationStatus) Valid() bool {
 
 // Defines values for CreateDeviceAuthorization400JSONResponseBodyError.
 const (
-	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidClient  CreateDeviceAuthorization400JSONResponseBodyError = "invalid_client"
-	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidRequest CreateDeviceAuthorization400JSONResponseBodyError = "invalid_request"
+	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidClient      CreateDeviceAuthorization400JSONResponseBodyError = "invalid_client"
+	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidRequest     CreateDeviceAuthorization400JSONResponseBodyError = "invalid_request"
+	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidScope       CreateDeviceAuthorization400JSONResponseBodyError = "invalid_scope"
+	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidTarget      CreateDeviceAuthorization400JSONResponseBodyError = "invalid_target"
+	CreateDeviceAuthorization400JSONResponseBodyErrorUnauthorizedClient CreateDeviceAuthorization400JSONResponseBodyError = "unauthorized_client"
 )
 
 // Valid indicates whether the value is a known member of the CreateDeviceAuthorization400JSONResponseBodyError enum.
@@ -2179,6 +2182,12 @@ func (e CreateDeviceAuthorization400JSONResponseBodyError) Valid() bool {
 	case CreateDeviceAuthorization400JSONResponseBodyErrorInvalidClient:
 		return true
 	case CreateDeviceAuthorization400JSONResponseBodyErrorInvalidRequest:
+		return true
+	case CreateDeviceAuthorization400JSONResponseBodyErrorInvalidScope:
+		return true
+	case CreateDeviceAuthorization400JSONResponseBodyErrorInvalidTarget:
+		return true
+	case CreateDeviceAuthorization400JSONResponseBodyErrorUnauthorizedClient:
 		return true
 	default:
 		return false
@@ -2215,6 +2224,24 @@ func (e CreateDeviceAccessToken400JSONResponseBodyError) Valid() bool {
 	}
 }
 
+// Defines values for CreateDynamicOAuthClientRegistrationJSONBodyApplicationType.
+const (
+	CreateDynamicOAuthClientRegistrationJSONBodyApplicationTypeNative CreateDynamicOAuthClientRegistrationJSONBodyApplicationType = "native"
+	CreateDynamicOAuthClientRegistrationJSONBodyApplicationTypeWeb    CreateDynamicOAuthClientRegistrationJSONBodyApplicationType = "web"
+)
+
+// Valid indicates whether the value is a known member of the CreateDynamicOAuthClientRegistrationJSONBodyApplicationType enum.
+func (e CreateDynamicOAuthClientRegistrationJSONBodyApplicationType) Valid() bool {
+	switch e {
+	case CreateDynamicOAuthClientRegistrationJSONBodyApplicationTypeNative:
+		return true
+	case CreateDynamicOAuthClientRegistrationJSONBodyApplicationTypeWeb:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateDynamicOAuthClientRegistrationJSONBodySubjectType.
 const (
 	CreateDynamicOAuthClientRegistrationJSONBodySubjectTypePairwise CreateDynamicOAuthClientRegistrationJSONBodySubjectType = "pairwise"
@@ -2233,21 +2260,18 @@ func (e CreateDynamicOAuthClientRegistrationJSONBodySubjectType) Valid() bool {
 	}
 }
 
-// Defines values for CreateDynamicOAuthClientRegistrationJSONBodyType.
+// Defines values for CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationType.
 const (
-	CreateDynamicOAuthClientRegistrationJSONBodyTypeNative         CreateDynamicOAuthClientRegistrationJSONBodyType = "native"
-	CreateDynamicOAuthClientRegistrationJSONBodyTypeUserAgentBased CreateDynamicOAuthClientRegistrationJSONBodyType = "user-agent-based"
-	CreateDynamicOAuthClientRegistrationJSONBodyTypeWeb            CreateDynamicOAuthClientRegistrationJSONBodyType = "web"
+	CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationTypeNative CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationType = "native"
+	CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationTypeWeb    CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationType = "web"
 )
 
-// Valid indicates whether the value is a known member of the CreateDynamicOAuthClientRegistrationJSONBodyType enum.
-func (e CreateDynamicOAuthClientRegistrationJSONBodyType) Valid() bool {
+// Valid indicates whether the value is a known member of the CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationType enum.
+func (e CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationType) Valid() bool {
 	switch e {
-	case CreateDynamicOAuthClientRegistrationJSONBodyTypeNative:
+	case CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationTypeNative:
 		return true
-	case CreateDynamicOAuthClientRegistrationJSONBodyTypeUserAgentBased:
-		return true
-	case CreateDynamicOAuthClientRegistrationJSONBodyTypeWeb:
+	case CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationTypeWeb:
 		return true
 	default:
 		return false
@@ -2272,21 +2296,18 @@ func (e CreateDynamicOAuthClientRegistration201JSONResponseBodySubjectType) Vali
 	}
 }
 
-// Defines values for CreateDynamicOAuthClientRegistration201JSONResponseBodyType.
+// Defines values for GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationType.
 const (
-	CreateDynamicOAuthClientRegistration201JSONResponseBodyTypeNative         CreateDynamicOAuthClientRegistration201JSONResponseBodyType = "native"
-	CreateDynamicOAuthClientRegistration201JSONResponseBodyTypeUserAgentBased CreateDynamicOAuthClientRegistration201JSONResponseBodyType = "user-agent-based"
-	CreateDynamicOAuthClientRegistration201JSONResponseBodyTypeWeb            CreateDynamicOAuthClientRegistration201JSONResponseBodyType = "web"
+	GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationTypeNative GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationType = "native"
+	GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationTypeWeb    GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationType = "web"
 )
 
-// Valid indicates whether the value is a known member of the CreateDynamicOAuthClientRegistration201JSONResponseBodyType enum.
-func (e CreateDynamicOAuthClientRegistration201JSONResponseBodyType) Valid() bool {
+// Valid indicates whether the value is a known member of the GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationType enum.
+func (e GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationType) Valid() bool {
 	switch e {
-	case CreateDynamicOAuthClientRegistration201JSONResponseBodyTypeNative:
+	case GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationTypeNative:
 		return true
-	case CreateDynamicOAuthClientRegistration201JSONResponseBodyTypeUserAgentBased:
-		return true
-	case CreateDynamicOAuthClientRegistration201JSONResponseBodyTypeWeb:
+	case GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationTypeWeb:
 		return true
 	default:
 		return false
@@ -2311,21 +2332,18 @@ func (e GetDynamicOAuthClientRegistration200JSONResponseBodySubjectType) Valid()
 	}
 }
 
-// Defines values for GetDynamicOAuthClientRegistration200JSONResponseBodyType.
+// Defines values for UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationType.
 const (
-	GetDynamicOAuthClientRegistration200JSONResponseBodyTypeNative         GetDynamicOAuthClientRegistration200JSONResponseBodyType = "native"
-	GetDynamicOAuthClientRegistration200JSONResponseBodyTypeUserAgentBased GetDynamicOAuthClientRegistration200JSONResponseBodyType = "user-agent-based"
-	GetDynamicOAuthClientRegistration200JSONResponseBodyTypeWeb            GetDynamicOAuthClientRegistration200JSONResponseBodyType = "web"
+	UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationTypeNative UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationType = "native"
+	UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationTypeWeb    UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationType = "web"
 )
 
-// Valid indicates whether the value is a known member of the GetDynamicOAuthClientRegistration200JSONResponseBodyType enum.
-func (e GetDynamicOAuthClientRegistration200JSONResponseBodyType) Valid() bool {
+// Valid indicates whether the value is a known member of the UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationType enum.
+func (e UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationType) Valid() bool {
 	switch e {
-	case GetDynamicOAuthClientRegistration200JSONResponseBodyTypeNative:
+	case UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationTypeNative:
 		return true
-	case GetDynamicOAuthClientRegistration200JSONResponseBodyTypeUserAgentBased:
-		return true
-	case GetDynamicOAuthClientRegistration200JSONResponseBodyTypeWeb:
+	case UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationTypeWeb:
 		return true
 	default:
 		return false
@@ -2344,27 +2362,6 @@ func (e UpdateDynamicOAuthClientRegistration200JSONResponseBodySubjectType) Vali
 	case UpdateDynamicOAuthClientRegistration200JSONResponseBodySubjectTypePairwise:
 		return true
 	case UpdateDynamicOAuthClientRegistration200JSONResponseBodySubjectTypePublic:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UpdateDynamicOAuthClientRegistration200JSONResponseBodyType.
-const (
-	UpdateDynamicOAuthClientRegistration200JSONResponseBodyTypeNative         UpdateDynamicOAuthClientRegistration200JSONResponseBodyType = "native"
-	UpdateDynamicOAuthClientRegistration200JSONResponseBodyTypeUserAgentBased UpdateDynamicOAuthClientRegistration200JSONResponseBodyType = "user-agent-based"
-	UpdateDynamicOAuthClientRegistration200JSONResponseBodyTypeWeb            UpdateDynamicOAuthClientRegistration200JSONResponseBodyType = "web"
-)
-
-// Valid indicates whether the value is a known member of the UpdateDynamicOAuthClientRegistration200JSONResponseBodyType enum.
-func (e UpdateDynamicOAuthClientRegistration200JSONResponseBodyType) Valid() bool {
-	switch e {
-	case UpdateDynamicOAuthClientRegistration200JSONResponseBodyTypeNative:
-		return true
-	case UpdateDynamicOAuthClientRegistration200JSONResponseBodyTypeUserAgentBased:
-		return true
-	case UpdateDynamicOAuthClientRegistration200JSONResponseBodyTypeWeb:
 		return true
 	default:
 		return false
@@ -6518,11 +6515,25 @@ type CreateDeviceAuthorizationJSONBody struct {
 	// ClientId The client ID of the application
 	ClientId string `json:"client_id"`
 
+	// Resource RFC 8707 resource indicator(s) to bind to this authorization request
+	Resource *CreateDeviceAuthorizationJSONBody_Resource `json:"resource,omitempty"`
+
 	// Scope Space-separated list of scopes
 	Scope *string `json:"scope,omitempty"`
 
 	// UserId The user ID to which the device code should be pre-bound.
 	UserId *string `json:"user_id,omitempty"`
+}
+
+// CreateDeviceAuthorizationJSONBodyResource0 defines parameters for CreateDeviceAuthorization.
+type CreateDeviceAuthorizationJSONBodyResource0 = string
+
+// CreateDeviceAuthorizationJSONBodyResource1 defines parameters for CreateDeviceAuthorization.
+type CreateDeviceAuthorizationJSONBodyResource1 = []string
+
+// CreateDeviceAuthorizationJSONBody_Resource defines parameters for CreateDeviceAuthorization.
+type CreateDeviceAuthorizationJSONBody_Resource struct {
+	union json.RawMessage
 }
 
 // CreateDeviceAuthorization400JSONResponseBodyError defines parameters for CreateDeviceAuthorization.
@@ -6551,33 +6562,36 @@ type ListAuthorizationDetailsCatalogParams struct {
 
 // CreateDynamicOAuthClientRegistrationJSONBody defines parameters for CreateDynamicOAuthClientRegistration.
 type CreateDynamicOAuthClientRegistrationJSONBody struct {
-	AuthorizationDetailsTypes        *[]string                                                `json:"authorization_details_types,omitempty"`
-	BackchannelLogoutSessionRequired *bool                                                    `json:"backchannel_logout_session_required,omitempty"`
-	BackchannelLogoutUri             *string                                                  `json:"backchannel_logout_uri,omitempty"`
-	ClientName                       *string                                                  `json:"client_name,omitempty"`
-	ClientUri                        *string                                                  `json:"client_uri,omitempty"`
-	Contacts                         *[]string                                                `json:"contacts,omitempty"`
-	DpopBoundAccessTokens            *bool                                                    `json:"dpop_bound_access_tokens,omitempty"`
-	GrantTypes                       *[]string                                                `json:"grant_types,omitempty"`
-	Jwks                             *CreateDynamicOAuthClientRegistrationJSONBody_Jwks       `json:"jwks,omitempty"`
-	JwksUri                          *string                                                  `json:"jwks_uri,omitempty"`
-	LogoUri                          *string                                                  `json:"logo_uri,omitempty"`
-	PolicyUri                        *string                                                  `json:"policy_uri,omitempty"`
-	PostLogoutRedirectUris           *[]string                                                `json:"post_logout_redirect_uris,omitempty"`
-	RedirectUris                     *[]string                                                `json:"redirect_uris,omitempty"`
-	RequirePkce                      *bool                                                    `json:"require_pkce,omitempty"`
-	Resources                        *[]string                                                `json:"resources,omitempty"`
-	ResponseTypes                    *[]string                                                `json:"response_types,omitempty"`
-	Scope                            *string                                                  `json:"scope,omitempty"`
-	SoftwareId                       *string                                                  `json:"software_id,omitempty"`
-	SoftwareStatement                *string                                                  `json:"software_statement,omitempty"`
-	SoftwareVersion                  *string                                                  `json:"software_version,omitempty"`
-	SubjectType                      *CreateDynamicOAuthClientRegistrationJSONBodySubjectType `json:"subject_type,omitempty"`
-	TokenEndpointAuthMethod          *string                                                  `json:"token_endpoint_auth_method,omitempty"`
-	TosUri                           *string                                                  `json:"tos_uri,omitempty"`
-	Type                             *CreateDynamicOAuthClientRegistrationJSONBodyType        `json:"type,omitempty"`
-	AdditionalProperties             map[string]interface{}                                   `json:"-"`
+	ApplicationType                  *CreateDynamicOAuthClientRegistrationJSONBodyApplicationType `json:"application_type,omitempty"`
+	AuthorizationDetailsTypes        *[]string                                                    `json:"authorization_details_types,omitempty"`
+	BackchannelLogoutSessionRequired *bool                                                        `json:"backchannel_logout_session_required,omitempty"`
+	BackchannelLogoutUri             *string                                                      `json:"backchannel_logout_uri,omitempty"`
+	ClientName                       *string                                                      `json:"client_name,omitempty"`
+	ClientUri                        *string                                                      `json:"client_uri,omitempty"`
+	Contacts                         *[]string                                                    `json:"contacts,omitempty"`
+	DpopBoundAccessTokens            *bool                                                        `json:"dpop_bound_access_tokens,omitempty"`
+	GrantTypes                       *[]string                                                    `json:"grant_types,omitempty"`
+	Jwks                             *CreateDynamicOAuthClientRegistrationJSONBody_Jwks           `json:"jwks,omitempty"`
+	JwksUri                          *string                                                      `json:"jwks_uri,omitempty"`
+	LogoUri                          *string                                                      `json:"logo_uri,omitempty"`
+	PolicyUri                        *string                                                      `json:"policy_uri,omitempty"`
+	PostLogoutRedirectUris           *[]string                                                    `json:"post_logout_redirect_uris,omitempty"`
+	RedirectUris                     *[]string                                                    `json:"redirect_uris,omitempty"`
+	RequirePkce                      *bool                                                        `json:"require_pkce,omitempty"`
+	Resources                        *[]string                                                    `json:"resources,omitempty"`
+	ResponseTypes                    *[]string                                                    `json:"response_types,omitempty"`
+	Scope                            *string                                                      `json:"scope,omitempty"`
+	SoftwareId                       *string                                                      `json:"software_id,omitempty"`
+	SoftwareStatement                *string                                                      `json:"software_statement,omitempty"`
+	SoftwareVersion                  *string                                                      `json:"software_version,omitempty"`
+	SubjectType                      *CreateDynamicOAuthClientRegistrationJSONBodySubjectType     `json:"subject_type,omitempty"`
+	TokenEndpointAuthMethod          *string                                                      `json:"token_endpoint_auth_method,omitempty"`
+	TosUri                           *string                                                      `json:"tos_uri,omitempty"`
+	AdditionalProperties             map[string]interface{}                                       `json:"-"`
 }
+
+// CreateDynamicOAuthClientRegistrationJSONBodyApplicationType defines parameters for CreateDynamicOAuthClientRegistration.
+type CreateDynamicOAuthClientRegistrationJSONBodyApplicationType string
 
 // CreateDynamicOAuthClientRegistrationJSONBodyJwks0 defines parameters for CreateDynamicOAuthClientRegistration.
 type CreateDynamicOAuthClientRegistrationJSONBodyJwks0 = []map[string]interface{}
@@ -6596,8 +6610,8 @@ type CreateDynamicOAuthClientRegistrationJSONBody_Jwks struct {
 // CreateDynamicOAuthClientRegistrationJSONBodySubjectType defines parameters for CreateDynamicOAuthClientRegistration.
 type CreateDynamicOAuthClientRegistrationJSONBodySubjectType string
 
-// CreateDynamicOAuthClientRegistrationJSONBodyType defines parameters for CreateDynamicOAuthClientRegistration.
-type CreateDynamicOAuthClientRegistrationJSONBodyType string
+// CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationType defines parameters for CreateDynamicOAuthClientRegistration.
+type CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationType string
 
 // CreateDynamicOAuthClientRegistration201JSONResponseBodyJwks0 defines parameters for CreateDynamicOAuthClientRegistration.
 type CreateDynamicOAuthClientRegistration201JSONResponseBodyJwks0 = []map[string]interface{}
@@ -6616,44 +6630,44 @@ type CreateDynamicOAuthClientRegistration201JSONResponseBody_Jwks struct {
 // CreateDynamicOAuthClientRegistration201JSONResponseBodySubjectType defines parameters for CreateDynamicOAuthClientRegistration.
 type CreateDynamicOAuthClientRegistration201JSONResponseBodySubjectType string
 
-// CreateDynamicOAuthClientRegistration201JSONResponseBodyType defines parameters for CreateDynamicOAuthClientRegistration.
-type CreateDynamicOAuthClientRegistration201JSONResponseBodyType string
-
 // CreateDynamicOAuthClientRegistration201JSONResponseBody defines parameters for CreateDynamicOAuthClientRegistration.
 type CreateDynamicOAuthClientRegistration201JSONResponseBody struct {
-	AuthorizationDetailsTypes        *[]string                                                           `json:"authorization_details_types,omitempty"`
-	BackchannelLogoutSessionRequired *bool                                                               `json:"backchannel_logout_session_required,omitempty"`
-	BackchannelLogoutUri             *string                                                             `json:"backchannel_logout_uri,omitempty"`
-	ClientId                         string                                                              `json:"client_id"`
-	ClientIdIssuedAt                 *int                                                                `json:"client_id_issued_at,omitempty"`
-	ClientName                       *string                                                             `json:"client_name,omitempty"`
-	ClientSecret                     *string                                                             `json:"client_secret,omitempty"`
-	ClientSecretExpiresAt            *int                                                                `json:"client_secret_expires_at,omitempty"`
-	ClientUri                        *string                                                             `json:"client_uri,omitempty"`
-	Contacts                         *[]string                                                           `json:"contacts,omitempty"`
-	DpopBoundAccessTokens            *bool                                                               `json:"dpop_bound_access_tokens,omitempty"`
-	GrantTypes                       *[]string                                                           `json:"grant_types,omitempty"`
-	Jwks                             *CreateDynamicOAuthClientRegistration201JSONResponseBody_Jwks       `json:"jwks,omitempty"`
-	JwksUri                          *string                                                             `json:"jwks_uri,omitempty"`
-	LogoUri                          *string                                                             `json:"logo_uri,omitempty"`
-	PolicyUri                        *string                                                             `json:"policy_uri,omitempty"`
-	PostLogoutRedirectUris           *[]string                                                           `json:"post_logout_redirect_uris,omitempty"`
-	RedirectUris                     *[]string                                                           `json:"redirect_uris,omitempty"`
-	RegistrationAccessToken          string                                                              `json:"registration_access_token"`
-	RegistrationClientUri            string                                                              `json:"registration_client_uri"`
-	RequirePkce                      *bool                                                               `json:"require_pkce,omitempty"`
-	Resources                        *[]string                                                           `json:"resources,omitempty"`
-	ResponseTypes                    *[]string                                                           `json:"response_types,omitempty"`
-	Scope                            *string                                                             `json:"scope,omitempty"`
-	SoftwareId                       *string                                                             `json:"software_id,omitempty"`
-	SoftwareStatement                *string                                                             `json:"software_statement,omitempty"`
-	SoftwareVersion                  *string                                                             `json:"software_version,omitempty"`
-	SubjectType                      *CreateDynamicOAuthClientRegistration201JSONResponseBodySubjectType `json:"subject_type,omitempty"`
-	TokenEndpointAuthMethod          *string                                                             `json:"token_endpoint_auth_method,omitempty"`
-	TosUri                           *string                                                             `json:"tos_uri,omitempty"`
-	Type                             *CreateDynamicOAuthClientRegistration201JSONResponseBodyType        `json:"type,omitempty"`
-	AdditionalProperties             map[string]interface{}                                              `json:"-"`
+	ApplicationType                  *CreateDynamicOAuthClientRegistration201JSONResponseBodyApplicationType `json:"application_type,omitempty"`
+	AuthorizationDetailsTypes        *[]string                                                               `json:"authorization_details_types,omitempty"`
+	BackchannelLogoutSessionRequired *bool                                                                   `json:"backchannel_logout_session_required,omitempty"`
+	BackchannelLogoutUri             *string                                                                 `json:"backchannel_logout_uri,omitempty"`
+	ClientId                         string                                                                  `json:"client_id"`
+	ClientIdIssuedAt                 *int                                                                    `json:"client_id_issued_at,omitempty"`
+	ClientName                       *string                                                                 `json:"client_name,omitempty"`
+	ClientSecret                     *string                                                                 `json:"client_secret,omitempty"`
+	ClientSecretExpiresAt            *int                                                                    `json:"client_secret_expires_at,omitempty"`
+	ClientUri                        *string                                                                 `json:"client_uri,omitempty"`
+	Contacts                         *[]string                                                               `json:"contacts,omitempty"`
+	DpopBoundAccessTokens            *bool                                                                   `json:"dpop_bound_access_tokens,omitempty"`
+	GrantTypes                       *[]string                                                               `json:"grant_types,omitempty"`
+	Jwks                             *CreateDynamicOAuthClientRegistration201JSONResponseBody_Jwks           `json:"jwks,omitempty"`
+	JwksUri                          *string                                                                 `json:"jwks_uri,omitempty"`
+	LogoUri                          *string                                                                 `json:"logo_uri,omitempty"`
+	PolicyUri                        *string                                                                 `json:"policy_uri,omitempty"`
+	PostLogoutRedirectUris           *[]string                                                               `json:"post_logout_redirect_uris,omitempty"`
+	RedirectUris                     *[]string                                                               `json:"redirect_uris,omitempty"`
+	RegistrationAccessToken          string                                                                  `json:"registration_access_token"`
+	RegistrationClientUri            string                                                                  `json:"registration_client_uri"`
+	RequirePkce                      *bool                                                                   `json:"require_pkce,omitempty"`
+	Resources                        *[]string                                                               `json:"resources,omitempty"`
+	ResponseTypes                    *[]string                                                               `json:"response_types,omitempty"`
+	Scope                            *string                                                                 `json:"scope,omitempty"`
+	SoftwareId                       *string                                                                 `json:"software_id,omitempty"`
+	SoftwareStatement                *string                                                                 `json:"software_statement,omitempty"`
+	SoftwareVersion                  *string                                                                 `json:"software_version,omitempty"`
+	SubjectType                      *CreateDynamicOAuthClientRegistration201JSONResponseBodySubjectType     `json:"subject_type,omitempty"`
+	TokenEndpointAuthMethod          *string                                                                 `json:"token_endpoint_auth_method,omitempty"`
+	TosUri                           *string                                                                 `json:"tos_uri,omitempty"`
+	AdditionalProperties             map[string]interface{}                                                  `json:"-"`
 }
+
+// GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationType defines parameters for GetDynamicOAuthClientRegistration.
+type GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationType string
 
 // GetDynamicOAuthClientRegistration200JSONResponseBodyJwks0 defines parameters for GetDynamicOAuthClientRegistration.
 type GetDynamicOAuthClientRegistration200JSONResponseBodyJwks0 = []map[string]interface{}
@@ -6672,47 +6686,47 @@ type GetDynamicOAuthClientRegistration200JSONResponseBody_Jwks struct {
 // GetDynamicOAuthClientRegistration200JSONResponseBodySubjectType defines parameters for GetDynamicOAuthClientRegistration.
 type GetDynamicOAuthClientRegistration200JSONResponseBodySubjectType string
 
-// GetDynamicOAuthClientRegistration200JSONResponseBodyType defines parameters for GetDynamicOAuthClientRegistration.
-type GetDynamicOAuthClientRegistration200JSONResponseBodyType string
-
 // GetDynamicOAuthClientRegistration200JSONResponseBody defines parameters for GetDynamicOAuthClientRegistration.
 type GetDynamicOAuthClientRegistration200JSONResponseBody struct {
-	AuthorizationDetailsTypes        *[]string                                                        `json:"authorization_details_types,omitempty"`
-	BackchannelLogoutSessionRequired *bool                                                            `json:"backchannel_logout_session_required,omitempty"`
-	BackchannelLogoutUri             *string                                                          `json:"backchannel_logout_uri,omitempty"`
-	ClientId                         string                                                           `json:"client_id"`
-	ClientIdIssuedAt                 *int                                                             `json:"client_id_issued_at,omitempty"`
-	ClientName                       *string                                                          `json:"client_name,omitempty"`
-	ClientSecret                     *string                                                          `json:"client_secret,omitempty"`
-	ClientSecretExpiresAt            *int                                                             `json:"client_secret_expires_at,omitempty"`
-	ClientUri                        *string                                                          `json:"client_uri,omitempty"`
-	Contacts                         *[]string                                                        `json:"contacts,omitempty"`
-	DpopBoundAccessTokens            *bool                                                            `json:"dpop_bound_access_tokens,omitempty"`
-	GrantTypes                       *[]string                                                        `json:"grant_types,omitempty"`
-	Jwks                             *GetDynamicOAuthClientRegistration200JSONResponseBody_Jwks       `json:"jwks,omitempty"`
-	JwksUri                          *string                                                          `json:"jwks_uri,omitempty"`
-	LogoUri                          *string                                                          `json:"logo_uri,omitempty"`
-	PolicyUri                        *string                                                          `json:"policy_uri,omitempty"`
-	PostLogoutRedirectUris           *[]string                                                        `json:"post_logout_redirect_uris,omitempty"`
-	RedirectUris                     *[]string                                                        `json:"redirect_uris,omitempty"`
-	RegistrationAccessToken          string                                                           `json:"registration_access_token"`
-	RegistrationClientUri            string                                                           `json:"registration_client_uri"`
-	RequirePkce                      *bool                                                            `json:"require_pkce,omitempty"`
-	Resources                        *[]string                                                        `json:"resources,omitempty"`
-	ResponseTypes                    *[]string                                                        `json:"response_types,omitempty"`
-	Scope                            *string                                                          `json:"scope,omitempty"`
-	SoftwareId                       *string                                                          `json:"software_id,omitempty"`
-	SoftwareStatement                *string                                                          `json:"software_statement,omitempty"`
-	SoftwareVersion                  *string                                                          `json:"software_version,omitempty"`
-	SubjectType                      *GetDynamicOAuthClientRegistration200JSONResponseBodySubjectType `json:"subject_type,omitempty"`
-	TokenEndpointAuthMethod          *string                                                          `json:"token_endpoint_auth_method,omitempty"`
-	TosUri                           *string                                                          `json:"tos_uri,omitempty"`
-	Type                             *GetDynamicOAuthClientRegistration200JSONResponseBodyType        `json:"type,omitempty"`
-	AdditionalProperties             map[string]interface{}                                           `json:"-"`
+	ApplicationType                  *GetDynamicOAuthClientRegistration200JSONResponseBodyApplicationType `json:"application_type,omitempty"`
+	AuthorizationDetailsTypes        *[]string                                                            `json:"authorization_details_types,omitempty"`
+	BackchannelLogoutSessionRequired *bool                                                                `json:"backchannel_logout_session_required,omitempty"`
+	BackchannelLogoutUri             *string                                                              `json:"backchannel_logout_uri,omitempty"`
+	ClientId                         string                                                               `json:"client_id"`
+	ClientIdIssuedAt                 *int                                                                 `json:"client_id_issued_at,omitempty"`
+	ClientName                       *string                                                              `json:"client_name,omitempty"`
+	ClientSecret                     *string                                                              `json:"client_secret,omitempty"`
+	ClientSecretExpiresAt            *int                                                                 `json:"client_secret_expires_at,omitempty"`
+	ClientUri                        *string                                                              `json:"client_uri,omitempty"`
+	Contacts                         *[]string                                                            `json:"contacts,omitempty"`
+	DpopBoundAccessTokens            *bool                                                                `json:"dpop_bound_access_tokens,omitempty"`
+	GrantTypes                       *[]string                                                            `json:"grant_types,omitempty"`
+	Jwks                             *GetDynamicOAuthClientRegistration200JSONResponseBody_Jwks           `json:"jwks,omitempty"`
+	JwksUri                          *string                                                              `json:"jwks_uri,omitempty"`
+	LogoUri                          *string                                                              `json:"logo_uri,omitempty"`
+	PolicyUri                        *string                                                              `json:"policy_uri,omitempty"`
+	PostLogoutRedirectUris           *[]string                                                            `json:"post_logout_redirect_uris,omitempty"`
+	RedirectUris                     *[]string                                                            `json:"redirect_uris,omitempty"`
+	RegistrationAccessToken          string                                                               `json:"registration_access_token"`
+	RegistrationClientUri            string                                                               `json:"registration_client_uri"`
+	RequirePkce                      *bool                                                                `json:"require_pkce,omitempty"`
+	Resources                        *[]string                                                            `json:"resources,omitempty"`
+	ResponseTypes                    *[]string                                                            `json:"response_types,omitempty"`
+	Scope                            *string                                                              `json:"scope,omitempty"`
+	SoftwareId                       *string                                                              `json:"software_id,omitempty"`
+	SoftwareStatement                *string                                                              `json:"software_statement,omitempty"`
+	SoftwareVersion                  *string                                                              `json:"software_version,omitempty"`
+	SubjectType                      *GetDynamicOAuthClientRegistration200JSONResponseBodySubjectType     `json:"subject_type,omitempty"`
+	TokenEndpointAuthMethod          *string                                                              `json:"token_endpoint_auth_method,omitempty"`
+	TosUri                           *string                                                              `json:"tos_uri,omitempty"`
+	AdditionalProperties             map[string]interface{}                                               `json:"-"`
 }
 
 // UpdateDynamicOAuthClientRegistrationJSONBody defines parameters for UpdateDynamicOAuthClientRegistration.
 type UpdateDynamicOAuthClientRegistrationJSONBody map[string]interface{}
+
+// UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationType defines parameters for UpdateDynamicOAuthClientRegistration.
+type UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationType string
 
 // UpdateDynamicOAuthClientRegistration200JSONResponseBodyJwks0 defines parameters for UpdateDynamicOAuthClientRegistration.
 type UpdateDynamicOAuthClientRegistration200JSONResponseBodyJwks0 = []map[string]interface{}
@@ -6731,43 +6745,40 @@ type UpdateDynamicOAuthClientRegistration200JSONResponseBody_Jwks struct {
 // UpdateDynamicOAuthClientRegistration200JSONResponseBodySubjectType defines parameters for UpdateDynamicOAuthClientRegistration.
 type UpdateDynamicOAuthClientRegistration200JSONResponseBodySubjectType string
 
-// UpdateDynamicOAuthClientRegistration200JSONResponseBodyType defines parameters for UpdateDynamicOAuthClientRegistration.
-type UpdateDynamicOAuthClientRegistration200JSONResponseBodyType string
-
 // UpdateDynamicOAuthClientRegistration200JSONResponseBody defines parameters for UpdateDynamicOAuthClientRegistration.
 type UpdateDynamicOAuthClientRegistration200JSONResponseBody struct {
-	AuthorizationDetailsTypes        *[]string                                                           `json:"authorization_details_types,omitempty"`
-	BackchannelLogoutSessionRequired *bool                                                               `json:"backchannel_logout_session_required,omitempty"`
-	BackchannelLogoutUri             *string                                                             `json:"backchannel_logout_uri,omitempty"`
-	ClientId                         string                                                              `json:"client_id"`
-	ClientIdIssuedAt                 *int                                                                `json:"client_id_issued_at,omitempty"`
-	ClientName                       *string                                                             `json:"client_name,omitempty"`
-	ClientSecret                     *string                                                             `json:"client_secret,omitempty"`
-	ClientSecretExpiresAt            *int                                                                `json:"client_secret_expires_at,omitempty"`
-	ClientUri                        *string                                                             `json:"client_uri,omitempty"`
-	Contacts                         *[]string                                                           `json:"contacts,omitempty"`
-	DpopBoundAccessTokens            *bool                                                               `json:"dpop_bound_access_tokens,omitempty"`
-	GrantTypes                       *[]string                                                           `json:"grant_types,omitempty"`
-	Jwks                             *UpdateDynamicOAuthClientRegistration200JSONResponseBody_Jwks       `json:"jwks,omitempty"`
-	JwksUri                          *string                                                             `json:"jwks_uri,omitempty"`
-	LogoUri                          *string                                                             `json:"logo_uri,omitempty"`
-	PolicyUri                        *string                                                             `json:"policy_uri,omitempty"`
-	PostLogoutRedirectUris           *[]string                                                           `json:"post_logout_redirect_uris,omitempty"`
-	RedirectUris                     *[]string                                                           `json:"redirect_uris,omitempty"`
-	RegistrationAccessToken          string                                                              `json:"registration_access_token"`
-	RegistrationClientUri            string                                                              `json:"registration_client_uri"`
-	RequirePkce                      *bool                                                               `json:"require_pkce,omitempty"`
-	Resources                        *[]string                                                           `json:"resources,omitempty"`
-	ResponseTypes                    *[]string                                                           `json:"response_types,omitempty"`
-	Scope                            *string                                                             `json:"scope,omitempty"`
-	SoftwareId                       *string                                                             `json:"software_id,omitempty"`
-	SoftwareStatement                *string                                                             `json:"software_statement,omitempty"`
-	SoftwareVersion                  *string                                                             `json:"software_version,omitempty"`
-	SubjectType                      *UpdateDynamicOAuthClientRegistration200JSONResponseBodySubjectType `json:"subject_type,omitempty"`
-	TokenEndpointAuthMethod          *string                                                             `json:"token_endpoint_auth_method,omitempty"`
-	TosUri                           *string                                                             `json:"tos_uri,omitempty"`
-	Type                             *UpdateDynamicOAuthClientRegistration200JSONResponseBodyType        `json:"type,omitempty"`
-	AdditionalProperties             map[string]interface{}                                              `json:"-"`
+	ApplicationType                  *UpdateDynamicOAuthClientRegistration200JSONResponseBodyApplicationType `json:"application_type,omitempty"`
+	AuthorizationDetailsTypes        *[]string                                                               `json:"authorization_details_types,omitempty"`
+	BackchannelLogoutSessionRequired *bool                                                                   `json:"backchannel_logout_session_required,omitempty"`
+	BackchannelLogoutUri             *string                                                                 `json:"backchannel_logout_uri,omitempty"`
+	ClientId                         string                                                                  `json:"client_id"`
+	ClientIdIssuedAt                 *int                                                                    `json:"client_id_issued_at,omitempty"`
+	ClientName                       *string                                                                 `json:"client_name,omitempty"`
+	ClientSecret                     *string                                                                 `json:"client_secret,omitempty"`
+	ClientSecretExpiresAt            *int                                                                    `json:"client_secret_expires_at,omitempty"`
+	ClientUri                        *string                                                                 `json:"client_uri,omitempty"`
+	Contacts                         *[]string                                                               `json:"contacts,omitempty"`
+	DpopBoundAccessTokens            *bool                                                                   `json:"dpop_bound_access_tokens,omitempty"`
+	GrantTypes                       *[]string                                                               `json:"grant_types,omitempty"`
+	Jwks                             *UpdateDynamicOAuthClientRegistration200JSONResponseBody_Jwks           `json:"jwks,omitempty"`
+	JwksUri                          *string                                                                 `json:"jwks_uri,omitempty"`
+	LogoUri                          *string                                                                 `json:"logo_uri,omitempty"`
+	PolicyUri                        *string                                                                 `json:"policy_uri,omitempty"`
+	PostLogoutRedirectUris           *[]string                                                               `json:"post_logout_redirect_uris,omitempty"`
+	RedirectUris                     *[]string                                                               `json:"redirect_uris,omitempty"`
+	RegistrationAccessToken          string                                                                  `json:"registration_access_token"`
+	RegistrationClientUri            string                                                                  `json:"registration_client_uri"`
+	RequirePkce                      *bool                                                                   `json:"require_pkce,omitempty"`
+	Resources                        *[]string                                                               `json:"resources,omitempty"`
+	ResponseTypes                    *[]string                                                               `json:"response_types,omitempty"`
+	Scope                            *string                                                                 `json:"scope,omitempty"`
+	SoftwareId                       *string                                                                 `json:"software_id,omitempty"`
+	SoftwareStatement                *string                                                                 `json:"software_statement,omitempty"`
+	SoftwareVersion                  *string                                                                 `json:"software_version,omitempty"`
+	SubjectType                      *UpdateDynamicOAuthClientRegistration200JSONResponseBodySubjectType     `json:"subject_type,omitempty"`
+	TokenEndpointAuthMethod          *string                                                                 `json:"token_endpoint_auth_method,omitempty"`
+	TosUri                           *string                                                                 `json:"tos_uri,omitempty"`
+	AdditionalProperties             map[string]interface{}                                                  `json:"-"`
 }
 
 // ListBackgroundJobsParams defines parameters for ListBackgroundJobs.
@@ -7823,6 +7834,14 @@ func (a *CreateDynamicOAuthClientRegistrationJSONBody) UnmarshalJSON(b []byte) e
 		return err
 	}
 
+	if raw, found := object["application_type"]; found {
+		err = json.Unmarshal(raw, &a.ApplicationType)
+		if err != nil {
+			return fmt.Errorf("error reading 'application_type': %w", err)
+		}
+		delete(object, "application_type")
+	}
+
 	if raw, found := object["authorization_details_types"]; found {
 		err = json.Unmarshal(raw, &a.AuthorizationDetailsTypes)
 		if err != nil {
@@ -8015,14 +8034,6 @@ func (a *CreateDynamicOAuthClientRegistrationJSONBody) UnmarshalJSON(b []byte) e
 		delete(object, "tos_uri")
 	}
 
-	if raw, found := object["type"]; found {
-		err = json.Unmarshal(raw, &a.Type)
-		if err != nil {
-			return fmt.Errorf("error reading 'type': %w", err)
-		}
-		delete(object, "type")
-	}
-
 	if len(object) != 0 {
 		a.AdditionalProperties = make(map[string]interface{})
 		for fieldName, fieldBuf := range object {
@@ -8041,6 +8052,13 @@ func (a *CreateDynamicOAuthClientRegistrationJSONBody) UnmarshalJSON(b []byte) e
 func (a CreateDynamicOAuthClientRegistrationJSONBody) MarshalJSON() ([]byte, error) {
 	var err error
 	object := make(map[string]json.RawMessage)
+
+	if a.ApplicationType != nil {
+		object["application_type"], err = json.Marshal(a.ApplicationType)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'application_type': %w", err)
+		}
+	}
 
 	if a.AuthorizationDetailsTypes != nil {
 		object["authorization_details_types"], err = json.Marshal(a.AuthorizationDetailsTypes)
@@ -8207,13 +8225,6 @@ func (a CreateDynamicOAuthClientRegistrationJSONBody) MarshalJSON() ([]byte, err
 		object["tos_uri"], err = json.Marshal(a.TosUri)
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling 'tos_uri': %w", err)
-		}
-	}
-
-	if a.Type != nil {
-		object["type"], err = json.Marshal(a.Type)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'type': %w", err)
 		}
 	}
 
@@ -8387,6 +8398,14 @@ func (a *CreateDynamicOAuthClientRegistration201JSONResponseBody) UnmarshalJSON(
 		return err
 	}
 
+	if raw, found := object["application_type"]; found {
+		err = json.Unmarshal(raw, &a.ApplicationType)
+		if err != nil {
+			return fmt.Errorf("error reading 'application_type': %w", err)
+		}
+		delete(object, "application_type")
+	}
+
 	if raw, found := object["authorization_details_types"]; found {
 		err = json.Unmarshal(raw, &a.AuthorizationDetailsTypes)
 		if err != nil {
@@ -8627,14 +8646,6 @@ func (a *CreateDynamicOAuthClientRegistration201JSONResponseBody) UnmarshalJSON(
 		delete(object, "tos_uri")
 	}
 
-	if raw, found := object["type"]; found {
-		err = json.Unmarshal(raw, &a.Type)
-		if err != nil {
-			return fmt.Errorf("error reading 'type': %w", err)
-		}
-		delete(object, "type")
-	}
-
 	if len(object) != 0 {
 		a.AdditionalProperties = make(map[string]interface{})
 		for fieldName, fieldBuf := range object {
@@ -8653,6 +8664,13 @@ func (a *CreateDynamicOAuthClientRegistration201JSONResponseBody) UnmarshalJSON(
 func (a CreateDynamicOAuthClientRegistration201JSONResponseBody) MarshalJSON() ([]byte, error) {
 	var err error
 	object := make(map[string]json.RawMessage)
+
+	if a.ApplicationType != nil {
+		object["application_type"], err = json.Marshal(a.ApplicationType)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'application_type': %w", err)
+		}
+	}
 
 	if a.AuthorizationDetailsTypes != nil {
 		object["authorization_details_types"], err = json.Marshal(a.AuthorizationDetailsTypes)
@@ -8855,13 +8873,6 @@ func (a CreateDynamicOAuthClientRegistration201JSONResponseBody) MarshalJSON() (
 		object["tos_uri"], err = json.Marshal(a.TosUri)
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling 'tos_uri': %w", err)
-		}
-	}
-
-	if a.Type != nil {
-		object["type"], err = json.Marshal(a.Type)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'type': %w", err)
 		}
 	}
 
@@ -8967,6 +8978,14 @@ func (a *GetDynamicOAuthClientRegistration200JSONResponseBody) UnmarshalJSON(b [
 		return err
 	}
 
+	if raw, found := object["application_type"]; found {
+		err = json.Unmarshal(raw, &a.ApplicationType)
+		if err != nil {
+			return fmt.Errorf("error reading 'application_type': %w", err)
+		}
+		delete(object, "application_type")
+	}
+
 	if raw, found := object["authorization_details_types"]; found {
 		err = json.Unmarshal(raw, &a.AuthorizationDetailsTypes)
 		if err != nil {
@@ -9207,14 +9226,6 @@ func (a *GetDynamicOAuthClientRegistration200JSONResponseBody) UnmarshalJSON(b [
 		delete(object, "tos_uri")
 	}
 
-	if raw, found := object["type"]; found {
-		err = json.Unmarshal(raw, &a.Type)
-		if err != nil {
-			return fmt.Errorf("error reading 'type': %w", err)
-		}
-		delete(object, "type")
-	}
-
 	if len(object) != 0 {
 		a.AdditionalProperties = make(map[string]interface{})
 		for fieldName, fieldBuf := range object {
@@ -9233,6 +9244,13 @@ func (a *GetDynamicOAuthClientRegistration200JSONResponseBody) UnmarshalJSON(b [
 func (a GetDynamicOAuthClientRegistration200JSONResponseBody) MarshalJSON() ([]byte, error) {
 	var err error
 	object := make(map[string]json.RawMessage)
+
+	if a.ApplicationType != nil {
+		object["application_type"], err = json.Marshal(a.ApplicationType)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'application_type': %w", err)
+		}
+	}
 
 	if a.AuthorizationDetailsTypes != nil {
 		object["authorization_details_types"], err = json.Marshal(a.AuthorizationDetailsTypes)
@@ -9435,13 +9453,6 @@ func (a GetDynamicOAuthClientRegistration200JSONResponseBody) MarshalJSON() ([]b
 		object["tos_uri"], err = json.Marshal(a.TosUri)
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling 'tos_uri': %w", err)
-		}
-	}
-
-	if a.Type != nil {
-		object["type"], err = json.Marshal(a.Type)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'type': %w", err)
 		}
 	}
 
@@ -9547,6 +9558,14 @@ func (a *UpdateDynamicOAuthClientRegistration200JSONResponseBody) UnmarshalJSON(
 		return err
 	}
 
+	if raw, found := object["application_type"]; found {
+		err = json.Unmarshal(raw, &a.ApplicationType)
+		if err != nil {
+			return fmt.Errorf("error reading 'application_type': %w", err)
+		}
+		delete(object, "application_type")
+	}
+
 	if raw, found := object["authorization_details_types"]; found {
 		err = json.Unmarshal(raw, &a.AuthorizationDetailsTypes)
 		if err != nil {
@@ -9787,14 +9806,6 @@ func (a *UpdateDynamicOAuthClientRegistration200JSONResponseBody) UnmarshalJSON(
 		delete(object, "tos_uri")
 	}
 
-	if raw, found := object["type"]; found {
-		err = json.Unmarshal(raw, &a.Type)
-		if err != nil {
-			return fmt.Errorf("error reading 'type': %w", err)
-		}
-		delete(object, "type")
-	}
-
 	if len(object) != 0 {
 		a.AdditionalProperties = make(map[string]interface{})
 		for fieldName, fieldBuf := range object {
@@ -9813,6 +9824,13 @@ func (a *UpdateDynamicOAuthClientRegistration200JSONResponseBody) UnmarshalJSON(
 func (a UpdateDynamicOAuthClientRegistration200JSONResponseBody) MarshalJSON() ([]byte, error) {
 	var err error
 	object := make(map[string]json.RawMessage)
+
+	if a.ApplicationType != nil {
+		object["application_type"], err = json.Marshal(a.ApplicationType)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'application_type': %w", err)
+		}
+	}
 
 	if a.AuthorizationDetailsTypes != nil {
 		object["authorization_details_types"], err = json.Marshal(a.AuthorizationDetailsTypes)
@@ -10015,13 +10033,6 @@ func (a UpdateDynamicOAuthClientRegistration200JSONResponseBody) MarshalJSON() (
 		object["tos_uri"], err = json.Marshal(a.TosUri)
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling 'tos_uri': %w", err)
-		}
-	}
-
-	if a.Type != nil {
-		object["type"], err = json.Marshal(a.Type)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'type': %w", err)
 		}
 	}
 
@@ -10564,6 +10575,68 @@ func (t UpdateImageDomainSettings) MarshalJSON() ([]byte, error) {
 }
 
 func (t *UpdateImageDomainSettings) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCreateDeviceAuthorizationJSONBodyResource0 returns the union data inside the CreateDeviceAuthorizationJSONBody_Resource as a CreateDeviceAuthorizationJSONBodyResource0
+func (t CreateDeviceAuthorizationJSONBody_Resource) AsCreateDeviceAuthorizationJSONBodyResource0() (CreateDeviceAuthorizationJSONBodyResource0, error) {
+	var body CreateDeviceAuthorizationJSONBodyResource0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateDeviceAuthorizationJSONBodyResource0 overwrites any union data inside the CreateDeviceAuthorizationJSONBody_Resource as the provided CreateDeviceAuthorizationJSONBodyResource0
+func (t *CreateDeviceAuthorizationJSONBody_Resource) FromCreateDeviceAuthorizationJSONBodyResource0(v CreateDeviceAuthorizationJSONBodyResource0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateDeviceAuthorizationJSONBodyResource0 performs a merge with any union data inside the CreateDeviceAuthorizationJSONBody_Resource, using the provided CreateDeviceAuthorizationJSONBodyResource0
+func (t *CreateDeviceAuthorizationJSONBody_Resource) MergeCreateDeviceAuthorizationJSONBodyResource0(v CreateDeviceAuthorizationJSONBodyResource0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCreateDeviceAuthorizationJSONBodyResource1 returns the union data inside the CreateDeviceAuthorizationJSONBody_Resource as a CreateDeviceAuthorizationJSONBodyResource1
+func (t CreateDeviceAuthorizationJSONBody_Resource) AsCreateDeviceAuthorizationJSONBodyResource1() (CreateDeviceAuthorizationJSONBodyResource1, error) {
+	var body CreateDeviceAuthorizationJSONBodyResource1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCreateDeviceAuthorizationJSONBodyResource1 overwrites any union data inside the CreateDeviceAuthorizationJSONBody_Resource as the provided CreateDeviceAuthorizationJSONBodyResource1
+func (t *CreateDeviceAuthorizationJSONBody_Resource) FromCreateDeviceAuthorizationJSONBodyResource1(v CreateDeviceAuthorizationJSONBodyResource1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCreateDeviceAuthorizationJSONBodyResource1 performs a merge with any union data inside the CreateDeviceAuthorizationJSONBody_Resource, using the provided CreateDeviceAuthorizationJSONBodyResource1
+func (t *CreateDeviceAuthorizationJSONBody_Resource) MergeCreateDeviceAuthorizationJSONBodyResource1(v CreateDeviceAuthorizationJSONBodyResource1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t CreateDeviceAuthorizationJSONBody_Resource) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *CreateDeviceAuthorizationJSONBody_Resource) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
