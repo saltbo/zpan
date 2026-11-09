@@ -66,6 +66,27 @@ describe('chooseTmdbMatch', () => {
   ])('matches %s [spec: media-scraping/match-titles]', (_label, query, hits, id) => {
     expect(chooseTmdbMatch(query, hits)?.id ?? null).toBe(id)
   })
+
+  it.each<[string, string, string, boolean]>([
+    ['rejects another sequel number', 'Toy Story 2', 'Toy Story 3', false],
+    ['rejects the first film for a sequel', 'Toy Story 2', 'Toy Story', false],
+    ['rejects a sequel for the first film', 'Toy Story', 'Toy Story 2', false],
+    ['rejects another roman numeral', 'Rocky II', 'Rocky III', false],
+    ['rejects another CJK sequel number', '唐人街探案2', '唐人街探案3', false],
+    ['rejects another full-width sequel number', '唐人街探案２', '唐人街探案3', false],
+    [
+      'rejects another part',
+      'Harry Potter and the Deathly Hallows Part 1',
+      'Harry Potter and the Deathly Hallows: Part 2',
+      false,
+    ],
+    ['accepts the same sequel number', 'Toy Story 3', 'Toy Story 3', true],
+    ['accepts the same roman numeral', 'Rocky II', 'Rocky II', true],
+    ['accepts the same CJK sequel number', '唐人街探案2', '唐人街探案２', true],
+    ['accepts the same number inside the title', 'Blade Runner 2049', 'Blade Runner 2049', true],
+  ])('%s [spec: media-scraping/match-titles]', (_label, title, candidate, matches) => {
+    expect(chooseTmdbMatch({ title }, [hit(1, candidate, null)])?.id ?? null).toBe(matches ? 1 : null)
+  })
 })
 
 describe('chooseImage', () => {

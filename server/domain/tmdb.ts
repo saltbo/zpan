@@ -62,14 +62,41 @@ export const TMDB_FALLBACK_LANGUAGE = 'en-US'
 export const TITLE_MATCH_THRESHOLD = 0.85
 
 export function normalizeTitle(title: string): string {
+  return titleWords(title)
+    .replace(/^ ?(?:the|a|an) /, '')
+    .replace(/ /g, '')
+}
+
+function titleWords(title: string): string {
   return title
     .normalize('NFKD')
     .replace(/\p{M}/gu, '')
     .toLowerCase()
     .replace(/&/g, ' and ')
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .replace(/^ ?(?:the|a|an) /, '')
-    .replace(/ /g, '')
+}
+
+// The number a title ends with, in digits or as a roman numeral after a space:
+// the sequel or part a title names. "Toy Story 2" and "Toy Story 3" are as
+// similar as two titles get, so this has to agree before similarity counts.
+// CJK titles run the number into the last word ("唐人街探案2").
+function sequelNumber(title: string): number | null {
+  const words = titleWords(title).trim()
+  const digits = /(\d+)$/.exec(words)?.[1]
+  if (digits !== undefined) return Number(digits)
+  const roman = / (x{0,3}(?:ix|iv|v?i{0,3}))$/.exec(words)?.[1]
+  return roman ? romanValue(roman) : null
+}
+
+const ROMAN_DIGITS: Readonly<Record<string, number>> = { i: 1, v: 5, x: 10 }
+
+function romanValue(numeral: string): number {
+  let value = 0
+  for (let i = 0; i < numeral.length; i++) {
+    const digit = ROMAN_DIGITS[numeral[i]]
+    value += digit < (ROMAN_DIGITS[numeral[i + 1]] ?? 0) ? -digit : digit
+  }
+  return value
 }
 
 // Dice coefficient over character bigrams of the normalized titles: 1 when they
@@ -98,18 +125,20 @@ export function titleSimilarity(a: string, b: string): number {
 }
 
 // The best result for a parsed title: the most similar title (localized or
-// original), then the closest year, then TMDB's own order. A result more than
-// a year off the parsed year never matches; a missing year on either side is
-// neutral.
+// original) that ends in the same sequel number, then the closest year, then
+// TMDB's own order. A result more than a year off the parsed year never
+// matches; a missing year on either side is neutral.
 export function chooseTmdbMatch(
   query: { title: string; year?: number },
   hits: readonly TmdbSearchHit[],
 ): TmdbSearchHit | null {
+  const sequel = sequelNumber(query.title)
   let best: { hit: TmdbSearchHit; similarity: number; yearDistance: number } | null = null
   for (const hit of hits) {
     const similarity = Math.max(
-      titleSimilarity(query.title, hit.title),
-      titleSimilarity(query.title, hit.originalTitle),
+      ...[hit.title, hit.originalTitle].map((title) =>
+        sequelNumber(title) === sequel ? titleSimilarity(query.title, title) : 0,
+      ),
     )
     if (similarity < TITLE_MATCH_THRESHOLD) continue
     const yearDistance = query.year !== undefined && hit.year !== null ? Math.abs(query.year - hit.year) : 1
