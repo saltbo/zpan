@@ -9,7 +9,7 @@ Feature: Media library scraping
   Scenario: Search results are matched by normalized title and year
     Given a parsed title and year and TMDB search results
     When the best match is chosen
-    Then only a result with a similar localized or original title within a year matches
+    Then only a result with a similar localized or original title within a year and the same sequel number matches
     And posters prefer the configured language while fanart prefers textless art
 
   @media-scraping/nfo-files @domain
@@ -17,7 +17,7 @@ Feature: Media library scraping
     Given TMDB details with markup characters, CJK text, and missing fields
     When movie, show, and episode NFO files are rendered
     Then they are well-formed Kodi documents without the missing fields
-    And an existing NFO yields its root kind and TMDB id however it is formatted
+    And an existing NFO yields its root kind and TMDB id however it is formatted, in linear time on adversarial input
 
   @media-scraping/sidecar-layout @domain
   Scenario: Sidecars follow the Kodi layout
@@ -97,18 +97,21 @@ Feature: Media library scraping
     Given TMDB answers 429 with a Retry-After partway through a batch
     When the scrape job handles it
     Then the job is queued again after that delay, at most five minutes, with the videos already done
+    And after 10 rate limits in a row without a finished video the job fails as retryable
 
   @media-scraping/transient-failure @usecase
-  Scenario: A TMDB outage fails the job as retryable
-    Given TMDB fails with a server error or the library disappears
+  Scenario: A failing video is skipped, and only an outage on every video fails the job
+    Given TMDB fails for one video with a server error or a rejected request, or the library disappears
     When the scrape job runs
-    Then an outage fails the job as retryable naming the video, and a missing library fails it for good
+    Then the video is logged, counted, and left unrecorded for the next scrape, and the rest are scraped
+    And the job fails as retryable only when TMDB was unavailable for every video, and a missing library fails it for good
 
   @media-scraping/quota @usecase
-  Scenario: Exceeding the quota stops the scrape
+  Scenario: Exceeding the quota stops the sidecars but not the matching
     Given a workspace without room for another sidecar
     When the scrape writes one
-    Then the job fails with a quota message and the uploaded object is deleted
+    Then the uploaded object is deleted, no further sidecar is written, every video is still recorded
+    And the job completes reporting that the quota was exceeded
 
   @media-scraping/rejected-token @api
   Scenario: A rejected token fails the scrape with a clear message
@@ -146,6 +149,7 @@ Feature: Media library scraping
     Given the index page query and the needs-scraping queries on D1
     When their query plans are explained
     Then each searches one subtree range of matters and joins media_scrapes on its primary key
+    And the fingerprint reads the matched scrapes from their covering index
     And the bound parameters stay fixed whatever the library size
 
   @media-scraping/settings @api

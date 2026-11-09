@@ -29,7 +29,7 @@ deletes it, and a library whose index is gone is off.
 | --- | --- |
 | `id`, `org_id` | `org_id` cascades with the organization |
 | `folder_id` | The folder's matter id. Matters store their location as a `parent` path string, but ids are stable, so REST and WebDAV renames and moves keep the library attached. Unique per org. |
-| `fingerprint` | Subtree fingerprint of the last successful scan or deterministic scan failure |
+| `fingerprint` | Library fingerprint (subtree and matched scrapes) of the last successful scan or deterministic scan failure |
 | `last_scanned_at` | Last successful scan |
 | `created_by_user_id`, `created_by_actor_*` | Creator; sweep-queued jobs run as this user |
 
@@ -41,8 +41,8 @@ folders work.
 
 | Column | Notes |
 | --- | --- |
-| `matter_id` | Primary key: the video's matter id |
-| `org_id`, `library_id` | `library_id` cascades with the library |
+| `matter_id` | Primary key: the video's matter id. Purging the video deletes the row in the same transaction |
+| `org_id`, `library_id` | `library_id` cascades with the library. `media_scrapes_library_idx` on `(library_id, status, scraped_at)` covers the fingerprint's scrape terms |
 | `status` | `matched` or `unmatched` |
 | `tmdb_type`, `tmdb_id` | `movie` or `tv`; for an episode, the series id |
 | `season`, `episode` | Set for an episode |
@@ -94,12 +94,22 @@ on the existing 10-minute cron (`*/10 * * * *` on Workers, the matching
 
 For each library the sweep computes one aggregate over live matters in the
 subtree, excluding only the index file itself (`library.json` directly in the
-library root). Any other file counts, including one in a folder a user happens
-to name `.zpan`:
+library root), followed by two terms over the library's matched
+`media_scrapes` rows. Any other file counts, including one in a folder a user
+happens to name `.zpan`:
 
 ```
-count(id) : sum(size) : max(updated_at) : sum(updated_at)
+count(id) : sum(size) : max(updated_at) : sum(updated_at) : matched scrapes : max(scraped_at)
 ```
+
+The index publishes each video's TMDB id, so a scrape that records, changes,
+or loses a match must change the fingerprint even when it writes no sidecar.
+`scraped_at` has millisecond precision and is rewritten on every record, and
+a lost match or a purged video lowers the count. The scrape terms are a
+subquery over the covering `media_scrapes_library_idx`
+(`SEARCH media_scrapes USING COVERING INDEX media_scrapes_library_idx
+(library_id=? AND status=?)` on D1), so they add no bound parameter to the
+sweep and one to `fingerprint()`.
 
 Every write that changes what a scan sees moves one term: create, copy,
 restore, and draft activation add a row; trash and purge remove one; rename,
@@ -304,8 +314,11 @@ and the TMDB gateway reads them on every use, like the image-domain provider
 reads its credentials. The token is write-only, like the captcha secret:
 `GET /api/site/settings` reports `mediaScraping.tmdbTokenConfigured`, a
 `PUT /api/site/settings/media-scraping` without `tmdbAccessToken` keeps the
-saved token, and an empty one removes it, which turns scraping off. The `PUT`
-needs the `media_library` feature (`402` otherwise).
+saved token, an empty one removes it, which turns scraping off, and `null` is
+rejected with `400`. The settings are admin-only but not licensed, so an
+administrator whose license lapsed can still change the language or remove
+the token; the settings drawer has a Remove token button for that. Scraping
+itself needs the `media_library` feature.
 
 ### When a scrape runs
 
@@ -327,21 +340,28 @@ The lease works like the scan's: a `queued` or `running`
 reports it as `scraping`.
 
 A video needs scraping when it has no `media_scrapes` row, its matter's
-`updated_at` is after the row's `file_updated_at` (renamed, moved, or
-overwritten), or the row's language differs from the configured one. An
-unmatched video is therefore not searched again until it or the language
-changes. One SQL predicate answers both "is there anything to scrape" (for
+`updated_at` differs from the row's `file_updated_at` (renamed, moved, or
+overwritten), or the row's language differs from the configured one. The row
+stores the exact `updated_at` the scrape saw, so the test is `<>` rather than
+`>`: a write stamped by a clock behind the scrape's still counts, and
+recording the video ends the difference, so it cannot loop. An unmatched
+video is therefore not searched again until it or the language changes, and
+a video that failed (see below) has no row, so the next scrape tries it. One SQL predicate answers both "is there anything to scrape" (for
 the trigger) and "which videos" (for each batch). It is the scan's video
 listing with `media_scrapes` left-joined on its primary key.
 
-A scrape that changed a published id (a new match, a different match, or a
-lost one) queues a scan when no scan holds the lease, so `library.json` picks
-the ids up right away. Failing to queue it is logged as
-`media_library.scrape.scan_enqueue_error`. Sidecars it wrote also change the
-subtree fingerprint, so the sweep rescans anyway. Either scan ends with the
-trigger above, which now finds no video that needs scraping, because every
-video the scrape processed has a current row. So the loop stops after one
-scrape and at most one scan unless videos changed in the meantime.
+Every recorded match is part of the library's fingerprint (see
+[Change detection](#3-change-detection)), so the next sweep rescans and
+publishes it whatever happened to the job: it completed, failed after
+recording some videos, or found a scan holding the lease. A completed scrape
+that changed a published id (a new match, a different match, or a lost one)
+also queues a scan right away when no scan holds the lease, so the ids do not
+wait for the sweep. Failing to queue it is logged as
+`media_library.scrape.scan_enqueue_error`. Either scan ends with the trigger
+above, which finds only the videos that failed, because every other video the
+scrape processed has a current row. A retry that fails again records nothing
+and changes no fingerprint, so the loop stops after at most one more scrape
+unless videos changed in the meantime.
 
 ### Matching a video
 
@@ -351,10 +371,14 @@ order:
 
 1. **An existing `.nfo`.** For a movie, `X.nfo` and then `movie.nfo` in the
    video's folder; for an episode, `tvshow.nfo` in its show folder. The first
-   one with a TMDB id (`<uniqueid type="tmdb">` or `<tmdbid>`, read with a
-   tolerant regex, files over 1 MiB skipped) names the match, unless its root
-   element says it describes something else. An episode's own `.nfo` carries
-   the episode id, not the series.
+   one with a TMDB id (`<uniqueid type="tmdb">` or `<tmdbid>`) names the
+   match, unless its root element says it describes something else. An
+   episode's own `.nfo` carries the episode id, not the series. Only the
+   first 64 KB of a file is read (a ranged GET for a larger one). The reader
+   is one forward pass over the tags that skips comments, processing
+   instructions, and declarations, so a malformed file still yields its id
+   and the cost is linear whatever the file holds: no backtracking regex
+   runs over the text, and an unclosed comment or tag ends the pass.
 2. **The previous match**, while the match key (kind, normalized title, year)
    is unchanged. A moved video, a renamed library folder, or a new language
    reuses the match instead of searching. A previous miss is reused only in
@@ -372,9 +396,13 @@ makes it a movie.
 A search result matches when its localized or original title has a Dice
 similarity of at least 0.85 to the parsed title (character bigrams after
 NFKD, ignoring accents, case, punctuation, `&` versus "and", and a leading
-English article) and its year is within one of the parsed year. A missing
-year on either side is neutral. The most similar title wins, then the closest
-year, then TMDB's order.
+English article), both titles end in the same sequel number, and its year is
+within one of the parsed year. The sequel number is a trailing number (also
+run into a CJK title, as in `唐人街探案2`) or a roman numeral after a space,
+so `Toy Story 2` does not match `Toy Story 3` or `Toy Story`, and `Rocky II`
+does not match `Rocky III`, however similar the rest is. A missing year on
+either side is neutral. The most similar title wins, then the closest year,
+then TMDB's order.
 
 ### Sidecars
 
@@ -395,10 +423,14 @@ year, then TMDB's order.
   the uploaded object is deleted.
 - **Writing.** Each sidecar takes the path other server-written files take: a
   fresh object key, `putObject`, then quota reserved and the matter created.
-  It is attributed to the system actor whoever asked for the scrape.
-  Exceeding the quota stops the job with `Quota exceeded while writing
-  metadata files. The files written so far are kept.` The WebDAV listing
-  cache of every folder written to is dropped at the end of the batch.
+  It is attributed to the system actor whoever asked for the scrape. When
+  the reservation or the create fails, the uploaded object is deleted; a
+  failed delete is logged as `media_library.scrape.sidecar_cleanup_error`
+  and the original failure still decides what happens. Once a write exceeds
+  the quota, the job writes no more sidecars but keeps matching and
+  recording videos, and its result reports `quotaExceeded`. The files
+  written so far are kept. The WebDAV listing cache of every folder written
+  to is dropped at the end of the batch.
 - **Language.** Details and seasons are fetched in the configured language.
   When a plot is empty there, one English fetch fills it: per movie, per show,
   and per season for its episodes. Posters prefer the configured language,
@@ -413,11 +445,24 @@ year, then TMDB's order.
 A queue message handles at most 20 videos, keyset-paged over the
 needs-scraping predicate in the index's `(parent, name)` order. After a full
 batch the processor renews the lease (the job's progress update) and queues
-the same job id again with `resume: { after, processed, matched, changed }`.
-A stored job never has `resume`, so a retry from the task list starts over. A
-recorded video drops out of the predicate, so a redelivered message repeats
-no finished work. `progress.fileCount` is the number of videos processed so
-far, and the result reports matched and unmatched counts.
+the same job id again with `resume`: the cursor, the counts so far
+(recorded, matched, changed, failed, failed because TMDB was unavailable),
+the first failure's path and message, the 429s in a row, and whether the
+quota stopped the sidecars. A stored job never has `resume`, so a retry from
+the task list starts over. A recorded video drops out of the predicate, so a
+redelivered message repeats no finished work. `progress.fileCount` is the
+number of videos processed so far, failed ones included, and the result
+reports `matched`, `unmatched`, `failed`, `firstFailed` (the first failing
+video's path), and `quotaExceeded`. The task list shows the failures and the
+quota stop next to the match count.
+
+A failure on one video does not stop the job. Anything other than a
+rejected token or a rate limit (a TMDB `5xx`, timeout, or network failure,
+another TMDB `4xx`, a response that does not parse, a failed image fetch, a
+storage error) is logged as `media_library.scrape.video_error library=<id>
+org=<id> matter=<id> code=<error>`, counted, and skipped: the cursor moves
+past the video, and it gets no `media_scrapes` row, so the next scrape tries
+it again.
 
 Episodes of one show in a batch share one id lookup, one show fetch, and one
 fetch per season. A later batch finds the `tvshow.nfo` this one wrote and
@@ -425,10 +470,11 @@ reads the id from it instead of searching.
 
 | Failure | Outcome |
 | --- | --- |
-| TMDB `429` | The message is queued again after `Retry-After` (1 to 300 s, 10 s when absent) with the videos already done, and the job stays running |
+| TMDB `429` | The message is queued again after `Retry-After` (1 to 300 s, 10 s when absent) with the videos already done, and the job stays running. A finished video resets the count; the 11th 429 in a row fails the job, retryable: `TMDB rate limited the scrape 10 times in a row. Retry it later.` |
 | TMDB `401` | Failed, not retryable: `TMDB rejected the access token. An administrator can update it in the scraping settings.` |
-| TMDB `5xx`, a 15 s timeout, or a network failure | Failed and retryable, naming the video it stopped at; videos without a row are scraped by the next scrape |
-| Quota | Failed and retryable, with the sidecars written so far kept |
+| Any other failure on a video | Logged, counted, and skipped; the job goes on and completes |
+| TMDB `5xx`, a 15 s timeout, or a network failure on every video the job tried | Failed and retryable with the first failure's message, naming that video |
+| Quota | No more sidecars; matching continues and the job completes with `quotaExceeded` |
 | Library gone, folder in trash, or no token | Failed, not retryable |
 
 Subrequests per video, counted from the code. A D1 call, a TMDB or image
@@ -457,6 +503,8 @@ in `workers/media-library-scrape.cf-test.ts`:
 | Index page | `SEARCH matters USING INDEX matters_webdav_path_idx (org_id=? AND parent>? AND parent<?)`, or `(parent,name)>(?,?)` with the cursor, then `SEARCH media_scrapes USING INDEX sqlite_autoindex_media_scrapes_1 (matter_id=?) LEFT-JOIN` |
 | Videos to scrape, 28 parameters with the cursor | Same as the index page |
 | Anything to scrape, 27 parameters | `SEARCH matters USING INDEX matters_active_name_uniq (org_id=? AND parent>? AND parent<?)` and the same join. The query is unordered, so SQLite takes the smaller partial index over the same range |
+| `fingerprint()`, 9 parameters | `SEARCH matters USING INDEX matters_active_name_uniq (org_id=? AND parent>? AND parent<?)`, then the scalar subquery `SEARCH media_scrapes USING COVERING INDEX media_scrapes_library_idx (library_id=? AND status=?)` |
+| Sweep read, 14 parameters | The same subtree range per library as a `LEFT-JOIN`, and the same covering search as a correlated subquery |
 
 ### Not handled
 
@@ -474,14 +522,15 @@ in `workers/media-library-scrape.cf-test.ts`:
   the video, not at its sidecars.
 - **`movie.nfo` names every movie in its folder.** It is meant for
   folder-per-movie layouts.
-- **Second precision.** A video renamed in the same second it was scraped is
-  not scraped again, like the fingerprint's blind spot.
-- **Purged videos keep their rows** until the library is removed. Nothing
-  reads them, because every query joins from live matters.
+- **Second precision.** A video renamed in the same second it was scraped
+  keeps the `updated_at` the row stored, so it is not scraped again, like the
+  fingerprint's blind spot.
+- **Trashed videos keep their rows** until they are purged, so a restored
+  video keeps its match. Nothing reads them meanwhile, because every query
+  joins from live matters.
 - **A scan already running** when a scrape completes may have listed before
-  the new ids. The sweep rescans once the sidecars change the fingerprint. A
-  scrape that matched only through existing `.nfo` files writes nothing, so
-  its ids wait for the next change in the subtree.
+  the new ids. They reach `library.json` at the next sweep, up to ten
+  minutes later, because the recorded matches changed the fingerprint.
 - **Live TMDB is not exercised by tests.** The suites fake TMDB at the fetch
   boundary.
 
