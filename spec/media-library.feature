@@ -57,11 +57,18 @@ Feature: Media libraries
     Then the older library is scanned and the newer one's scan fails naming the older one
     And the newer library is not retried until its subtree changes
 
-  @media-library/sweep-isolates-failures @api
-  Scenario: One failing library does not stop the sweep
-    Given two changed libraries where checking one of them fails
+  @media-library/sweep-batched @api
+  Scenario: The sweep's database and queue calls do not grow with the library count
+    Given one changed library, and then 150 changed and 150 turned-off libraries on D1
     When the sweep runs
-    Then the failure is logged with the library id and the other library is still scanned
+    Then it reads every library in one query, deletes the turned-off ones in one write
+    And it queues the changed ones with one job write and one queue send per 100 libraries
+
+  @media-library/sweep-isolates-failures @api
+  Scenario: One chunk of scans that cannot be queued does not stop the sweep
+    Given more changed libraries than one queue batch holds, where queueing one batch fails
+    When the sweep runs
+    Then the failure is logged with that batch's library ids and the other batch is still scanned
 
   @media-library/transient-scan-retry @api
   Scenario: A transient scan failure is retried by the next sweep

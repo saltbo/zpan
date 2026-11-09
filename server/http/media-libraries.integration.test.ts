@@ -471,23 +471,54 @@ describe('media libraries API', () => {
     expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(2)
   })
 
-  it('keeps sweeping other libraries when one of them fails [spec: media-library/sweep-isolates-failures]', async () => {
+  it('keeps queueing other chunks when one chunk of scans cannot be queued [spec: media-library/sweep-isolates-failures]', async () => {
     const ctx = await setup()
-    const movies = await ctx.add('', 'Movies', 'folder')
-    const shows = await ctx.add('', 'Shows', 'folder')
-    const healthy = await seedLibrary(ctx, movies.id, new Date(Date.now() - 60_000))
-    const broken = await seedLibrary(ctx, shows.id, new Date())
-    const fingerprint = ctx.deps.mediaLibraries.fingerprint
-    vi.spyOn(ctx.deps.mediaLibraries, 'fingerprint').mockImplementation((orgId, path) =>
-      path === 'Shows' ? Promise.reject(new Error('D1 unavailable')) : fingerprint(orgId, path),
-    )
+    const libraries = []
+    for (let i = 0; i < 101; i++) {
+      const folder = await ctx.add('', `Library ${i}`, 'folder')
+      libraries.push(await seedLibrary(ctx, folder.id, new Date(Date.now() - i * 1000)))
+    }
+    vi.spyOn(ctx.deps.jobQueue, 'dispatchBatch').mockRejectedValueOnce(new Error('queue unavailable'))
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     await expect(sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })).resolves.toBeUndefined()
 
+    const logged = error.mock.calls
+      .map(([line]) => String(line))
+      .filter((line) => line.startsWith('media_library.sweep.enqueue_error'))
+    expect(logged).toHaveLength(1)
+    expect(logged[0]).toContain('queue unavailable')
+    const failed = new Set(/libraries=(\S+)/.exec(logged[0])?.[1].split(','))
+    expect(failed.size).toBe(100)
+    const queued = libraries.filter((library) => !failed.has(library.id))
+    expect(queued).toHaveLength(1)
+    const jobs = await ctx.db.all<{ id: string; libraryId: string }>(
+      sql`SELECT id, json_extract(metadata, '$.libraryId') AS libraryId FROM background_jobs`,
+    )
+    const queuedJob = jobs.find((job) => job.libraryId === queued[0].id)
+    if (!queuedJob) throw new Error('no scan job for the library in the chunk that was queued')
+    expect(await waitForJob(ctx.db, ctx.orgId, queuedJob.id)).toMatchObject({ status: 'completed' })
+  })
+
+  it('still queues changed libraries when deleting dead ones fails [spec: media-library/sweep-isolates-failures]', async () => {
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    const gone = await ctx.add('', 'Gone', 'folder')
+    const changed = await seedLibrary(ctx, movies.id, new Date(Date.now() - 60_000))
+    const dead = await seedLibrary(ctx, gone.id, new Date())
+    const index = await ctx.matters.findActiveConflict(ctx.orgId, 'Gone', 'library.json')
+    if (!index) throw new Error('index missing')
+    await ctx.matters.update(index.id, ctx.orgId, { name: 'old-library.json' })
+    vi.spyOn(ctx.deps.mediaLibraries, 'deleteMany').mockRejectedValueOnce(new Error('D1 unavailable'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+
+    expect(error).toHaveBeenCalledWith(
+      expect.stringMatching(new RegExp(`media_library.sweep.delete_error libraries=${dead.id} .*D1 unavailable`)),
+    )
     const jobs = await waitForScans(ctx.db, ctx.orgId)
-    expect(jobs.map((job) => job.metadata?.libraryId)).toEqual([healthy.id])
-    expect(error).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`library=${broken.id}.*D1 unavailable`)))
+    expect(jobs.map((job) => [job.metadata?.libraryId, job.status])).toEqual([[changed.id, 'completed']])
   })
 
   it('retries a scan that failed on a transient error at the next sweep [spec: media-library/transient-scan-retry]', async () => {

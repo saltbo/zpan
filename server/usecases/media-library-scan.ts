@@ -10,16 +10,21 @@ import type { BackgroundJob } from '@shared/types'
 import { hasFeature } from '../domain/licensing'
 import {
   buildMediaLibraryFeed,
+  decideMediaLibrarySweep,
+  type MediaLibraryDeleteReason,
   type MediaLibraryRoot,
   olderOverlappingLibrary,
   VIDEO_EXTENSIONS,
 } from '../domain/media-library'
+import { chunk } from '../lib/chunk'
 import { formatError } from '../lib/errors'
 import type { Deps } from './deps'
 import { findMediaLibraryIndex, rewriteMediaLibraryIndex } from './media-library-index'
 import {
   type ActorIdentity,
+  BACKGROUND_JOB_DISPATCH_BATCH_LIMIT,
   type BackgroundJobMessage,
+  type CreateBackgroundJobInput,
   type Matter,
   type MediaLibraryState,
   type MediaLibraryView,
@@ -39,62 +44,95 @@ export async function enqueueMediaLibraryScan(
   input: { library: MediaLibraryView; userId: string; createdBy: ActorIdentity },
 ): Promise<BackgroundJob> {
   const { library, userId, createdBy } = input
+  const job = await deps.backgroundJobs.create(scanJobInput(library, userId))
+  await deps.jobQueue.dispatch(scanMessage(job, library, createdBy))
+  return job
+}
+
+function scanJobInput(library: MediaLibraryView, userId: string): CreateBackgroundJobInput {
   const request: MediaLibraryScanJobRequest = { type: 'media_library_scan', libraryId: library.id }
-  const job = await deps.backgroundJobs.create({
+  return {
     orgId: library.orgId,
     userId,
     type: request.type,
     targetFolder: library.folder.path,
     metadata: request,
     cancelable: false,
-  })
-  await deps.jobQueue.dispatch({ jobId: job.id, orgId: library.orgId, userId, createdBy, request })
-  return job
+  }
+}
+
+function scanMessage(
+  job: BackgroundJob,
+  library: MediaLibraryView,
+  createdBy: ActorIdentity,
+): BackgroundJobMessage<MediaLibraryScanJobRequest> {
+  return {
+    jobId: job.id,
+    orgId: library.orgId,
+    userId: job.userId,
+    createdBy,
+    request: { type: 'media_library_scan', libraryId: library.id },
+  }
 }
 
 // Runs on the 10-minute cron. Libraries stay in place when the license lapses;
 // they just stop being scanned until the instance is entitled again. The cloud
 // URL decides which certificate issuer is trusted, as in the licensing refresh.
+//
+// The sweep's database and queue calls do not grow with the library count, so a
+// Workers invocation stays under its subrequest cap: one read for every library,
+// one write for all dead ones, and per chunk of changed libraries one job write
+// and one queue send. A failed chunk is logged and the others still go out.
 export async function sweepMediaLibraries(
-  deps: Pick<Deps, 'licenseBinding' | 'mediaLibraries' | 'matter' | 'backgroundJobs' | 'jobQueue'>,
+  deps: Pick<Deps, 'licenseBinding' | 'mediaLibraries' | 'backgroundJobs' | 'jobQueue'>,
   options: { cloudBaseUrl: string },
 ): Promise<void> {
   if (!hasFeature('media_library', await loadBindingState(deps, options))) return
 
-  for (const library of await deps.mediaLibraries.listAll()) {
-    // One library's failure must not stop the sweep for the rest.
-    await sweepLibrary(deps, library).catch((error: unknown) => {
-      console.error(
-        `media_library.sweep.library_error library=${library.id} org=${library.orgId} code=${formatError(error)}`,
-      )
+  const dead: Array<{ library: MediaLibraryState; reason: MediaLibraryDeleteReason }> = []
+  const changed: MediaLibraryView[] = []
+  for (const library of await deps.mediaLibraries.listForSweep()) {
+    const decision = decideMediaLibrarySweep(library)
+    if (decision.action === 'delete') dead.push({ library, reason: decision.reason })
+    if (decision.action === 'scan') changed.push({ ...library, folder: decision.folder })
+  }
+
+  if (dead.length > 0) await deleteDeadLibraries(deps, dead)
+  for (const libraries of chunk(changed, BACKGROUND_JOB_DISPATCH_BATCH_LIMIT)) {
+    await enqueueSweepScans(deps, libraries).catch((error: unknown) => {
+      console.error(`media_library.sweep.enqueue_error libraries=${idList(libraries)} code=${formatError(error)}`)
     })
   }
 }
 
-async function sweepLibrary(
-  deps: Pick<Deps, 'mediaLibraries' | 'matter' | 'backgroundJobs' | 'jobQueue'>,
-  library: MediaLibraryState,
+async function deleteDeadLibraries(
+  deps: Pick<Deps, 'mediaLibraries'>,
+  dead: ReadonlyArray<{ library: MediaLibraryState; reason: MediaLibraryDeleteReason }>,
 ): Promise<void> {
-  const { folder } = library
-  if (!folder) {
-    await deps.mediaLibraries.delete(library.orgId, library.id)
-    console.log(`media_library.sweep.deleted library=${library.id} org=${library.orgId} reason=folder_purged`)
+  const libraries = dead.map(({ library }) => library)
+  try {
+    await deps.mediaLibraries.deleteMany(libraries.map((library) => library.id))
+  } catch (error) {
+    console.error(`media_library.sweep.delete_error libraries=${idList(libraries)} code=${formatError(error)}`)
     return
   }
-  if (folder.trashed) return
-  if (!(await findMediaLibraryIndex(deps, library.orgId, folder.path))) {
-    await deps.mediaLibraries.delete(library.orgId, library.id)
-    console.log(`media_library.sweep.deleted library=${library.id} org=${library.orgId} reason=index_removed`)
-    return
+  for (const { library, reason } of dead) {
+    console.log(`media_library.sweep.deleted library=${library.id} org=${library.orgId} reason=${reason}`)
   }
-  if (library.scanning) return
-  const fingerprint = await deps.mediaLibraries.fingerprint(library.orgId, folder.path)
-  if (fingerprint === library.fingerprint) return
-  await enqueueMediaLibraryScan(deps, {
-    library: { ...library, folder },
-    userId: library.createdByUserId,
-    createdBy: SWEEP_ACTOR,
-  })
+}
+
+async function enqueueSweepScans(
+  deps: Pick<Deps, 'backgroundJobs' | 'jobQueue'>,
+  libraries: readonly MediaLibraryView[],
+): Promise<void> {
+  const jobs = await deps.backgroundJobs.createMany(
+    libraries.map((library) => scanJobInput(library, library.createdByUserId)),
+  )
+  await deps.jobQueue.dispatchBatch(jobs.map((job, i) => scanMessage(job, libraries[i], SWEEP_ACTOR)))
+}
+
+function idList(libraries: ReadonlyArray<{ id: string }>): string {
+  return libraries.map((library) => library.id).join(',')
 }
 
 export async function processMediaLibraryScan(

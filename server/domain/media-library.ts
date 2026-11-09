@@ -131,3 +131,37 @@ export function buildMediaLibraryFeed(input: {
     items: items.map(({ item }) => item),
   }
 }
+
+export interface MediaLibrarySweepFacts<F extends { trashed: boolean }> {
+  // null once the folder is purged.
+  folder: F | null
+  // The live library.json index exists in the library root.
+  indexed: boolean
+  // A scan holds the lease.
+  scanning: boolean
+  // Fingerprint of the last scan attempt.
+  fingerprint: string | null
+  // Fingerprint of the subtree now.
+  subtreeFingerprint: string
+}
+
+export type MediaLibraryDeleteReason = 'folder_purged' | 'index_removed'
+
+export type MediaLibrarySweepDecision<F> =
+  | { action: 'delete'; reason: MediaLibraryDeleteReason }
+  | { action: 'skip'; reason: 'folder_trashed' | 'scanning' | 'unchanged' }
+  | { action: 'scan'; folder: F }
+
+// A trashed folder is skipped before the index is checked, so a library in
+// trash keeps its row and comes back when the folder is restored.
+export function decideMediaLibrarySweep<F extends { trashed: boolean }>(
+  facts: MediaLibrarySweepFacts<F>,
+): MediaLibrarySweepDecision<F> {
+  const { folder } = facts
+  if (!folder) return { action: 'delete', reason: 'folder_purged' }
+  if (folder.trashed) return { action: 'skip', reason: 'folder_trashed' }
+  if (!facts.indexed) return { action: 'delete', reason: 'index_removed' }
+  if (facts.scanning) return { action: 'skip', reason: 'scanning' }
+  if (facts.subtreeFingerprint === facts.fingerprint) return { action: 'skip', reason: 'unchanged' }
+  return { action: 'scan', folder }
+}

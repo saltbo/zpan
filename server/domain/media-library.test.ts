@@ -2,6 +2,7 @@ import { mediaLibraryFeedSchema } from '@shared/schemas'
 import { describe, expect, it } from 'vitest'
 import {
   buildMediaLibraryFeed,
+  decideMediaLibrarySweep,
   folderPathsOverlap,
   type MediaLibraryFile,
   olderOverlappingLibrary,
@@ -21,6 +22,38 @@ function file(parent: string, name: string, overrides: Partial<MediaLibraryFile>
     ...overrides,
   }
 }
+
+describe('decideMediaLibrarySweep', () => {
+  const live = { trashed: false }
+  const changed = {
+    folder: live,
+    indexed: true,
+    scanning: false,
+    fingerprint: '1:10:5:5',
+    subtreeFingerprint: '2:20:6:11',
+  }
+
+  it.each([
+    ['the folder was purged', { folder: null, indexed: false }, { action: 'delete', reason: 'folder_purged' }],
+    [
+      'the folder is in trash',
+      { folder: { trashed: true }, indexed: false },
+      { action: 'skip', reason: 'folder_trashed' },
+    ],
+    ['the index was removed', { indexed: false }, { action: 'delete', reason: 'index_removed' }],
+    [
+      'the index was removed while a scan runs',
+      { indexed: false, scanning: true },
+      { action: 'delete', reason: 'index_removed' },
+    ],
+    ['a scan holds the lease', { scanning: true }, { action: 'skip', reason: 'scanning' }],
+    ['the subtree is unchanged', { subtreeFingerprint: '1:10:5:5' }, { action: 'skip', reason: 'unchanged' }],
+    ['the subtree changed', {}, { action: 'scan', folder: live }],
+    ['the library was never scanned', { fingerprint: null }, { action: 'scan', folder: live }],
+  ] as const)('decides when %s', (_label, facts, decision) => {
+    expect(decideMediaLibrarySweep({ ...changed, ...facts })).toEqual(decision)
+  })
+})
 
 describe('videoMimeType', () => {
   it('prefers a stored video type and falls back to the extension', () => {

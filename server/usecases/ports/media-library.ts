@@ -29,6 +29,14 @@ export interface MediaLibraryState extends MediaLibraryRecord {
 
 export type MediaLibraryView = MediaLibraryState & { folder: MediaLibraryFolder }
 
+// What the sweep needs to decide on a library, read for every library at once.
+export interface MediaLibrarySweepState extends MediaLibraryState {
+  // The live library.json index exists in the library root.
+  indexed: boolean
+  // fingerprint() of the folder subtree as it is now; meaningless once the folder is purged.
+  subtreeFingerprint: string
+}
+
 export interface CreateMediaLibraryInput {
   orgId: string
   folderId: string
@@ -46,8 +54,10 @@ export interface MediaLibraryRepo {
     opts: { pageSize: number; after?: { createdAt: Date; id: string } },
   ): Promise<{ items: MediaLibraryView[]; nextBoundary: { createdAt: Date; id: string } | null }>
   listByOrg(orgId: string): Promise<MediaLibraryState[]>
-  listAll(): Promise<MediaLibraryState[]>
+  // Every library on the instance, in one query whose bound parameters do not grow with the count.
+  listForSweep(): Promise<MediaLibrarySweepState[]>
   delete(orgId: string, id: string): Promise<boolean>
+  deleteMany(ids: readonly string[]): Promise<void>
   recordScan(orgId: string, id: string, scan: { fingerprint: string; scannedAt?: Date }): Promise<void>
   // Cheap change detector over the live subtree, excluding the library.json index.
   fingerprint(orgId: string, folderPath: string): Promise<string>
