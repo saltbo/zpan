@@ -1,7 +1,7 @@
 import { cueTextFromPayload } from './cue-text'
 import { languageFromSidecarTag, languageLabel, normalizeLanguage, pickDefaultSubtitle } from './language'
 import { type MkvSubtitleEntry, MkvSubtitleFile, type MkvSubtitleTrack, type RangeReader } from './mkv'
-import { decodeSubtitleText, matchSidecarSubtitle, type SidecarFormat } from './sidecar'
+import { decodeSubtitleText, matchSidecarSubtitle, type SidecarFormat, sanitizeSidecarContent } from './sidecar'
 
 export interface SidecarSubtitle {
   name: string
@@ -62,7 +62,10 @@ async function loadSidecar(
   try {
     const response = await fetch(sidecar.url, { signal })
     if (!response.ok) throw new Error(`Subtitle request returned ${response.status}`)
-    const content = decodeSubtitleText(new Uint8Array(await response.arrayBuffer()))
+    const content = sanitizeSidecarContent(
+      match.format,
+      decodeSubtitleText(new Uint8Array(await response.arrayBuffer())),
+    )
     const language = languageFromSidecarTag(match.tag)
     return {
       kind: 'file',

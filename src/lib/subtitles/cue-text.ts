@@ -6,7 +6,7 @@ const ASS_FIELDS_BEFORE_TEXT = 8
 /** Converts a Matroska subtitle block payload to WebVTT cue text, or null when nothing displayable remains. */
 export function cueTextFromPayload(format: TextSubtitleFormat, payload: string): string | null {
   const normalized = payload.replace(/\r\n?/g, '\n')
-  const text = format === 'ass' ? assText(normalized) : format === 'srt' ? srtText(normalized) : normalized
+  const text = format === 'ass' ? assText(normalized) : format === 'srt' ? srtText(normalized) : safeMarkup(normalized)
   if (text === null) return null
   const trimmed = text.trim()
   return trimmed === '' ? null : trimmed
@@ -27,11 +27,17 @@ function assText(payload: string): string | null {
 }
 
 function srtText(payload: string): string {
-  // WebVTT understands <i>, <b> and <u>; other SRT markup (<font>, ASS-style {\an8}) is dropped.
-  return payload
-    .replace(/\{\\[^}]*\}/g, '')
-    .replace(/&/g, '&amp;')
-    .replace(/<(?!\/?[ibu]>)[^>]*>/gi, '')
+  // ASS-style positioning ({\an8}) is common in SRT files and means nothing to WebVTT.
+  return safeMarkup(payload.replace(/\{\\[^}]*\}/g, '').replace(/&/g, '&amp;'))
+}
+
+/**
+ * Vidstack renders cue text through innerHTML and copies WebVTT tag annotations (<v name>, <c.class>)
+ * into attributes unescaped, so a subtitle file someone shared could inject markup. Only bare <i>, <b>
+ * and <u> survive: every other "<" is escaped, then the tags it opened (<font>, <v>…) are dropped.
+ */
+export function safeMarkup(text: string): string {
+  return text.replace(/<(?!\/?[ibu]>)/gi, '&lt;').replace(/&lt;\/?[a-z][^>\n]*>/gi, '')
 }
 
 function escapeCueText(text: string): string {

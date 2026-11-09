@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cueTextFromPayload } from './cue-text'
+import { cueTextFromPayload, safeMarkup } from './cue-text'
 
 describe('cueTextFromPayload', () => {
   it('keeps the WebVTT-compatible SRT markup and drops the rest', () => {
@@ -23,8 +23,27 @@ describe('cueTextFromPayload', () => {
     expect(cueTextFromPayload('ass', 'not,an,event')).toBeNull()
   })
 
-  it('passes WebVTT cue text through and drops empty cues', () => {
-    expect(cueTextFromPayload('vtt', '<v Bob>Hi</v>')).toBe('<v Bob>Hi</v>')
+  it('keeps WebVTT text but drops tags other than i/b/u, and drops empty cues', () => {
+    expect(cueTextFromPayload('vtt', '<v Bob>Hi</v> <b>there</b>')).toBe('Hi <b>there</b>')
     expect(cueTextFromPayload('srt', '  <font color=red> </font> ')).toBeNull()
+  })
+})
+
+describe('safeMarkup', () => {
+  // Vidstack copies <v> voices and <c> classes into attributes and renders through innerHTML.
+  const onlyAllowedTags = (text: string) => text.replace(/<\/?[ibu]>/gi, '').includes('<') === false
+
+  it.each([
+    '<v a" onmouseover="alert(1)">Hi</v>',
+    '<c.x" style="animation:x" onanimationstart="alert(1)">Hi</c>',
+    '<<script>script>alert(1)<</script>/script>',
+    '<i onclick="alert(1)">x</i>',
+    '<img src=x onerror=alert(1)',
+  ])('leaves no markup but bare <i>, <b>, <u> in %s', (input) => {
+    expect(onlyAllowedTags(safeMarkup(input))).toBe(true)
+  })
+
+  it('keeps literal comparisons readable', () => {
+    expect(safeMarkup('1 < 2 <i>ok</i>')).toBe('1 &lt; 2 <i>ok</i>')
   })
 })

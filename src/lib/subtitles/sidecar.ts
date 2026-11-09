@@ -1,3 +1,5 @@
+import { safeMarkup } from './cue-text'
+
 export type SidecarFormat = 'srt' | 'vtt' | 'ass' | 'ssa'
 
 const SIDECAR_FORMATS: ReadonlySet<string> = new Set<SidecarFormat>(['srt', 'vtt', 'ass', 'ssa'])
@@ -37,4 +39,12 @@ export function decodeSubtitleText(bytes: Uint8Array): string {
   } catch {
     return new TextDecoder('gb18030').decode(bytes)
   }
+}
+
+/** Makes a sidecar file safe to hand to the player's parser; see {@link safeMarkup}. */
+export function sanitizeSidecarContent(format: SidecarFormat, content: string): string {
+  // ASS text styles with {\...} overrides, never with tags, so any "<" is literal text.
+  if (format === 'ass' || format === 'ssa') return content.replace(/</g, '&lt;')
+  // Timing lines never contain "<", so the whole file can go through line by line.
+  return content.split(/\r?\n/).map(safeMarkup).join('\n')
 }

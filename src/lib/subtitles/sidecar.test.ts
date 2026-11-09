@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeSubtitleText, matchSidecarSubtitle } from './sidecar'
+import { decodeSubtitleText, matchSidecarSubtitle, sanitizeSidecarContent } from './sidecar'
 
 describe('matchSidecarSubtitle', () => {
   it('matches subtitle files named after the video', () => {
@@ -26,5 +26,21 @@ describe('decodeSubtitleText', () => {
   it('falls back to GB18030 for GBK files', () => {
     // "简体字幕" in GBK.
     expect(decodeSubtitleText(new Uint8Array([0xbc, 0xf2, 0xcc, 0xe5, 0xd7, 0xd6, 0xc4, 0xbb]))).toBe('简体字幕')
+  })
+})
+
+describe('sanitizeSidecarContent', () => {
+  it('neutralizes markup in SRT and WebVTT files while keeping timings and allowed tags', () => {
+    const srt = '1\r\n00:00:01,000 --> 00:00:02,000\r\n<v a" onmouseover="x">Hi</v> <i>there</i>\r\n'
+    expect(sanitizeSidecarContent('srt', srt)).toBe('1\n00:00:01,000 --> 00:00:02,000\nHi <i>there</i>\n')
+    const vtt = 'WEBVTT\n\n00:01.000 --> 00:02.000 align:start\nx --> <c.a" style="y">z</c>'
+    expect(sanitizeSidecarContent('vtt', vtt)).toBe('WEBVTT\n\n00:01.000 --> 00:02.000 align:start\nx --> z')
+  })
+
+  it('escapes every "<" in ASS files, whose styling never uses tags', () => {
+    const ass = 'Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\i1}<b onclick=x>hi'
+    expect(sanitizeSidecarContent('ass', ass)).toBe(
+      'Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,{\\i1}&lt;b onclick=x>hi',
+    )
   })
 })
