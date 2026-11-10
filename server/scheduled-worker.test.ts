@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/downloads/remote-download-usage'
+import { sweepMediaLibraries } from '../server/usecases/media-library-scan'
 import { reconcileImageDomains } from '../server/usecases/site/image-domain-provider'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/site/instance-telemetry'
 import { runLicensingRefresh } from '../server/usecases/site/licensing'
@@ -7,8 +8,9 @@ import { syncPendingCloudTrafficReports } from '../server/usecases/store/traffic
 import { handleScheduled } from '../workers/scheduled'
 
 vi.mock('../server/platform/cloudflare', () => ({
-  createCloudflarePlatform: () => ({
+  createCloudflarePlatform: (env: Record<string, string | undefined>) => ({
     db: 'db',
+    getEnv: (key: string) => env[key],
   }),
 }))
 
@@ -61,10 +63,15 @@ vi.mock('../server/usecases/downloads/remote-download-usage', () => ({
   syncPendingRemoteDownloadUsageReports: vi.fn(),
 }))
 
+vi.mock('../server/usecases/media-library-scan', () => ({
+  sweepMediaLibraries: vi.fn(),
+}))
+
 describe('handleScheduled', () => {
   beforeEach(() => {
     vi.mocked(syncPendingCloudTrafficReports).mockReset()
     vi.mocked(syncPendingRemoteDownloadUsageReports).mockReset()
+    vi.mocked(sweepMediaLibraries).mockReset()
     vi.mocked(reportInstanceTelemetry).mockReset()
     vi.mocked(runLicensingRefresh).mockReset()
     vi.mocked(reconcileImageDomains).mockReset()
@@ -82,16 +89,25 @@ describe('handleScheduled', () => {
     expect(syncPendingRemoteDownloadUsageReports).toHaveBeenCalledWith(fakeDeps, {
       cloudBaseUrl: 'https://cloud.example',
     })
+    expect(sweepMediaLibraries).toHaveBeenCalledWith(fakeDeps, { cloudBaseUrl: 'https://cloud.example' })
     expect(refreshHourlyRollups).not.toHaveBeenCalled()
     expect(reconcileFreePlanBaselines).toHaveBeenCalledOnce()
     expect(runLicensingRefresh).not.toHaveBeenCalled()
     expect(reportInstanceTelemetry).not.toHaveBeenCalled()
   })
 
+  it('skips the media library sweep where background jobs are disabled', async () => {
+    await handleScheduled({ cron: '*/10 * * * *' }, { DB: {} as D1Database, ZPAN_ARCHIVE_JOBS_ENABLED: 'false' })
+
+    expect(syncPendingCloudTrafficReports).toHaveBeenCalledOnce()
+    expect(sweepMediaLibraries).not.toHaveBeenCalled()
+  })
+
   it('refreshes hourly rollups on the dedicated stats cron only', async () => {
     await handleScheduled({ cron: '10 * * * *' }, { DB: {} as D1Database })
 
     expect(refreshHourlyRollups).toHaveBeenCalledOnce()
+    expect(sweepMediaLibraries).not.toHaveBeenCalled()
     expect(purgeExpiredLocks).toHaveBeenCalledOnce()
     expect(purgeResourceChanges).toHaveBeenCalledOnce()
     expect(reconcileImageDomains).toHaveBeenCalledWith(fakeDeps)

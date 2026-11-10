@@ -1,5 +1,13 @@
 import type { Database } from '../platform/interface'
 
+// D1 rejects a statement with more than 100 bound parameters; local SQLite does not.
+export const D1_MAX_BOUND_PARAMS = 100
+
+// How many rows shaped like `row` fit in one multi-row INSERT under the D1 cap.
+export function rowsPerInsert(row: object): number {
+  return Math.floor(D1_MAX_BOUND_PARAMS / Object.keys(row).length)
+}
+
 export type AtomicQuery = {
   all?: () => unknown
   run?: () => unknown

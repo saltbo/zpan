@@ -30,4 +30,6 @@ export interface WebDavPathRepo {
   resolveWithChildren(userId: string, rawPath: string): Promise<{ target: WebDavTarget; children: Matter[] }>
   resolveExistingWebDavPath(userId: string, rawPath: string): Promise<WebDavTarget>
   invalidatePaths(userId: string, rawPaths: string[]): Promise<void>
+  // Drops cached child listings of workspace folders after a server-side write.
+  invalidateFolders(orgId: string, folderPaths: string[]): Promise<void>
 }

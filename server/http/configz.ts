@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { siteConfigSchema } from '@shared/schemas'
 import { currentCacheEvents } from '../cache/context'
 import type { Env } from '../middleware/platform'
+import { backgroundJobsEnabled } from '../platform/interface'
 import { siteConfigCacheControl } from '../usecases/site/config-cache'
 import { getSiteConfig } from '../usecases/site/configz'
 import { authRoute, jsonContent } from './openapi'
@@ -40,7 +41,7 @@ export const configz = new OpenAPIHono<Env>().openapi(getRoute, async (c) => {
         ...storedConfig.services.webdav,
         ...(previewOrigin ? { url: `${previewOrigin}/dav/` } : {}),
       },
-      archive: { enabled: c.get('platform').getEnv('ZPAN_ARCHIVE_JOBS_ENABLED') !== 'false' },
+      archive: { enabled: backgroundJobsEnabled(c.get('platform')) },
     },
   }
   const body = JSON.stringify(config)

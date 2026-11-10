@@ -1,6 +1,7 @@
 import { DirType } from '@shared/constants'
+import type { MediaLibrary } from '@shared/schemas'
 import type { StorageObject } from '@shared/types'
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   getCoreRowModel,
@@ -18,18 +19,32 @@ import { isMusicPreviewFile } from '@/components/music/music-player-model'
 import { useMusicPlayer } from '@/components/music/music-player-provider'
 import type { PreviewFile } from '@/components/preview/file-preview-content'
 import { FilePreviewDialog } from '@/components/preview/file-preview-dialog'
+import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import type { UploadRunnerContext } from '@/components/upload/upload-queue'
 import { useSiteConfig } from '@/hooks/use-site-config'
+import { useEntitlement } from '@/hooks/useEntitlement'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
-import { createBackgroundJob, deleteObject, getObject, listObjectsByPath, updateObject } from '@/lib/api'
+import {
+  createBackgroundJob,
+  createMediaLibrary,
+  deleteMediaLibrary,
+  deleteObject,
+  getObject,
+  listMediaLibraries,
+  listObjectsByPath,
+  scanMediaLibrary,
+  updateObject,
+} from '@/lib/api'
 import { runSequentialOperation } from '@/lib/sequential-operation'
 import { cn } from '@/lib/utils'
 import { getColumns } from './columns'
+import { MediaLibraryRemoveDialog } from './dialogs/media-library-remove-dialog'
 import type { OperationProgressState } from './dialogs/operation-progress'
 import { DndWrapper } from './dnd-wrapper'
 import { FileDetailsSheet } from './file-details-sheet'
@@ -40,10 +55,19 @@ import { FilesToolbar } from './files-toolbar'
 import { useConflictResolver, withConflictRetry } from './hooks/use-conflict-resolver'
 import { useFileMutations } from './hooks/use-file-mutations'
 import { useViewMode } from './hooks/use-view-mode'
+import { resolvePreviewFile, resolveSidecarSubtitles } from './preview-file'
 import { TransferSpaceDialog } from './transfer-space-dialog'
-import type { BreadcrumbItem, FileActionHandlers } from './types'
+import type { BreadcrumbItem, FileActionHandlers, MediaLibraryActions } from './types'
 
 const FILES_PAGE_SIZE = 100
+
+const MEDIA_LIBRARY_REQUESTS: Record<'set' | 'rescan' | 'remove', (id: string) => Promise<unknown>> = {
+  set: createMediaLibrary,
+  rescan: scanMediaLibrary,
+  remove: deleteMediaLibrary,
+}
+
+type MediaLibraryRequest = { type: keyof typeof MEDIA_LIBRARY_REQUESTS; id: string }
 
 export interface FileManagerHeaderMeta {
   label: string
@@ -141,6 +165,7 @@ interface FileManagerProps {
     copyUrl?: boolean
     delete?: boolean
     archive?: boolean
+    mediaLibrary?: boolean
   }
   emptyStateLabel?: string
   getThumbnailUrl?: (item: StorageObject) => string | null
@@ -172,7 +197,8 @@ export function FileManager({
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: siteConfig } = useSiteConfig()
-  const archivesEnabled = siteConfig?.services.archive?.enabled !== false
+  const backgroundJobsEnabled = siteConfig?.services.archive?.enabled !== false
+  const entitlement = useEntitlement()
   const dropzoneRef = useRef<UploadDropzoneHandle>(null)
 
   const currentPath = initialPath ?? ''
@@ -195,10 +221,20 @@ export function FileManager({
       share: capabilities?.share ?? !dataSource,
       copyUrl: capabilities?.copyUrl ?? false,
       delete: capabilities?.delete ?? false,
-      archive: archivesEnabled && (capabilities?.archive ?? !dataSource),
+      archive: backgroundJobsEnabled && (capabilities?.archive ?? !dataSource),
+      mediaLibrary: backgroundJobsEnabled && (capabilities?.mediaLibrary ?? !dataSource),
     }),
-    [capabilities, dataSource, archivesEnabled],
+    [capabilities, dataSource, backgroundJobsEnabled],
   )
+  const mediaLibraryEntitled = entitlement.hasFeature('media_library')
+  const mediaLibrariesQuery = useQuery({
+    queryKey: ['media-libraries'],
+    queryFn: listMediaLibraries,
+    enabled: resolvedCapabilities.mediaLibrary,
+  })
+  useServerEventSubscription('media-libraries', ['background_job'], () => {
+    void queryClient.invalidateQueries({ queryKey: ['media-libraries'] })
+  })
 
   const [viewMode, setViewMode] = useViewMode(viewModeStorageKey)
   const [sorting, setSorting] = useState<SortingState>(() => {
@@ -226,6 +262,8 @@ export function FileManager({
   const [shareTarget, setShareTarget] = useState<StorageObject | null>(null)
   const [transferTarget, setTransferTarget] = useState<StorageObject | null>(null)
   const [detailsTarget, setDetailsTarget] = useState<StorageObject | null>(null)
+  const [mediaLibraryUpgradeOpen, setMediaLibraryUpgradeOpen] = useState(false)
+  const [mediaLibraryRemoveTarget, setMediaLibraryRemoveTarget] = useState<MediaLibrary | null>(null)
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false)
@@ -275,6 +313,35 @@ export function FileManager({
     },
   })
 
+  const mediaLibraryMutation = useMutation({
+    mutationFn: ({ type, id }: MediaLibraryRequest) => MEDIA_LIBRARY_REQUESTS[type](id),
+    onSuccess: (_result, { type }) => {
+      queryClient.invalidateQueries({ queryKey: ['media-libraries'] })
+      queryClient.invalidateQueries({ queryKey: ['background-jobs'] })
+      toast.success(t(`mediaLibrary.${type}Success`))
+    },
+    onError: (err) => toast.error(err.message),
+  })
+  const mediaLibraryActions = useMemo((): MediaLibraryActions | undefined => {
+    if (!resolvedCapabilities.mediaLibrary || entitlement.isLoading) return undefined
+    const libraries = new Map((mediaLibrariesQuery.data ?? []).map((library) => [library.folderId, library]))
+    const request = mediaLibraryMutation.mutate
+    const upgrade = () => setMediaLibraryUpgradeOpen(true)
+    return {
+      locked: !mediaLibraryEntitled,
+      libraryFor: (folder) => libraries.get(folder.id),
+      onSet: mediaLibraryEntitled ? (folder) => request({ type: 'set', id: folder.id }) : upgrade,
+      onRescan: mediaLibraryEntitled ? (library) => request({ type: 'rescan', id: library.id }) : upgrade,
+      onRemove: setMediaLibraryRemoveTarget,
+    }
+  }, [
+    resolvedCapabilities.mediaLibrary,
+    entitlement.isLoading,
+    mediaLibraryEntitled,
+    mediaLibrariesQuery.data,
+    mediaLibraryMutation.mutate,
+  ])
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: clear selection when path changes
   useEffect(() => {
     setRowSelection({})
@@ -305,19 +372,18 @@ export function FileManager({
         return
       }
       try {
-        const file =
-          (await dataSource?.getPreviewFile?.(item)) ??
-          (await getObject(item.id).then((obj) =>
-            obj.downloadUrl
-              ? {
-                  id: obj.id,
-                  name: obj.name,
-                  type: obj.type,
-                  size: obj.size,
-                  downloadUrl: obj.downloadUrl,
-                }
-              : null,
-          ))
+        const [file, subtitles] = await Promise.all([
+          resolvePreviewFile(item, dataSource?.getPreviewFile),
+          resolveSidecarSubtitles({
+            video: item,
+            folderPath: currentPath,
+            siblings: items,
+            listFolder: async (path) =>
+              (dataSource ? await dataSource.list(path, {}) : await listObjectsByPath(path, undefined, FILES_PAGE_SIZE))
+                .items,
+            fromDataSource: dataSource?.getPreviewFile,
+          }),
+        ])
         if (!file) {
           toast.error(t('common.error'))
           return
@@ -326,13 +392,13 @@ export function FileManager({
           musicPlayer.play(file)
           return
         }
-        setPreviewFile(file)
+        setPreviewFile(subtitles.length > 0 ? { ...file, subtitles } : file)
         setPreviewOpen(true)
       } catch {
         toast.error(t('common.error'))
       }
     },
-    [currentPath, dataSource, musicPlayer, navigateToPath, t],
+    [currentPath, dataSource, items, musicPlayer, navigateToPath, t],
   )
 
   const handleDownload = useCallback(
@@ -378,6 +444,7 @@ export function FileManager({
       onExtract: resolvedCapabilities.archive
         ? (item) => archiveMutation.mutate({ type: 'archive_extract', matterId: item.id })
         : undefined,
+      mediaLibrary: mediaLibraryActions,
     }),
     [
       handleOpen,
@@ -386,6 +453,7 @@ export function FileManager({
       onDeleteItems,
       onCopyUrl,
       archiveMutation,
+      mediaLibraryActions,
       mutations.copyMutation,
       conflict.prompt,
       conflict.reset,
@@ -756,10 +824,31 @@ export function FileManager({
       <FilePreviewDialog file={previewFile} open={previewOpen} onOpenChange={setPreviewOpen} />
       <FileDetailsSheet
         item={detailsTarget}
+        mediaLibrary={mediaLibraryActions}
         onOpenChange={(open) => {
           if (!open) setDetailsTarget(null)
         }}
       />
+      <MediaLibraryRemoveDialog
+        library={mediaLibraryRemoveTarget}
+        isPending={mediaLibraryMutation.isPending}
+        onCancel={() => setMediaLibraryRemoveTarget(null)}
+        onConfirm={(library) =>
+          mediaLibraryMutation.mutate(
+            { type: 'remove', id: library.id },
+            { onSettled: () => setMediaLibraryRemoveTarget(null) },
+          )
+        }
+      />
+      <Dialog open={mediaLibraryUpgradeOpen} onOpenChange={setMediaLibraryUpgradeOpen}>
+        <DialogContent className="max-w-sm p-0">
+          <UpgradeHint
+            feature="media_library"
+            title={t('mediaLibrary.upgradeTitle')}
+            description={t('mediaLibrary.upgradeDescription')}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 

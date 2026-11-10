@@ -8,10 +8,12 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 import { createQuotaRepo } from './adapters/repos/quota'
 import { createBootstrap } from './bootstrap'
 import { createDeps } from './composition'
+import { backgroundJobsEnabled } from './platform/interface'
 import { createLibsqlPlatform } from './platform/libsql'
 import { createNodePlatform } from './platform/node'
 import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
 import { syncPendingRemoteDownloadUsageReports } from './usecases/downloads/remote-download-usage'
+import { sweepMediaLibraries } from './usecases/media-library-scan'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from './usecases/object'
 import { purgeExpiredResourceChanges } from './usecases/resource-changes'
 import { reconcileImageDomains } from './usecases/site/image-domain-provider'
@@ -101,6 +103,11 @@ console.log('traffic.sync.scheduler.started interval=10m')
 setInterval(() => {
   void syncPendingCloudTrafficReports(deps, { cloudBaseUrl })
   void syncPendingRemoteDownloadUsageReports(deps, { cloudBaseUrl })
+  if (backgroundJobsEnabled(platform)) {
+    sweepMediaLibraries(deps, { cloudBaseUrl }).catch((err) => {
+      console.error(`media_library.sweep.error code=${err instanceof Error ? err.message : String(err)}`)
+    })
+  }
 }, TRAFFIC_SYNC_INTERVAL_MS)
 
 function reportNodeInstanceTelemetry(): void {

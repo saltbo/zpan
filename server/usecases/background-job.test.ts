@@ -10,7 +10,7 @@ import {
   retryBackgroundJob,
 } from './background-job'
 import type { Deps } from './deps'
-import { type ArchiveJobMessage, type ArchiveJobsGateway, BackgroundJobError, type BackgroundJobRepo } from './ports'
+import { BackgroundJobError, type BackgroundJobMessage, type BackgroundJobQueue, type BackgroundJobRepo } from './ports'
 
 const sampleJob = {
   id: 'job-1',
@@ -27,10 +27,11 @@ const agent = { type: 'oauth' as const, ref: 'agent-1', issuer: 'https://realm.e
 // Fake ports as plain objects. backgroundJobs.create is what enqueueArchiveJob
 // (the real composed function) drives on create; everything else is forwarded.
 function makeDeps(
-  overrides: { backgroundJobs?: Partial<BackgroundJobRepo>; dispatch?: ArchiveJobsGateway['dispatch'] } = {},
+  overrides: { backgroundJobs?: Partial<BackgroundJobRepo>; dispatch?: BackgroundJobQueue['dispatch'] } = {},
 ) {
   const backgroundJobs: BackgroundJobRepo = {
     create: vi.fn(async () => sampleJob),
+    createMany: vi.fn(async () => [sampleJob]),
     list: vi.fn(async () => ({ items: [], nextBoundary: null })),
     activeSummary: vi.fn(async () => ({ count: 0, fingerprint: '' })),
     get: vi.fn(async () => sampleJob),
@@ -40,7 +41,7 @@ function makeDeps(
     ...overrides.backgroundJobs,
   }
   const dispatch = vi.fn(overrides.dispatch ?? (async () => {}))
-  const deps = { backgroundJobs, archiveJobs: { dispatch } } as unknown as Deps
+  const deps = { backgroundJobs, jobQueue: { dispatch } } as unknown as Deps
   return { deps, backgroundJobs, dispatch }
 }
 
@@ -129,7 +130,7 @@ describe('background-job usecase', () => {
         createdBy: agent,
         request: extractRequest,
         jobId: 'job-1',
-      } satisfies ArchiveJobMessage)
+      } satisfies BackgroundJobMessage)
     })
 
     it('dispatches only after the job is enqueued', async () => {
@@ -177,7 +178,7 @@ describe('background-job usecase', () => {
         createdBy: agent,
         request: extractRequest,
         jobId: 'job-2',
-      } satisfies ArchiveJobMessage)
+      } satisfies BackgroundJobMessage)
     })
 
     it('does not dispatch when the stored metadata is not a valid request', async () => {

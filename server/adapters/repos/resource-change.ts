@@ -27,8 +27,8 @@ function toResourceChange(row: typeof resourceChanges.$inferSelect): ResourceCha
   }
 }
 
-export function resourceChangeQuery(db: Database, input: RecordResourceChangeInput) {
-  return db.insert(resourceChanges).values({
+export function resourceChangeRow(input: RecordResourceChangeInput) {
+  return {
     scopeType: input.scopeType,
     scopeId: input.scopeId,
     resourceType: input.resourceType,
@@ -37,7 +37,11 @@ export function resourceChangeQuery(db: Database, input: RecordResourceChangeInp
     action: input.action ?? null,
     metadata: input.metadata ? JSON.stringify(input.metadata) : null,
     occurredAt: input.occurredAt,
-  })
+  } satisfies typeof resourceChanges.$inferInsert
+}
+
+export function resourceChangeQuery(db: Database, input: RecordResourceChangeInput) {
+  return db.insert(resourceChanges).values(resourceChangeRow(input))
 }
 
 export function createResourceChangeRepo(db: Database): ResourceChangeRepo {

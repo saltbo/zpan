@@ -12,14 +12,22 @@ export const Route = createFileRoute('/device')({
 
 type DeviceStatus = 'loading' | 'pending' | 'approved' | 'denied' | 'invalid'
 
-function DeviceAuthorizationPage() {
+interface DeviceRequest {
+  clientId: string
+  scopes: string[]
+}
+
+export function DeviceAuthorizationPage() {
   const { t } = useTranslation()
   const session = useSession()
   const [status, setStatus] = useState<DeviceStatus>('loading')
+  const [request, setRequest] = useState<DeviceRequest | null>(null)
+  const userId = session.data?.user?.id
   const [loading, setLoading] = useState(false)
   const userCode = new URLSearchParams(window.location.search).get('user_code') ?? ''
   const signInRedirect = `/sign-in?redirect=${encodeURIComponent(`/device?user_code=${encodeURIComponent(userCode)}`)}`
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: userId re-verifies after sign-in, since the requesting client and scopes are only disclosed to the owner.
   useEffect(() => {
     let canceled = false
     async function load() {
@@ -29,7 +37,13 @@ function DeviceAuthorizationPage() {
       }
       try {
         const result = await verifyDeviceCode(userCode)
-        if (!canceled) setStatus(result.status)
+        if (canceled) return
+        setStatus(result.status)
+        setRequest(
+          result.client_id
+            ? { clientId: result.client_id, scopes: result.scope?.split(' ').filter(Boolean) ?? [] }
+            : null,
+        )
       } catch {
         if (!canceled) setStatus('invalid')
       }
@@ -38,7 +52,7 @@ function DeviceAuthorizationPage() {
     return () => {
       canceled = true
     }
-  }, [userCode])
+  }, [userCode, userId])
 
   async function approve() {
     setLoading(true)
@@ -98,8 +112,32 @@ function DeviceAuthorizationPage() {
         )}
 
         {status === 'pending' && session.data?.user && (
+          <div className="mb-4 space-y-3 text-sm">
+            <div>
+              <div className="text-xs font-medium text-muted-foreground">{t('device.requestedBy')}</div>
+              <div className="mt-1 font-mono">{request?.clientId ?? '-'}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-muted-foreground">{t('device.permissions')}</div>
+              {request?.scopes.length ? (
+                <ul className="mt-1 space-y-0.5 font-mono">
+                  {request.scopes.map((scope) => (
+                    <li key={scope}>{scope}</li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="mt-1 text-muted-foreground">{t('device.noPermissions')}</div>
+              )}
+            </div>
+            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-amber-900 dark:text-amber-200">
+              {t('device.confirmOrigin')}
+            </p>
+          </div>
+        )}
+
+        {status === 'pending' && session.data?.user && (
           <div className="flex gap-2">
-            <Button type="button" className="flex-1" onClick={approve} disabled={loading}>
+            <Button type="button" className="flex-1" onClick={approve} disabled={loading || !request}>
               <Check className="size-4" />
               {t('device.approve')}
             </Button>

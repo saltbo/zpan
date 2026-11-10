@@ -30,18 +30,22 @@ export { listAdminAuditQuerySchema } from './audit'
 export type {
   ArchiveCompressJobRequest,
   ArchiveExtractJobRequest,
+  BackgroundJobRequest,
   BackgroundJobStatusInput,
   BackgroundJobTypeInput,
   CreateBackgroundJobRequest,
   ListBackgroundJobsQuery,
+  MediaLibraryScanJobRequest,
 } from './background-jobs'
 export {
   archiveCompressJobRequestSchema,
   archiveExtractJobRequestSchema,
+  backgroundJobRequestSchema,
   backgroundJobStatusSchema,
   backgroundJobTypeSchema,
   createBackgroundJobRequestSchema,
   listBackgroundJobsQuerySchema,
+  mediaLibraryScanJobRequestSchema,
 } from './background-jobs'
 export type {
   CapacityPurchaseResult,
@@ -152,6 +156,21 @@ export {
   errorResponseSchema,
 } from './errors'
 export { base62IdSchema, imageTokenSchema, opaqueIdSchema, opaqueTokenSchema, shareTokenSchema } from './id'
+export type {
+  CreateMediaLibraryRequest,
+  MediaInfo,
+  MediaLibrary,
+  MediaLibraryFeed,
+  MediaLibraryFeedItem,
+} from './media-library'
+export {
+  createMediaLibraryRequestSchema,
+  MEDIA_LIBRARY_FEED_VERSION,
+  mediaInfoSchema,
+  mediaLibraryFeedItemSchema,
+  mediaLibraryFeedSchema,
+  mediaLibrarySchema,
+} from './media-library'
 export type { ListNotificationsQuery } from './notification'
 export { listNotificationsQuerySchema } from './notification'
 export type { WorkspaceAuthorizationDetail } from './oauth-authorization'

@@ -3,6 +3,7 @@ import type { StorageObject } from '@shared/types'
 import {
   Archive,
   ArrowRightLeft,
+  Clapperboard,
   Copy,
   Download,
   Eye,
@@ -12,11 +13,14 @@ import {
   Info,
   Link,
   Pencil,
+  RefreshCw,
   Share2,
   Trash2,
+  X,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ProBadge } from '@/components/ProBadge'
 import {
   ContextMenuContent,
   ContextMenuItem,
@@ -33,7 +37,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { FileActionHandlers } from './types'
+import type { FileActionHandlers, MediaLibraryActions } from './types'
 
 type MenuKind = 'context' | 'dropdown'
 
@@ -112,6 +116,41 @@ function CopyUrlSubmenu({
   )
 }
 
+function MediaLibraryMenuItems({
+  kind,
+  folder,
+  actions,
+}: {
+  kind: MenuKind
+  folder: StorageObject
+  actions: MediaLibraryActions
+}) {
+  const { t } = useTranslation()
+  const library = actions.libraryFor(folder)
+  if (!library) {
+    return (
+      <MenuItem kind={kind} onClick={() => actions.onSet(folder)}>
+        <Clapperboard />
+        <span className="flex-1">{t('mediaLibrary.set')}</span>
+        {actions.locked && <ProBadge />}
+      </MenuItem>
+    )
+  }
+  return (
+    <>
+      <MenuItem kind={kind} onClick={() => actions.onRescan(library)}>
+        <RefreshCw />
+        <span className="flex-1">{t('mediaLibrary.rescan')}</span>
+        {actions.locked && <ProBadge />}
+      </MenuItem>
+      <MenuItem kind={kind} onClick={() => actions.onRemove(library)}>
+        <X />
+        {t('mediaLibrary.remove')}
+      </MenuItem>
+    </>
+  )
+}
+
 function FileActionsMenuItems({ kind, item, handlers }: FileActionsMenuProps & { kind: MenuKind }) {
   const { t } = useTranslation()
   const isFile = item.dirtype === DirType.FILE
@@ -123,7 +162,8 @@ function FileActionsMenuItems({ kind, item, handlers }: FileActionsMenuProps & {
     handlers.onTransfer ||
     handlers.onShare ||
     handlers.onCompress ||
-    (isZipFile && handlers.onExtract)
+    (isZipFile && handlers.onExtract) ||
+    (!isFile && handlers.mediaLibrary)
   )
   const hasDestructiveActions = !!(handlers.onTrash || handlers.onDelete)
 
@@ -189,6 +229,9 @@ function FileActionsMenuItems({ kind, item, handlers }: FileActionsMenuProps & {
           <FileArchive />
           {t('files.extract')}
         </MenuItem>
+      )}
+      {!isFile && handlers.mediaLibrary && (
+        <MediaLibraryMenuItems kind={kind} folder={item} actions={handlers.mediaLibrary} />
       )}
 
       {hasDestructiveActions && <MenuSeparator kind={kind} />}

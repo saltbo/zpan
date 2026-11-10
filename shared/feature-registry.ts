@@ -140,6 +140,14 @@ export const FEATURE_REGISTRY = [
     gateKey: 'downloaders_unlimited',
   },
   {
+    i18nKey: 'features.mediaLibrary',
+    category: 'advanced',
+    community: false,
+    pro: true,
+    business: true,
+    gateKey: 'media_library',
+  },
+  {
     i18nKey: 'features.cloudStore',
     category: 'advanced',
     community: false,

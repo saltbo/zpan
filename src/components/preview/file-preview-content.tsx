@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { PreviewType } from '@/lib/file-types'
+import type { SidecarSubtitle } from '@/lib/subtitles'
 
 export interface PreviewFile {
   id: string
@@ -11,6 +12,7 @@ export interface PreviewFile {
   type: string
   size: number
   downloadUrl: string
+  subtitles?: SidecarSubtitle[]
 }
 
 const PdfPreview = lazy(() => import('./pdf-preview').then((m) => ({ default: m.PdfPreview })))
@@ -61,7 +63,14 @@ function FilePreviewContentInner({ file, previewType }: { file: PreviewFile; pre
       return <NfoPreview url={file.downloadUrl} />
     case 'audio':
     case 'video':
-      return <MediaPreview url={file.downloadUrl} filename={file.name} previewType={previewType} />
+      return (
+        <MediaPreview
+          url={file.downloadUrl}
+          filename={file.name}
+          previewType={previewType}
+          subtitles={file.subtitles}
+        />
+      )
     default:
       return (
         <div className="flex h-full min-h-64 flex-col items-center justify-center gap-4 p-8 text-center">

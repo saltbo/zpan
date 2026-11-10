@@ -7,7 +7,7 @@
 import { type CloudflareKvNamespaceLike, createCloudflareKvBackend } from './adapters/cache/cloudflare-kv'
 import { createRuntimeCache, resolveCacheMode } from './adapters/cache/runtime-cache'
 import { createAgentInfoGateway } from './adapters/gateways/agent-info'
-import { createArchiveJobsGateway } from './adapters/gateways/archive-jobs'
+import { createBackgroundJobQueue } from './adapters/gateways/background-job-queue'
 import { createEmailGateway } from './adapters/gateways/email'
 import { createImageUploadGateway } from './adapters/gateways/image-upload'
 import { createLicensingCloudGateway } from './adapters/gateways/licensing-cloud'
@@ -34,6 +34,7 @@ import { createInstanceRepo } from './adapters/repos/instance'
 import { createInviteRepo } from './adapters/repos/invite'
 import { createLicenseBindingRepo } from './adapters/repos/license-binding'
 import { createMatterRepo } from './adapters/repos/matter'
+import { createMediaLibraryRepo } from './adapters/repos/media-library'
 import { createMemberCountRepo } from './adapters/repos/member-count'
 import { createNotificationRepo } from './adapters/repos/notification'
 import { createOAuthGateway } from './adapters/repos/oauth'
@@ -58,6 +59,7 @@ import { createWebDavStateRepo } from './adapters/repos/webdav-state'
 import { createX402CapacityPurchaseRepo } from './adapters/repos/x402-capacity-purchase'
 import { createZipPlanRepo } from './adapters/repos/zip'
 import type { Platform } from './platform/interface'
+import { runBackgroundJob } from './usecases/background-job'
 import type { Deps } from './usecases/deps'
 import type { CacheService } from './usecases/ports'
 
@@ -81,7 +83,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     })
   const storages = createStorageRepo(db, cache)
   const downloadTokens = createDownloadTokenGateway()
-  return {
+  const deps: Deps = {
     audit: createAuditRepo(db),
     auditActorDirectory: createAuditActorDirectoryRepo(db),
     agentInfo: createAgentInfoGateway(),
@@ -89,9 +91,9 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     oauth: createOAuthGateway(),
     announcements: createAnnouncementRepo(db),
     apiKeys: createApiKeyGateway(),
-    archiveJobs: createArchiveJobsGateway(platform),
     archiveTargetFolders: createArchiveTargetFolderRepo(db),
     backgroundJobs: createBackgroundJobRepo(db),
+    jobQueue: createBackgroundJobQueue(platform, (message) => runBackgroundJob(deps, message)),
     cache,
     imageDomains: createImageDomainProviderGateway(systemOptions),
     changelog: createChangelogProvider(),
@@ -110,6 +112,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     licenseBinding,
     licensingCloud,
     matter: createMatterRepo(db),
+    mediaLibraries: createMediaLibraryRepo(db),
     memberCount: createMemberCountRepo(db),
     notifications: createNotificationRepo(db),
     objectUploadSessions: createObjectUploadSessionRepo(db),
@@ -135,4 +138,5 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     zipPlan: createZipPlanRepo(db),
     x402CapacityPurchases: createX402CapacityPurchaseRepo(db),
   }
+  return deps
 }

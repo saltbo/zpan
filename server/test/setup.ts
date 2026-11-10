@@ -111,6 +111,7 @@ const AUTH_SCHEMA_SQL = `
     user_id TEXT,
     client_id TEXT,
     scope TEXT,
+    resource TEXT,
     status TEXT NOT NULL,
     expires_at INTEGER NOT NULL,
     last_polled_at INTEGER,
@@ -134,11 +135,13 @@ const AUTH_SCHEMA_SQL = `
     id TEXT PRIMARY KEY,
     client_id TEXT NOT NULL UNIQUE,
     client_secret TEXT,
+    client_discovery_id TEXT,
     disabled INTEGER DEFAULT 0,
     skip_consent INTEGER,
     enable_end_session INTEGER,
     subject_type TEXT,
     scopes TEXT,
+    client_credentials_scopes TEXT,
     user_id TEXT REFERENCES user(id) ON DELETE CASCADE,
     created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
     updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
@@ -156,6 +159,7 @@ const AUTH_SCHEMA_SQL = `
     backchannel_logout_uri TEXT,
     backchannel_logout_session_required INTEGER,
     token_endpoint_auth_method TEXT,
+    application_type TEXT,
     jwks TEXT,
     jwks_uri TEXT,
     grant_types TEXT,
@@ -667,6 +671,21 @@ const APP_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS background_jobs_org_created_idx ON background_jobs(org_id, created_at);
   CREATE INDEX IF NOT EXISTS background_jobs_org_status_idx ON background_jobs(org_id, status);
   CREATE INDEX IF NOT EXISTS background_jobs_org_type_idx ON background_jobs(org_id, type);
+  CREATE TABLE IF NOT EXISTS media_libraries (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+    folder_id TEXT NOT NULL,
+    fingerprint TEXT,
+    last_scanned_at INTEGER,
+    created_by_user_id TEXT NOT NULL,
+    created_by_actor_type TEXT NOT NULL,
+    created_by_actor_ref TEXT,
+    created_by_actor_issuer TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS media_libraries_org_folder_uniq ON media_libraries(org_id, folder_id);
+  CREATE INDEX IF NOT EXISTS media_libraries_org_page_idx ON media_libraries(org_id, created_at, id);
   CREATE TABLE IF NOT EXISTS downloaders (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

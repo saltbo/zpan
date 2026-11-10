@@ -9,6 +9,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { getPreviewType, type PreviewType } from '@/lib/file-types'
 import { formatSize } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { ExternalPlayerMenu } from './external-player-menu'
 import { FilePreviewContent, PreviewDownloadButton, type PreviewFile } from './file-preview-content'
 import { ImagePreview } from './image-preview'
 
@@ -30,31 +31,35 @@ function dialogClass(previewType: PreviewType, fullscreen: boolean): string {
     return 'h-[100dvh] w-[100dvw] max-w-none rounded-none border-0 sm:max-w-none'
   }
 
+  // DialogContent caps width with sm:max-w-lg; each override must use the same breakpoint to take effect.
   switch (previewType) {
     case 'video':
-      return 'max-w-4xl h-auto'
+      // Width also follows the viewport height so a 16:9 frame stays fully visible.
+      return 'h-auto w-[min(92vw,1280px,calc((90dvh_-_4rem)*16/9))] max-w-none sm:max-w-none'
     case 'audio':
-      return 'max-w-md h-auto'
+      return 'sm:max-w-md h-auto'
     case 'pdf':
-      return 'max-w-4xl h-[85vh]'
+      return 'sm:max-w-4xl h-[85vh]'
     case 'markdown':
     case 'code':
     case 'text':
     case 'nfo':
-      return 'max-w-5xl h-[85vh]'
+      return 'sm:max-w-5xl h-[85vh]'
     default:
-      return 'max-w-3xl h-[75vh]'
+      return 'sm:max-w-3xl h-[75vh]'
   }
 }
 
 function PreviewHeader({
   file,
+  previewType,
   onClose,
   compact,
   fullscreen,
   onToggleFullscreen,
 }: {
   file: PreviewFile
+  previewType: PreviewType
   onClose: () => void
   compact?: boolean
   fullscreen?: boolean
@@ -71,6 +76,7 @@ function PreviewHeader({
         <p className="text-xs text-muted-foreground">{formatSize(file.size)}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1 pl-2">
+        {previewType === 'video' && <ExternalPlayerMenu url={file.downloadUrl} iconOnly compact={compact} />}
         <PreviewDownloadButton url={file.downloadUrl} filename={file.name} compact={compact} />
         {onToggleFullscreen && (
           <Tooltip>
@@ -129,7 +135,7 @@ function MobilePreview({ file, previewType, open, onOpenChange }: PreviewPanelPr
         <div className="flex justify-center py-2">
           <div className="h-1 w-8 rounded-full bg-muted-foreground/30" />
         </div>
-        <PreviewHeader file={file} onClose={() => onOpenChange(false)} compact />
+        <PreviewHeader file={file} previewType={previewType} onClose={() => onOpenChange(false)} compact />
         <div
           className={cn(
             'flex-1',
@@ -161,6 +167,7 @@ function DesktopPreview({ file, previewType, open, onOpenChange }: PreviewPanelP
         </DialogHeader>
         <PreviewHeader
           file={file}
+          previewType={previewType}
           onClose={() => onOpenChange(false)}
           fullscreen={fullscreen}
           onToggleFullscreen={() => setFullscreen((value) => !value)}

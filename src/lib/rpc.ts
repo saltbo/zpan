@@ -23,6 +23,7 @@ import type {
   ImageDomainProviderRoute,
   LicensingAdminRoute,
   LicensingRoute,
+  MediaLibrariesRoute,
   NotificationsRoute,
   OAuthGrantsRoute,
   ObjectsRoute,
@@ -75,6 +76,7 @@ export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opt
 // One announcements resource (user feed + admin management, gated per-route).
 export const announcementsApi = hc<AnnouncementsRoute>('/api/site/announcements', opts)
 export const backgroundJobsApi = hc<BackgroundJobsRoute>('/api/background-jobs', opts)
+export const mediaLibrariesApi = hc<MediaLibrariesRoute>('/api/media-libraries', opts)
 export const eventsUrlApi = hc<EventsRoute>(absoluteUrlBase('/api/events'), opts)
 
 // Shares are a single resource; separate clients only because Hono RPC types

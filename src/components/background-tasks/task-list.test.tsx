@@ -12,6 +12,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('lucide-react', () => ({
   Archive: () => null,
+  Clapperboard: () => null,
   FileArchive: () => null,
   RotateCcw: () => null,
   Square: () => null,
@@ -67,6 +68,28 @@ describe('BackgroundTaskList', () => {
     expect(view.getByText('tasks.status.failed')).toBeTruthy()
     expect(view.getByText('files.zip')).toBeTruthy()
     expect(view.getAllByText('ZIP paths cannot contain ..')).toHaveLength(2)
+  })
+
+  it('labels media library scans and shows their indexed video count instead of byte progress', () => {
+    const jobs = [
+      makeJob({ id: 'scan-running', type: 'media_library_scan', status: 'running' }),
+      makeJob({ id: 'scan-done', type: 'media_library_scan', status: 'completed', resultMetadata: { itemCount: 3 } }),
+    ]
+
+    const view = render(
+      <BackgroundTaskList
+        jobs={jobs}
+        total={2}
+        filter="active"
+        onFilterChange={vi.fn()}
+        onCancel={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    )
+
+    expect(view.getAllByText('tasks.type.mediaLibraryScan')).toHaveLength(2)
+    expect(view.getByText('tasks.result.mediaItems:3')).toBeTruthy()
+    expect(view.queryAllByTestId('progress')).toHaveLength(0)
   })
 
   it('calls retry and cancel handlers for actionable jobs', () => {

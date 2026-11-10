@@ -61,7 +61,13 @@ function unwrapAuthFetch<T>(result: AuthFetchResult<T>): T {
 }
 
 export async function verifyDeviceCode(userCode: string) {
-  const result = await authClient.$fetch<{ user_code: string; status: DeviceStatus }>('/device', {
+  // client_id and scope are only returned to the signed-in user who owns the request.
+  const result = await authClient.$fetch<{
+    user_code: string
+    status: DeviceStatus
+    client_id?: string
+    scope?: string
+  }>('/device', {
     method: 'GET',
     query: { user_code: userCode },
   })

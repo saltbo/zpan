@@ -3,7 +3,9 @@
 import { createQuotaRepo } from '../server/adapters/repos/quota'
 import { createDeps } from '../server/composition'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
+import { backgroundJobsEnabled } from '../server/platform/interface'
 import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/downloads/remote-download-usage'
+import { sweepMediaLibraries } from '../server/usecases/media-library-scan'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/usecases/object'
 import { purgeExpiredResourceChanges } from '../server/usecases/resource-changes'
 import { reconcileImageDomains } from '../server/usecases/site/image-domain-provider'
@@ -19,6 +21,7 @@ export interface ScheduledEnv {
   ZPAN_CLOUD_URL?: string
   ZPAN_TELEMETRY_ALLOW_IP?: string
   ZPAN_TRASH_RETENTION_DAYS?: string
+  ZPAN_ARCHIVE_JOBS_ENABLED?: string
   [key: string]: unknown
 }
 
@@ -41,6 +44,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
     await Promise.all([
       syncPendingCloudTrafficReports(deps, { cloudBaseUrl }),
       syncPendingRemoteDownloadUsageReports(deps, { cloudBaseUrl }),
+      backgroundJobsEnabled(platform) ? sweepMediaLibraries(deps, { cloudBaseUrl }) : undefined,
     ])
     return
   }

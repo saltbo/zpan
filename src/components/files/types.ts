@@ -1,3 +1,4 @@
+import type { MediaLibrary } from '@shared/schemas'
 import type { StorageObject } from '@shared/types'
 
 export interface FileActionHandlers {
@@ -14,6 +15,17 @@ export interface FileActionHandlers {
   onCopyUrl?: (item: StorageObject, format?: 'raw' | 'markdown' | 'html' | 'bbcode') => void
   onCompress?: (item: StorageObject) => void
   onExtract?: (item: StorageObject) => void
+  mediaLibrary?: MediaLibraryActions
+}
+
+export interface MediaLibraryActions {
+  // Without the media_library entitlement, set and rescan offer an upgrade
+  // prompt; existing libraries stay listed so they can be removed.
+  locked: boolean
+  libraryFor: (folder: StorageObject) => MediaLibrary | undefined
+  onSet: (folder: StorageObject) => void
+  onRemove: (library: MediaLibrary) => void
+  onRescan: (library: MediaLibrary) => void
 }
 
 export interface BreadcrumbItem {
