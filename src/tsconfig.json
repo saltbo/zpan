@@ -1,7 +1,14 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": [
+      "node",
+      "vite/client"
+    ]
   },
-  "include": [".", "../shared"]
+  "include": [
+    ".",
+    "../shared"
+  ]
 }
