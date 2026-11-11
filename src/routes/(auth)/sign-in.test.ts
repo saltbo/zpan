@@ -86,15 +86,38 @@ describe('SignIn — sign-up link visibility', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Default callback URL used when no continuation is present
+// Callback URL shapes used by SignIn:
+//   - the email/username sign-in callback stays relative (better-auth resolves
+//     it against its baseURL and encodes it once in the verify-email link; an
+//     absolute URL with a pre-encoded %2F encodes as %252F, redirecting to //files)
+//   - the OAuth redirect URI must stay absolute
 // ---------------------------------------------------------------------------
 
 const PREVIEW_ORIGIN = 'https://feat-x402-paid-agent-uploads-zpan.saltbo.workers.dev'
-const DEFAULT_SIGN_IN_CALLBACK_URL = absoluteAuthCallbackURL('/files', PREVIEW_ORIGIN)
+
+function emailSignInCallbackURL(redirectTo: string | null): string {
+  return redirectTo ?? '/files'
+}
+
+function oauthCallbackURL(redirectTo: string | null): string {
+  return absoluteAuthCallbackURL(redirectTo ?? '/files', PREVIEW_ORIGIN)
+}
 
 describe('SignIn — default callback URL', () => {
-  it('uses the absolute current-origin files URL for an ordinary sign-in', () => {
-    expect(DEFAULT_SIGN_IN_CALLBACK_URL).toBe(`${PREVIEW_ORIGIN}/files`)
+  it('passes the relative /files callback to the email/username sign-in', () => {
+    expect(emailSignInCallbackURL(null)).toBe('/files')
+    expect(emailSignInCallbackURL('/device?user_code=ABCD')).toBe('/device?user_code=ABCD')
+  })
+
+  it('keeps the absolute current-origin URL for the OAuth redirect', () => {
+    expect(oauthCallbackURL(null)).toBe(`${PREVIEW_ORIGIN}/files`)
+  })
+
+  it('never carries a host or an encoded path slash into the email callback', () => {
+    const emailCallback = emailSignInCallbackURL(null)
+
+    expect(emailCallback).not.toMatch(/https?:\/\//)
+    expect(emailCallback).not.toContain('%252F')
   })
 })
 

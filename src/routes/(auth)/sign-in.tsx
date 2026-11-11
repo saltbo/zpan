@@ -25,7 +25,13 @@ function SignIn() {
   const [redirectTo] = useState(() =>
     loadSignInRedirect(window.location.search, window.location.origin, window.sessionStorage),
   )
+  // OAuth redirect URIs need the absolute URL, so keep it for OAuthButtons.
   const callbackURL = absoluteAuthCallbackURL(redirectTo ?? '/files', window.location.origin)
+  // The email callback is relative: better-auth resolves it against its baseURL
+  // and encodes the callbackURL once in the verify-email link. An absolute URL
+  // whose path carries a pre-encoded %2F (from a double-encoded ?redirect=)
+  // encodes as %252F, so the post-verification redirect lands on //files.
+  const emailCallbackURL = redirectTo ?? '/files'
   const { data: siteConfig } = useSiteConfig()
   const authSignupMode = siteConfig?.auth.signupMode
   const captcha = siteConfig?.auth.captcha
@@ -48,8 +54,8 @@ function SignIn() {
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity)
       const fetchOptions = captcha?.enabled ? { headers: { 'x-captcha-response': captchaToken } } : undefined
       const result = isEmail
-        ? await signIn.email({ email: identity, password, callbackURL, fetchOptions })
-        : await signIn.username({ username: identity, password, callbackURL, fetchOptions })
+        ? await signIn.email({ email: identity, password, callbackURL: emailCallbackURL, fetchOptions })
+        : await signIn.username({ username: identity, password, callbackURL: emailCallbackURL, fetchOptions })
 
       if (result.error) {
         setError(

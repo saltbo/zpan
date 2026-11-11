@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { useSiteConfig } from '@/hooks/use-site-config'
 import { ApiError, getSiteInvitation } from '@/lib/api'
-import { absoluteAuthCallbackURL } from '@/lib/auth-callback'
 import { signUp } from '@/lib/auth-client'
 
 export const Route = createFileRoute('/(auth)/sign-up')({
@@ -152,7 +151,10 @@ function SignUp() {
         name: '',
         email,
         password,
-        callbackURL: absoluteAuthCallbackURL('/files', window.location.origin),
+        // Relative path: better-auth resolves it against its baseURL and encodes
+        // the callbackURL once in the verify-email link. An absolute URL whose
+        // path carries a pre-encoded %2F encodes as %252F, landing on //files.
+        callbackURL: '/files',
         fetchOptions: captcha?.enabled ? { headers: { 'x-captcha-response': captchaToken } } : undefined,
         ...(authSignupMode === SignupMode.INVITE_ONLY ? { inviteCode } : {}),
         ...(hasValidInvite && invite ? { siteInvitationToken: invite } : {}),
