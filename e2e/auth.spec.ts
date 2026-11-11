@@ -3,8 +3,9 @@ import { expandSignInForm, expandSignUpForm, testIdentity } from './helpers'
 
 test.describe('Auth flow', () => {
   test('redirects to sign-in when not authenticated @all', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/files')
     await expect(page).toHaveURL(/sign-in/, { timeout: 5000 })
+    expect(new URL(page.url()).searchParams.get('redirect')).toBe('/files')
   })
 
   test('sign-up and redirect to files @all', async ({ page }) => {
