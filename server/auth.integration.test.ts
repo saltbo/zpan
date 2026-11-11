@@ -662,7 +662,7 @@ describe('verify-email link — callbackURL encoding in the sent email', () => {
     return link.search.slice(1).match(/(?:^|&)callbackURL=([^&]*)/)?.[1] ?? null
   }
 
-  function captureEmailHtml(): { get: () => string } {
+  function captureEmailHtml(): { get: () => string; clear: () => void } {
     let html = ''
     vi.stubGlobal(
       'fetch',
@@ -671,7 +671,12 @@ describe('verify-email link — callbackURL encoding in the sent email', () => {
         return { ok: true }
       }),
     )
-    return { get: () => html }
+    return {
+      get: () => html,
+      clear: () => {
+        html = ''
+      },
+    }
   }
 
   it('sign-up encodes a plain absolute callbackURL once (no %252F)', async () => {
@@ -693,8 +698,7 @@ describe('verify-email link — callbackURL encoding in the sent email', () => {
     await configureRequiredEmailVerification(ctx)
 
     await signUp(ctx, 'collision@example.com', { callbackURL: 'http://localhost:3000/files' })
-    // loadSignInRedirect keeps %2F in the pathname, so ?redirect=%252Ffiles yields
-    // http://localhost:3000/%2Ffiles, which better-auth encodes once into %252F.
+    email.clear()
     const signInRes = await ctx.app.request('/api/auth/sign-in/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:3000' },
@@ -705,6 +709,7 @@ describe('verify-email link — callbackURL encoding in the sent email', () => {
       }),
     })
     expect(signInRes.status).toBe(403)
+    expect(await signInRes.json()).toMatchObject({ code: 'EMAIL_NOT_VERIFIED' })
 
     expect(rawCallbackParam(extractVerifyLink(email.get()))).toBe('http%3A%2F%2Flocalhost%3A3000%2F%252Ffiles')
   })
@@ -715,6 +720,7 @@ describe('verify-email link — callbackURL encoding in the sent email', () => {
     await configureRequiredEmailVerification(ctx)
 
     await signUp(ctx, 'relative@example.com', { callbackURL: '/files' })
+    email.clear()
     const signInRes = await ctx.app.request('/api/auth/sign-in/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:3000' },
@@ -725,19 +731,16 @@ describe('verify-email link — callbackURL encoding in the sent email', () => {
       }),
     })
     expect(signInRes.status).toBe(403)
+    expect(await signInRes.json()).toMatchObject({ code: 'EMAIL_NOT_VERIFIED' })
 
     const link = extractVerifyLink(email.get())
     const raw = rawCallbackParam(link)
     expect(raw).toBe('%2Ffiles')
     expect(decodeURIComponent(raw ?? '')).toBe('/files')
 
-    const token = link.searchParams.get('token')!
-    const verifyRes = await ctx.app.request(
-      `/api/auth/verify-email?token=${token}&callbackURL=${encodeURIComponent('/files')}`,
-      {
-        headers: { Origin: 'http://localhost:3000' },
-      },
-    )
+    const verifyRes = await ctx.app.request(`${link.pathname}${link.search}`, {
+      headers: { Origin: 'http://localhost:3000' },
+    })
     expect(verifyRes.status).toBe(302)
     expect(verifyRes.headers.get('Location')).toBe('/files')
   })

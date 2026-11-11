@@ -85,14 +85,6 @@ describe('SignIn — sign-up link visibility', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// Callback URL shapes used by SignIn:
-//   - the email/username sign-in callback stays relative (better-auth resolves
-//     it against its baseURL and encodes it once in the verify-email link; an
-//     absolute URL with a pre-encoded %2F encodes as %252F, redirecting to //files)
-//   - the OAuth redirect URI must stay absolute
-// ---------------------------------------------------------------------------
-
 const PREVIEW_ORIGIN = 'https://feat-x402-paid-agent-uploads-zpan.saltbo.workers.dev'
 
 function emailSignInCallbackURL(redirectTo: string | null): string {

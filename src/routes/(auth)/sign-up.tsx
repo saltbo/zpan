@@ -151,9 +151,6 @@ function SignUp() {
         name: '',
         email,
         password,
-        // Relative path: better-auth resolves it against its baseURL and encodes
-        // the callbackURL once in the verify-email link. An absolute URL whose
-        // path carries a pre-encoded %2F encodes as %252F, landing on //files.
         callbackURL: '/files',
         fetchOptions: captcha?.enabled ? { headers: { 'x-captcha-response': captchaToken } } : undefined,
         ...(authSignupMode === SignupMode.INVITE_ONLY ? { inviteCode } : {}),

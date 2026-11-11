@@ -25,12 +25,7 @@ function SignIn() {
   const [redirectTo] = useState(() =>
     loadSignInRedirect(window.location.search, window.location.origin, window.sessionStorage),
   )
-  // OAuth redirect URIs need the absolute URL, so keep it for OAuthButtons.
   const callbackURL = absoluteAuthCallbackURL(redirectTo ?? '/files', window.location.origin)
-  // The email callback is relative: better-auth resolves it against its baseURL
-  // and encodes the callbackURL once in the verify-email link. An absolute URL
-  // whose path carries a pre-encoded %2F (from a double-encoded ?redirect=)
-  // encodes as %252F, so the post-verification redirect lands on //files.
   const emailCallbackURL = redirectTo ?? '/files'
   const { data: siteConfig } = useSiteConfig()
   const authSignupMode = siteConfig?.auth.signupMode

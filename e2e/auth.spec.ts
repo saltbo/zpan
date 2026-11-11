@@ -45,9 +45,8 @@ test.describe('Auth flow', () => {
     expect(signUpResp.status()).toBe(200)
     await expect(page).toHaveURL(/files/, { timeout: 10000 })
 
-    // Clear cookies and go to sign-in
     await page.context().clearCookies()
-    await page.goto('/sign-in')
+    await page.goto('/files')
     await expandSignInForm(page)
     await page.locator('#identity').fill(email)
     await page.locator('#password').fill('password123456')
@@ -56,9 +55,10 @@ test.describe('Auth flow', () => {
       page.waitForResponse((r) => r.url().includes('/api/auth/sign-in')),
       page.getByRole('button', { name: 'Sign in' }).click(),
     ])
+    expect(signInResp.request().postDataJSON().callbackURL).toBe('/files')
     expect(signInResp.status()).toBe(200)
 
-    await expect(page).toHaveURL(/files/, { timeout: 10000 })
+    await expect(page).toHaveURL((url) => url.pathname === '/files', { timeout: 10000 })
 
     await page.goto('/sign-in')
     await expect(page.getByText('Last used')).toBeVisible()

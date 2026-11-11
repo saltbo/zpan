@@ -14,6 +14,7 @@ const ORIGIN = 'https://zpan.example'
 
 const routes = [
   { name: 'authenticated', route: authenticatedRoute, pathname: '/files' },
+  { name: 'encoded file path', route: authenticatedRoute, pathname: '/files/a%2Fb' },
   { name: 'OAuth', route: oauthRoute, pathname: '/oauth/consent' },
   { name: 'checkout', route: checkoutRoute, pathname: '/store/checkout' },
 ] as const
