@@ -7,6 +7,7 @@ import { FREE_TEAM_LIMIT, SignupMode, ZPAN_CLOUD_URL_DEFAULT } from '@shared/con
 import type { BindingState, LicenseAssertion, LicenseEdition } from '@shared/types'
 import { verify } from 'paseto-ts/v4'
 import { z } from 'zod'
+import { isLicenseHostPolicy, matchesLicenseHostPolicy } from '../../../shared/license-host-policy'
 import { getTrustedPublicKeys } from '../../domain/license-keys'
 import { effectiveFeatures, hasFeature } from '../../domain/licensing'
 import {
@@ -65,7 +66,7 @@ export function normalizeHost(host: string | null | undefined): string | null {
   try {
     return new URL(host.includes('://') ? host : `http://${host}`).host.toLowerCase()
   } catch {
-    return host.split('/')[0]?.toLowerCase() || null
+    return null
   }
 }
 
@@ -126,7 +127,16 @@ function tryVerify(cert: string, publicKey: string, options: VerifyCertificateOp
   if (payload.expiresAt <= now) {
     return { ok: false, reason: 'expired' }
   }
-  if (currentHost && !authorizedHosts.includes(currentHost)) {
+  if (payload.hostPolicy !== undefined && !isLicenseHostPolicy(payload.hostPolicy)) {
+    return { ok: false, reason: 'host' }
+  }
+  if (options.currentHost && !currentHost) return { ok: false, reason: 'host' }
+  if (
+    currentHost &&
+    !(payload.hostPolicy
+      ? options.currentHost?.toLowerCase() === currentHost && matchesLicenseHostPolicy(payload.hostPolicy, currentHost)
+      : authorizedHosts.includes(currentHost))
+  ) {
     return { ok: false, reason: 'host' }
   }
 
@@ -205,7 +215,7 @@ export interface BindingStateOptions {
 // Reads the active license binding and derives the runtime BindingState by
 // verifying the cached certificate. Orchestration: repo read + pure verify.
 export async function loadBindingState(
-  deps: { licenseBinding: LicenseBindingRepo },
+  deps: { licenseBinding: LicenseBindingRepo; licenseCloudBaseUrl?: string },
   options: BindingStateOptions = {},
 ): Promise<BindingState> {
   const state = await deps.licenseBinding.loadLicenseState()
@@ -223,7 +233,7 @@ export async function loadBindingState(
     const assertion = verifyCertificate(state.cachedCert, {
       instanceId: state.instanceId,
       currentHost: options.currentHost,
-      cloudBaseUrl: options.cloudBaseUrl,
+      cloudBaseUrl: options.cloudBaseUrl ?? deps.licenseCloudBaseUrl,
     })
     if (assertion) {
       result.active = true
@@ -330,30 +340,35 @@ export async function runLicensingRefresh(
 
 // ─── License-gated policy ────────────────────────────────────────────────────
 
-export type TeamCountDeps = { memberCount: MemberCountRepo; licenseBinding: LicenseBindingRepo }
+export type TeamCountDeps = {
+  memberCount: MemberCountRepo
+  licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
+}
 
 export async function checkTeamLimit(
   deps: TeamCountDeps,
   userId: string,
 ): Promise<{ allowed: boolean; count: number; limit: number }> {
-  const [count, state] = await Promise.all([
-    deps.memberCount.countUserOrgs(userId),
-    loadBindingState({ licenseBinding: deps.licenseBinding }),
-  ])
+  const [count, state] = await Promise.all([deps.memberCount.countUserOrgs(userId), loadBindingState(deps)])
   const unlimited = hasFeature('teams_unlimited', state)
   return { allowed: unlimited || count < FREE_TEAM_LIMIT, count, limit: FREE_TEAM_LIMIT }
 }
 
-export type SignupModeDeps = { systemOptions: SystemOptionsRepo; licenseBinding: LicenseBindingRepo }
+export type SignupModeDeps = {
+  systemOptions: SystemOptionsRepo
+  licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
+}
 
 export async function resolveEffectiveSignupMode(
-  deps: Pick<SignupModeDeps, 'licenseBinding'>,
+  deps: Pick<SignupModeDeps, 'licenseBinding' | 'licenseCloudBaseUrl'>,
   raw: string | null | undefined,
 ): Promise<SignupMode> {
   if (raw === SignupMode.INVITE_ONLY || raw === SignupMode.CLOSED) return raw
   if (raw !== SignupMode.OPEN) return SignupMode.OPEN
 
-  const state = await loadBindingState({ licenseBinding: deps.licenseBinding })
+  const state = await loadBindingState(deps)
   return hasFeature('open_registration', state) ? SignupMode.OPEN : SignupMode.INVITE_ONLY
 }
 

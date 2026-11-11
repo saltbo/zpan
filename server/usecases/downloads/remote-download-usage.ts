@@ -11,6 +11,7 @@ import { loadBindingState } from '../site/licensing'
 
 export type RemoteDownloadUsageDeps = {
   licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
   licensingCloud: LicensingCloudGateway
   remoteDownloadUsage: RemoteDownloadUsageRepo
 }

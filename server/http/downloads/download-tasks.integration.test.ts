@@ -118,8 +118,8 @@ async function activateDownloadTeamWorkspace(
   }
 }
 
-async function seedCloudBinding(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  await seedBusinessLicense(db)
+async function seedCloudBinding(db: Awaited<ReturnType<typeof createTestApp>>['db'], issuer?: string) {
+  await seedBusinessLicense(db, issuer)
 }
 
 async function issueDownloaderBootstrapToken(
@@ -1240,7 +1240,7 @@ describe('Download tasks API integration', () => {
       ZPAN_CLOUD_URL: 'https://cloud.example',
     })
     await insertStorage(db)
-    await seedCloudBinding(db)
+    await seedCloudBinding(db, 'https://cloud.example')
     vi.stubGlobal(
       'fetch',
       vi
@@ -1316,7 +1316,7 @@ describe('Download tasks API integration', () => {
       ZPAN_CLOUD_URL: 'https://cloud.example',
     })
     await insertStorage(db)
-    await seedCloudBinding(db)
+    await seedCloudBinding(db, 'https://cloud.example')
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(makeCloudResponse({ error: { code: 'insufficient_credits' } }, 402)),
@@ -1385,7 +1385,7 @@ describe('Download tasks API integration', () => {
       ZPAN_CLOUD_URL: 'https://cloud.example',
     })
     await insertStorage(db)
-    await seedCloudBinding(db)
+    await seedCloudBinding(db, 'https://cloud.example')
     // First charge attempt is blocked; after a top-up the retry is accepted.
     vi.stubGlobal(
       'fetch',

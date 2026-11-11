@@ -64,6 +64,7 @@ export type DownloadsDeps = {
   downloadTasks: DownloadTaskRepo
   downloadTokens: DownloadTokenGateway
   licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
   licensingCloud: LicensingCloudGateway
   remoteDownloadUsage: RemoteDownloadUsageRepo
   audit: AuditRepo

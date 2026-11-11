@@ -30,6 +30,7 @@ import { loadBindingState } from './licensing'
 export type StorageDeps = {
   storages: StorageRepo
   licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
 }
 
 // The license feature that gates a storage write, plus the payload its 402
@@ -74,10 +75,7 @@ export async function createStorage(
   params: { input: CreateStorageInput },
 ): Promise<CreateStorageOutcome> {
   const { input } = params
-  const [total, state] = await Promise.all([
-    deps.storages.count(),
-    loadBindingState({ licenseBinding: deps.licenseBinding }),
-  ])
+  const [total, state] = await Promise.all([deps.storages.count(), loadBindingState(deps)])
   if (!hasFeature('storages_unlimited', state) && total >= FREE_STORAGE_LIMIT) {
     return {
       ok: false,
@@ -97,10 +95,7 @@ export async function replaceStorage(
 ): Promise<UpdateStorageOutcome> {
   const { id, input } = params
   // Feature gate before the existence check — preserves 402-over-404 ordering.
-  if (
-    enablesEgressCreditBilling(input) &&
-    !hasFeature('quota_store', await loadBindingState({ licenseBinding: deps.licenseBinding }))
-  ) {
+  if (enablesEgressCreditBilling(input) && !hasFeature('quota_store', await loadBindingState(deps))) {
     return { ok: false, error: featureBlockError({ feature: 'quota_store' }) }
   }
   const storage = await deps.storages.replace(id, input)
@@ -113,10 +108,7 @@ export async function patchStorage(
   params: { id: string; input: PatchStorageInput },
 ): Promise<UpdateStorageOutcome> {
   const { id, input } = params
-  if (
-    enablesEgressCreditBilling(input) &&
-    !hasFeature('quota_store', await loadBindingState({ licenseBinding: deps.licenseBinding }))
-  ) {
+  if (enablesEgressCreditBilling(input) && !hasFeature('quota_store', await loadBindingState(deps))) {
     return { ok: false, error: featureBlockError({ feature: 'quota_store' }) }
   }
   const storage = await deps.storages.patch(id, input)
@@ -131,7 +123,7 @@ export async function updateStorageEgressBilling(
   const { id, input } = params
   const existing = await deps.storages.get(id)
   if (!existing) return { ok: false, error: storageNotFound() }
-  if (input.enabled && !hasFeature('quota_store', await loadBindingState({ licenseBinding: deps.licenseBinding }))) {
+  if (input.enabled && !hasFeature('quota_store', await loadBindingState(deps))) {
     return { ok: false, error: featureBlockError({ feature: 'quota_store' }) }
   }
   const storage = await deps.storages.patch(id, {

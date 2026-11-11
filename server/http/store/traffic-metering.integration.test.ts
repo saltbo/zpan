@@ -35,8 +35,8 @@ function acceptedUsageResponse(_url: string, init?: RequestInit): Response {
   return makeCloudResponse({ data: { accepted: true, duplicate: false, eventId: body.eventId } })
 }
 
-async function seedTrafficBinding(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  await seedBusinessLicense(db)
+async function seedTrafficBinding(db: Awaited<ReturnType<typeof createTestApp>>['db'], issuer?: string) {
+  await seedBusinessLicense(db, issuer)
 }
 
 async function insertStorage(db: Database) {
@@ -106,7 +106,7 @@ async function setTrafficQuota(db: Database, orgId: string) {
 describe('object download cloud traffic reporting', () => {
   it('reports successful object downloads to Cloud before returning the presigned URL', async () => {
     const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
-    await seedTrafficBinding(db)
+    await seedTrafficBinding(db, 'https://cloud.example')
     vi.stubGlobal('fetch', vi.fn().mockImplementation(acceptedUsageResponse))
     const headers = await authedHeaders(app)
     await insertStorage(db)
