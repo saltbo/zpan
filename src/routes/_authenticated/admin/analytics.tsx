@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { type CSSProperties, type ReactNode, useMemo, useState } from 'react'
 import type { DateRange } from 'react-day-picker'
+import { useTranslation } from 'react-i18next'
 import {
   Area,
   AreaChart,
@@ -72,6 +73,10 @@ export const Route = createFileRoute('/_authenticated/admin/analytics')({
 
 type SectionId = 'growth' | 'storage' | 'traffic' | 'sharing'
 
+// Passing the translate function into the pure format helpers keeps chart
+// formatters and range presets language-aware without a hook call site.
+type AnalyticsTranslate = (key: string, options?: Record<string, string | number>) => string
+
 const COLORS = {
   blue: '#0369a1',
   teal: '#0f766e',
@@ -105,39 +110,20 @@ const tooltipLabelStyle: CSSProperties = {
   color: 'var(--color-muted-foreground)',
   fontSize: 12,
 }
+// Section copy lives in the locale files (admin.analytics.section.*), so the
+// page renders in English as well as Chinese.
 const SECTION_META: Array<{
   id: SectionId
-  title: string
-  description: string
   icon: typeof Users
 }> = [
-  {
-    id: 'growth',
-    title: '用户与增长',
-    description: '观察用户规模、活跃度、账号状态和注册方式结构。',
-    icon: Users,
-  },
-  {
-    id: 'storage',
-    title: '存储与文件',
-    description: '观察容量水位、文件结构、文件年龄和大对象占用。',
-    icon: HardDrive,
-  },
-  {
-    id: 'traffic',
-    title: '流量与传输',
-    description: '观察确认上传、下载签发、失败率和计量状态。',
-    icon: UploadCloud,
-  },
-  {
-    id: 'sharing',
-    title: '分享与访问',
-    description: '观察分享创建、访问、下载签发和转存行为。',
-    icon: Share2,
-  },
+  { id: 'growth', icon: Users },
+  { id: 'storage', icon: HardDrive },
+  { id: 'traffic', icon: UploadCloud },
+  { id: 'sharing', icon: Share2 },
 ]
 
 export function OverviewPage() {
+  const { t } = useTranslation()
   const today = useMemo(() => utcCalendarDate(new Date()), [])
   const [openSection, setOpenSection] = useState<SectionId | null>('growth')
   const [range, setRange] = useState<DateRange>(() => ({ from: startOfDay(subDays(today, 29)), to: endOfDay(today) }))
@@ -171,16 +157,22 @@ export function OverviewPage() {
     setOpenSection((current) => (current === section ? null : section))
   }
 
+  const sections = SECTION_META.map((meta) => ({
+    ...meta,
+    title: t(`admin.analytics.section.${meta.id}.title`),
+    description: t(`admin.analytics.section.${meta.id}.description`),
+  }))
+
   return (
     <div className="space-y-4">
       <AdminPageHeader
-        title="站点统计"
-        description="按 UTC 日期查看站点统计。"
+        title={t('admin.analytics.title')}
+        description={t('admin.analytics.description')}
         badge={<ProBadge />}
         action={<DateRangePicker value={range} onChange={setRange} />}
       />
       <div className="flex flex-col gap-4">
-        {SECTION_META.map((section) => (
+        {sections.map((section) => (
           <DashboardSection
             key={section.id}
             section={section}
@@ -191,9 +183,9 @@ export function OverviewPage() {
             {!hasAnalytics ? (
               <UpgradeHint
                 feature="analytics"
-                title="解锁高级统计"
-                description="这些统计看板需要 ZPan Pro 或 Business。"
-                actionLabel="打开授权"
+                title={t('admin.analytics.upgrade.title')}
+                description={t('admin.analytics.upgrade.description')}
+                actionLabel={t('admin.analytics.upgrade.action')}
               />
             ) : section.id === 'growth' ? (
               <QueryState query={growthQuery}>{(data) => <GrowthSection stats={data} />}</QueryState>
@@ -247,12 +239,13 @@ function DashboardSection({
   children,
   onToggle,
 }: {
-  section: (typeof SECTION_META)[number]
+  section: { id: SectionId; icon: typeof Users; title: string; description: string }
   open: boolean
   locked?: boolean
   children: ReactNode
   onToggle: () => void
 }) {
+  const { t } = useTranslation()
   const Icon = section.icon
 
   return (
@@ -279,7 +272,11 @@ function DashboardSection({
           <button
             type="button"
             onClick={onToggle}
-            aria-label={open ? `折叠${section.title}` : `展开${section.title}`}
+            aria-label={
+              open
+                ? t('admin.analytics.section.collapse', { name: section.title })
+                : t('admin.analytics.section.expand', { name: section.title })
+            }
             className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ChevronDown className={cn('size-4 transition-transform', open && 'rotate-180')} />
@@ -292,7 +289,8 @@ function DashboardSection({
 }
 
 function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (range: DateRange) => void }) {
-  const presets = dateRangePresets()
+  const { t } = useTranslation()
+  const presets = dateRangePresets(t)
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<DateRange>(value)
 
@@ -318,7 +316,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (ran
           className="min-w-[15.5rem] justify-start bg-background shadow-xs"
         >
           <CalendarDays className="size-4 text-muted-foreground" />
-          <span className="truncate font-normal">{formatRange(value)}</span>
+          <span className="truncate font-normal">{formatRange(value, t)}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[min(44rem,calc(100vw-2rem))] p-0">
@@ -351,13 +349,13 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (ran
               disabled={{ after: utcCalendarDate(new Date()) }}
             />
             <div className="mt-3 flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-xs text-muted-foreground">{formatRange(draft)}</div>
+              <div className="text-xs text-muted-foreground">{formatRange(draft, t)}</div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
-                  取消
+                  {t('common.cancel')}
                 </Button>
                 <Button type="button" size="sm" disabled={!draft.from || !draft.to} onClick={() => applyRange(draft)}>
-                  应用
+                  {t('admin.analytics.range.apply')}
                 </Button>
               </div>
             </div>
@@ -369,6 +367,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (ran
 }
 
 function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
+  const { t } = useTranslation()
   const totalUserPointCount = stats.userScaleTrend.filter((row) => row.totalUsers !== null).length
   const activePointCount = stats.activeUserTrend.filter(
     (row) => row.dau !== null || row.wau !== null || row.mau !== null,
@@ -377,47 +376,53 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="总用户数"
+          label={t('admin.analytics.metric.totalUsers')}
           value={formatNumber(stats.summary.totalUsers)}
           delta={formatDelta(stats.summary.newUsers)}
           icon={Users}
           metrics={[
-            { label: '新增用户', value: formatNumber(stats.summary.newUsers.value) },
-            { label: '已验证', value: formatNumber(stats.summary.verifiedUsers) },
+            { label: t('admin.analytics.metric.newUsers'), value: formatNumber(stats.summary.newUsers.value) },
+            { label: t('admin.analytics.metric.verifiedUsers'), value: formatNumber(stats.summary.verifiedUsers) },
           ]}
         />
         <StatCard
-          label="30 日活跃用户"
+          label={t('admin.analytics.metric.activeUsers30')}
           value={formatNumber(stats.summary.activeUsers.value)}
           delta={formatDelta(stats.summary.activeUsers)}
           icon={Activity}
           metrics={[
-            { label: '沉默用户', value: formatNumber(stats.summary.silentUsers) },
-            { label: '禁用用户', value: formatNumber(stats.summary.bannedUsers) },
+            { label: t('admin.analytics.metric.silentUsers'), value: formatNumber(stats.summary.silentUsers) },
+            { label: t('admin.analytics.metric.bannedUsers'), value: formatNumber(stats.summary.bannedUsers) },
           ]}
         />
         <StatCard
-          label="新增用户"
+          label={t('admin.analytics.metric.newUsers')}
           value={formatNumber(stats.summary.newUsers.value)}
           delta={formatDelta(stats.summary.newUsers)}
           icon={TrendingUp}
           metrics={[
-            { label: '上期新增', value: formatNumber(stats.summary.newUsers.previousValue) },
-            { label: '变化', value: formatPercent(stats.summary.newUsers.changePercent) },
+            {
+              label: t('admin.analytics.metric.previousNewUsers'),
+              value: formatNumber(stats.summary.newUsers.previousValue),
+            },
+            { label: t('admin.analytics.metric.change'), value: formatPercent(stats.summary.newUsers.changePercent) },
           ]}
         />
         <StatCard
-          label="沉默用户"
+          label={t('admin.analytics.metric.silentUsers')}
           value={formatNumber(stats.summary.silentUsers)}
           icon={FileClock}
           metrics={[
-            { label: '占比', value: formatPercent(stats.summary.silentUserRate) },
-            { label: '30 日活跃率', value: formatPercent(stats.summary.activeUserRate) },
+            { label: t('admin.analytics.metric.share'), value: formatPercent(stats.summary.silentUserRate) },
+            { label: t('admin.analytics.metric.activeRate30'), value: formatPercent(stats.summary.activeUserRate) },
           ]}
         />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard title="用户规模趋势" subtitle="柱形看每日新增用户，折线看累计用户规模。">
+        <ChartCard
+          title={t('admin.analytics.chart.userScaleTrend')}
+          subtitle={t('admin.analytics.chart.userScaleTrendDescription')}
+        >
           {hasNumericData(stats.userScaleTrend, ['newUsers', 'totalUsers']) ? (
             <AnalyticsChartContainer>
               <ComposedChart data={stats.userScaleTrend}>
@@ -444,15 +449,21 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
                 <RechartsTooltip
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
-                  formatter={chartTooltipFormatter}
+                  formatter={tooltipFormatter({ newUsers: formatNumber, totalUsers: formatNumber })}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                <Bar yAxisId="new" dataKey="newUsers" name="新增用户" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} />
+                <Bar
+                  yAxisId="new"
+                  dataKey="newUsers"
+                  name={t('admin.analytics.series.newUsers')}
+                  fill={CHART_COLORS[1]}
+                  radius={[4, 4, 0, 0]}
+                />
                 <Line
                   yAxisId="total"
                   type="monotone"
                   dataKey="totalUsers"
-                  name="累计用户"
+                  name={t('admin.analytics.series.cumulativeUsers')}
                   stroke={CHART_COLORS[0]}
                   strokeWidth={2}
                   dot={singlePointDot(totalUserPointCount, CHART_COLORS[0])}
@@ -463,7 +474,10 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
             <EmptyState />
           )}
         </ChartCard>
-        <ChartCard title="活跃用户趋势" subtitle="DAU、WAU、MAU 同时展示，用于判断用户活跃基本盘。">
+        <ChartCard
+          title={t('admin.analytics.chart.activeUserTrend')}
+          subtitle={t('admin.analytics.chart.activeUserTrendDescription')}
+        >
           {hasNumericData(stats.activeUserTrend, ['dau', 'wau', 'mau']) ? (
             <AnalyticsChartContainer>
               <AreaChart data={stats.activeUserTrend}>
@@ -473,7 +487,7 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
                 <RechartsTooltip
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
-                  formatter={chartTooltipFormatter}
+                  formatter={tooltipFormatter({ dau: formatNumber, wau: formatNumber, mau: formatNumber })}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                 <Area
@@ -511,67 +525,86 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
         </ChartCard>
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <BreakdownChart title="用户状态分布" rows={stats.userStatus} valueFormatter={formatNumber} />
-        <BarBreakdownChart title="注册方式分布" rows={stats.registrationSources} valueFormatter={formatNumber} />
+        <BreakdownChart
+          title={t('admin.analytics.chart.userStatus')}
+          rows={stats.userStatus}
+          valueFormatter={formatNumber}
+        />
+        <BarBreakdownChart
+          title={t('admin.analytics.chart.registrationSources')}
+          rows={stats.registrationSources}
+          valueFormatter={formatNumber}
+        />
       </div>
     </div>
   )
 }
 
 function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
+  const { t } = useTranslation()
   const usedPointCount = stats.storageTrend.filter((row) => row.usedBytes !== null).length
   const writtenPointCount = stats.storageTrend.filter((row) => row.newBytes !== null).length
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="期末存储占用"
+          label={t('admin.analytics.metric.storageUsedEnd')}
           value={formatSize(stats.summary.storageUsedBytes)}
           icon={HardDrive}
           metrics={[
             {
-              label: '配额使用率',
+              label: t('admin.analytics.metric.quotaUtilization'),
               value: formatPercent(stats.summary.storageUtilization),
             },
-            { label: '回收站占用', value: formatSize(stats.summary.trashBytes) },
+            { label: t('admin.analytics.metric.trashUsage'), value: formatSize(stats.summary.trashBytes) },
           ]}
         />
         <StatCard
-          label="确认写入字节"
+          label={t('admin.analytics.metric.confirmedBytes')}
           value={formatSize(stats.summary.newBytes.value)}
           delta={formatDelta(stats.summary.newBytes, formatSize)}
           icon={Upload}
           metrics={[
-            { label: '确认上传文件', value: formatNumber(stats.summary.newFiles.value) },
-            { label: '上期容量', value: formatSize(stats.summary.newBytes.previousValue) },
+            { label: t('admin.analytics.metric.confirmedFiles'), value: formatNumber(stats.summary.newFiles.value) },
+            {
+              label: t('admin.analytics.metric.previousCapacity'),
+              value: formatSize(stats.summary.newBytes.previousValue),
+            },
           ]}
         />
         <StatCard
-          label="确认上传文件"
+          label={t('admin.analytics.metric.confirmedFiles')}
           value={formatNumber(stats.summary.newFiles.value)}
           delta={formatDelta(stats.summary.newFiles)}
           icon={Database}
           metrics={[
-            { label: '上期新增', value: formatNumber(stats.summary.newFiles.previousValue) },
-            { label: '活跃文件总数', value: formatNumber(stats.summary.fileCount) },
+            {
+              label: t('admin.analytics.metric.previousNewUsers'),
+              value: formatNumber(stats.summary.newFiles.previousValue),
+            },
+            { label: t('admin.analytics.metric.activeFileCount'), value: formatNumber(stats.summary.fileCount) },
           ]}
         />
         <StatCard
-          label="90 天以上文件"
+          label={t('admin.analytics.metric.filesOver90Days')}
           value={formatSize(stats.summary.coldFileBytes)}
           icon={FileClock}
           metrics={[
             {
-              label: '年龄文件占比',
+              label: t('admin.analytics.metric.coldFileShare'),
               value: formatPercent(stats.summary.coldFilePercent),
             },
-            { label: '期末占用', value: formatSize(stats.summary.storageUsedBytes) },
+            { label: t('admin.analytics.metric.endPeriodUsage'), value: formatSize(stats.summary.storageUsedBytes) },
           ]}
         />
       </div>
       <ChartCard
-        title="空间配额压力"
-        subtitle={`全部空间中 ${formatNumber(stats.summary.nearQuotaSpaces)} 个达到 80%，${formatNumber(stats.summary.overQuotaSpaces)} 个达到或超过配额，${formatNumber(stats.summary.invalidQuotaSpaces)} 个额度配置异常。`}
+        title={t('admin.analytics.chart.quotaPressure')}
+        subtitle={t('admin.analytics.chart.quotaPressureDescription', {
+          near: formatNumber(stats.summary.nearQuotaSpaces),
+          over: formatNumber(stats.summary.overQuotaSpaces),
+          invalid: formatNumber(stats.summary.invalidQuotaSpaces),
+        })}
         contentClassName="h-auto"
       >
         {stats.topSpaces.length === 0 ? (
@@ -581,11 +614,11 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>空间</TableHead>
-                  <TableHead>类型</TableHead>
-                  <TableHead className="text-right">占用</TableHead>
-                  <TableHead className="text-right">配额</TableHead>
-                  <TableHead className="text-right">使用率</TableHead>
+                  <TableHead>{t('admin.analytics.table.space')}</TableHead>
+                  <TableHead>{t('admin.analytics.table.type')}</TableHead>
+                  <TableHead className="text-right">{t('admin.analytics.table.used')}</TableHead>
+                  <TableHead className="text-right">{t('admin.analytics.table.quota')}</TableHead>
+                  <TableHead className="text-right">{t('admin.analytics.table.utilization')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -594,7 +627,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                     <TableCell className="max-w-60 truncate font-medium" title={space.orgName}>
                       {space.orgName}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{labelize(space.orgType)}</TableCell>
+                    <TableCell className="text-muted-foreground">{labelize(space.orgType, t)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatSize(space.usedBytes)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatSize(space.quotaBytes)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatPercent(space.utilization)}</TableCell>
@@ -606,7 +639,10 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
         )}
       </ChartCard>
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard title="存储与写入趋势" subtitle="存储占用是水位；确认上传文件和字节是周期事件量，不代表净增长。">
+        <ChartCard
+          title={t('admin.analytics.chart.storageTrend')}
+          subtitle={t('admin.analytics.chart.storageTrendDescription')}
+        >
           {hasNumericData(stats.storageTrend, ['usedBytes', 'newBytes', 'newFiles']) ? (
             <AnalyticsChartContainer>
               <ComposedChart data={stats.storageTrend}>
@@ -632,13 +668,13 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                 <RechartsTooltip
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
-                  formatter={chartTooltipFormatter}
+                  formatter={tooltipFormatter({ newFiles: formatNumber, usedBytes: formatSize, newBytes: formatSize })}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                 <Bar
                   yAxisId="files"
                   dataKey="newFiles"
-                  name="确认上传文件"
+                  name={t('admin.analytics.series.confirmedFiles')}
                   fill={CHART_COLORS[1]}
                   radius={[4, 4, 0, 0]}
                 />
@@ -646,7 +682,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                   yAxisId="bytes"
                   type="monotone"
                   dataKey="usedBytes"
-                  name="存储占用"
+                  name={t('admin.analytics.series.storageUsage')}
                   stroke={CHART_COLORS[0]}
                   strokeWidth={2}
                   dot={singlePointDot(usedPointCount, CHART_COLORS[0])}
@@ -655,7 +691,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                   yAxisId="bytes"
                   type="monotone"
                   dataKey="newBytes"
-                  name="确认写入字节"
+                  name={t('admin.analytics.series.confirmedBytes')}
                   stroke={CHART_COLORS[2]}
                   strokeWidth={2}
                   dot={singlePointDot(writtenPointCount, CHART_COLORS[2])}
@@ -667,18 +703,27 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
           )}
         </ChartCard>
         <BreakdownChart
-          title="文件类型容量占比"
+          title={t('admin.analytics.chart.fileTypeShare')}
           rows={stats.typeBreakdown.map((row) => ({ name: row.type, value: row.bytes, percent: row.percent }))}
           valueFormatter={formatSize}
         />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard title="文件大小结构" subtitle="柱形看文件数量，折线看容量贡献，定位大对象压力。">
+        <ChartCard
+          title={t('admin.analytics.chart.fileSizeStructure')}
+          subtitle={t('admin.analytics.chart.fileSizeStructureDescription')}
+        >
           {hasNumericData(stats.sizeBreakdown, ['files', 'bytes']) ? (
             <AnalyticsChartContainer>
               <ComposedChart data={stats.sizeBreakdown} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tickFormatter={labelize} />
+                <XAxis
+                  dataKey="name"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  tickFormatter={(value) => labelize(String(value), t)}
+                />
                 <YAxis
                   yAxisId="files"
                   tickLine={false}
@@ -699,14 +744,14 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                 <RechartsTooltip
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
-                  formatter={chartTooltipFormatter}
-                  labelFormatter={(value) => labelize(String(value))}
+                  formatter={tooltipFormatter({ files: formatNumber, bytes: formatSize })}
+                  labelFormatter={(value) => labelize(String(value), t)}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                 <Bar
                   yAxisId="files"
                   dataKey="files"
-                  name="文件数"
+                  name={t('admin.analytics.series.fileCount')}
                   fill={CHART_COLORS[5]}
                   radius={[4, 4, 0, 0]}
                   isAnimationActive={false}
@@ -715,7 +760,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                   yAxisId="bytes"
                   type="monotone"
                   dataKey="bytes"
-                  name="容量贡献"
+                  name={t('admin.analytics.series.capacityContribution')}
                   stroke={CHART_COLORS[4]}
                   strokeWidth={2}
                   dot={false}
@@ -727,22 +772,32 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
             <EmptyState />
           )}
         </ChartCard>
-        <ChartCard title="文件年龄分布" subtitle="仅按创建时间划分，不代表文件最近是否被访问。">
+        <ChartCard title={t('admin.analytics.chart.fileAge')} subtitle={t('admin.analytics.chart.fileAgeDescription')}>
           {hasNumericData(stats.ageBreakdown, ['bytes']) ? (
             <AnalyticsChartContainer>
               <BarChart data={stats.ageBreakdown} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} tickFormatter={labelize} />
+                <XAxis
+                  dataKey="name"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={12}
+                  tickFormatter={(value) => labelize(String(value), t)}
+                />
                 <YAxis tickLine={false} axisLine={false} fontSize={12} width={58} tickFormatter={formatCompactSize} />
                 <RechartsTooltip
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
-                  formatter={(value, name) =>
-                    name === '容量' ? [formatSize(Number(value)), name] : [formatNumber(Number(value)), name]
-                  }
-                  labelFormatter={(value) => labelize(String(value))}
+                  formatter={(value, name) => [formatSize(Number(value)), String(name)]}
+                  labelFormatter={(value) => labelize(String(value), t)}
                 />
-                <Bar dataKey="bytes" name="容量" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                <Bar
+                  dataKey="bytes"
+                  name={t('admin.analytics.series.capacity')}
+                  fill={CHART_COLORS[0]}
+                  radius={[4, 4, 0, 0]}
+                  isAnimationActive={false}
+                >
                   <LabelList dataKey="percent" position="top" formatter={formatPercentLabel} fontSize={11} />
                 </Bar>
               </BarChart>
@@ -757,6 +812,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
 }
 
 function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
+  const { t } = useTranslation()
   const uploadPointCount = stats.trafficTrend.filter((row) => row.uploadBytes !== null).length
   const downloadPointCount = stats.trafficTrend.filter((row) => row.downloadBytes !== null).length
   const uploadSuccessPointCount = stats.successTrend.filter((row) => row.uploadSuccessRate !== null).length
@@ -765,48 +821,51 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="确认/签发字节"
+          label={t('admin.analytics.metric.issuedBytes')}
           value={formatSize(stats.summary.totalBytes.value)}
           delta={formatDelta(stats.summary.totalBytes, formatSize)}
           icon={Network}
           metrics={[
-            { label: '峰值日字节', value: formatSize(stats.summary.peakDailyBytes) },
-            { label: '请求量', value: formatNumber(stats.summary.requestCount.value) },
+            { label: t('admin.analytics.metric.peakDailyBytes'), value: formatSize(stats.summary.peakDailyBytes) },
+            { label: t('admin.analytics.metric.requests'), value: formatNumber(stats.summary.requestCount.value) },
           ]}
         />
         <StatCard
-          label="请求量"
+          label={t('admin.analytics.metric.requests')}
           value={formatNumber(stats.summary.requestCount.value)}
           delta={formatDelta(stats.summary.requestCount)}
           icon={Activity}
           metrics={[
-            { label: '下载签发', value: formatNumber(stats.summary.issuedDownloads) },
-            { label: '签发失败', value: formatNumber(stats.summary.blockedDownloads) },
+            { label: t('admin.analytics.metric.issuedDownloads'), value: formatNumber(stats.summary.issuedDownloads) },
+            { label: t('admin.analytics.metric.blockedIssues'), value: formatNumber(stats.summary.blockedDownloads) },
           ]}
         />
         <StatCard
-          label="下载签发成功率"
+          label={t('admin.analytics.metric.downloadIssueSuccessRate')}
           value={formatPercent(stats.summary.downloadIssueSuccessRate)}
           icon={Download}
           metrics={[
-            { label: '签发成功', value: formatNumber(stats.summary.issuedDownloads) },
-            { label: '签发失败', value: formatNumber(stats.summary.blockedDownloads) },
+            {
+              label: t('admin.analytics.metric.issuedSuccessfully'),
+              value: formatNumber(stats.summary.issuedDownloads),
+            },
+            { label: t('admin.analytics.metric.blockedIssues'), value: formatNumber(stats.summary.blockedDownloads) },
           ]}
         />
         <StatCard
-          label="峰值日字节"
+          label={t('admin.analytics.metric.peakDailyBytes')}
           value={formatSize(stats.summary.peakDailyBytes)}
           icon={TrendingUp}
           metrics={[
-            { label: '统计口径', value: '确认上传 + 下载签发' },
-            { label: '周期总量', value: formatSize(stats.summary.totalBytes.value) },
+            { label: t('admin.analytics.metric.statBasis'), value: t('admin.analytics.metric.uploadPlusIssue') },
+            { label: t('admin.analytics.metric.periodTotal'), value: formatSize(stats.summary.totalBytes.value) },
           ]}
         />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard
-          title="传输事件趋势"
-          subtitle="上传为确认完成字节，下载为链接签发对象字节，不代表客户端实际完成传输。"
+          title={t('admin.analytics.chart.trafficTrend')}
+          subtitle={t('admin.analytics.chart.trafficTrendDescription')}
         >
           {hasNumericData(stats.trafficTrend, ['uploadBytes', 'downloadBytes', 'requests']) ? (
             <AnalyticsChartContainer>
@@ -833,15 +892,25 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                 <RechartsTooltip
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
-                  formatter={chartTooltipFormatter}
+                  formatter={tooltipFormatter({
+                    requests: formatNumber,
+                    uploadBytes: formatSize,
+                    downloadBytes: formatSize,
+                  })}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                <Bar yAxisId="count" dataKey="requests" name="请求量" fill={CHART_COLORS[5]} radius={[4, 4, 0, 0]} />
+                <Bar
+                  yAxisId="count"
+                  dataKey="requests"
+                  name={t('admin.analytics.metric.requests')}
+                  fill={CHART_COLORS[5]}
+                  radius={[4, 4, 0, 0]}
+                />
                 <Line
                   yAxisId="bytes"
                   type="monotone"
                   dataKey="uploadBytes"
-                  name="确认上传字节"
+                  name={t('admin.analytics.series.confirmedUploadBytes')}
                   stroke={CHART_COLORS[0]}
                   strokeWidth={2}
                   dot={singlePointDot(uploadPointCount, CHART_COLORS[0])}
@@ -850,7 +919,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                   yAxisId="bytes"
                   type="monotone"
                   dataKey="downloadBytes"
-                  name="下载签发字节"
+                  name={t('admin.analytics.series.issuedDownloadBytes')}
                   stroke={CHART_COLORS[2]}
                   strokeWidth={2}
                   dot={singlePointDot(downloadPointCount, CHART_COLORS[2])}
@@ -862,15 +931,15 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
           )}
         </ChartCard>
         <BreakdownChart
-          title="传输来源分布"
+          title={t('admin.analytics.chart.trafficSources')}
           rows={stats.sourceBreakdown.map((row) => ({ name: row.name, value: row.bytes, percent: row.percent }))}
           valueFormatter={formatSize}
         />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard
-          title="签发与确认成功率"
-          subtitle="上传成功指完成确认；下载成功指成功签发链接，不代表客户端下载完成。"
+          title={t('admin.analytics.chart.successRates')}
+          subtitle={t('admin.analytics.chart.successRatesDescription')}
         >
           {hasNumericData(stats.successTrend, ['uploadSuccessRate', 'downloadSuccessRate']) ? (
             <AnalyticsChartContainer>
@@ -901,7 +970,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                 <Area
                   type="monotone"
                   dataKey="uploadSuccessRate"
-                  name="上传成功率"
+                  name={t('admin.analytics.series.uploadSuccessRate')}
                   stroke={CHART_COLORS[1]}
                   fill={CHART_COLORS[1]}
                   fillOpacity={0.08}
@@ -912,7 +981,7 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                 <Area
                   type="monotone"
                   dataKey="downloadSuccessRate"
-                  name="下载成功率"
+                  name={t('admin.analytics.series.downloadSuccessRate')}
                   stroke={CHART_COLORS[0]}
                   fill={CHART_COLORS[0]}
                   fillOpacity={0.08}
@@ -926,7 +995,10 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
             <EmptyState />
           )}
         </ChartCard>
-        <ChartCard title="失败原因分布" subtitle="分类比较用横向条形图，并标出每类占比。">
+        <ChartCard
+          title={t('admin.analytics.chart.failureReasons')}
+          subtitle={t('admin.analytics.chart.failureReasonsDescription')}
+        >
           {stats.failureReasons.length === 0 ? (
             <EmptyState />
           ) : (
@@ -951,17 +1023,17 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
                   axisLine={false}
                   width={86}
                   fontSize={12}
-                  tickFormatter={labelize}
+                  tickFormatter={(value) => labelize(String(value), t)}
                 />
                 <RechartsTooltip
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
                   formatter={(value) => formatNumber(Number(value))}
-                  labelFormatter={(value) => labelize(String(value))}
+                  labelFormatter={(value) => labelize(String(value), t)}
                 />
                 <Bar
                   dataKey="value"
-                  name="失败次数"
+                  name={t('admin.analytics.series.failureCount')}
                   fill={CHART_COLORS[4]}
                   radius={[0, 4, 4, 0]}
                   isAnimationActive={false}
@@ -978,44 +1050,69 @@ function TrafficSection({ stats }: { stats: AdminDashboardTrafficStats }) {
 }
 
 function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
+  const { t } = useTranslation()
   const downloadPointCount = stats.trend.filter((row) => row.downloads !== null).length
   const savePointCount = stats.trend.filter((row) => row.saves !== null).length
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="期末可用分享"
+          label={t('admin.analytics.metric.activeSharesEnd')}
           value={formatNumber(stats.summary.activeShares)}
           delta={formatDelta(stats.summary.createdShares)}
           icon={Share2}
           metrics={[
-            { label: '区间创建', value: formatNumber(stats.summary.createdShares.value) },
-            { label: '上期创建', value: formatNumber(stats.summary.createdShares.previousValue) },
+            {
+              label: t('admin.analytics.metric.createdInRange'),
+              value: formatNumber(stats.summary.createdShares.value),
+            },
+            {
+              label: t('admin.analytics.metric.previousCreated'),
+              value: formatNumber(stats.summary.createdShares.previousValue),
+            },
           ]}
         />
         <StatCard
-          label="累计访问"
+          label={t('admin.analytics.metric.totalViews')}
           value={formatNumber(stats.summary.views)}
           icon={Activity}
-          metrics={[{ label: '来自分享表的精确累计值', value: formatNumber(stats.summary.views) }]}
+          metrics={[
+            {
+              label: t('admin.analytics.metric.exactShareViews'),
+              value: formatNumber(stats.summary.views),
+            },
+          ]}
         />
         <StatCard
-          label="已定位下载签发"
+          label={t('admin.analytics.metric.locatedDownloads')}
           value={formatNumber(stats.summary.downloads.value)}
           delta={formatDelta(stats.summary.downloads)}
           icon={Download}
-          metrics={[{ label: '上期下载', value: formatNumber(stats.summary.downloads.previousValue) }]}
+          metrics={[
+            {
+              label: t('admin.analytics.metric.previousDownloads'),
+              value: formatNumber(stats.summary.downloads.previousValue),
+            },
+          ]}
         />
         <StatCard
-          label="转存到网盘"
+          label={t('admin.analytics.metric.savedToDrive')}
           value={formatNumber(stats.summary.saves.value)}
           delta={formatDelta(stats.summary.saves)}
           icon={Link2}
-          metrics={[{ label: '上期转存', value: formatNumber(stats.summary.saves.previousValue) }]}
+          metrics={[
+            {
+              label: t('admin.analytics.metric.previousSaves'),
+              value: formatNumber(stats.summary.saves.previousValue),
+            },
+          ]}
         />
       </div>
       <div className="grid gap-4">
-        <ChartCard title="分享下载与转存趋势" subtitle="按事件发生时间统计。">
+        <ChartCard
+          title={t('admin.analytics.chart.sharingTrend')}
+          subtitle={t('admin.analytics.chart.sharingTrendDescription')}
+        >
           {hasNumericData(stats.trend, ['downloads', 'saves']) ? (
             <AnalyticsChartContainer>
               <AreaChart data={stats.trend}>
@@ -1025,13 +1122,13 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
                 <RechartsTooltip
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
-                  formatter={chartTooltipFormatter}
+                  formatter={tooltipFormatter({ downloads: formatNumber, saves: formatNumber })}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                 <Area
                   type="monotone"
                   dataKey="downloads"
-                  name="下载签发"
+                  name={t('admin.analytics.metric.issuedDownloads')}
                   stroke={CHART_COLORS[2]}
                   fill={CHART_COLORS[2]}
                   fillOpacity={0.1}
@@ -1040,7 +1137,7 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
                 <Area
                   type="monotone"
                   dataKey="saves"
-                  name="转存"
+                  name={t('admin.analytics.series.save')}
                   stroke={CHART_COLORS[3]}
                   fill={CHART_COLORS[3]}
                   fillOpacity={0.08}
@@ -1054,8 +1151,16 @@ function SharingSection({ stats }: { stats: AdminDashboardSharingStats }) {
         </ChartCard>
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <BarBreakdownChart title="分享类型分布" rows={stats.typeBreakdown} valueFormatter={formatNumber} />
-        <BreakdownChart title="分享行为来源" rows={stats.sourceBreakdown} valueFormatter={formatNumber} />
+        <BarBreakdownChart
+          title={t('admin.analytics.chart.shareTypes')}
+          rows={stats.typeBreakdown}
+          valueFormatter={formatNumber}
+        />
+        <BreakdownChart
+          title={t('admin.analytics.chart.shareSources')}
+          rows={stats.sourceBreakdown}
+          valueFormatter={formatNumber}
+        />
       </div>
       <TopSharesTable rows={stats.topShares} />
     </div>
@@ -1070,7 +1175,7 @@ function StatCard({
   label,
   value,
   delta,
-  deltaLabel = '环比',
+  deltaLabel,
   icon: Icon,
   metrics = [],
 }: {
@@ -1081,6 +1186,9 @@ function StatCard({
   icon: typeof Users
   metrics?: Array<{ label: string; value: string }>
 }) {
+  const { t } = useTranslation()
+  const deltaText = deltaLabel ?? t('admin.analytics.delta')
+
   return (
     <Card className="gap-0 rounded-lg border-border/70 bg-background py-0 shadow-[0_10px_26px_-26px_rgba(15,23,42,0.65)]">
       <CardContent className="p-3">
@@ -1096,7 +1204,7 @@ function StatCard({
           {delta && (
             <div className="flex shrink-0 items-baseline gap-1.5">
               <span className="text-xs font-semibold text-primary tabular-nums">{delta}</span>
-              <span className="text-[10px] text-muted-foreground">{deltaLabel}</span>
+              <span className="text-[10px] text-muted-foreground">{deltaText}</span>
             </div>
           )}
         </div>
@@ -1145,6 +1253,8 @@ function BreakdownChart({
   rows: Array<{ name: string; value: number; percent: number }>
   valueFormatter: (value: number) => string
 }) {
+  const { t } = useTranslation()
+
   return (
     <ChartCard title={title}>
       {hasPositiveBreakdown(rows) ? (
@@ -1173,7 +1283,7 @@ function BreakdownChart({
           </AnalyticsChartContainer>
           <PercentList
             items={rows.map((row, index) => ({
-              name: labelize(row.name),
+              name: labelize(row.name, t),
               percent: row.percent,
               valueLabel: valueFormatter(row.value),
               fill: CHART_COLORS[index % CHART_COLORS.length],
@@ -1196,6 +1306,8 @@ function BarBreakdownChart({
   rows: Array<{ name: string; value: number; percent: number }>
   valueFormatter: (value: number) => string
 }) {
+  const { t } = useTranslation()
+
   return (
     <ChartCard title={title}>
       {hasPositiveBreakdown(rows) ? (
@@ -1210,15 +1322,20 @@ function BarBreakdownChart({
               tickLine={false}
               axisLine={false}
               fontSize={12}
-              tickFormatter={labelize}
+              tickFormatter={(value) => labelize(String(value), t)}
             />
             <RechartsTooltip
               contentStyle={tooltipContentStyle}
               labelStyle={tooltipLabelStyle}
               formatter={(value) => valueFormatter(Number(value))}
-              labelFormatter={(value) => labelize(String(value))}
+              labelFormatter={(value) => labelize(String(value), t)}
             />
-            <Bar dataKey="value" name="数量" radius={[0, 4, 4, 0]} isAnimationActive={false}>
+            <Bar
+              dataKey="value"
+              name={t('admin.analytics.series.count')}
+              radius={[0, 4, 4, 0]}
+              isAnimationActive={false}
+            >
               {rows.map((row, index) => (
                 <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
               ))}
@@ -1256,8 +1373,10 @@ function PercentList({ items }: { items: Array<{ name: string; percent: number; 
 }
 
 function TopSharesTable({ rows }: { rows: AdminDashboardSharingStats['topShares'] }) {
+  const { t } = useTranslation()
+
   return (
-    <ChartCard title="Top 分享" contentClassName="h-auto">
+    <ChartCard title={t('admin.analytics.chart.topShares')} contentClassName="h-auto">
       {rows.length === 0 ? (
         <EmptyState />
       ) : (
@@ -1265,11 +1384,11 @@ function TopSharesTable({ rows }: { rows: AdminDashboardSharingStats['topShares'
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>分享</TableHead>
-                <TableHead>创建者</TableHead>
-                <TableHead className="text-right">访问</TableHead>
-                <TableHead className="text-right">下载</TableHead>
-                <TableHead className="text-right">占比</TableHead>
+                <TableHead>{t('admin.analytics.table.share')}</TableHead>
+                <TableHead>{t('admin.analytics.table.creator')}</TableHead>
+                <TableHead className="text-right">{t('admin.analytics.table.views')}</TableHead>
+                <TableHead className="text-right">{t('admin.analytics.table.downloads')}</TableHead>
+                <TableHead className="text-right">{t('admin.analytics.table.sharePercent')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1301,14 +1420,16 @@ function QueryState<T extends AdminStatsRange>({
   query: { isLoading: boolean; isError: boolean; data: T | undefined; refetch?: () => unknown }
   children: (data: T) => ReactNode
 }) {
+  const { t } = useTranslation()
+
   if (query.isLoading) return <SectionSkeleton />
   if (query.isError)
     return (
       <div className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-        <span>统计结果加载失败。</span>
+        <span>{t('admin.analytics.loadError')}</span>
         {query.refetch && (
           <Button type="button" variant="outline" size="sm" onClick={() => query.refetch?.()}>
-            重试
+            {t('admin.analytics.retry')}
           </Button>
         )}
       </div>
@@ -1331,9 +1452,11 @@ function SectionSkeleton() {
 }
 
 function EmptyState() {
+  const { t } = useTranslation()
+
   return (
     <div className="flex h-full min-h-32 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/10 p-8 text-center text-sm text-muted-foreground">
-      暂无统计数据
+      {t('admin.analytics.empty')}
     </div>
   )
 }
@@ -1346,14 +1469,20 @@ function hasPositiveBreakdown(rows: Array<{ value: number }>): boolean {
   return rows.some((row) => row.value > 0)
 }
 
-function dateRangePresets(): Array<{ label: string; range: DateRange }> {
+function dateRangePresets(t: AnalyticsTranslate): Array<{ label: string; range: DateRange }> {
   const today = utcCalendarDate(new Date())
   return [
-    { label: '最近 3 天', range: { from: startOfDay(subDays(today, 2)), to: endOfDay(today) } },
-    { label: '最近 7 天', range: { from: startOfDay(subDays(today, 6)), to: endOfDay(today) } },
-    { label: '最近 30 天', range: { from: startOfDay(subDays(today, 29)), to: endOfDay(today) } },
-    { label: '本月', range: { from: startOfMonth(today), to: endOfDay(today) } },
-    { label: '上月', range: { from: startOfMonth(subMonths(today, 1)), to: endOfMonth(subMonths(today, 1)) } },
+    { label: t('admin.analytics.preset.last3'), range: { from: startOfDay(subDays(today, 2)), to: endOfDay(today) } },
+    { label: t('admin.analytics.preset.last7'), range: { from: startOfDay(subDays(today, 6)), to: endOfDay(today) } },
+    {
+      label: t('admin.analytics.preset.last30'),
+      range: { from: startOfDay(subDays(today, 29)), to: endOfDay(today) },
+    },
+    { label: t('admin.analytics.preset.thisMonth'), range: { from: startOfMonth(today), to: endOfDay(today) } },
+    {
+      label: t('admin.analytics.preset.lastMonth'),
+      range: { from: startOfMonth(subMonths(today, 1)), to: endOfMonth(subMonths(today, 1)) },
+    },
   ]
 }
 
@@ -1373,8 +1502,8 @@ function rangeKey(range: DateRange): string {
   return `${range.from?.toISOString() ?? ''}:${range.to?.toISOString() ?? ''}`
 }
 
-function formatRange(range: DateRange): string {
-  if (!range.from) return '选择时间范围'
+function formatRange(range: DateRange, t: AnalyticsTranslate): string {
+  if (!range.from) return t('admin.analytics.range.select')
   if (!range.to) return format(range.from, 'yyyy-MM-dd')
   return `${format(range.from, 'yyyy-MM-dd')} - ${format(range.to, 'yyyy-MM-dd')}`
 }
@@ -1428,11 +1557,13 @@ function formatCompactSize(value: number): string {
   return formatSize(value).replace(' ', '')
 }
 
-function chartTooltipFormatter(value: unknown, name: unknown) {
-  const numeric = Number(value)
-  const label = String(name)
-  const formatted = label.includes('容量') || label.includes('流量') ? formatSize(numeric) : formatNumber(numeric)
-  return [formatted, label]
+// Series names come from the locale files, so the tooltip chooses its value
+// formatter from the series dataKey rather than matching the label text.
+function tooltipFormatter(formats: Record<string, (value: number) => string>) {
+  return (value: unknown, name: unknown, item: { dataKey?: unknown }) => {
+    const formatValue = formats[String(item?.dataKey ?? '')] ?? formatNumber
+    return [formatValue(Number(value)), String(name)]
+  }
 }
 
 function clampPercent(value: number): number {
@@ -1440,26 +1571,6 @@ function clampPercent(value: number): number {
   return Math.min(100, Math.max(0, value))
 }
 
-function labelize(value: string): string {
-  const labels: Record<string, string> = {
-    normal: '正常用户',
-    unverified: '未验证',
-    banned: '已禁用',
-    silent: '沉默用户',
-    direct: '直接注册',
-    credential: '账号密码',
-    landing: '落地页分享',
-    direct_share: '直链分享',
-    views: '访问分享',
-    downloads: '下载签发',
-    saved_to_drive: '转存到网盘',
-    landing_share: '分享下载',
-    object_download: '文件下载',
-    webdav_download: 'WebDAV',
-    upload: '上传确认',
-    reported: '已上报',
-    pending: '待上报',
-    failed: '失败',
-  }
-  return labels[value] ?? value
+function labelize(value: string, t: AnalyticsTranslate): string {
+  return t(`admin.analytics.label.${value}`, { defaultValue: value })
 }
