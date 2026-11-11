@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import en from './locales/en.json'
 import zh from './locales/zh.json'
@@ -151,6 +153,56 @@ const ALL_KEYS = [
   `${P}.label.pending`,
   `${P}.label.failed`,
 ]
+
+// The page's copy lives in the locale files, so every key analytics.tsx renders
+// must resolve in both locales. A hand-maintained list can drift from what the
+// page actually asks for, so the page source is the authority: this reads the
+// component and collects the literal `t('admin.analytics.*')` lookups in it.
+const ANALYTICS_SOURCE = readFileSync(join(process.cwd(), 'src/routes/_authenticated/admin/analytics.tsx'), 'utf8')
+const REFERENCED_KEYS = [
+  ...new Set([...ANALYTICS_SOURCE.matchAll(/t\(\s*'(admin\.analytics\.[A-Za-z0-9_.]+)'/g)].map((match) => match[1])),
+]
+// Section copy is looked up from the section id (`admin.analytics.section.${id}.title`),
+// so the four section ids carry the keys the dynamic lookup resolves to.
+const SECTION_IDS = ['growth', 'storage', 'traffic', 'sharing']
+const SECTION_KEYS = SECTION_IDS.flatMap((id) => [`${P}.section.${id}.title`, `${P}.section.${id}.description`])
+
+describe('admin.analytics locale keys — page source references', () => {
+  it('every key analytics.tsx renders exists in en.json with a value', () => {
+    expect(REFERENCED_KEYS.filter((key) => !enLocale[key]?.trim())).toEqual([])
+  })
+
+  it('every key analytics.tsx renders exists in zh.json with a value', () => {
+    expect(REFERENCED_KEYS.filter((key) => !zhLocale[key]?.trim())).toEqual([])
+  })
+
+  it('the section keys for every section id exist in both locales', () => {
+    expect(SECTION_KEYS.filter((key) => !enLocale[key]?.trim())).toEqual([])
+    expect(SECTION_KEYS.filter((key) => !zhLocale[key]?.trim())).toEqual([])
+  })
+
+  it('referenced English values are not Chinese script', () => {
+    for (const key of [...REFERENCED_KEYS, ...SECTION_KEYS]) {
+      expect(enLocale[key]).not.toMatch(/[\u4e00-\u9fff]/)
+    }
+  })
+
+  it('the chart series names the page renders resolve to readable labels', () => {
+    // Chart legends and tooltips show the series `name`, so a missing key would
+    // print the key itself. These are the series on the three trend charts.
+    const seriesKeys = [
+      `${P}.metric.newUsers`,
+      `${P}.series.cumulativeUsers`,
+      `${P}.metric.confirmedFiles`,
+      `${P}.series.storageUsage`,
+      `${P}.metric.confirmedBytes`,
+    ]
+    for (const key of seriesKeys) {
+      expect(enLocale[key]).not.toMatch(/^admin\.analytics\./)
+      expect(zhLocale[key]).not.toMatch(/^admin\.analytics\./)
+    }
+  })
+})
 
 describe('admin.analytics locale keys — non-empty values', () => {
   for (const key of ALL_KEYS) {

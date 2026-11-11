@@ -455,7 +455,7 @@ function GrowthSection({ stats }: { stats: AdminDashboardGrowthStats }) {
                 <Bar
                   yAxisId="new"
                   dataKey="newUsers"
-                  name={t('admin.analytics.series.newUsers')}
+                  name={t('admin.analytics.metric.newUsers')}
                   fill={CHART_COLORS[1]}
                   radius={[4, 4, 0, 0]}
                 />
@@ -674,7 +674,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                 <Bar
                   yAxisId="files"
                   dataKey="newFiles"
-                  name={t('admin.analytics.series.confirmedFiles')}
+                  name={t('admin.analytics.metric.confirmedFiles')}
                   fill={CHART_COLORS[1]}
                   radius={[4, 4, 0, 0]}
                 />
@@ -691,7 +691,7 @@ function StorageSection({ stats }: { stats: AdminDashboardStorageStats }) {
                   yAxisId="bytes"
                   type="monotone"
                   dataKey="newBytes"
-                  name={t('admin.analytics.series.confirmedBytes')}
+                  name={t('admin.analytics.metric.confirmedBytes')}
                   stroke={CHART_COLORS[2]}
                   strokeWidth={2}
                   dot={singlePointDot(writtenPointCount, CHART_COLORS[2])}
