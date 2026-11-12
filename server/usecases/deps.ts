@@ -85,6 +85,7 @@ export interface Deps {
   imageUpload: ImageUpload
   instance: InstanceRepo
   licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
   licensingCloud: LicensingCloudGateway
   matter: MatterRepo
   mediaLibraries: MediaLibraryRepo

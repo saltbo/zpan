@@ -1125,7 +1125,7 @@ describe('Objects API', () => {
     await insertStorage(db, { metered: true })
     const orgId = await getOrgId(db)
     await insertFile(db, orgId, { id: 'm1', name: 'doc.txt' })
-    await seedBusinessLicense(db)
+    await seedBusinessLicense(db, 'https://cloud.example')
     vi.stubGlobal(
       'fetch',
       vi.fn(async (_url, init) => {
@@ -2066,7 +2066,7 @@ describe('Objects API — quota enforcement', () => {
 
   it('surfaces capacity-offer lookup failures instead of reporting quota exhaustion', async () => {
     const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
-    await seedBusinessLicense(db)
+    await seedBusinessLicense(db, 'https://cloud.example')
     const headers = await authedHeaders(app)
     await insertStorage(db)
     const orgId = await getOrgId(db)

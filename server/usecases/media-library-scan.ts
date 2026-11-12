@@ -93,7 +93,7 @@ function scanMessage(
 // one write for all dead ones, and per chunk of changed libraries one job write
 // and one queue send. A failed chunk is logged and the others still go out.
 export async function sweepMediaLibraries(
-  deps: Pick<Deps, 'licenseBinding' | 'mediaLibraries' | 'backgroundJobs' | 'jobQueue'>,
+  deps: Pick<Deps, 'licenseBinding' | 'licenseCloudBaseUrl' | 'mediaLibraries' | 'backgroundJobs' | 'jobQueue'>,
   options: { cloudBaseUrl: string },
 ): Promise<void> {
   if (!hasFeature('media_library', await loadBindingState(deps, options))) return
