@@ -36,6 +36,7 @@ import { loadBindingState } from './licensing'
 export type AuthProviderDeps = {
   systemOptions: SystemOptionsRepo
   licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
   cache?: CacheService
 }
 

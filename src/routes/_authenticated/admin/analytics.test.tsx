@@ -22,6 +22,18 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, string | number>) => {
+      if (!values) return key
+      return Object.entries(values).reduce(
+        (message, [name, value]) => message.replace(`{{${name}}}`, String(value)),
+        key,
+      )
+    },
+  }),
+}))
+
 vi.mock('@/components/UpgradeHint', () => ({
   UpgradeHint: ({ title }: { title: string }) => <div data-testid="upgrade-hint">{title}</div>,
 }))
@@ -100,17 +112,20 @@ describe('Admin overview dashboard', () => {
       isError: false,
     })
 
-    renderOverviewPage()
+    const { container } = renderOverviewPage()
 
-    expect(screen.getByText('站点统计')).toBeTruthy()
+    expect(screen.getByText('admin.analytics.title')).toBeTruthy()
     expect(screen.getAllByText('Pro')).toHaveLength(1)
     expect(screen.queryByText('站点概览')).toBeNull()
     expect(screen.queryByText('运行状态')).toBeNull()
-    expect(screen.getByText('用户与增长')).toBeTruthy()
-    expect(screen.getByText('存储与文件')).toBeTruthy()
-    expect(screen.getByText('流量与传输')).toBeTruthy()
-    expect(screen.getByText('分享与访问')).toBeTruthy()
+    expect(screen.getByText('admin.analytics.section.growth.title')).toBeTruthy()
+    expect(screen.getByText('admin.analytics.section.storage.title')).toBeTruthy()
+    expect(screen.getByText('admin.analytics.section.traffic.title')).toBeTruthy()
+    expect(screen.getByText('admin.analytics.section.sharing.title')).toBeTruthy()
     expect(screen.getByTestId('upgrade-hint')).toBeTruthy()
+    // The section copy used to be hardcoded Chinese, so English users saw Chinese
+    // text. With the copy in the locale files nothing Chinese renders.
+    expect(container.textContent).not.toMatch(/[\u4e00-\u9fff]/)
     expect(getAdminDashboardGrowthStats).not.toHaveBeenCalled()
     expect(getAdminDashboardStorageStats).not.toHaveBeenCalled()
     expect(getAdminDashboardTrafficStats).not.toHaveBeenCalled()
@@ -135,13 +150,13 @@ describe('Admin overview dashboard', () => {
     renderOverviewPage()
 
     await waitFor(() => expect(getAdminDashboardGrowthStats).toHaveBeenCalledTimes(1))
-    expect(sectionToggle('用户与增长').getAttribute('aria-expanded')).toBe('true')
+    expect(sectionToggle('admin.analytics.section.growth.title').getAttribute('aria-expanded')).toBe('true')
     expect(screen.getAllByRole('button', { expanded: true })).toHaveLength(1)
     expect(getAdminDashboardStorageStats).not.toHaveBeenCalled()
-    await user.click(sectionToggle('存储与文件'))
+    await user.click(sectionToggle('admin.analytics.section.storage.title'))
     await waitFor(() => expect(getAdminDashboardStorageStats).toHaveBeenCalledTimes(1))
-    expect(sectionToggle('用户与增长').getAttribute('aria-expanded')).toBe('false')
-    expect(sectionToggle('存储与文件').getAttribute('aria-expanded')).toBe('true')
+    expect(sectionToggle('admin.analytics.section.growth.title').getAttribute('aria-expanded')).toBe('false')
+    expect(sectionToggle('admin.analytics.section.storage.title').getAttribute('aria-expanded')).toBe('true')
     expect(screen.getAllByRole('button', { expanded: true })).toHaveLength(1)
   })
 
@@ -169,7 +184,7 @@ describe('Admin overview dashboard', () => {
 
     renderOverviewPage()
 
-    expect(await screen.findByText('总用户数')).toBeTruthy()
+    expect(await screen.findByText('admin.analytics.metric.totalUsers')).toBeTruthy()
     expect(screen.queryByText(/部分小时|数据下限|当前 700\/700|快照采样/)).toBeNull()
   })
 
@@ -201,7 +216,7 @@ describe('Admin overview dashboard', () => {
 
     const { container } = renderOverviewPage()
 
-    expect(await screen.findByText('用户状态分布')).toBeTruthy()
+    expect(await screen.findByText('admin.analytics.chart.userStatus')).toBeTruthy()
     const legend = container.querySelector('[data-slot="breakdown-legend"]')
     expect(legend?.classList.contains('min-h-0')).toBe(true)
     expect(legend?.classList.contains('overflow-y-auto')).toBe(true)
@@ -231,8 +246,8 @@ describe('Admin overview dashboard', () => {
 
     renderOverviewPage()
 
-    expect(await screen.findByText('总用户数')).toBeTruthy()
-    expect(screen.getAllByText('暂无统计数据').length).toBeGreaterThan(0)
+    expect(await screen.findByText('admin.analytics.metric.totalUsers')).toBeTruthy()
+    expect(screen.getAllByText('admin.analytics.empty').length).toBeGreaterThan(0)
     expect(screen.queryByText(/部分小时|数据下限|当前 699\/700|快照采样/)).toBeNull()
   })
 })

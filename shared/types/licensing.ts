@@ -1,5 +1,11 @@
 import type { LicenseFeature } from '../feature-registry'
 
+export interface LicenseHostPolicy {
+  type: 'worker-preview'
+  worker: string
+  account: string
+}
+
 export type { LicenseFeature, ProFeature } from '../feature-registry'
 
 export type LicenseEdition = 'pro' | 'business'
@@ -12,6 +18,7 @@ export interface LicenseAssertion {
   instanceId: string
   edition: LicenseEdition
   licenseId?: string
+  hostPolicy?: LicenseHostPolicy
   authorizedHosts: string[]
   licenseValidUntil: number
   issuedAt: number

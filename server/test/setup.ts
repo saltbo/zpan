@@ -960,14 +960,18 @@ export async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp
 /**
  * Insert a Business license binding row so commercial feature gates resolve as enabled.
  */
-export async function seedBusinessLicense(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  return seedLicense(db, { edition: 'business' })
+export async function seedBusinessLicense(
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  issuer = ZPAN_CLOUD_URL_DEFAULT,
+) {
+  return seedLicense(db, { edition: 'business', issuer })
 }
 
 async function seedLicense(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
   input: {
     edition: LicenseEdition
+    issuer?: string
   },
 ) {
   const { PUBLIC_KEYS } = await import('../domain/license-keys.js')
@@ -980,7 +984,7 @@ async function seedLicense(
   const expiresAt = issuedAt + 3600
   const cachedCert = sign(TEST_LICENSE_SECRET, {
     type: 'zpan.license',
-    issuer: ZPAN_CLOUD_URL_DEFAULT,
+    issuer: input.issuer ?? ZPAN_CLOUD_URL_DEFAULT,
     subject: 'test-binding',
     accountId: 'test-account',
     instanceId: 'test-instance',

@@ -110,6 +110,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     imageUpload: createImageUploadGateway(licenseBinding, licensingCloud),
     instance: createInstanceRepo(db),
     licenseBinding,
+    licenseCloudBaseUrl: platform.getEnv('ZPAN_CLOUD_URL'),
     licensingCloud,
     matter: createMatterRepo(db),
     mediaLibraries: createMediaLibraryRepo(db),
