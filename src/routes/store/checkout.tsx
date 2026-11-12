@@ -28,7 +28,7 @@ export const Route = createFileRoute('/store/checkout')({
   beforeLoad: async ({ location }) => {
     const data = await getSession()
     if (!data?.session) {
-      const redirectUrl = encodeURIComponent(`${location.pathname}${location.searchStr ?? ''}`)
+      const redirectUrl = `${location.pathname}${location.searchStr ?? ''}`
       throw redirect({ to: '/sign-in', search: { redirect: redirectUrl } as never })
     }
   },
