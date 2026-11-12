@@ -673,6 +673,13 @@
       "when": 1794238525719,
       "tag": "0096_media-libraries",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "6",
+      "when": 1794515936921,
+      "tag": "0097_better-auth-stable-account-id",
+      "breakpoints": true
     }
   ]
 }

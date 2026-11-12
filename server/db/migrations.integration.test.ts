@@ -211,6 +211,46 @@ describe('migration 0069_storage-health-status-vocabulary.sql', () => {
   })
 })
 
+describe('migration 0097_better-auth-stable-account-id.sql', () => {
+  const migrationPath = join(process.cwd(), 'migrations/0097_better-auth-stable-account-id.sql')
+  const migration = readFileSync(migrationPath, 'utf-8').replaceAll('--> statement-breakpoint', '')
+
+  it('drops the rc issuer column and keys account identity by provider and account id', () => {
+    const db = new Database(':memory:')
+
+    try {
+      db.exec(`
+        CREATE TABLE account (
+          id TEXT PRIMARY KEY NOT NULL,
+          issuer TEXT DEFAULT '' NOT NULL,
+          account_id TEXT NOT NULL,
+          provider_id TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX account_issuer_providerAccountId_unique ON account (issuer, account_id);
+        INSERT INTO account (id, issuer, account_id, provider_id) VALUES
+          ('credential', 'local:credential', 'user-1', 'credential'),
+          ('github', 'local:oauth:github', '42', 'github'),
+          ('google', 'https://accounts.google.com', '42', 'google');
+      `)
+
+      db.exec(migration)
+
+      expect(db.prepare('SELECT * FROM account ORDER BY id').all()).toEqual([
+        { id: 'credential', account_id: 'user-1', provider_id: 'credential' },
+        { id: 'github', account_id: '42', provider_id: 'github' },
+        { id: 'google', account_id: '42', provider_id: 'google' },
+      ])
+      expect(() =>
+        db
+          .prepare('INSERT INTO account (id, account_id, provider_id) VALUES (?, ?, ?)')
+          .run('duplicate', '42', 'github'),
+      ).toThrow(/UNIQUE constraint failed/)
+    } finally {
+      db.close()
+    }
+  })
+})
+
 describe('migration 0089_better-auth-account-issuer-backfill.sql', () => {
   const migrationPath = join(process.cwd(), 'migrations/0089_better-auth-account-issuer-backfill.sql')
   const migration = readFileSync(migrationPath, 'utf-8')
