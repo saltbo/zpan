@@ -50,6 +50,7 @@ import type {
   SystemOptionsRepo,
   TeamInviteRepo,
   TeamRepo,
+  TmdbGateway,
   UserAdminRepo,
   WebDavPathRepo,
   WebDavStateRepo,
@@ -107,6 +108,7 @@ export interface Deps {
   systemOptions: SystemOptionsRepo
   teams: TeamRepo
   teamInvites: TeamInviteRepo
+  tmdb: TmdbGateway
   userAdmin: UserAdminRepo
   webdavPath: WebDavPathRepo
   webdavState: WebDavStateRepo

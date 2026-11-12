@@ -1951,6 +1951,51 @@ func (e ManualImageDomainSettingsProvider) Valid() bool {
 	}
 }
 
+// Defines values for MediaScraperLanguage.
+const (
+	DeDE MediaScraperLanguage = "de-DE"
+	EnUS MediaScraperLanguage = "en-US"
+	EsES MediaScraperLanguage = "es-ES"
+	FrFR MediaScraperLanguage = "fr-FR"
+	ItIT MediaScraperLanguage = "it-IT"
+	JaJP MediaScraperLanguage = "ja-JP"
+	KoKR MediaScraperLanguage = "ko-KR"
+	PtBR MediaScraperLanguage = "pt-BR"
+	RuRU MediaScraperLanguage = "ru-RU"
+	ZhCN MediaScraperLanguage = "zh-CN"
+	ZhTW MediaScraperLanguage = "zh-TW"
+)
+
+// Valid indicates whether the value is a known member of the MediaScraperLanguage enum.
+func (e MediaScraperLanguage) Valid() bool {
+	switch e {
+	case DeDE:
+		return true
+	case EnUS:
+		return true
+	case EsES:
+		return true
+	case FrFR:
+		return true
+	case ItIT:
+		return true
+	case JaJP:
+		return true
+	case KoKR:
+		return true
+	case PtBR:
+		return true
+	case RuRU:
+		return true
+	case ZhCN:
+		return true
+	case ZhTW:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PublicAuthProviderType.
 const (
 	PublicAuthProviderTypeBuiltin PublicAuthProviderType = "builtin"
@@ -5965,7 +6010,10 @@ type MediaLibrary struct {
 	OrgId         string  `json:"orgId"`
 
 	// Scanning Whether a scan is queued or running.
-	Scanning  bool   `json:"scanning"`
+	Scanning bool `json:"scanning"`
+
+	// Scraping Whether a TMDB scrape is queued or running.
+	Scraping  bool   `json:"scraping"`
 	UpdatedAt string `json:"updatedAt"`
 }
 
@@ -5974,6 +6022,9 @@ type MediaLibraryPage struct {
 	Items         []MediaLibrary `json:"items"`
 	NextPageToken *string        `json:"nextPageToken"`
 }
+
+// MediaScraperLanguage TMDB language tag the metadata is scraped in.
+type MediaScraperLanguage string
 
 // Notification defines model for Notification.
 type Notification struct {
@@ -6339,6 +6390,15 @@ type SiteInvitationList struct {
 	Total    int              `json:"total"`
 }
 
+// SiteMediaScrapingSettings defines model for SiteMediaScrapingSettings.
+type SiteMediaScrapingSettings struct {
+	// Language TMDB language tag the metadata is scraped in.
+	Language MediaScraperLanguage `json:"language"`
+
+	// TmdbTokenConfigured Whether a TMDB API Read Access Token is saved.
+	TmdbTokenConfigured bool `json:"tmdbTokenConfigured"`
+}
+
 // SiteQuotaSettings defines model for SiteQuotaSettings.
 type SiteQuotaSettings struct {
 	DefaultMonthlyTrafficBytes int `json:"defaultMonthlyTrafficBytes"`
@@ -6354,11 +6414,12 @@ type SiteRegistrationSettings struct {
 
 // SiteSettings defines model for SiteSettings.
 type SiteSettings struct {
-	Captcha      SiteCaptchaSettings      `json:"captcha"`
-	Identity     SiteIdentitySettings     `json:"identity"`
-	Quotas       SiteQuotaSettings        `json:"quotas"`
-	Registration SiteRegistrationSettings `json:"registration"`
-	Webdav       SiteWebDavSettings       `json:"webdav"`
+	Captcha       SiteCaptchaSettings       `json:"captcha"`
+	Identity      SiteIdentitySettings      `json:"identity"`
+	MediaScraping SiteMediaScrapingSettings `json:"mediaScraping"`
+	Quotas        SiteQuotaSettings         `json:"quotas"`
+	Registration  SiteRegistrationSettings  `json:"registration"`
+	Webdav        SiteWebDavSettings        `json:"webdav"`
 }
 
 // SiteWebDavSettings defines model for SiteWebDavSettings.
@@ -6541,6 +6602,13 @@ type UpdateSiteCaptcha struct {
 	Provider  CaptchaProvider `json:"provider"`
 	SecretKey *string         `json:"secretKey,omitempty"`
 	SiteKey   string          `json:"siteKey"`
+}
+
+// UpdateSiteMediaScraping defines model for UpdateSiteMediaScraping.
+type UpdateSiteMediaScraping struct {
+	// Language TMDB language tag the metadata is scraped in.
+	Language        MediaScraperLanguage `json:"language"`
+	TmdbAccessToken *string              `json:"tmdbAccessToken,omitempty"`
 }
 
 // UpdateSiteRegistration defines model for UpdateSiteRegistration.
@@ -7813,6 +7881,9 @@ type UpdateSiteIdentityJSONRequestBody = SiteIdentitySettings
 
 // SaveImageDomainProviderJSONRequestBody defines body for SaveImageDomainProvider for application/json ContentType.
 type SaveImageDomainProviderJSONRequestBody = UpdateImageDomainSettings
+
+// UpdateSiteMediaScrapingJSONRequestBody defines body for UpdateSiteMediaScraping for application/json ContentType.
+type UpdateSiteMediaScrapingJSONRequestBody = UpdateSiteMediaScraping
 
 // UpdateSiteQuotasJSONRequestBody defines body for UpdateSiteQuotas for application/json ContentType.
 type UpdateSiteQuotasJSONRequestBody = SiteQuotaSettings
@@ -11246,6 +11317,9 @@ type ClientInterface interface {
 	// CreateMediaLibraryScan request
 	CreateMediaLibraryScan(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateMediaLibraryScrape request
+	CreateMediaLibraryScrape(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListNotifications request
 	ListNotifications(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -11513,6 +11587,11 @@ type ClientInterface interface {
 
 	// TestImageDomainProvider request
 	TestImageDomainProvider(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateSiteMediaScrapingWithBody request with any body
+	UpdateSiteMediaScrapingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateSiteMediaScraping(ctx context.Context, body UpdateSiteMediaScrapingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateSiteQuotasWithBody request with any body
 	UpdateSiteQuotasWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -12404,6 +12483,18 @@ func (c *Client) DeleteMediaLibrary(ctx context.Context, id string, reqEditors .
 
 func (c *Client) CreateMediaLibraryScan(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateMediaLibraryScanRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateMediaLibraryScrape(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMediaLibraryScrapeRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -13568,6 +13659,30 @@ func (c *Client) SaveImageDomainProvider(ctx context.Context, body SaveImageDoma
 
 func (c *Client) TestImageDomainProvider(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTestImageDomainProviderRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSiteMediaScrapingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteMediaScrapingRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSiteMediaScraping(ctx context.Context, body UpdateSiteMediaScrapingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSiteMediaScrapingRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -16238,6 +16353,40 @@ func NewCreateMediaLibraryScanRequest(server string, id string) (*http.Request, 
 	}
 
 	operationPath := fmt.Sprintf("/api/media-libraries/%s/scans", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateMediaLibraryScrapeRequest generates requests for CreateMediaLibraryScrape
+func NewCreateMediaLibraryScrapeRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/media-libraries/%s/scrapes", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -19675,6 +19824,46 @@ func NewTestImageDomainProviderRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewUpdateSiteMediaScrapingRequest calls the generic UpdateSiteMediaScraping builder with application/json body
+func NewUpdateSiteMediaScrapingRequest(server string, body UpdateSiteMediaScrapingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateSiteMediaScrapingRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewUpdateSiteMediaScrapingRequestWithBody generates requests for UpdateSiteMediaScraping with any type of body
+func NewUpdateSiteMediaScrapingRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/site/settings/media-scraping")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewUpdateSiteQuotasRequest calls the generic UpdateSiteQuotas builder with application/json body
 func NewUpdateSiteQuotasRequest(server string, body UpdateSiteQuotasJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -21936,6 +22125,9 @@ type ClientWithResponsesInterface interface {
 	// CreateMediaLibraryScanWithResponse request
 	CreateMediaLibraryScanWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CreateMediaLibraryScanResponse, error)
 
+	// CreateMediaLibraryScrapeWithResponse request
+	CreateMediaLibraryScrapeWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CreateMediaLibraryScrapeResponse, error)
+
 	// ListNotificationsWithResponse request
 	ListNotificationsWithResponse(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*ListNotificationsResponse, error)
 
@@ -22203,6 +22395,11 @@ type ClientWithResponsesInterface interface {
 
 	// TestImageDomainProviderWithResponse request
 	TestImageDomainProviderWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*TestImageDomainProviderResponse, error)
+
+	// UpdateSiteMediaScrapingWithBodyWithResponse request with any body
+	UpdateSiteMediaScrapingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteMediaScrapingResponse, error)
+
+	UpdateSiteMediaScrapingWithResponse(ctx context.Context, body UpdateSiteMediaScrapingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteMediaScrapingResponse, error)
 
 	// UpdateSiteQuotasWithBodyWithResponse request with any body
 	UpdateSiteQuotasWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteQuotasResponse, error)
@@ -23797,6 +23994,41 @@ func (r CreateMediaLibraryScanResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateMediaLibraryScanResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateMediaLibraryScrapeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *BackgroundJob
+	JSON402      *Error
+	JSON404      *Error
+	JSON409      *Error
+	JSON412      *Error
+	JSON503      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateMediaLibraryScrapeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateMediaLibraryScrapeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateMediaLibraryScrapeResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -26272,6 +26504,37 @@ func (r TestImageDomainProviderResponse) ContentType() string {
 	return ""
 }
 
+type UpdateSiteMediaScrapingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *SiteMediaScrapingSettings
+	JSON400      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateSiteMediaScrapingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateSiteMediaScrapingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateSiteMediaScrapingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type UpdateSiteQuotasResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -28460,6 +28723,15 @@ func (c *ClientWithResponses) CreateMediaLibraryScanWithResponse(ctx context.Con
 	return ParseCreateMediaLibraryScanResponse(rsp)
 }
 
+// CreateMediaLibraryScrapeWithResponse request returning *CreateMediaLibraryScrapeResponse
+func (c *ClientWithResponses) CreateMediaLibraryScrapeWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CreateMediaLibraryScrapeResponse, error) {
+	rsp, err := c.CreateMediaLibraryScrape(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateMediaLibraryScrapeResponse(rsp)
+}
+
 // ListNotificationsWithResponse request returning *ListNotificationsResponse
 func (c *ClientWithResponses) ListNotificationsWithResponse(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*ListNotificationsResponse, error) {
 	rsp, err := c.ListNotifications(ctx, params, reqEditors...)
@@ -29308,6 +29580,23 @@ func (c *ClientWithResponses) TestImageDomainProviderWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseTestImageDomainProviderResponse(rsp)
+}
+
+// UpdateSiteMediaScrapingWithBodyWithResponse request with arbitrary body returning *UpdateSiteMediaScrapingResponse
+func (c *ClientWithResponses) UpdateSiteMediaScrapingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteMediaScrapingResponse, error) {
+	rsp, err := c.UpdateSiteMediaScrapingWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSiteMediaScrapingResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateSiteMediaScrapingWithResponse(ctx context.Context, body UpdateSiteMediaScrapingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteMediaScrapingResponse, error) {
+	rsp, err := c.UpdateSiteMediaScraping(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSiteMediaScrapingResponse(rsp)
 }
 
 // UpdateSiteQuotasWithBodyWithResponse request with arbitrary body returning *UpdateSiteQuotasResponse
@@ -31702,6 +31991,67 @@ func ParseCreateMediaLibraryScanResponse(rsp *http.Response) (*CreateMediaLibrar
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateMediaLibraryScrapeResponse parses an HTTP response from a CreateMediaLibraryScrapeWithResponse call
+func ParseCreateMediaLibraryScrapeResponse(rsp *http.Response) (*CreateMediaLibraryScrapeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateMediaLibraryScrapeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest BackgroundJob
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
 		var dest Error
@@ -34429,6 +34779,39 @@ func ParseTestImageDomainProviderResponse(rsp *http.Response) (*TestImageDomainP
 		var dest struct {
 			Success TestImageDomainProvider200JSONResponseBodySuccess `json:"success"`
 		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateSiteMediaScrapingResponse parses an HTTP response from a UpdateSiteMediaScrapingWithResponse call
+func ParseUpdateSiteMediaScrapingResponse(rsp *http.Response) (*UpdateSiteMediaScrapingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateSiteMediaScrapingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SiteMediaScrapingSettings
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

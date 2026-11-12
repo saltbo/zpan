@@ -1,3 +1,4 @@
+import { ZPAN_CLOUD_URL_DEFAULT } from '@shared/constants'
 import { sql } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BACKGROUND_JOB_QUEUE_BINDING } from '../adapters/gateways/background-job-queue'
@@ -240,7 +241,7 @@ describe('background jobs API', () => {
     expect(messages[0].createdBy).toMatchObject({ type: 'user', issuer: null })
     await expect(createBackgroundJobRepo(db).get(orgId, created.id)).resolves.toMatchObject({ status: 'queued' })
 
-    await runBackgroundJob(deps, messages[0])
+    await runBackgroundJob(deps, messages[0], { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
 
     await expect(createBackgroundJobRepo(db).get(orgId, created.id)).resolves.toMatchObject({
       status: 'completed',

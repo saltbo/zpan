@@ -20,6 +20,7 @@ function file(parent: string, name: string, overrides: Partial<MediaLibraryFile>
     type: 'application/octet-stream',
     size: 10,
     updatedAt: modified,
+    tmdb: null,
     ...overrides,
   }
 }
@@ -112,18 +113,19 @@ describe('serializeMediaLibraryFeed', () => {
     generatedAt: new Date('2026-02-01T00:00:00.000Z'),
   }
 
-  it('streams a JSON Feed 1.1 snapshot of the videos in listing order [spec: media-library/build-feed]', async () => {
+  it('streams a JSON Feed 1.1 snapshot of the videos in listing order, with their TMDB ids [spec: media-library/build-feed] [spec: media-scraping/publish-ids]', async () => {
     const page = (...files: MediaLibraryFile[]) => mediaLibraryFeedItems(movies, files)
     const text = await feedText(movies, [
       page(file('Media/Movies', 'Inception (2010).mp4', { type: 'video/mp4' }), file('Media/Movies', 'poster.jpg')),
       page(),
-      page(file('Media/Movies/Sci-Fi', 'Dune (2021).mkv', { size: 2048 })),
+      page(file('Media/Movies/Sci-Fi', 'Dune (2021).mkv', { size: 2048, tmdb: { id: 438631, type: 'movie' } })),
       page(file('Media/Movies/Sci-Fi', 'notes.txt', { type: 'text/plain' })),
-      page(file('Media/Movies/Shows/Season 1', 'S01E02 #1?.mkv')),
+      page(file('Media/Movies/Shows/Season 1', 'S01E02 #1?.mkv', { tmdb: { id: 1396, type: 'tv' } })),
     ])
 
     const feed = JSON.parse(text)
     expect(text).toBe(JSON.stringify(feed))
+    expect(text).toContain('"_media":{"type":"movie","title":"Dune","year":2021,"tmdb":{"id":438631,"type":"movie"}}')
     expect(mediaLibraryFeedSchema.parse(feed)).toEqual(feed)
     expect(feed).toEqual({
       version: 'https://jsonfeed.org/version/1.1',
@@ -144,7 +146,7 @@ describe('serializeMediaLibraryFeed', () => {
           content_text: 'Sci-Fi/Dune (2021).mkv',
           date_modified: '2026-01-02T03:04:05.000Z',
           attachments: [{ url: 'Sci-Fi/Dune%20(2021).mkv', mime_type: 'video/x-matroska', size_in_bytes: 2048 }],
-          _media: { type: 'movie', title: 'Dune', year: 2021 },
+          _media: { type: 'movie', title: 'Dune', year: 2021, tmdb: { id: 438631, type: 'movie' } },
         },
         {
           id: 'id-S01E02 #1?.mkv',
@@ -154,7 +156,7 @@ describe('serializeMediaLibraryFeed', () => {
           attachments: [
             { url: 'Shows/Season%201/S01E02%20%231%3F.mkv', mime_type: 'video/x-matroska', size_in_bytes: 10 },
           ],
-          _media: { type: 'episode', title: 'Shows', season: 1, episode: 2 },
+          _media: { type: 'episode', title: 'Shows', season: 1, episode: 2, tmdb: { id: 1396, type: 'tv' } },
         },
       ],
     })
@@ -172,7 +174,11 @@ describe('serializeMediaLibraryFeed', () => {
     ]
     const items = mediaLibraryFeedItems(
       source,
-      names.map((name, i) => file(i % 2 ? `${source.folderPath}/剧集/Season 1` : source.folderPath, name)),
+      names.map((name, i) =>
+        file(i % 2 ? `${source.folderPath}/剧集/Season 1` : source.folderPath, name, {
+          tmdb: i % 3 ? null : { id: 1000 + i, type: i % 2 ? 'tv' : 'movie' },
+        }),
+      ),
     )
     const whole = (feedItems: unknown[]) =>
       JSON.stringify({

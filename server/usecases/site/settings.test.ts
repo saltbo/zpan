@@ -82,6 +82,7 @@ describe('site settings usecase', () => {
         lastVerifiedAt: null,
         error: null,
       },
+      mediaScraping: { language: 'en-US', tmdbTokenConfigured: false },
     })
     expect(JSON.stringify(settings)).not.toContain('secretKey')
   })

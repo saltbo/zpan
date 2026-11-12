@@ -1,6 +1,6 @@
 import type { MediaInfo } from '@shared/schemas'
 import { describe, expect, it } from 'vitest'
-import { parseMediaFilename, parseMediaPath } from './media-filename'
+import { isSeasonFolder, parseMediaFilename, parseMediaPath } from './media-filename'
 
 describe('parseMediaFilename', () => {
   it.each<[string, MediaInfo]>([
@@ -51,5 +51,21 @@ describe('parseMediaPath', () => {
 
   it('leaves the title empty when every folder is a season folder', () => {
     expect(parseMediaPath(['Season 2'], 'S02E03.mkv')).toMatchObject({ title: '', season: 2, episode: 3 })
+  })
+})
+
+describe('isSeasonFolder', () => {
+  it.each([
+    ['Season 1', true],
+    ['season01', true],
+    ['S01', true],
+    ['Series 2', true],
+    ['第1季', true],
+    ['第一季', true],
+    ['Specials', true],
+    ['Breaking Bad', false],
+    ['Season 1 Extras', false],
+  ])('classifies %s [spec: media-scraping/sidecar-layout]', (name, season) => {
+    expect(isSeasonFolder(name)).toBe(season)
   })
 })

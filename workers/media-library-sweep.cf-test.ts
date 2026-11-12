@@ -156,7 +156,7 @@ describe('[CF] media library sweep on D1', () => {
     const [state] = await repo.listForSweep()
 
     expect(state).toMatchObject({ id: library.id, indexed: true, folder: { path, trashed: false } })
-    expect(state.subtreeFingerprint).toBe(await repo.fingerprint(orgId, path))
+    expect(state.subtreeFingerprint).toBe(await repo.fingerprint(orgId, library.id, path))
     // The two videos of 100 bytes: library.json is excluded, and the siblings
     // that share the prefix or match it as a LIKE pattern stay outside.
     expect(state.subtreeFingerprint).toMatch(/^2:200:/)

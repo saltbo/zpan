@@ -1,5 +1,5 @@
 import type { BackgroundJob, BackgroundJobStatus, KnownBackgroundJobType } from '@shared/types'
-import { Archive, Clapperboard, FileArchive, type LucideIcon, RotateCcw, Square } from 'lucide-react'
+import { Archive, Clapperboard, FileArchive, type LucideIcon, RotateCcw, Sparkles, Square } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,7 @@ const TASK_TYPES: Record<KnownBackgroundJobType, { icon: LucideIcon; labelKey: s
   archive_compress: { icon: Archive, labelKey: 'tasks.type.archiveCompress', byteProgress: true },
   archive_extract: { icon: FileArchive, labelKey: 'tasks.type.archiveExtract', byteProgress: true },
   media_library_scan: { icon: Clapperboard, labelKey: 'tasks.type.mediaLibraryScan', byteProgress: false },
+  media_library_scrape: { icon: Sparkles, labelKey: 'tasks.type.mediaLibraryScrape', byteProgress: false },
 }
 
 function taskType(type: string) {
@@ -182,6 +183,14 @@ export function formatTaskType(type: string, t: (key: string) => string): string
 
 export function formatResult(job: BackgroundJob, t: (key: string, values?: Record<string, unknown>) => string): string {
   if (job.status === 'failed') return job.errorMessage ?? '-'
+  const { matched, unmatched, failed = 0, quotaExceeded } = job.resultMetadata ?? {}
+  if (typeof matched === 'number' && typeof unmatched === 'number' && typeof failed === 'number') {
+    return [
+      t('tasks.result.mediaMatched', { matched, total: matched + unmatched + failed }),
+      ...(failed > 0 ? [t('tasks.result.mediaFailed', { count: failed })] : []),
+      ...(quotaExceeded === true ? [t('tasks.result.mediaQuotaExceeded')] : []),
+    ].join('; ')
+  }
   const itemCount = typeof job.resultMetadata?.itemCount === 'number' ? job.resultMetadata.itemCount : null
   if (itemCount !== null) return t('tasks.result.mediaItems', { count: itemCount })
   const outputName = typeof job.resultMetadata?.outputName === 'string' ? job.resultMetadata.outputName : null

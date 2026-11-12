@@ -17,23 +17,30 @@ import { enqueueArchiveJob, processArchiveJob } from './archive-processing'
 // ports, so it forwards the whole Deps; the reads need only the narrow ports.
 import type { Deps } from './deps'
 import { processMediaLibraryScan } from './media-library-scan'
-import type { ActorIdentity, BackgroundJobMessage, ListBackgroundJobsOptions } from './ports'
+import { processMediaLibraryScrape } from './media-library-scrape'
+import type { ActorIdentity, BackgroundJobMessage, BackgroundJobRuntime, ListBackgroundJobsOptions } from './ports'
 
 type JobType = BackgroundJobRequest['type']
 type JobProcessor<T extends JobType> = (
   deps: Deps,
   message: BackgroundJobMessage<Extract<BackgroundJobRequest, { type: T }>>,
+  runtime: BackgroundJobRuntime,
 ) => Promise<unknown>
 
 const JOB_PROCESSORS: { [T in JobType]: JobProcessor<T> } = {
   archive_compress: processArchiveJob,
   archive_extract: processArchiveJob,
   media_library_scan: processMediaLibraryScan,
+  media_library_scrape: processMediaLibraryScrape,
 }
 
-export async function runBackgroundJob(deps: Deps, message: BackgroundJobMessage): Promise<void> {
+export async function runBackgroundJob(
+  deps: Deps,
+  message: BackgroundJobMessage,
+  runtime: BackgroundJobRuntime,
+): Promise<void> {
   const process = JOB_PROCESSORS[message.request.type] as JobProcessor<JobType>
-  await process(deps, message)
+  await process(deps, message, runtime)
 }
 
 export function listBackgroundJobs(deps: Pick<Deps, 'backgroundJobs'>, orgId: string, opts: ListBackgroundJobsOptions) {

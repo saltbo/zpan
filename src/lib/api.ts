@@ -41,6 +41,7 @@ import type {
   UpdateImageDomainSettingsInput,
   UpdateSiteCaptchaInput,
   UpdateSiteIdentityInput,
+  UpdateSiteMediaScrapingInput,
   UpdateSiteQuotasInput,
   UpdateSiteRegistrationInput,
   UpdateSiteWebDavInput,
@@ -188,6 +189,10 @@ export function updateSiteQuotas(input: UpdateSiteQuotasInput) {
 
 export function updateSiteWebDav(input: UpdateSiteWebDavInput) {
   return unwrap<SiteSettings['webdav']>(siteSettingsApi.webdav.$put({ json: input }))
+}
+
+export function updateSiteMediaScraping(input: UpdateSiteMediaScrapingInput) {
+  return unwrap<SiteSettings['mediaScraping']>(siteSettingsApi['media-scraping'].$put({ json: input }))
 }
 
 export function verifySiteWebDav() {
@@ -567,6 +572,10 @@ export function deleteMediaLibrary(id: string) {
 
 export function scanMediaLibrary(id: string) {
   return unwrap<BackgroundJob>(mediaLibrariesApi[':id'].scans.$post({ param: { id } }))
+}
+
+export function scrapeMediaLibrary(id: string) {
+  return unwrap<BackgroundJob>(mediaLibrariesApi[':id'].scrapes.$post({ param: { id } }))
 }
 
 // Admin dashboard stats

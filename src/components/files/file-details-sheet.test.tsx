@@ -79,6 +79,7 @@ describe('FileDetailsSheet', () => {
       onSet: vi.fn(),
       onRemove: vi.fn(),
       onRescan: vi.fn(),
+      onScrape: vi.fn(),
       ...overrides,
     })
     const renderSheet = (mediaLibrary: MediaLibraryActions) =>
@@ -102,12 +103,23 @@ describe('FileDetailsSheet', () => {
     expect(screen.getByText('/Movies/library.json')).toBeTruthy()
     cleanup()
 
+    renderSheet(
+      actions({
+        libraryFor: () =>
+          ({ id: 'lib-1', folderPath: 'Movies', scanning: false, scraping: true, lastScannedAt }) as ReturnType<
+            MediaLibraryActions['libraryFor']
+          >,
+      }),
+    )
+    expect(screen.getByText('mediaLibrary.scraping')).toBeTruthy()
+    cleanup()
+
     renderSheet(actions({}))
     expect(screen.getByText('mediaLibrary.none')).toBeTruthy()
     cleanup()
 
     renderSheet(actions({ locked: true }))
-    expect(screen.getByText('Pro')).toBeTruthy()
+    expect(screen.queryByText('mediaLibrary.title')).toBeNull()
     expect(screen.queryByText('mediaLibrary.indexFile')).toBeNull()
     cleanup()
 
