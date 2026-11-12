@@ -4,12 +4,12 @@ import type { Context } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import type { BindingState } from '../../../shared/types'
 import { originFromRequestUrl } from '../../domain/site-public-origin'
+import { licenseRequestHost } from '../../middleware/license-host'
 import type { Env } from '../../middleware/platform'
 import { runtimeInfo } from '../../usecases/site/instance-info'
 import {
   initiatePairing,
   loadBindingState,
-  normalizeHost,
   pollPairing,
   triggerRefresh,
   unbindLicense,
@@ -28,19 +28,6 @@ async function getInstanceOrigin(c: Context<Env>): Promise<string | null> {
 
 async function requireInstanceOrigin(c: Context<Env>): Promise<string> {
   return (await getInstanceOrigin(c)) ?? new URL(c.req.url).origin
-}
-
-async function configuredPublicHost(c: Context<Env>): Promise<string | null> {
-  const origin = await getInstanceOrigin(c)
-  return origin ? new URL(origin).host : null
-}
-
-async function getRequestHost(c: Context<Env>): Promise<string> {
-  if (c.get('platform').getEnv('ZPAN_PREVIEW') === 'true') return new URL(c.req.url).host
-  const configured = await getSitePublicOrigin(c.get('deps'))
-  if (configured) return new URL(configured).host
-  const forwardedHost = c.req.header('x-forwarded-host') ?? c.req.header('host')
-  return normalizeHost(forwardedHost) ?? new URL(c.req.url).host
 }
 
 function cloudDashboardUrl(cloudBaseUrl: string): string {
@@ -163,10 +150,7 @@ const unbindRoute = authRoute(
 
 async function loadCurrentBinding(c: Context<Env>) {
   const cloudBaseUrl = getCloudBaseUrl(c)
-  const currentHost =
-    (await configuredPublicHost(c)) ??
-    normalizeHost(c.req.header('x-forwarded-host') ?? c.req.header('host')) ??
-    new URL(c.req.url).host
+  const currentHost = await licenseRequestHost(c)
   return {
     ...(await loadBindingState(c.get('deps'), { currentHost, cloudBaseUrl })),
     cloud_dashboard_url: cloudDashboardUrl(cloudBaseUrl),
@@ -202,7 +186,7 @@ export const licensingAdmin = adminApp
     const result = await pollPairing(c.get('deps'), {
       baseUrl: getCloudBaseUrl(c),
       code: c.req.valid('param').code,
-      currentHost: await getRequestHost(c),
+      currentHost: await licenseRequestHost(c),
     })
     if (!result.ok) throw result.error
     if (result.status === 'approved') {

@@ -20,6 +20,7 @@ export type ImageHostingConfigDeps = {
   imageHostingConfigs: ImageHostingConfigRepo
   imageDomains: ImageDomainProviderGateway
   licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
   cache?: import('../ports').CacheService
 }
 

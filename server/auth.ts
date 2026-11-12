@@ -697,7 +697,11 @@ export async function createAuth(
               count: current_count,
               limit,
             } = await checkTeamLimit(
-              { memberCount: createMemberCountRepo(db), licenseBinding: createLicenseBindingRepo(db) },
+              {
+                memberCount: createMemberCountRepo(db),
+                licenseCloudBaseUrl: authPlatform.getEnv('ZPAN_CLOUD_URL'),
+                licenseBinding: createLicenseBindingRepo(db),
+              },
               user.id,
             )
             if (!allowed) {
@@ -820,6 +824,7 @@ export async function createAuth(
             if (!firstUser) {
               const mode = await getEffectiveSignupMode({
                 systemOptions: createSystemOptionsRepo(db),
+                licenseCloudBaseUrl: authPlatform.getEnv('ZPAN_CLOUD_URL'),
                 licenseBinding: createLicenseBindingRepo(db),
               })
               const email = String(user.email ?? '')
@@ -866,6 +871,7 @@ export async function createAuth(
             // Redeem invite code after user is created (user.id is now available)
             const mode = await getEffectiveSignupMode({
               systemOptions: createSystemOptionsRepo(db),
+              licenseCloudBaseUrl: authPlatform.getEnv('ZPAN_CLOUD_URL'),
               licenseBinding: createLicenseBindingRepo(db),
             })
             if (mode === SignupMode.INVITE_ONLY) {

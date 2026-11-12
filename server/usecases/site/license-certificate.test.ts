@@ -142,3 +142,52 @@ describe('verifyCertificateResult', () => {
     })
   })
 })
+
+const previewPolicy = { type: 'worker-preview', worker: 'zpan', account: 'saltbo' }
+describe('signed preview policy', () => {
+  it.each(['pr-595-zpan.saltbo.workers.dev', 'HASH-zpan.SALTBO.workers.dev'])('accepts %s', (currentHost) => {
+    expect(
+      verifyCertificate(signCert({ hostPolicy: previewPolicy, authorizedHosts: [] }), {
+        instanceId: 'inst-abc',
+        currentHost,
+      }),
+    ).not.toBeNull()
+  })
+  it.each([
+    'zpan.saltbo.workers.dev',
+    'pr-1-other.saltbo.workers.dev',
+    'pr-1-zpan.other.workers.dev',
+    'a.pr-1-zpan.saltbo.workers.dev',
+    'pr-1-zpan.saltbo.workers.dev.evil.com',
+    'pr-1-zpan.saltbo.workers.dev:443',
+    'http://[',
+    'evil@pr-1-zpan.saltbo.workers.dev',
+    'pr-1-zpan.saltbo.workers.dev/path',
+    'pr-1-zpan.saltbo.workers.dev?x',
+    '-zpan.saltbo.workers.dev',
+  ])('rejects %s', (currentHost) => {
+    expect(
+      verifyCertificate(signCert({ hostPolicy: previewPolicy }), { instanceId: 'inst-abc', currentHost }),
+    ).toBeNull()
+  })
+  it.each([
+    { instanceId: 'wrong' },
+    { issuer: 'https://evil.com' },
+    { expiresAt: 1 },
+  ])('retains claim checks %j', (claims) => {
+    expect(
+      verifyCertificate(signCert({ hostPolicy: previewPolicy, ...claims }), {
+        instanceId: 'inst-abc',
+        currentHost: 'pr-1-zpan.saltbo.workers.dev',
+      }),
+    ).toBeNull()
+  })
+  it('rejects malformed policies and invalid signatures', () => {
+    expect(
+      verifyCertificate(signCert({ hostPolicy: { type: 'wildcard', suffix: '*.workers.dev' } }), {
+        instanceId: 'inst-abc',
+      }),
+    ).toBeNull()
+    expect(verifyCertificate(`${signCert({ hostPolicy: previewPolicy })}x`, { instanceId: 'inst-abc' })).toBeNull()
+  })
+})
