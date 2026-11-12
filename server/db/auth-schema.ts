@@ -55,6 +55,9 @@ export const account = sqliteTable(
   'account',
   {
     id: text('id').primaryKey(),
+    // Deprecated: written by better-auth 1.7 rc, unused since stable 1.7.7. Kept (expand/contract)
+    // so the previous release keeps working during rollout; drop it in a follow-up migration.
+    issuer: text('issuer').notNull().default(''),
     accountId: text('account_id').notNull(),
     providerId: text('provider_id').notNull(),
     userId: text('user_id')

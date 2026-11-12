@@ -49,6 +49,7 @@ const AUTH_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS session_userId_idx ON session(user_id);
   CREATE TABLE IF NOT EXISTS account (
     id TEXT PRIMARY KEY,
+    issuer TEXT NOT NULL DEFAULT '',
     account_id TEXT NOT NULL,
     provider_id TEXT NOT NULL,
     user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,

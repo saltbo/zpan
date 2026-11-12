@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e79531c5-c321-4422-beae-88acc0aa0397",
+  "id": "d53b2334-4999-4f73-b543-0a4b8b65aaeb",
   "prevId": "0bc4560e-7f0c-43ef-af26-a7c7ea3c0a54",
   "tables": {
     "announcements": {
@@ -4023,6 +4023,14 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
+        },
+        "issuer": {
+          "name": "issuer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "account_id": {
           "name": "account_id",

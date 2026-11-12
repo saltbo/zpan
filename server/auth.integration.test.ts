@@ -400,6 +400,35 @@ describe('isEmailConfigured — via emailVerification conditional', () => {
   })
 })
 
+describe('Better Auth account issuer (deprecated column)', () => {
+  it.each([
+    ['backfilled by 0089', 'local:credential'],
+    ['never backfilled', ''],
+  ])('signs in a legacy credential account whose issuer was %s', async (_label, issuer) => {
+    const ctx = await createTestApp()
+    const email = `legacy-${issuer || 'empty'}@example.com`.replace(/:/g, '-')
+    await signUp(ctx, email)
+    const user = await ctx.db.query.user.findFirst({ where: eq(authSchema.user.email, email) })
+    await ctx.db.update(authSchema.account).set({ issuer }).where(eq(authSchema.account.userId, user!.id))
+
+    const res = await ctx.app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'password123456' }),
+    })
+    expect(res.status).toBe(200)
+  })
+
+  it('leaves issuer at its default for accounts created by better-auth 1.7.7', async () => {
+    const ctx = await createTestApp()
+    const email = 'new-account@example.com'
+    await signUp(ctx, email)
+    const user = await ctx.db.query.user.findFirst({ where: eq(authSchema.user.email, email) })
+    const account = await ctx.db.query.account.findFirst({ where: eq(authSchema.account.userId, user!.id) })
+    expect(account).toMatchObject({ issuer: '', providerId: 'credential' })
+  })
+})
+
 describe('dynamic email verification policy', () => {
   it('requires verification immediately and resends the email on sign-in', async () => {
     const { vi } = await import('vitest')
