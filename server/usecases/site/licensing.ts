@@ -270,13 +270,22 @@ function normaliseCert(
   return { cert: raw, certificateExpiresAt: assertion?.expiresAt ?? null }
 }
 
+// What a refresh cycle did. Recoverable failures are persisted on the binding
+// (last_refresh_error) and reported here so callers can log them instead of
+// mistaking a swallowed failure for success.
+export type RefreshOutcome =
+  | { status: 'unbound' }
+  | { status: 'ok'; certificateExpiresAt: number }
+  | { status: 'revoked' }
+  | { status: 'error'; error: string }
+
 export async function performRefresh(
   deps: { licensingCloud: LicensingCloudGateway; licenseBinding: LicenseBindingRepo },
   baseUrl: string,
   instance?: CloudInstanceInfo,
-): Promise<void> {
+): Promise<RefreshOutcome> {
   const state = await deps.licenseBinding.loadLicenseState()
-  if (!state.refreshToken || !state.instanceId) return
+  if (!state.refreshToken || !state.instanceId) return { status: 'unbound' }
 
   try {
     const data = await deps.licensingCloud.refreshEntitlement(baseUrl, state.refreshToken, instance)
@@ -286,11 +295,11 @@ export async function performRefresh(
     })
     if (!certificateExpiresAt) {
       await deps.licenseBinding.setLicenseRefreshError(state.id, INVALID_CERTIFICATE_ERROR)
-      return
+      return { status: 'error', error: INVALID_CERTIFICATE_ERROR }
     }
     if (!data.binding?.storeId || !data.account) {
       await deps.licenseBinding.setLicenseRefreshError(state.id, INVALID_ENTITLEMENT_RESPONSE_ERROR)
-      return
+      return { status: 'error', error: INVALID_ENTITLEMENT_RESPONSE_ERROR }
     }
 
     await deps.licenseBinding.updateLicenseBindingAfterRefresh({
@@ -302,15 +311,16 @@ export async function performRefresh(
       cloudAccountEmail: data.account.email,
       lastRefreshAt: Math.floor(Date.now() / 1000),
     })
+    return { status: 'ok', certificateExpiresAt }
   } catch (err) {
     if (err instanceof CloudUnboundError) {
       await deps.licenseBinding.clearLicenseBinding('revoked')
-      return
+      return { status: 'revoked' }
     }
 
     if (err instanceof CloudInvalidResponseError || err instanceof CloudNetworkError || err instanceof Error) {
       await deps.licenseBinding.setLicenseRefreshError(state.id, err.message)
-      return
+      return { status: 'error', error: err.message }
     }
 
     throw err
@@ -321,7 +331,8 @@ export type LicensingRefreshDeps = { licenseBinding: LicenseBindingRepo; licensi
 
 // Cron/route-safe entry over performRefresh: skips when unbound or refreshed
 // within the dedup window, and swallows every error (the scheduler must never
-// see a rejection). performRefresh itself owns the network/cert handling.
+// see a rejection). performRefresh itself owns the network/cert handling; this
+// logs its outcome so failures it records on the binding are visible in logs.
 export async function runLicensingRefresh(
   deps: LicensingRefreshDeps,
   cloudBaseUrl: string,
@@ -334,15 +345,29 @@ export async function runLicensingRefresh(
   if (state.lastRefreshAt != null && nowSec - state.lastRefreshAt < DEDUP_WINDOW_SEC) return
 
   try {
-    if (instance) {
-      await performRefresh(deps, cloudBaseUrl, instance)
-    } else {
-      await performRefresh(deps, cloudBaseUrl)
-    }
-    console.log('licensing.refresh.ok')
+    const outcome = instance
+      ? await performRefresh(deps, cloudBaseUrl, instance)
+      : await performRefresh(deps, cloudBaseUrl)
+    logRefreshOutcome(outcome)
   } catch (err) {
     const code = err instanceof Error ? err.message : String(err)
     console.error(`licensing.refresh.error code=${code}`)
+  }
+}
+
+function logRefreshOutcome(outcome: RefreshOutcome): void {
+  switch (outcome.status) {
+    case 'ok':
+      console.log(`licensing.refresh.ok expires_at=${outcome.certificateExpiresAt}`)
+      return
+    case 'revoked':
+      console.warn('licensing.refresh.revoked')
+      return
+    case 'error':
+      console.error(`licensing.refresh.error code=${outcome.error}`)
+      return
+    case 'unbound':
+      return
   }
 }
 

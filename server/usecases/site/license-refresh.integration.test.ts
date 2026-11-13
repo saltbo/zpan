@@ -8,7 +8,12 @@ import { createLicenseBindingRepo } from '../../adapters/repos/license-binding'
 import * as authSchema from '../../db/auth-schema'
 import * as appSchema from '../../db/schema'
 import { trustTestLicenseKey, untrustTestLicenseKey } from '../../test/license-keys'
-import type { CreateLicenseBindingInput, EntitlementRefreshResponse, LicensingCloudGateway } from '../ports'
+import {
+  CloudUnboundError,
+  type CreateLicenseBindingInput,
+  type EntitlementRefreshResponse,
+  type LicensingCloudGateway,
+} from '../ports'
 import { performRefresh, runLicensingRefresh } from './licensing'
 
 const SCHEMA_SQL = `
@@ -111,7 +116,7 @@ describe('performRefresh', () => {
         { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
         'https://cloud.zpan.space',
       ),
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ status: 'unbound' })
   })
 
   it('rotates refreshToken and stores PASETO certificate from cloud', async () => {
@@ -188,11 +193,12 @@ describe('performRefresh', () => {
       text: async () => '',
     } as unknown as Response)
 
-    await performRefresh(
+    const outcome = await performRefresh(
       { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
       'https://cloud.zpan.space',
     )
 
+    expect(outcome).toEqual({ status: 'revoked' })
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBeNull()
   })
@@ -203,11 +209,12 @@ describe('performRefresh', () => {
 
     vi.mocked(fetch).mockRejectedValueOnce(new Error('Connection timeout'))
 
-    await performRefresh(
+    const outcome = await performRefresh(
       { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
       'https://cloud.zpan.space',
     )
 
+    expect(outcome).toEqual({ status: 'error', error: 'Connection timeout' })
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')
     expect(state.lastRefreshError).toBe('Connection timeout')
@@ -234,16 +241,44 @@ describe('performRefresh', () => {
       text: async () => '',
     } as unknown as Response)
 
-    await performRefresh(
+    const outcome = await performRefresh(
       { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
       'https://cloud.zpan.space',
     )
 
+    expect(outcome).toEqual({ status: 'error', error: 'Invalid certificate from cloud' })
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')
     expect(state.cachedCert).toBe('old-cert')
     expect(state.cachedExpiresAt).toBe(1234567890)
     expect(state.lastRefreshError).toBe('Invalid certificate from cloud')
+  })
+
+  it('keeps the previous binding when cloud omits the store or account', async () => {
+    const db = makeDb()
+    await seedBinding(db)
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        refreshToken: 'new-rt',
+        certificate: signAssertion(),
+        binding: { id: 'bind-1', instanceId: 'inst-abc', authorizedHosts: [] },
+      }),
+      text: async () => '',
+    } as unknown as Response)
+
+    const outcome = await performRefresh(
+      { licensingCloud: createLicensingCloudGateway(), licenseBinding: createLicenseBindingRepo(db) },
+      'https://cloud.zpan.space',
+    )
+
+    expect(outcome).toEqual({ status: 'error', error: 'Invalid entitlement response from cloud' })
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
+    expect(state.refreshToken).toBe('old-rt')
+    expect(state.cloudStoreId).toBe('store-old')
+    expect(state.lastRefreshError).toBe('Invalid entitlement response from cloud')
   })
 
   it('keeps the previous binding when cloud omits certificate', async () => {
@@ -341,7 +376,7 @@ describe('runLicensingRefresh', () => {
     expect(refresh).toHaveBeenCalledOnce()
   })
 
-  it('logs licensing.refresh.ok on a successful refresh', async () => {
+  it('logs licensing.refresh.ok with the new certificate expiry on a successful refresh', async () => {
     const db = makeDb()
     await seedBinding(db, { lastRefreshAt: nowSec() - 600 })
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -352,8 +387,97 @@ describe('runLicensingRefresh', () => {
       CLOUD_URL,
     )
 
-    expect(consoleSpy).toHaveBeenCalledWith('licensing.refresh.ok')
+    const state = await createLicenseBindingRepo(db).loadLicenseState()
+    expect(consoleSpy).toHaveBeenCalledWith(`licensing.refresh.ok expires_at=${state.cachedExpiresAt}`)
     consoleSpy.mockRestore()
+  })
+
+  it('logs licensing.refresh.error (not ok) when the refresh is recorded as a binding error', async () => {
+    const db = makeDb()
+    await seedBinding(db, { lastRefreshAt: nowSec() - 600 })
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const refresh = vi.fn(async () => ({
+      ...successPayload(),
+      certificate: signAssertion({ instanceId: 'other-instance' }),
+    }))
+
+    await runLicensingRefresh(
+      { licenseBinding: createLicenseBindingRepo(db), licensingCloud: fakeCloud(refresh) },
+      CLOUD_URL,
+    )
+
+    expect(errorSpy).toHaveBeenCalledWith('licensing.refresh.error code=Invalid certificate from cloud')
+    expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('licensing.refresh.ok'))
+    logSpy.mockRestore()
+    errorSpy.mockRestore()
+  })
+
+  it('logs licensing.refresh.error when the cloud call fails with an Error', async () => {
+    const db = makeDb()
+    await seedBinding(db, { lastRefreshAt: nowSec() - 600 })
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const refresh = vi.fn(async () => {
+      throw new Error('Connection timeout')
+    })
+
+    await runLicensingRefresh(
+      { licenseBinding: createLicenseBindingRepo(db), licensingCloud: fakeCloud(refresh) },
+      CLOUD_URL,
+    )
+
+    expect(errorSpy).toHaveBeenCalledWith('licensing.refresh.error code=Connection timeout')
+    errorSpy.mockRestore()
+  })
+
+  it('logs licensing.refresh.revoked when the cloud reports the binding is gone', async () => {
+    const db = makeDb()
+    await seedBinding(db, { lastRefreshAt: nowSec() - 600 })
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const refresh = vi.fn(async () => {
+      throw new CloudUnboundError()
+    })
+
+    await runLicensingRefresh(
+      { licenseBinding: createLicenseBindingRepo(db), licensingCloud: fakeCloud(refresh) },
+      CLOUD_URL,
+    )
+
+    expect(warnSpy).toHaveBeenCalledWith('licensing.refresh.revoked')
+    warnSpy.mockRestore()
+  })
+
+  it('logs nothing when the binding is disconnected before the refresh runs', async () => {
+    const db = makeDb()
+    await seedBinding(db, { lastRefreshAt: nowSec() - 600 })
+    const repo = createLicenseBindingRepo(db)
+    // Simulate a concurrent disconnect: the binding disappears between the
+    // dedup check and performRefresh reloading the state.
+    const loadLicenseState = repo.loadLicenseState
+    let loads = 0
+    const racingRepo = {
+      ...repo,
+      loadLicenseState: async () => {
+        const state = await loadLicenseState()
+        if (++loads === 1) await repo.clearLicenseBinding('disconnected')
+        return state
+      },
+    }
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const refresh = vi.fn(async () => successPayload())
+
+    await runLicensingRefresh({ licenseBinding: racingRepo, licensingCloud: fakeCloud(refresh) }, CLOUD_URL)
+
+    expect(loads).toBe(2)
+    expect(refresh).not.toHaveBeenCalled()
+    expect(logSpy).not.toHaveBeenCalled()
+    expect(warnSpy).not.toHaveBeenCalled()
+    expect(errorSpy).not.toHaveBeenCalled()
+    logSpy.mockRestore()
+    warnSpy.mockRestore()
+    errorSpy.mockRestore()
   })
 
   it('swallows and logs licensing.refresh.error when the refresh propagates a failure', async () => {
