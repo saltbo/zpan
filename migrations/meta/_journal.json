@@ -680,6 +680,13 @@
       "when": 1794519095896,
       "tag": "0097_better-auth-stable-account-id",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "6",
+      "when": 1794532757826,
+      "tag": "0098_drop-account-issuer",
+      "breakpoints": true
     }
   ]
 }
