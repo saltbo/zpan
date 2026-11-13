@@ -120,6 +120,44 @@ back up the `jwks` rows on the staging D1, delete the undecryptable row, and let
 better-auth create a new key on the next token request. Never do this on
 production without an incident plan: existing id_tokens stop verifying.
 
+`pnpm reset:preview-jwks` codifies these steps. It only accepts the Preview D1
+(`PREVIEW_DB` / `zpan-db-staging` in `wrangler.preview-migrations.json`, which
+must match `[[previews.d1_databases]]` in `wrangler.toml` and differ from every
+production D1) and refuses any other target before calling Wrangler.
+
+1. List the rows (dry run, the default; nothing is changed). Each row shows
+   which secret encrypted it: `legacy BETTER_AUTH_SECRET`,
+   `BETTER_AUTH_SECRETS v<n>`, or `plaintext`. Private keys are never printed.
+
+   ```bash
+   pnpm reset:preview-jwks
+   ```
+
+2. Pick the rows no deployed secret can decrypt — for example a legacy row
+   after `BETTER_AUTH_SECRET` changed, or a `v<n>` row whose version is no longer
+   listed in `BETTER_AUTH_SECRETS`. Preview the deletion:
+
+   ```bash
+   pnpm reset:preview-jwks --id <jwks-id>
+   ```
+
+3. Back up and delete with an explicit `--confirm`. The script writes the
+   selected rows to `.local/preview-jwks-backups/jwks-<timestamp>.json`
+   (mode 0600, git-ignored; it holds encrypted private keys, so do not share it),
+   deletes them, and checks that they are gone. `--all` selects every row.
+
+   ```bash
+   pnpm reset:preview-jwks --id <jwks-id> --confirm
+   ```
+
+4. Verify as in step 5 of the rotation runbook: one OAuth authorization-code
+   flow on a Preview must return 200 from `/api/auth/oauth2/token`. id_tokens
+   signed with a deleted key stop verifying; sign in again.
+
+Wrangler runs as `pnpm exec wrangler` with your Cloudflare credentials; set
+`WRANGLER_COMMAND` to use another wrapper. `--config` and `--backup-dir`
+override the defaults (the target guard still applies).
+
 ## Preview limitations
 
 Previews do not receive Cron events or consume Queue messages. ZPan Previews omit
