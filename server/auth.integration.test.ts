@@ -4,7 +4,7 @@ import { BASE62_PATTERN } from '@shared/ids'
 import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import { deriveDpopAth } from 'better-auth/oauth2'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
@@ -400,7 +400,7 @@ describe('isEmailConfigured — via emailVerification conditional', () => {
   })
 })
 
-describe('Better Auth account issuer (deprecated column)', () => {
+describe('Better Auth account issuer (deprecated column, no longer referenced)', () => {
   it.each([
     ['backfilled by 0089', 'local:credential'],
     ['never backfilled', ''],
@@ -409,7 +409,7 @@ describe('Better Auth account issuer (deprecated column)', () => {
     const email = `legacy-${issuer || 'empty'}@example.com`.replace(/:/g, '-')
     await signUp(ctx, email)
     const user = await ctx.db.query.user.findFirst({ where: eq(authSchema.user.email, email) })
-    await ctx.db.update(authSchema.account).set({ issuer }).where(eq(authSchema.account.userId, user!.id))
+    ctx.db.run(sql`UPDATE account SET issuer = ${issuer} WHERE user_id = ${user!.id}`)
 
     const res = await ctx.app.request('/api/auth/sign-in/email', {
       method: 'POST',
@@ -419,13 +419,21 @@ describe('Better Auth account issuer (deprecated column)', () => {
     expect(res.status).toBe(200)
   })
 
-  it('leaves issuer at its default for accounts created by better-auth 1.7.7', async () => {
+  it('signs up and signs in once the issuer column is dropped', async () => {
     const ctx = await createTestApp()
-    const email = 'new-account@example.com'
+    ctx.db.run(sql`ALTER TABLE account DROP COLUMN issuer`)
+    const email = 'no-issuer-column@example.com'
     await signUp(ctx, email)
+
+    const res = await ctx.app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'password123456' }),
+    })
+    expect(res.status).toBe(200)
     const user = await ctx.db.query.user.findFirst({ where: eq(authSchema.user.email, email) })
     const account = await ctx.db.query.account.findFirst({ where: eq(authSchema.account.userId, user!.id) })
-    expect(account).toMatchObject({ issuer: '', providerId: 'credential' })
+    expect(account).toMatchObject({ providerId: 'credential' })
   })
 })
 
