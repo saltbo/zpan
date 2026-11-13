@@ -5,6 +5,7 @@ import { createShareRepo } from '../server/adapters/repos/share'
 import { createApp } from '../server/app'
 import type { Auth } from '../server/auth'
 import { createAuth } from '../server/auth'
+import { resolveAuthSecrets } from '../server/auth-secrets'
 import { createDeps } from '../server/composition'
 import { isPotentialWebDavPublicRequest } from '../server/domain/webdav-public-url'
 import { isHandledError, standaloneJsonError } from '../server/middleware/error-handler'
@@ -20,6 +21,7 @@ import { handleScheduled } from './scheduled'
 interface Env {
   DB: D1Database
   BETTER_AUTH_SECRET: string
+  BETTER_AUTH_SECRETS?: string
   ZPAN_PREVIEW?: string
   BETTER_AUTH_URL?: string
   TRUSTED_ORIGINS?: string
@@ -58,7 +60,11 @@ type InitializeApp = (
 type KeepAlive = (promise: Promise<unknown>) => void
 
 const initializeApp: InitializeApp = async (runtime, env, baseURL, trustedOrigins) => {
-  const auth = await createAuth(runtime.platform, env.BETTER_AUTH_SECRET, baseURL, trustedOrigins, waitUntil)
+  const secret = resolveAuthSecrets(
+    (key) => (typeof env[key] === 'string' ? (env[key] as string) : undefined),
+    'BETTER_AUTH_SECRET is not configured for this deployment.',
+  )
+  const auth = await createAuth(runtime.platform, secret, baseURL, trustedOrigins, waitUntil)
   return { auth, app: createApp(runtime.platform, auth, runtime.deps) }
 }
 

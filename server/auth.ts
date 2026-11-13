@@ -58,6 +58,7 @@ import { recordUserActivity } from './adapters/repos/user-activity'
 import { handleOAuthClientRegistrationManagement } from './auth/oauth-client-registration-management'
 import { oauthPushedAuthorizationRequests } from './auth/oauth-par'
 import { createOAuthProviderOptions } from './auth/oauth-provider'
+import type { AuthSecretConfig } from './auth-secrets'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { executeWriteTransaction } from './db/transaction'
@@ -426,12 +427,16 @@ function buildResetPasswordEmailHtml(url: string): string {
 
 export async function createAuth(
   initialSource: Database | Platform,
-  secret: string,
+  secretConfig: string | AuthSecretConfig,
   baseURL?: string,
   trustedOrigins?: string[],
   backgroundTaskHandler?: (promise: Promise<unknown>) => void,
   passwordProvider: AuthPasswordProvider = productionPasswordProvider,
 ) {
+  // Only an object carries versioned secrets. Anything else is the legacy single
+  // secret (CF tests pass an unset env value straight through).
+  const { secret, secrets }: AuthSecretConfig =
+    typeof secretConfig === 'object' && secretConfig !== null ? secretConfig : { secret: secretConfig }
   const isPlatform = 'db' in initialSource
   const rawPlatform = isPlatform ? initialSource : null
   const rawDb = isPlatform ? initialSource.db : initialSource
@@ -455,7 +460,10 @@ export async function createAuth(
   const usesNativeWebDavRateLimit = Boolean(authPlatform.getBinding(WEBDAV_RATE_LIMITER_BINDING))
   const authOptions = {
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
+    // `secret` stays the legacy key so payloads written before versioning still
+    // decrypt; `secrets` (when configured) encrypts with the current version.
     secret,
+    ...(secrets ? { secrets } : {}),
     baseURL,
     basePath: '/api/auth',
     // Function form: better-auth merges the result with baseURL per request.
