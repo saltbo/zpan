@@ -3,7 +3,6 @@ import { drizzle } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
 import * as authSchema from '../db/auth-schema'
 import * as schema from '../db/schema'
-import { registerEnvPublicKeys } from '../domain/license-keys'
 import type { Platform } from './interface'
 
 interface LibsqlEnv {
@@ -23,8 +22,6 @@ export async function createLibsqlPlatform(env: LibsqlEnv): Promise<Platform> {
   const db = drizzle(client, { schema: { ...schema, ...authSchema } })
 
   await migrate(db, { migrationsFolder })
-
-  registerEnvPublicKeys(envRecord.ZPAN_LICENSE_PUBLIC_KEYS ?? process.env.ZPAN_LICENSE_PUBLIC_KEYS)
 
   return {
     db,

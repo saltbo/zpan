@@ -247,3 +247,21 @@ Agents: first identify the running runtime. For the default Workers server, use
 about Workers data. Do not select an arbitrary `.sqlite` file from Wrangler state.
 Explicit `DATABASE_URL` overrides apply only to Node; Docker volume paths are preserved.
 Stop local servers before clearing `.wrangler/state/`, then run `pnpm db:migrate`.
+
+### Local Pro testing
+
+License keys are hardcoded (see [docs/design/license-key-trust.md](docs/design/license-key-trust.md));
+there is no setting to trust another key. To test Pro/Business features locally,
+run a local ZPan Cloud that signs with the builtin **dev** key:
+
+1. In `zpan-cloud/.dev.vars`, set `LICENSE_SIGNING_KEY` to the dev secret whose
+   public half is the `dev` entry in `server/domain/license-keys.ts` (ask a
+   maintainer; never commit it). To rotate it, run `pnpm exec tsx scripts/gen-keypair.ts`
+   in zpan-cloud, keep the secret in `.dev.vars`, and replace the `dev` public key here.
+2. Run Cloud on a loopback origin (e.g. `http://localhost:5186`) and set
+   `ZPAN_CLOUD_URL` to that origin in ZPan's `.dev.vars`.
+3. Open ZPan on `localhost`, `127.0.0.1` or `[::1]` and pair from the admin
+   licensing page.
+
+Dev-key certificates are accepted only with a loopback issuer and loopback hosts;
+staging-key certificates only for `<label>.saltbo.workers.dev` Preview hosts.

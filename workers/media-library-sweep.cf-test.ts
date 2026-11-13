@@ -7,16 +7,21 @@ import { createLicenseBindingRepo } from '../server/adapters/repos/license-bindi
 import { createMatterRepo } from '../server/adapters/repos/matter'
 import { createMediaLibraryRepo } from '../server/adapters/repos/media-library'
 import { createDeps } from '../server/composition'
+import { getTrustedLicenseKeys } from '../server/domain/license-keys'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
+import { trustTestLicenseKey, untrustTestLicenseKey } from '../server/test/license-keys'
 import { sweepMediaLibraries } from '../server/usecases/media-library-scan'
 import type { BackgroundJobMessage } from '../server/usecases/ports'
 import { generateId } from '../shared/ids'
 
 const { secretKey, publicKey } = generateKeys('public')
-const licensedEnv = { ...env, ZPAN_LICENSE_PUBLIC_KEYS: publicKey }
+// A key supplied through the environment must never become trusted; the test key is
+// trusted only through the test-only hook.
+const licensedEnv = { ...env, ZPAN_LICENSE_PUBLIC_KEYS: generateKeys('public').publicKey }
 const db = createCloudflarePlatform(licensedEnv).db
 
 beforeAll(async () => {
+  trustTestLicenseKey(publicKey)
   const issuedAt = Math.floor(Date.now() / 1000)
   const expiresAt = issuedAt + 3600
   await createLicenseBindingRepo(db).createLicenseBinding({
@@ -45,6 +50,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  untrustTestLicenseKey(publicKey)
   await db.run(sql`DELETE FROM license_bindings WHERE cloud_binding_id = 'sweep-binding'`)
 })
 
@@ -139,6 +145,13 @@ async function clearLibraries() {
   await db.run(sql`DELETE FROM media_libraries`)
   await db.run(sql`DELETE FROM background_jobs`)
 }
+
+describe('license key trust on Workers', () => {
+  it('ignores ZPAN_LICENSE_PUBLIC_KEYS from the Worker environment', () => {
+    const trusted = getTrustedLicenseKeys().map((key) => key.publicKey)
+    expect(trusted).not.toContain(licensedEnv.ZPAN_LICENSE_PUBLIC_KEYS)
+  })
+})
 
 describe('[CF] media library sweep on D1', () => {
   it('reads each library with the same subtree fingerprint as fingerprint() [spec: media-library/sweep-batched]', async () => {
