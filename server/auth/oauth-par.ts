@@ -29,6 +29,8 @@ export function oauthPushedAuthorizationRequests(options: OAuthProviderOptions):
         '/oauth2/par',
         {
           method: 'POST',
+          // authenticateClient re-reads the form body to detect repeated client credentials.
+          cloneRequest: true,
           body: z.record(z.string(), z.string()),
           metadata: { noStore: true, allowedMediaTypes: ['application/x-www-form-urlencoded'] },
         },

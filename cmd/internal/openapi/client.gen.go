@@ -2172,7 +2172,6 @@ const (
 	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidClient      CreateDeviceAuthorization400JSONResponseBodyError = "invalid_client"
 	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidRequest     CreateDeviceAuthorization400JSONResponseBodyError = "invalid_request"
 	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidScope       CreateDeviceAuthorization400JSONResponseBodyError = "invalid_scope"
-	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidTarget      CreateDeviceAuthorization400JSONResponseBodyError = "invalid_target"
 	CreateDeviceAuthorization400JSONResponseBodyErrorUnauthorizedClient CreateDeviceAuthorization400JSONResponseBodyError = "unauthorized_client"
 )
 
@@ -2185,9 +2184,22 @@ func (e CreateDeviceAuthorization400JSONResponseBodyError) Valid() bool {
 		return true
 	case CreateDeviceAuthorization400JSONResponseBodyErrorInvalidScope:
 		return true
-	case CreateDeviceAuthorization400JSONResponseBodyErrorInvalidTarget:
-		return true
 	case CreateDeviceAuthorization400JSONResponseBodyErrorUnauthorizedClient:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateDeviceAuthorization500JSONResponseBodyError.
+const (
+	ServerError CreateDeviceAuthorization500JSONResponseBodyError = "server_error"
+)
+
+// Valid indicates whether the value is a known member of the CreateDeviceAuthorization500JSONResponseBodyError enum.
+func (e CreateDeviceAuthorization500JSONResponseBodyError) Valid() bool {
+	switch e {
+	case ServerError:
 		return true
 	default:
 		return false
@@ -6562,9 +6574,6 @@ type CreateDeviceAuthorizationJSONBody struct {
 	// ClientId The client ID of the application
 	ClientId string `json:"client_id"`
 
-	// Resource RFC 8707 resource indicator(s) to bind to this authorization request
-	Resource *CreateDeviceAuthorizationJSONBody_Resource `json:"resource,omitempty"`
-
 	// Scope Space-separated list of scopes
 	Scope *string `json:"scope,omitempty"`
 
@@ -6572,19 +6581,11 @@ type CreateDeviceAuthorizationJSONBody struct {
 	UserId *string `json:"user_id,omitempty"`
 }
 
-// CreateDeviceAuthorizationJSONBodyResource0 defines parameters for CreateDeviceAuthorization.
-type CreateDeviceAuthorizationJSONBodyResource0 = string
-
-// CreateDeviceAuthorizationJSONBodyResource1 defines parameters for CreateDeviceAuthorization.
-type CreateDeviceAuthorizationJSONBodyResource1 = []string
-
-// CreateDeviceAuthorizationJSONBody_Resource defines parameters for CreateDeviceAuthorization.
-type CreateDeviceAuthorizationJSONBody_Resource struct {
-	union json.RawMessage
-}
-
 // CreateDeviceAuthorization400JSONResponseBodyError defines parameters for CreateDeviceAuthorization.
 type CreateDeviceAuthorization400JSONResponseBodyError string
+
+// CreateDeviceAuthorization500JSONResponseBodyError defines parameters for CreateDeviceAuthorization.
+type CreateDeviceAuthorization500JSONResponseBodyError string
 
 // CreateDeviceAccessTokenJSONBody defines parameters for CreateDeviceAccessToken.
 type CreateDeviceAccessTokenJSONBody struct {
@@ -10637,68 +10638,6 @@ func (t UpdateImageDomainSettings) MarshalJSON() ([]byte, error) {
 }
 
 func (t *UpdateImageDomainSettings) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsCreateDeviceAuthorizationJSONBodyResource0 returns the union data inside the CreateDeviceAuthorizationJSONBody_Resource as a CreateDeviceAuthorizationJSONBodyResource0
-func (t CreateDeviceAuthorizationJSONBody_Resource) AsCreateDeviceAuthorizationJSONBodyResource0() (CreateDeviceAuthorizationJSONBodyResource0, error) {
-	var body CreateDeviceAuthorizationJSONBodyResource0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCreateDeviceAuthorizationJSONBodyResource0 overwrites any union data inside the CreateDeviceAuthorizationJSONBody_Resource as the provided CreateDeviceAuthorizationJSONBodyResource0
-func (t *CreateDeviceAuthorizationJSONBody_Resource) FromCreateDeviceAuthorizationJSONBodyResource0(v CreateDeviceAuthorizationJSONBodyResource0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCreateDeviceAuthorizationJSONBodyResource0 performs a merge with any union data inside the CreateDeviceAuthorizationJSONBody_Resource, using the provided CreateDeviceAuthorizationJSONBodyResource0
-func (t *CreateDeviceAuthorizationJSONBody_Resource) MergeCreateDeviceAuthorizationJSONBodyResource0(v CreateDeviceAuthorizationJSONBodyResource0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsCreateDeviceAuthorizationJSONBodyResource1 returns the union data inside the CreateDeviceAuthorizationJSONBody_Resource as a CreateDeviceAuthorizationJSONBodyResource1
-func (t CreateDeviceAuthorizationJSONBody_Resource) AsCreateDeviceAuthorizationJSONBodyResource1() (CreateDeviceAuthorizationJSONBodyResource1, error) {
-	var body CreateDeviceAuthorizationJSONBodyResource1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCreateDeviceAuthorizationJSONBodyResource1 overwrites any union data inside the CreateDeviceAuthorizationJSONBody_Resource as the provided CreateDeviceAuthorizationJSONBodyResource1
-func (t *CreateDeviceAuthorizationJSONBody_Resource) FromCreateDeviceAuthorizationJSONBodyResource1(v CreateDeviceAuthorizationJSONBodyResource1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCreateDeviceAuthorizationJSONBodyResource1 performs a merge with any union data inside the CreateDeviceAuthorizationJSONBody_Resource, using the provided CreateDeviceAuthorizationJSONBodyResource1
-func (t *CreateDeviceAuthorizationJSONBody_Resource) MergeCreateDeviceAuthorizationJSONBodyResource1(v CreateDeviceAuthorizationJSONBodyResource1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t CreateDeviceAuthorizationJSONBody_Resource) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *CreateDeviceAuthorizationJSONBody_Resource) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -22435,7 +22374,8 @@ type CreateDeviceAuthorizationResponse struct {
 		Message *string `json:"message,omitempty"`
 	}
 	JSON500 *struct {
-		Message *string `json:"message,omitempty"`
+		Error            *CreateDeviceAuthorization500JSONResponseBodyError `json:"error,omitempty"`
+		ErrorDescription *string                                            `json:"error_description,omitempty"`
 	}
 }
 
@@ -30008,7 +29948,8 @@ func ParseCreateDeviceAuthorizationResponse(rsp *http.Response) (*CreateDeviceAu
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest struct {
-			Message *string `json:"message,omitempty"`
+			Error            *CreateDeviceAuthorization500JSONResponseBodyError `json:"error,omitempty"`
+			ErrorDescription *string                                            `json:"error_description,omitempty"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
