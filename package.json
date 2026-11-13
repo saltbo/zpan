@@ -26,6 +26,7 @@
     "db:migrate:d1:prod": "wrangler d1 migrations apply zpan-db --remote",
     "db:reset": "pnpm db:reset:d1",
     "db:reset:d1": "tsx --env-file=.dev.vars scripts/db-reset.ts --d1",
+    "reset:preview-jwks": "node scripts/reset-preview-jwks.mjs",
     "seed:preview-admin": "TMPDIR=/tmp node --env-file-if-exists=.dev.vars --import tsx scripts/seed-preview-admin.ts",
     "stats:backfill": "tsx scripts/backfill-admin-stats.ts",
     "storage:backfill": "tsx scripts/backfill-storage-usage.ts",
