@@ -61,6 +61,65 @@ accepts staging-signed certificates only for `<label>.saltbo.workers.dev` hosts
 Preview secrets added to Base apply to **new** Previews. Update existing Preview
 secrets explicitly when rotating them.
 
+## Auth secrets on the shared staging D1
+
+Every Preview reads and writes the same `jwks` table. better-auth encrypts the
+JWKS private key with the auth secret, so a Preview whose secret cannot decrypt
+the stored key returns 500 from `POST /api/auth/oauth2/token` with
+`Failed to decrypt private key` (see #607).
+
+Rules:
+
+- Set `BETTER_AUTH_SECRET` and `BETTER_AUTH_SECRETS` **only** in Previews Base
+  config. Never run `wrangler preview secret put BETTER_AUTH_SECRET` (or
+  `BETTER_AUTH_SECRETS`) for a single Preview.
+- Cloudflare copies Base secrets into a Preview when it is created. Existing
+  Previews keep their old values, so a Base change must be followed by updating
+  or redeploying every live Preview.
+- Never set `jwks.disablePrivateKeyEncryption`; it stores signing keys in
+  plaintext.
+
+`BETTER_AUTH_SECRETS` is an optional comma-separated list of
+`<version>:<secret>` entries, current version first, for example
+`2:<new>,1:<old>`. better-auth encrypts new data with the first entry and
+decrypts with any listed version. `BETTER_AUTH_SECRET` stays required: it is the
+legacy key for data written before versioning (bare, unversioned ciphertext)
+and the key ZPan derives its own short-lived page/download tokens from. The same
+variables work on Workers, Node, and Docker; with only `BETTER_AUTH_SECRET` set,
+behavior is unchanged.
+
+### Rotation runbook
+
+1. Generate the new value with `openssl rand -base64 32`. Do not paste it into
+   PRs, issues, or logs.
+2. Leave `BETTER_AUTH_SECRET` unchanged.
+3. Set `BETTER_AUTH_SECRETS` to the new version **prepended** to every version
+   still in use. To adopt versioning without signing anyone out, first set
+   `1:<current BETTER_AUTH_SECRET value>`; a later rotation becomes
+   `2:<new>,1:<old>`. Keep old versions listed until no stored data depends on
+   them:
+
+   ```bash
+   pnpm exec wrangler preview base-config secret put BETTER_AUTH_SECRETS
+   ```
+
+4. Update every live Preview the same way, or redeploy it, before relying on the
+   new version. Previews that still hold the previous list can decrypt
+   everything except data encrypted with the new version, so finish this step
+   quickly.
+5. Verify on a Preview: sign in as `reviewer@zpan.dev` and complete one OAuth
+   authorization-code flow; `/api/auth/oauth2/token` must return 200.
+6. Retire a version only after the keys and other data encrypted with it have
+   been replaced. Session cookies are signed with the current version only, so
+   changing the current version signs users out once.
+
+### Recovering an undecryptable JWKS (staging only)
+
+If the stored key was encrypted with a secret no deployment holds any more,
+back up the `jwks` rows on the staging D1, delete the undecryptable row, and let
+better-auth create a new key on the next token request. Never do this on
+production without an incident plan: existing id_tokens stop verifying.
+
 ## Preview limitations
 
 Previews do not receive Cron events or consume Queue messages. ZPan Previews omit

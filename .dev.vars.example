@@ -3,6 +3,9 @@
 
 # Required: better-auth signing secret. Generate with: openssl rand -base64 32
 BETTER_AUTH_SECRET=
+# Optional versioned secrets for key rotation ("<version>:<secret>", current first),
+# e.g. BETTER_AUTH_SECRETS=2:<new>,1:<old>. Keep BETTER_AUTH_SECRET as the legacy key.
+# BETTER_AUTH_SECRETS=
 
 # Local ZPan URL.
 BETTER_AUTH_URL=http://localhost:5185
