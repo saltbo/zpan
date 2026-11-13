@@ -211,6 +211,65 @@ describe('migration 0069_storage-health-status-vocabulary.sql', () => {
   })
 })
 
+describe('migration 0097_better-auth-stable-account-id.sql', () => {
+  const migrationPath = join(process.cwd(), 'migrations/0097_better-auth-stable-account-id.sql')
+  const migration = readFileSync(migrationPath, 'utf-8').replaceAll('--> statement-breakpoint', '')
+
+  it('keeps the deprecated issuer column and keys account identity by provider and account id', () => {
+    const db = new Database(':memory:')
+
+    try {
+      db.exec(`
+        CREATE TABLE account (
+          id TEXT PRIMARY KEY NOT NULL,
+          issuer TEXT DEFAULT '' NOT NULL,
+          account_id TEXT NOT NULL,
+          provider_id TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX account_issuer_providerAccountId_unique ON account (issuer, account_id);
+        INSERT INTO account (id, issuer, account_id, provider_id) VALUES
+          ('credential', 'local:credential', 'user-1', 'credential'),
+          ('github', 'local:oauth:github', '42', 'github'),
+          ('google', 'https://accounts.google.com', '42', 'google');
+      `)
+
+      db.exec(migration)
+
+      // Old-shape rows survive untouched, including their issuer values.
+      expect(db.prepare('SELECT * FROM account ORDER BY id').all()).toEqual([
+        { id: 'credential', issuer: 'local:credential', account_id: 'user-1', provider_id: 'credential' },
+        { id: 'github', issuer: 'local:oauth:github', account_id: '42', provider_id: 'github' },
+        { id: 'google', issuer: 'https://accounts.google.com', account_id: '42', provider_id: 'google' },
+      ])
+
+      const indexes = db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'account' AND sql IS NOT NULL")
+        .all()
+      expect(indexes).toEqual([{ name: 'account_providerId_accountId_unique' }])
+
+      // New code (better-auth 1.7.7) omits issuer; the column default keeps inserts valid.
+      db.prepare('INSERT INTO account (id, account_id, provider_id) VALUES (?, ?, ?)').run('new', '7', 'github')
+      expect(db.prepare('SELECT issuer FROM account WHERE id = ?').get('new')).toEqual({ issuer: '' })
+
+      // Old code (still writing issuer) keeps working against the new index.
+      db.prepare('INSERT INTO account (id, issuer, account_id, provider_id) VALUES (?, ?, ?, ?)').run(
+        'old',
+        'local:oauth:github',
+        '8',
+        'github',
+      )
+
+      expect(() =>
+        db
+          .prepare('INSERT INTO account (id, account_id, provider_id) VALUES (?, ?, ?)')
+          .run('duplicate', '42', 'github'),
+      ).toThrow(/UNIQUE constraint failed: account.provider_id, account.account_id/)
+    } finally {
+      db.close()
+    }
+  })
+})
+
 describe('migration 0089_better-auth-account-issuer-backfill.sql', () => {
   const migrationPath = join(process.cwd(), 'migrations/0089_better-auth-account-issuer-backfill.sql')
   const migration = readFileSync(migrationPath, 'utf-8')
