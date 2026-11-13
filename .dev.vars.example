@@ -14,11 +14,9 @@ ZPAN_DEV_ALLOWED_HOSTS=
 # Local ZPan Cloud URL.
 ZPAN_CLOUD_URL=http://localhost:5186
 
-# Trusted license signing public keys (PASERK k4.public.*, comma-separated).
-# Dev keys are configured here — NOT hardcoded in source — so a leaked dev key is
-# rotated via config and never trusted by production builds. Pair this with the
-# matching LICENSE_SIGNING_KEY in zpan-cloud/.dev.vars (run `npm run gen-keypair`).
-ZPAN_LICENSE_PUBLIC_KEYS=
+# License signing public keys are hardcoded in server/domain/license-keys.ts and
+# cannot be configured. A local Cloud must sign with the dev key (see CONTRIBUTING.md,
+# "Local Pro testing"); its certificates are accepted only for loopback hosts.
 
 # Explicit Node runtime only; Workers always use simulated D1.
 # DATABASE_URL=./.local/node/zpan.db

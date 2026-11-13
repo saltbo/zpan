@@ -945,7 +945,24 @@ export async function authedHeaders(
   return { Cookie: cookies.join('; '), Origin: 'http://localhost:3000' }
 }
 
-const { secretKey: TEST_LICENSE_SECRET, publicKey: TEST_LICENSE_PUBLIC } = generateKeys('public')
+// One throwaway signing key per issuer, trusted through the test-only key hook
+// with that issuer and exact host matching.
+const testLicenseSecrets = new Map<string, string>()
+
+async function testLicenseSecretFor(issuer: string): Promise<string> {
+  const existing = testLicenseSecrets.get(issuer)
+  if (existing) return existing
+  const { secretKey, publicKey } = generateKeys('public')
+  const { trustLicenseKeyForTesting } = await import('../domain/license-keys.js')
+  trustLicenseKeyForTesting({
+    name: 'test',
+    publicKey,
+    issuer: { kind: 'exact', origin: issuer },
+    hosts: { kind: 'exact' },
+  })
+  testLicenseSecrets.set(issuer, secretKey)
+  return secretKey
+}
 
 function nowSec(): number {
   return Math.floor(Date.now() / 1000)
@@ -975,17 +992,15 @@ async function seedLicense(
     issuer?: string
   },
 ) {
-  const { PUBLIC_KEYS } = await import('../domain/license-keys.js')
-  if (!PUBLIC_KEYS.includes(TEST_LICENSE_PUBLIC)) {
-    PUBLIC_KEYS.unshift(TEST_LICENSE_PUBLIC)
-  }
+  const issuer = input.issuer ?? ZPAN_CLOUD_URL_DEFAULT
+  const secretKey = await testLicenseSecretFor(issuer)
 
   const { createLicenseBindingRepo } = await import('../adapters/repos/license-binding.js')
   const issuedAt = nowSec()
   const expiresAt = issuedAt + 3600
-  const cachedCert = sign(TEST_LICENSE_SECRET, {
+  const cachedCert = sign(secretKey, {
     type: 'zpan.license',
-    issuer: input.issuer ?? ZPAN_CLOUD_URL_DEFAULT,
+    issuer,
     subject: 'test-binding',
     accountId: 'test-account',
     instanceId: 'test-instance',

@@ -1,21 +1,17 @@
 // @vitest-environment node
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { PUBLIC_KEYS } from '../../domain/license-keys'
+import { trustTestLicenseKey, untrustTestLicenseKey } from '../../test/license-keys'
 import { verifyCertificate, verifyCertificateResult } from './licensing'
 
 const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
-const originalKeys: string[] = []
 
 beforeAll(() => {
-  originalKeys.push(...PUBLIC_KEYS)
-  PUBLIC_KEYS.length = 0
-  PUBLIC_KEYS.push(TEST_PUBLIC)
+  trustTestLicenseKey(TEST_PUBLIC)
 })
 
 afterAll(() => {
-  PUBLIC_KEYS.length = 0
-  for (const k of originalKeys) PUBLIC_KEYS.push(k)
+  untrustTestLicenseKey(TEST_PUBLIC)
 })
 
 function nowSec(): number {
@@ -41,7 +37,7 @@ function signCert(overrides: Record<string, unknown> = {}, key = TEST_SECRET): s
 }
 
 describe('verifyCertificate', () => {
-  it('returns assertion for a valid cert signed by PUBLIC_KEYS[0]', () => {
+  it('returns assertion for a valid cert signed by a trusted test key', () => {
     const cert = signCert()
     const result = verifyCertificate(cert, { instanceId: 'inst-abc', currentHost: 'zpan.example.com' })
 
@@ -87,9 +83,9 @@ describe('verifyCertificate', () => {
     expect(verifyCertificate(cert, { instanceId: 'inst-abc', currentHost: 'other.example.com' })).toBeNull()
   })
 
-  it('verifies a cert signed by a second key when two keys are in PUBLIC_KEYS', () => {
+  it('verifies a cert signed by a second key when two test keys are trusted', () => {
     const { secretKey: altSecret, publicKey: altPublic } = generateKeys('public')
-    PUBLIC_KEYS.push(altPublic)
+    trustTestLicenseKey(altPublic)
 
     try {
       const cert = signCert({ instanceId: 'inst-xyz' }, altSecret)
@@ -97,7 +93,7 @@ describe('verifyCertificate', () => {
       expect(result).not.toBeNull()
       expect(result?.edition).toBe('pro')
     } finally {
-      PUBLIC_KEYS.splice(PUBLIC_KEYS.indexOf(altPublic), 1)
+      untrustTestLicenseKey(altPublic)
     }
   })
 
@@ -143,51 +139,27 @@ describe('verifyCertificateResult', () => {
   })
 })
 
-const previewPolicy = { type: 'worker-preview', worker: 'zpan', account: 'saltbo' }
-describe('signed preview policy', () => {
-  it.each(['pr-595-zpan.saltbo.workers.dev', 'HASH-zpan.SALTBO.workers.dev'])('accepts %s', (currentHost) => {
-    expect(
-      verifyCertificate(signCert({ hostPolicy: previewPolicy, authorizedHosts: [] }), {
-        instanceId: 'inst-abc',
-        currentHost,
-      }),
-    ).not.toBeNull()
+describe('hostPolicy claims', () => {
+  const previewPolicy = { type: 'worker-preview', worker: 'zpan', account: 'saltbo' }
+
+  it('checks only the exact authorizedHosts of a certificate carrying hostPolicy', () => {
+    const cert = signCert({ hostPolicy: previewPolicy, authorizedHosts: ['zpan.example.com'] })
+    expect(verifyCertificate(cert, { instanceId: 'inst-abc', currentHost: 'zpan.example.com' })).not.toBeNull()
+    expect(verifyCertificate(cert, { instanceId: 'inst-abc', currentHost: 'pr-1-zpan.saltbo.workers.dev' })).toBeNull()
   })
-  it.each([
-    'zpan.saltbo.workers.dev',
-    'pr-1-other.saltbo.workers.dev',
-    'pr-1-zpan.other.workers.dev',
-    'a.pr-1-zpan.saltbo.workers.dev',
-    'pr-1-zpan.saltbo.workers.dev.evil.com',
-    'pr-1-zpan.saltbo.workers.dev:443',
-    'http://[',
-    'evil@pr-1-zpan.saltbo.workers.dev',
-    'pr-1-zpan.saltbo.workers.dev/path',
-    'pr-1-zpan.saltbo.workers.dev?x',
-    '-zpan.saltbo.workers.dev',
-  ])('rejects %s', (currentHost) => {
+
+  it('does not widen an empty authorizedHosts list', () => {
+    const cert = signCert({ hostPolicy: previewPolicy, authorizedHosts: [] })
     expect(
-      verifyCertificate(signCert({ hostPolicy: previewPolicy }), { instanceId: 'inst-abc', currentHost }),
-    ).toBeNull()
+      verifyCertificateResult(cert, { instanceId: 'inst-abc', currentHost: 'pr-1-zpan.saltbo.workers.dev' }),
+    ).toEqual({
+      ok: false,
+      reason: 'host',
+    })
   })
-  it.each([
-    { instanceId: 'wrong' },
-    { issuer: 'https://evil.com' },
-    { expiresAt: 1 },
-  ])('retains claim checks %j', (claims) => {
-    expect(
-      verifyCertificate(signCert({ hostPolicy: previewPolicy, ...claims }), {
-        instanceId: 'inst-abc',
-        currentHost: 'pr-1-zpan.saltbo.workers.dev',
-      }),
-    ).toBeNull()
-  })
-  it('rejects malformed policies and invalid signatures', () => {
-    expect(
-      verifyCertificate(signCert({ hostPolicy: { type: 'wildcard', suffix: '*.workers.dev' } }), {
-        instanceId: 'inst-abc',
-      }),
-    ).toBeNull()
-    expect(verifyCertificate(`${signCert({ hostPolicy: previewPolicy })}x`, { instanceId: 'inst-abc' })).toBeNull()
+
+  it('rejects a certificate whose authorizedHosts contains a malformed entry', () => {
+    const cert = signCert({ authorizedHosts: ['zpan.example.com', 'http://['] })
+    expect(verifyCertificateResult(cert, { instanceId: 'inst-abc' })).toEqual({ ok: false, reason: 'host' })
   })
 })

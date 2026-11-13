@@ -5,7 +5,6 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import * as authSchema from '../db/auth-schema'
 import * as schema from '../db/schema'
-import { registerEnvPublicKeys } from '../domain/license-keys'
 import type { Platform } from './interface'
 
 export function createNodePlatform(): Platform {
@@ -19,8 +18,6 @@ export function createNodePlatform(): Platform {
   const db = drizzle(sqlite, { schema: { ...schema, ...authSchema } })
 
   migrate(db, { migrationsFolder })
-
-  registerEnvPublicKeys(process.env.ZPAN_LICENSE_PUBLIC_KEYS)
 
   return {
     db,

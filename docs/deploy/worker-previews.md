@@ -54,6 +54,9 @@ Preview hostname, including `/api/auth/callback/github` and
 registered with external OAuth providers. Use staging for full external-provider
 verification. Preview authentication uses the request origin; verify each ZPan
 instance's authorized hosts and Cloud fulfillment callback URL when pairing.
+Staging Cloud issues each Preview a certificate for its exact hostname; ZPan
+accepts staging-signed certificates only for `<label>.saltbo.workers.dev` hosts
+(see [license key trust](../design/license-key-trust.md)).
 
 Preview secrets added to Base apply to **new** Previews. Update existing Preview
 secrets explicitly when rotating them.

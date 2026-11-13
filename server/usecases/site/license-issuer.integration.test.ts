@@ -1,17 +1,16 @@
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createLicenseBindingRepo } from '../../adapters/repos/license-binding'
-import { PUBLIC_KEYS } from '../../domain/license-keys'
+import { trustTestLicenseKey, untrustTestLicenseKey } from '../../test/license-keys'
 import { createTestApp } from '../../test/setup'
 import { checkTeamLimit, loadBindingState, resolveEffectiveSignupMode } from './licensing'
 
 const { secretKey, publicKey } = generateKeys('public')
 beforeAll(() => {
-  PUBLIC_KEYS.push(publicKey)
+  trustTestLicenseKey(publicKey, ['https://staging-zpan-cloud.saltbo.workers.dev', 'https://cloud.zpan.space'])
 })
 afterAll(() => {
-  const index = PUBLIC_KEYS.indexOf(publicKey)
-  if (index !== -1) PUBLIC_KEYS.splice(index, 1)
+  untrustTestLicenseKey(publicKey)
 })
 const nowSec = () => Math.floor(Date.now() / 1000)
 function signCert({ issuer }: { issuer: string }) {

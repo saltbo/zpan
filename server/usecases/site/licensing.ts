@@ -7,8 +7,12 @@ import { FREE_TEAM_LIMIT, SignupMode, ZPAN_CLOUD_URL_DEFAULT } from '@shared/con
 import type { BindingState, LicenseAssertion, LicenseEdition } from '@shared/types'
 import { verify } from 'paseto-ts/v4'
 import { z } from 'zod'
-import { isLicenseHostPolicy, matchesLicenseHostPolicy } from '../../../shared/license-host-policy'
-import { getTrustedPublicKeys } from '../../domain/license-keys'
+import {
+  getTrustedLicenseKeys,
+  licenseKeyAllowsHost,
+  licenseKeyAllowsIssuer,
+  type TrustedLicenseKey,
+} from '../../domain/license-keys'
 import { effectiveFeatures, hasFeature } from '../../domain/licensing'
 import {
   AppError,
@@ -80,7 +84,7 @@ export function verifyCertificate(cert: string, options: VerifyCertificateOption
 export function verifyCertificateResult(cert: string, options: VerifyCertificateOptions): VerifyCertificateResult {
   let claimReason: CertificateRejectionReason | null = null
 
-  for (const key of getTrustedPublicKeys()) {
+  for (const key of getTrustedLicenseKeys()) {
     const outcome = tryVerify(cert, key, options)
     if (outcome.ok) return outcome
     // Signature passed for this key but a claim failed — remember the first such
@@ -95,24 +99,30 @@ export function verifyCertificateResult(cert: string, options: VerifyCertificate
   return { ok: false, reason: claimReason ?? 'signature' }
 }
 
-function tryVerify(cert: string, publicKey: string, options: VerifyCertificateOptions): VerifyCertificateResult {
+function tryVerify(cert: string, key: TrustedLicenseKey, options: VerifyCertificateOptions): VerifyCertificateResult {
   let payload: LicenseAssertion
   try {
-    ;({ payload } = verify<LicenseAssertion>(publicKey, cert, { validatePayload: false }))
+    ;({ payload } = verify<LicenseAssertion>(key.publicKey, cert, { validatePayload: false }))
   } catch {
     return { ok: false, reason: 'signature' }
   }
 
   const now = Math.floor(Date.now() / 1000)
   const currentHost = normalizeHost(options.currentHost)
-  const authorizedHosts = Array.isArray(payload.authorizedHosts)
-    ? payload.authorizedHosts.map((host) => normalizeHost(host)).filter((host): host is string => Boolean(host))
-    : []
+  const rawHosts: unknown[] = Array.isArray(payload.authorizedHosts) ? payload.authorizedHosts : []
+  const authorizedHosts = rawHosts
+    .map((host) => (typeof host === 'string' ? normalizeHost(host) : null))
+    .filter((host): host is string => Boolean(host))
 
   if (payload.type !== 'zpan.license') {
     return { ok: false, reason: 'type' }
   }
-  if (payload.issuer !== trustedIssuerFromCloudUrl(options.cloudBaseUrl)) {
+  // The issuer must match both the key that signed the certificate and the cloud
+  // this instance is configured to trust.
+  if (
+    !licenseKeyAllowsIssuer(key, payload.issuer) ||
+    payload.issuer !== trustedIssuerFromCloudUrl(options.cloudBaseUrl)
+  ) {
     return { ok: false, reason: 'issuer' }
   }
   if (payload.instanceId !== options.instanceId) {
@@ -127,16 +137,13 @@ function tryVerify(cert: string, publicKey: string, options: VerifyCertificateOp
   if (payload.expiresAt <= now) {
     return { ok: false, reason: 'expired' }
   }
-  if (payload.hostPolicy !== undefined && !isLicenseHostPolicy(payload.hostPolicy)) {
+  // Hosts are matched exactly, and every host the certificate names must also lie
+  // inside the signing key's host scope.
+  if (authorizedHosts.length !== rawHosts.length || !authorizedHosts.every((host) => licenseKeyAllowsHost(key, host))) {
     return { ok: false, reason: 'host' }
   }
   if (options.currentHost && !currentHost) return { ok: false, reason: 'host' }
-  if (
-    currentHost &&
-    !(payload.hostPolicy
-      ? options.currentHost?.toLowerCase() === currentHost && matchesLicenseHostPolicy(payload.hostPolicy, currentHost)
-      : authorizedHosts.includes(currentHost))
-  ) {
+  if (currentHost && (!authorizedHosts.includes(currentHost) || !licenseKeyAllowsHost(key, currentHost))) {
     return { ok: false, reason: 'host' }
   }
 
@@ -171,7 +178,7 @@ export interface VerifyCloudEventTokenOptions {
 }
 
 export function verifyCloudEventToken(token: string, options: VerifyCloudEventTokenOptions): CloudEventToken | null {
-  for (const key of getTrustedPublicKeys()) {
+  for (const key of getTrustedLicenseKeys()) {
     const event = tryVerifyCloudEventToken(token, key, options)
     if (event) return event
   }
@@ -180,16 +187,17 @@ export function verifyCloudEventToken(token: string, options: VerifyCloudEventTo
 
 function tryVerifyCloudEventToken(
   token: string,
-  publicKey: string,
+  key: TrustedLicenseKey,
   options: VerifyCloudEventTokenOptions,
 ): CloudEventToken | null {
   try {
-    const { payload } = verify<Record<string, unknown>>(publicKey, token, { validatePayload: false })
+    const { payload } = verify<Record<string, unknown>>(key.publicKey, token, { validatePayload: false })
     const parsed = cloudEventTokenSchema.safeParse(payload)
     if (!parsed.success) return null
 
     const event = parsed.data
     const now = Math.floor(Date.now() / 1000)
+    if (!licenseKeyAllowsIssuer(key, event.issuer)) return null
     if (event.issuer !== trustedIssuerFromCloudUrl(options.cloudBaseUrl)) return null
     if (event.audience !== options.instanceId && event.audience !== options.boundLicenseId) return null
     if (event.boundLicenseId !== options.boundLicenseId) return null

@@ -9,75 +9,69 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as DeviceRouteImport } from './routes/device'
-import { Route as URouteRouteImport } from './routes/u/route'
-import { Route as SRouteRouteImport } from './routes/s/route'
-import { Route as OauthRouteRouteImport } from './routes/oauth/route'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as UUsernameRouteImport } from './routes/u/$username'
-import { Route as StoreCheckoutRouteImport } from './routes/store/checkout'
-import { Route as STokenRouteImport } from './routes/s/$token'
-import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
-import { Route as AuthenticatedStorageRouteImport } from './routes/_authenticated/storage'
-import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
-import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
-import { Route as authResetPasswordRouteImport } from './routes/(auth)/reset-password'
+import { Route as DeviceRouteImport } from './routes/device'
+import { Route as OauthRouteRouteImport } from './routes/oauth/route'
+import { Route as SRouteRouteImport } from './routes/s/route'
+import { Route as URouteRouteImport } from './routes/u/route'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
-import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
+import { Route as authResetPasswordRouteImport } from './routes/(auth)/reset-password'
+import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
+import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAdminRouteRouteImport } from './routes/_authenticated/admin/route'
-import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
-import { Route as AuthenticatedTrashIndexRouteImport } from './routes/_authenticated/trash/index'
-import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
-import { Route as AuthenticatedStoragesIndexRouteImport } from './routes/_authenticated/storages/index'
-import { Route as AuthenticatedSharesIndexRouteImport } from './routes/_authenticated/shares/index'
-import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
-import { Route as AuthenticatedImageHostIndexRouteImport } from './routes/_authenticated/image-host/index'
-import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
-import { Route as AuthenticatedDownloadsIndexRouteImport } from './routes/_authenticated/downloads/index'
+import { Route as AuthenticatedSettingsRouteRouteImport } from './routes/_authenticated/settings/route'
+import { Route as AuthenticatedStorageRouteImport } from './routes/_authenticated/storage'
+import { Route as OauthConsentRouteImport } from './routes/oauth/consent'
+import { Route as STokenRouteImport } from './routes/s/$token'
+import { Route as StoreCheckoutRouteImport } from './routes/store/checkout'
+import { Route as UUsernameRouteImport } from './routes/u/$username'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
-import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
-import { Route as AuthenticatedSettingsWebdavRouteImport } from './routes/_authenticated/settings/webdav'
-import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
-import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
-import { Route as AuthenticatedSettingsOauthAppsRouteImport } from './routes/_authenticated/settings/oauth-apps'
-import { Route as AuthenticatedSettingsApiKeysRouteImport } from './routes/_authenticated/settings/api-keys'
-import { Route as AuthenticatedAdminLicensingRouteImport } from './routes/_authenticated/admin/licensing'
-import { Route as AuthenticatedAdminDownloadersRouteImport } from './routes/_authenticated/admin/downloaders'
-import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
-import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin/audit'
-import { Route as AuthenticatedAdminAnnouncementRouteImport } from './routes/_authenticated/admin/announcement'
-import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin/analytics'
 import { Route as AuthenticatedAdminAboutRouteImport } from './routes/_authenticated/admin/about'
+import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin/analytics'
+import { Route as AuthenticatedAdminAnnouncementRouteImport } from './routes/_authenticated/admin/announcement'
+import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authenticated/admin/audit'
+import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
+import { Route as AuthenticatedAdminDownloadersRouteImport } from './routes/_authenticated/admin/downloaders'
+import { Route as AuthenticatedAdminLicensingRouteImport } from './routes/_authenticated/admin/licensing'
+import { Route as AuthenticatedDownloadsIndexRouteImport } from './routes/_authenticated/downloads/index'
+import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
+import { Route as AuthenticatedImageHostIndexRouteImport } from './routes/_authenticated/image-host/index'
+import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
+import { Route as AuthenticatedSettingsApiKeysRouteImport } from './routes/_authenticated/settings/api-keys'
+import { Route as AuthenticatedSettingsOauthAppsRouteImport } from './routes/_authenticated/settings/oauth-apps'
+import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_authenticated/settings/password'
+import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
+import { Route as AuthenticatedSettingsWebdavRouteImport } from './routes/_authenticated/settings/webdav'
+import { Route as AuthenticatedSharesIndexRouteImport } from './routes/_authenticated/shares/index'
+import { Route as AuthenticatedStoragesIndexRouteImport } from './routes/_authenticated/storages/index'
+import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
 import { Route as AuthenticatedTeamsTeamIdRouteRouteImport } from './routes/_authenticated/teams/$teamId/route'
-import { Route as AuthenticatedTeamsTeamIdIndexRouteImport } from './routes/_authenticated/teams/$teamId/index'
-import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
-import { Route as AuthenticatedAdminTeamsIndexRouteImport } from './routes/_authenticated/admin/teams/index'
-import { Route as AuthenticatedAdminStoragesIndexRouteImport } from './routes/_authenticated/admin/storages/index'
+import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
+import { Route as AuthenticatedTrashIndexRouteImport } from './routes/_authenticated/trash/index'
+import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_authenticated/admin/settings/index'
-import { Route as AuthenticatedTeamsTeamIdSettingsRouteImport } from './routes/_authenticated/teams/$teamId/settings'
-import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_authenticated/teams/$teamId/members'
-import { Route as AuthenticatedTeamsTeamIdIhostRouteImport } from './routes/_authenticated/teams/$teamId/ihost'
-import { Route as AuthenticatedTeamsTeamIdBillingRouteImport } from './routes/_authenticated/teams/$teamId/billing'
-import { Route as AuthenticatedTeamsTeamIdActivityRouteImport } from './routes/_authenticated/teams/$teamId/activity'
-import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users/$userId'
-import { Route as AuthenticatedAdminTeamsOrgIdRouteImport } from './routes/_authenticated/admin/teams/$orgId'
-import { Route as AuthenticatedAdminSettingsOauthRouteImport } from './routes/_authenticated/admin/settings/oauth'
 import { Route as AuthenticatedAdminSettingsEmailRouteImport } from './routes/_authenticated/admin/settings/email'
+import { Route as AuthenticatedAdminSettingsOauthRouteImport } from './routes/_authenticated/admin/settings/oauth'
+import { Route as AuthenticatedAdminStoragesIndexRouteImport } from './routes/_authenticated/admin/storages/index'
+import { Route as AuthenticatedAdminTeamsIndexRouteImport } from './routes/_authenticated/admin/teams/index'
+import { Route as AuthenticatedAdminTeamsOrgIdRouteImport } from './routes/_authenticated/admin/teams/$orgId'
+import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
+import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users/$userId'
+import { Route as AuthenticatedTeamsTeamIdIndexRouteImport } from './routes/_authenticated/teams/$teamId/index'
+import { Route as AuthenticatedTeamsTeamIdActivityRouteImport } from './routes/_authenticated/teams/$teamId/activity'
+import { Route as AuthenticatedTeamsTeamIdBillingRouteImport } from './routes/_authenticated/teams/$teamId/billing'
+import { Route as AuthenticatedTeamsTeamIdIhostRouteImport } from './routes/_authenticated/teams/$teamId/ihost'
+import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_authenticated/teams/$teamId/members'
+import { Route as AuthenticatedTeamsTeamIdSettingsRouteImport } from './routes/_authenticated/teams/$teamId/settings'
 
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DeviceRoute = DeviceRouteImport.update({
   id: '/device',
   path: '/device',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const URouteRoute = URouteRouteImport.update({
-  id: '/u',
-  path: '/u',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SRouteRoute = SRouteRouteImport.update({
-  id: '/s',
-  path: '/s',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OauthRouteRoute = OauthRouteRouteImport.update({
@@ -85,53 +79,14 @@ const OauthRouteRoute = OauthRouteRouteImport.update({
   path: '/oauth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
+const SRouteRoute = SRouteRouteImport.update({
+  id: '/s',
+  path: '/s',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const UUsernameRoute = UUsernameRouteImport.update({
-  id: '/$username',
-  path: '/$username',
-  getParentRoute: () => URouteRoute,
-} as any)
-const StoreCheckoutRoute = StoreCheckoutRouteImport.update({
-  id: '/store/checkout',
-  path: '/store/checkout',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const STokenRoute = STokenRouteImport.update({
-  id: '/$token',
-  path: '/$token',
-  getParentRoute: () => SRouteRoute,
-} as any)
-const OauthConsentRoute = OauthConsentRouteImport.update({
-  id: '/consent',
-  path: '/consent',
-  getParentRoute: () => OauthRouteRoute,
-} as any)
-const AuthenticatedStorageRoute = AuthenticatedStorageRouteImport.update({
-  id: '/storage',
-  path: '/storage',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const authSignUpRoute = authSignUpRouteImport.update({
-  id: '/(auth)/sign-up',
-  path: '/sign-up',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const authSignInRoute = authSignInRouteImport.update({
-  id: '/(auth)/sign-in',
-  path: '/sign-in',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const authResetPasswordRoute = authResetPasswordRouteImport.update({
-  id: '/(auth)/reset-password',
-  path: '/reset-password',
+const URouteRoute = URouteRouteImport.update({
+  id: '/u',
+  path: '/u',
   getParentRoute: () => rootRouteImport,
 } as any)
 const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
@@ -139,112 +94,93 @@ const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const authResetPasswordRoute = authResetPasswordRouteImport.update({
+  id: '/(auth)/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const authSignInRoute = authSignInRouteImport.update({
+  id: '/(auth)/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const authSignUpRoute = authSignUpRouteImport.update({
+  id: '/(auth)/sign-up',
+  path: '/sign-up',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSettingsRouteRoute =
   AuthenticatedSettingsRouteRouteImport.update({
     id: '/settings',
     path: '/settings',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedAdminRouteRoute = AuthenticatedAdminRouteRouteImport.update({
-  id: '/admin',
-  path: '/admin',
+const AuthenticatedStorageRoute = AuthenticatedStorageRouteImport.update({
+  id: '/storage',
+  path: '/storage',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
-  id: '/users/',
-  path: '/users/',
-  getParentRoute: () => AuthenticatedRouteRoute,
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/consent',
+  path: '/consent',
+  getParentRoute: () => OauthRouteRoute,
 } as any)
-const AuthenticatedTrashIndexRoute = AuthenticatedTrashIndexRouteImport.update({
-  id: '/trash/',
-  path: '/trash/',
-  getParentRoute: () => AuthenticatedRouteRoute,
+const STokenRoute = STokenRouteImport.update({
+  id: '/$token',
+  path: '/$token',
+  getParentRoute: () => SRouteRoute,
 } as any)
-const AuthenticatedTasksIndexRoute = AuthenticatedTasksIndexRouteImport.update({
-  id: '/tasks/',
-  path: '/tasks/',
-  getParentRoute: () => AuthenticatedRouteRoute,
+const StoreCheckoutRoute = StoreCheckoutRouteImport.update({
+  id: '/store/checkout',
+  path: '/store/checkout',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedStoragesIndexRoute =
-  AuthenticatedStoragesIndexRouteImport.update({
-    id: '/storages/',
-    path: '/storages/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedSharesIndexRoute =
-  AuthenticatedSharesIndexRouteImport.update({
-    id: '/shares/',
-    path: '/shares/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedSettingsIndexRoute =
-  AuthenticatedSettingsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
-const AuthenticatedImageHostIndexRoute =
-  AuthenticatedImageHostIndexRouteImport.update({
-    id: '/image-host/',
-    path: '/image-host/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedFilesIndexRoute = AuthenticatedFilesIndexRouteImport.update({
-  id: '/files/',
-  path: '/files/',
-  getParentRoute: () => AuthenticatedRouteRoute,
+const UUsernameRoute = UUsernameRouteImport.update({
+  id: '/$username',
+  path: '/$username',
+  getParentRoute: () => URouteRoute,
 } as any)
-const AuthenticatedDownloadsIndexRoute =
-  AuthenticatedDownloadsIndexRouteImport.update({
-    id: '/downloads/',
-    path: '/downloads/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedAdminRouteRoute,
 } as any)
-const AuthenticatedTeamsInviteRoute =
-  AuthenticatedTeamsInviteRouteImport.update({
-    id: '/teams/invite',
-    path: '/teams/invite',
-    getParentRoute: () => AuthenticatedRouteRoute,
+const AuthenticatedAdminAboutRoute = AuthenticatedAdminAboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
+const AuthenticatedAdminAnalyticsRoute =
+  AuthenticatedAdminAnalyticsRouteImport.update({
+    id: '/analytics',
+    path: '/analytics',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
-const AuthenticatedSettingsWebdavRoute =
-  AuthenticatedSettingsWebdavRouteImport.update({
-    id: '/webdav',
-    path: '/webdav',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+const AuthenticatedAdminAnnouncementRoute =
+  AuthenticatedAdminAnnouncementRouteImport.update({
+    id: '/announcement',
+    path: '/announcement',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
-const AuthenticatedSettingsProfileRoute =
-  AuthenticatedSettingsProfileRouteImport.update({
-    id: '/profile',
-    path: '/profile',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
-const AuthenticatedSettingsPasswordRoute =
-  AuthenticatedSettingsPasswordRouteImport.update({
-    id: '/password',
-    path: '/password',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
-const AuthenticatedSettingsOauthAppsRoute =
-  AuthenticatedSettingsOauthAppsRouteImport.update({
-    id: '/oauth-apps',
-    path: '/oauth-apps',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
-const AuthenticatedSettingsApiKeysRoute =
-  AuthenticatedSettingsApiKeysRouteImport.update({
-    id: '/api-keys',
-    path: '/api-keys',
-    getParentRoute: () => AuthenticatedSettingsRouteRoute,
-  } as any)
-const AuthenticatedAdminLicensingRoute =
-  AuthenticatedAdminLicensingRouteImport.update({
-    id: '/licensing',
-    path: '/licensing',
+const AuthenticatedAdminAuditRoute = AuthenticatedAdminAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AuthenticatedAdminRouteRoute,
+} as any)
+const AuthenticatedAdminDashboardRoute =
+  AuthenticatedAdminDashboardRouteImport.update({
+    id: '/dashboard',
+    path: '/dashboard',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
 const AuthenticatedAdminDownloadersRoute =
@@ -253,33 +189,81 @@ const AuthenticatedAdminDownloadersRoute =
     path: '/downloaders',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
-const AuthenticatedAdminDashboardRoute =
-  AuthenticatedAdminDashboardRouteImport.update({
-    id: '/dashboard',
-    path: '/dashboard',
+const AuthenticatedAdminLicensingRoute =
+  AuthenticatedAdminLicensingRouteImport.update({
+    id: '/licensing',
+    path: '/licensing',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
-const AuthenticatedAdminAuditRoute = AuthenticatedAdminAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
-  getParentRoute: () => AuthenticatedAdminRouteRoute,
+const AuthenticatedDownloadsIndexRoute =
+  AuthenticatedDownloadsIndexRouteImport.update({
+    id: '/downloads/',
+    path: '/downloads/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedFilesIndexRoute = AuthenticatedFilesIndexRouteImport.update({
+  id: '/files/',
+  path: '/files/',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedAdminAnnouncementRoute =
-  AuthenticatedAdminAnnouncementRouteImport.update({
-    id: '/announcement',
-    path: '/announcement',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
+const AuthenticatedImageHostIndexRoute =
+  AuthenticatedImageHostIndexRouteImport.update({
+    id: '/image-host/',
+    path: '/image-host/',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedAdminAnalyticsRoute =
-  AuthenticatedAdminAnalyticsRouteImport.update({
-    id: '/analytics',
-    path: '/analytics',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
+const AuthenticatedSettingsIndexRoute =
+  AuthenticatedSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
   } as any)
-const AuthenticatedAdminAboutRoute = AuthenticatedAdminAboutRouteImport.update({
-  id: '/about',
-  path: '/about',
-  getParentRoute: () => AuthenticatedAdminRouteRoute,
+const AuthenticatedSettingsApiKeysRoute =
+  AuthenticatedSettingsApiKeysRouteImport.update({
+    id: '/api-keys',
+    path: '/api-keys',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsOauthAppsRoute =
+  AuthenticatedSettingsOauthAppsRouteImport.update({
+    id: '/oauth-apps',
+    path: '/oauth-apps',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsPasswordRoute =
+  AuthenticatedSettingsPasswordRouteImport.update({
+    id: '/password',
+    path: '/password',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsProfileRoute =
+  AuthenticatedSettingsProfileRouteImport.update({
+    id: '/profile',
+    path: '/profile',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSettingsWebdavRoute =
+  AuthenticatedSettingsWebdavRouteImport.update({
+    id: '/webdav',
+    path: '/webdav',
+    getParentRoute: () => AuthenticatedSettingsRouteRoute,
+  } as any)
+const AuthenticatedSharesIndexRoute =
+  AuthenticatedSharesIndexRouteImport.update({
+    id: '/shares/',
+    path: '/shares/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedStoragesIndexRoute =
+  AuthenticatedStoragesIndexRouteImport.update({
+    id: '/storages/',
+    path: '/storages/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedTasksIndexRoute = AuthenticatedTasksIndexRouteImport.update({
+  id: '/tasks/',
+  path: '/tasks/',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedTeamsTeamIdRouteRoute =
   AuthenticatedTeamsTeamIdRouteRouteImport.update({
@@ -287,76 +271,32 @@ const AuthenticatedTeamsTeamIdRouteRoute =
     path: '/teams/$teamId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedTeamsTeamIdIndexRoute =
-  AuthenticatedTeamsTeamIdIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
+const AuthenticatedTeamsInviteRoute =
+  AuthenticatedTeamsInviteRouteImport.update({
+    id: '/teams/invite',
+    path: '/teams/invite',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedAdminUsersIndexRoute =
-  AuthenticatedAdminUsersIndexRouteImport.update({
-    id: '/users/',
-    path: '/users/',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
-  } as any)
-const AuthenticatedAdminTeamsIndexRoute =
-  AuthenticatedAdminTeamsIndexRouteImport.update({
-    id: '/teams/',
-    path: '/teams/',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
-  } as any)
-const AuthenticatedAdminStoragesIndexRoute =
-  AuthenticatedAdminStoragesIndexRouteImport.update({
-    id: '/storages/',
-    path: '/storages/',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
-  } as any)
+const AuthenticatedTrashIndexRoute = AuthenticatedTrashIndexRouteImport.update({
+  id: '/trash/',
+  path: '/trash/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
+  id: '/users/',
+  path: '/users/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminSettingsIndexRoute =
   AuthenticatedAdminSettingsIndexRouteImport.update({
     id: '/settings/',
     path: '/settings/',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
-const AuthenticatedTeamsTeamIdSettingsRoute =
-  AuthenticatedTeamsTeamIdSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
-  } as any)
-const AuthenticatedTeamsTeamIdMembersRoute =
-  AuthenticatedTeamsTeamIdMembersRouteImport.update({
-    id: '/members',
-    path: '/members',
-    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
-  } as any)
-const AuthenticatedTeamsTeamIdIhostRoute =
-  AuthenticatedTeamsTeamIdIhostRouteImport.update({
-    id: '/ihost',
-    path: '/ihost',
-    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
-  } as any)
-const AuthenticatedTeamsTeamIdBillingRoute =
-  AuthenticatedTeamsTeamIdBillingRouteImport.update({
-    id: '/billing',
-    path: '/billing',
-    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
-  } as any)
-const AuthenticatedTeamsTeamIdActivityRoute =
-  AuthenticatedTeamsTeamIdActivityRouteImport.update({
-    id: '/activity',
-    path: '/activity',
-    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
-  } as any)
-const AuthenticatedAdminUsersUserIdRoute =
-  AuthenticatedAdminUsersUserIdRouteImport.update({
-    id: '/users/$userId',
-    path: '/users/$userId',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
-  } as any)
-const AuthenticatedAdminTeamsOrgIdRoute =
-  AuthenticatedAdminTeamsOrgIdRouteImport.update({
-    id: '/teams/$orgId',
-    path: '/teams/$orgId',
+const AuthenticatedAdminSettingsEmailRoute =
+  AuthenticatedAdminSettingsEmailRouteImport.update({
+    id: '/settings/email',
+    path: '/settings/email',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
 const AuthenticatedAdminSettingsOauthRoute =
@@ -365,11 +305,71 @@ const AuthenticatedAdminSettingsOauthRoute =
     path: '/settings/oauth',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
-const AuthenticatedAdminSettingsEmailRoute =
-  AuthenticatedAdminSettingsEmailRouteImport.update({
-    id: '/settings/email',
-    path: '/settings/email',
+const AuthenticatedAdminStoragesIndexRoute =
+  AuthenticatedAdminStoragesIndexRouteImport.update({
+    id: '/storages/',
+    path: '/storages/',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminTeamsIndexRoute =
+  AuthenticatedAdminTeamsIndexRouteImport.update({
+    id: '/teams/',
+    path: '/teams/',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminTeamsOrgIdRoute =
+  AuthenticatedAdminTeamsOrgIdRouteImport.update({
+    id: '/teams/$orgId',
+    path: '/teams/$orgId',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminUsersIndexRoute =
+  AuthenticatedAdminUsersIndexRouteImport.update({
+    id: '/users/',
+    path: '/users/',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminUsersUserIdRoute =
+  AuthenticatedAdminUsersUserIdRouteImport.update({
+    id: '/users/$userId',
+    path: '/users/$userId',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedTeamsTeamIdIndexRoute =
+  AuthenticatedTeamsTeamIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
+  } as any)
+const AuthenticatedTeamsTeamIdActivityRoute =
+  AuthenticatedTeamsTeamIdActivityRouteImport.update({
+    id: '/activity',
+    path: '/activity',
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
+  } as any)
+const AuthenticatedTeamsTeamIdBillingRoute =
+  AuthenticatedTeamsTeamIdBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
+  } as any)
+const AuthenticatedTeamsTeamIdIhostRoute =
+  AuthenticatedTeamsTeamIdIhostRouteImport.update({
+    id: '/ihost',
+    path: '/ihost',
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
+  } as any)
+const AuthenticatedTeamsTeamIdMembersRoute =
+  AuthenticatedTeamsTeamIdMembersRouteImport.update({
+    id: '/members',
+    path: '/members',
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
+  } as any)
+const AuthenticatedTeamsTeamIdSettingsRoute =
+  AuthenticatedTeamsTeamIdSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -723,25 +723,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/device': {
       id: '/device'
       path: '/device'
       fullPath: '/device'
       preLoaderRoute: typeof DeviceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/u': {
-      id: '/u'
-      path: '/u'
-      fullPath: '/u'
-      preLoaderRoute: typeof URouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s': {
-      id: '/s'
-      path: '/s'
-      fullPath: '/s'
-      preLoaderRoute: typeof SRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oauth': {
@@ -751,74 +744,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OauthRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+    '/s': {
+      id: '/s'
+      path: '/s'
+      fullPath: '/s'
+      preLoaderRoute: typeof SRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/': {
-      id: '/_authenticated/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/u/$username': {
-      id: '/u/$username'
-      path: '/$username'
-      fullPath: '/u/$username'
-      preLoaderRoute: typeof UUsernameRouteImport
-      parentRoute: typeof URouteRoute
-    }
-    '/store/checkout': {
-      id: '/store/checkout'
-      path: '/store/checkout'
-      fullPath: '/store/checkout'
-      preLoaderRoute: typeof StoreCheckoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/s/$token': {
-      id: '/s/$token'
-      path: '/$token'
-      fullPath: '/s/$token'
-      preLoaderRoute: typeof STokenRouteImport
-      parentRoute: typeof SRouteRoute
-    }
-    '/oauth/consent': {
-      id: '/oauth/consent'
-      path: '/consent'
-      fullPath: '/oauth/consent'
-      preLoaderRoute: typeof OauthConsentRouteImport
-      parentRoute: typeof OauthRouteRoute
-    }
-    '/_authenticated/storage': {
-      id: '/_authenticated/storage'
-      path: '/storage'
-      fullPath: '/storage'
-      preLoaderRoute: typeof AuthenticatedStorageRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/(auth)/sign-up': {
-      id: '/(auth)/sign-up'
-      path: '/sign-up'
-      fullPath: '/sign-up'
-      preLoaderRoute: typeof authSignUpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/(auth)/sign-in': {
-      id: '/(auth)/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof authSignInRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/(auth)/reset-password': {
-      id: '/(auth)/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof authResetPasswordRouteImport
+    '/u': {
+      id: '/u'
+      path: '/u'
+      fullPath: '/u'
+      preLoaderRoute: typeof URouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/(auth)/forgot-password': {
@@ -828,11 +765,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/settings': {
-      id: '/_authenticated/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedSettingsRouteRouteImport
+    '/(auth)/reset-password': {
+      id: '/(auth)/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof authResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(auth)/sign-in': {
+      id: '/(auth)/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof authSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(auth)/sign-up': {
+      id: '/(auth)/sign-up'
+      path: '/sign-up'
+      fullPath: '/sign-up'
+      preLoaderRoute: typeof authSignUpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/': {
+      id: '/_authenticated/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin': {
@@ -842,158 +800,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/users/': {
-      id: '/_authenticated/users/'
-      path: '/users'
-      fullPath: '/users/'
-      preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/trash/': {
-      id: '/_authenticated/trash/'
-      path: '/trash'
-      fullPath: '/trash/'
-      preLoaderRoute: typeof AuthenticatedTrashIndexRouteImport
+    '/_authenticated/storage': {
+      id: '/_authenticated/storage'
+      path: '/storage'
+      fullPath: '/storage'
+      preLoaderRoute: typeof AuthenticatedStorageRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/tasks/': {
-      id: '/_authenticated/tasks/'
-      path: '/tasks'
-      fullPath: '/tasks/'
-      preLoaderRoute: typeof AuthenticatedTasksIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+    '/oauth/consent': {
+      id: '/oauth/consent'
+      path: '/consent'
+      fullPath: '/oauth/consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
+      parentRoute: typeof OauthRouteRoute
     }
-    '/_authenticated/storages/': {
-      id: '/_authenticated/storages/'
-      path: '/storages'
-      fullPath: '/storages/'
-      preLoaderRoute: typeof AuthenticatedStoragesIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+    '/s/$token': {
+      id: '/s/$token'
+      path: '/$token'
+      fullPath: '/s/$token'
+      preLoaderRoute: typeof STokenRouteImport
+      parentRoute: typeof SRouteRoute
     }
-    '/_authenticated/shares/': {
-      id: '/_authenticated/shares/'
-      path: '/shares'
-      fullPath: '/shares/'
-      preLoaderRoute: typeof AuthenticatedSharesIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+    '/store/checkout': {
+      id: '/store/checkout'
+      path: '/store/checkout'
+      fullPath: '/store/checkout'
+      preLoaderRoute: typeof StoreCheckoutRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/settings/': {
-      id: '/_authenticated/settings/'
-      path: '/'
-      fullPath: '/settings/'
-      preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
-    '/_authenticated/image-host/': {
-      id: '/_authenticated/image-host/'
-      path: '/image-host'
-      fullPath: '/image-host/'
-      preLoaderRoute: typeof AuthenticatedImageHostIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/files/': {
-      id: '/_authenticated/files/'
-      path: '/files'
-      fullPath: '/files/'
-      preLoaderRoute: typeof AuthenticatedFilesIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/downloads/': {
-      id: '/_authenticated/downloads/'
-      path: '/downloads'
-      fullPath: '/downloads/'
-      preLoaderRoute: typeof AuthenticatedDownloadsIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+    '/u/$username': {
+      id: '/u/$username'
+      path: '/$username'
+      fullPath: '/u/$username'
+      preLoaderRoute: typeof UUsernameRouteImport
+      parentRoute: typeof URouteRoute
     }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
-    '/_authenticated/teams/invite': {
-      id: '/_authenticated/teams/invite'
-      path: '/teams/invite'
-      fullPath: '/teams/invite'
-      preLoaderRoute: typeof AuthenticatedTeamsInviteRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/settings/webdav': {
-      id: '/_authenticated/settings/webdav'
-      path: '/webdav'
-      fullPath: '/settings/webdav'
-      preLoaderRoute: typeof AuthenticatedSettingsWebdavRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
-    '/_authenticated/settings/profile': {
-      id: '/_authenticated/settings/profile'
-      path: '/profile'
-      fullPath: '/settings/profile'
-      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
-    '/_authenticated/settings/password': {
-      id: '/_authenticated/settings/password'
-      path: '/password'
-      fullPath: '/settings/password'
-      preLoaderRoute: typeof AuthenticatedSettingsPasswordRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
-    '/_authenticated/settings/oauth-apps': {
-      id: '/_authenticated/settings/oauth-apps'
-      path: '/oauth-apps'
-      fullPath: '/settings/oauth-apps'
-      preLoaderRoute: typeof AuthenticatedSettingsOauthAppsRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
-    '/_authenticated/settings/api-keys': {
-      id: '/_authenticated/settings/api-keys'
-      path: '/api-keys'
-      fullPath: '/settings/api-keys'
-      preLoaderRoute: typeof AuthenticatedSettingsApiKeysRouteImport
-      parentRoute: typeof AuthenticatedSettingsRouteRoute
-    }
-    '/_authenticated/admin/licensing': {
-      id: '/_authenticated/admin/licensing'
-      path: '/licensing'
-      fullPath: '/admin/licensing'
-      preLoaderRoute: typeof AuthenticatedAdminLicensingRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
-    '/_authenticated/admin/downloaders': {
-      id: '/_authenticated/admin/downloaders'
-      path: '/downloaders'
-      fullPath: '/admin/downloaders'
-      preLoaderRoute: typeof AuthenticatedAdminDownloadersRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
-    '/_authenticated/admin/dashboard': {
-      id: '/_authenticated/admin/dashboard'
-      path: '/dashboard'
-      fullPath: '/admin/dashboard'
-      preLoaderRoute: typeof AuthenticatedAdminDashboardRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
-    '/_authenticated/admin/audit': {
-      id: '/_authenticated/admin/audit'
-      path: '/audit'
-      fullPath: '/admin/audit'
-      preLoaderRoute: typeof AuthenticatedAdminAuditRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
-    '/_authenticated/admin/announcement': {
-      id: '/_authenticated/admin/announcement'
-      path: '/announcement'
-      fullPath: '/admin/announcement'
-      preLoaderRoute: typeof AuthenticatedAdminAnnouncementRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
-    '/_authenticated/admin/analytics': {
-      id: '/_authenticated/admin/analytics'
-      path: '/analytics'
-      fullPath: '/admin/analytics'
-      preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
     '/_authenticated/admin/about': {
@@ -1003,6 +856,132 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAboutRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/analytics': {
+      id: '/_authenticated/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/announcement': {
+      id: '/_authenticated/admin/announcement'
+      path: '/announcement'
+      fullPath: '/admin/announcement'
+      preLoaderRoute: typeof AuthenticatedAdminAnnouncementRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/audit': {
+      id: '/_authenticated/admin/audit'
+      path: '/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AuthenticatedAdminAuditRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/dashboard': {
+      id: '/_authenticated/admin/dashboard'
+      path: '/dashboard'
+      fullPath: '/admin/dashboard'
+      preLoaderRoute: typeof AuthenticatedAdminDashboardRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/downloaders': {
+      id: '/_authenticated/admin/downloaders'
+      path: '/downloaders'
+      fullPath: '/admin/downloaders'
+      preLoaderRoute: typeof AuthenticatedAdminDownloadersRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/licensing': {
+      id: '/_authenticated/admin/licensing'
+      path: '/licensing'
+      fullPath: '/admin/licensing'
+      preLoaderRoute: typeof AuthenticatedAdminLicensingRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/downloads/': {
+      id: '/_authenticated/downloads/'
+      path: '/downloads'
+      fullPath: '/downloads/'
+      preLoaderRoute: typeof AuthenticatedDownloadsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/files/': {
+      id: '/_authenticated/files/'
+      path: '/files'
+      fullPath: '/files/'
+      preLoaderRoute: typeof AuthenticatedFilesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/image-host/': {
+      id: '/_authenticated/image-host/'
+      path: '/image-host'
+      fullPath: '/image-host/'
+      preLoaderRoute: typeof AuthenticatedImageHostIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings/': {
+      id: '/_authenticated/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/api-keys': {
+      id: '/_authenticated/settings/api-keys'
+      path: '/api-keys'
+      fullPath: '/settings/api-keys'
+      preLoaderRoute: typeof AuthenticatedSettingsApiKeysRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/oauth-apps': {
+      id: '/_authenticated/settings/oauth-apps'
+      path: '/oauth-apps'
+      fullPath: '/settings/oauth-apps'
+      preLoaderRoute: typeof AuthenticatedSettingsOauthAppsRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/password': {
+      id: '/_authenticated/settings/password'
+      path: '/password'
+      fullPath: '/settings/password'
+      preLoaderRoute: typeof AuthenticatedSettingsPasswordRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/profile': {
+      id: '/_authenticated/settings/profile'
+      path: '/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/settings/webdav': {
+      id: '/_authenticated/settings/webdav'
+      path: '/webdav'
+      fullPath: '/settings/webdav'
+      preLoaderRoute: typeof AuthenticatedSettingsWebdavRouteImport
+      parentRoute: typeof AuthenticatedSettingsRouteRoute
+    }
+    '/_authenticated/shares/': {
+      id: '/_authenticated/shares/'
+      path: '/shares'
+      fullPath: '/shares/'
+      preLoaderRoute: typeof AuthenticatedSharesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/storages/': {
+      id: '/_authenticated/storages/'
+      path: '/storages'
+      fullPath: '/storages/'
+      preLoaderRoute: typeof AuthenticatedStoragesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/tasks/': {
+      id: '/_authenticated/tasks/'
+      path: '/tasks'
+      fullPath: '/tasks/'
+      preLoaderRoute: typeof AuthenticatedTasksIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/teams/$teamId': {
       id: '/_authenticated/teams/$teamId'
       path: '/teams/$teamId'
@@ -1010,33 +989,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeamsTeamIdRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/teams/$teamId/': {
-      id: '/_authenticated/teams/$teamId/'
-      path: '/'
-      fullPath: '/teams/$teamId/'
-      preLoaderRoute: typeof AuthenticatedTeamsTeamIdIndexRouteImport
-      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
+    '/_authenticated/teams/invite': {
+      id: '/_authenticated/teams/invite'
+      path: '/teams/invite'
+      fullPath: '/teams/invite'
+      preLoaderRoute: typeof AuthenticatedTeamsInviteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/admin/users/': {
-      id: '/_authenticated/admin/users/'
+    '/_authenticated/trash/': {
+      id: '/_authenticated/trash/'
+      path: '/trash'
+      fullPath: '/trash/'
+      preLoaderRoute: typeof AuthenticatedTrashIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/users/': {
+      id: '/_authenticated/users/'
       path: '/users'
-      fullPath: '/admin/users/'
-      preLoaderRoute: typeof AuthenticatedAdminUsersIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
-    '/_authenticated/admin/teams/': {
-      id: '/_authenticated/admin/teams/'
-      path: '/teams'
-      fullPath: '/admin/teams/'
-      preLoaderRoute: typeof AuthenticatedAdminTeamsIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
-    '/_authenticated/admin/storages/': {
-      id: '/_authenticated/admin/storages/'
-      path: '/storages'
-      fullPath: '/admin/storages/'
-      preLoaderRoute: typeof AuthenticatedAdminStoragesIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
+      fullPath: '/users/'
+      preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/settings/': {
       id: '/_authenticated/admin/settings/'
@@ -1045,53 +1017,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
-    '/_authenticated/teams/$teamId/settings': {
-      id: '/_authenticated/teams/$teamId/settings'
-      path: '/settings'
-      fullPath: '/teams/$teamId/settings'
-      preLoaderRoute: typeof AuthenticatedTeamsTeamIdSettingsRouteImport
-      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
-    }
-    '/_authenticated/teams/$teamId/members': {
-      id: '/_authenticated/teams/$teamId/members'
-      path: '/members'
-      fullPath: '/teams/$teamId/members'
-      preLoaderRoute: typeof AuthenticatedTeamsTeamIdMembersRouteImport
-      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
-    }
-    '/_authenticated/teams/$teamId/ihost': {
-      id: '/_authenticated/teams/$teamId/ihost'
-      path: '/ihost'
-      fullPath: '/teams/$teamId/ihost'
-      preLoaderRoute: typeof AuthenticatedTeamsTeamIdIhostRouteImport
-      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
-    }
-    '/_authenticated/teams/$teamId/billing': {
-      id: '/_authenticated/teams/$teamId/billing'
-      path: '/billing'
-      fullPath: '/teams/$teamId/billing'
-      preLoaderRoute: typeof AuthenticatedTeamsTeamIdBillingRouteImport
-      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
-    }
-    '/_authenticated/teams/$teamId/activity': {
-      id: '/_authenticated/teams/$teamId/activity'
-      path: '/activity'
-      fullPath: '/teams/$teamId/activity'
-      preLoaderRoute: typeof AuthenticatedTeamsTeamIdActivityRouteImport
-      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
-    }
-    '/_authenticated/admin/users/$userId': {
-      id: '/_authenticated/admin/users/$userId'
-      path: '/users/$userId'
-      fullPath: '/admin/users/$userId'
-      preLoaderRoute: typeof AuthenticatedAdminUsersUserIdRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
-    '/_authenticated/admin/teams/$orgId': {
-      id: '/_authenticated/admin/teams/$orgId'
-      path: '/teams/$orgId'
-      fullPath: '/admin/teams/$orgId'
-      preLoaderRoute: typeof AuthenticatedAdminTeamsOrgIdRouteImport
+    '/_authenticated/admin/settings/email': {
+      id: '/_authenticated/admin/settings/email'
+      path: '/settings/email'
+      fullPath: '/admin/settings/email'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsEmailRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
     '/_authenticated/admin/settings/oauth': {
@@ -1101,12 +1031,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsOauthRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
-    '/_authenticated/admin/settings/email': {
-      id: '/_authenticated/admin/settings/email'
-      path: '/settings/email'
-      fullPath: '/admin/settings/email'
-      preLoaderRoute: typeof AuthenticatedAdminSettingsEmailRouteImport
+    '/_authenticated/admin/storages/': {
+      id: '/_authenticated/admin/storages/'
+      path: '/storages'
+      fullPath: '/admin/storages/'
+      preLoaderRoute: typeof AuthenticatedAdminStoragesIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/teams/': {
+      id: '/_authenticated/admin/teams/'
+      path: '/teams'
+      fullPath: '/admin/teams/'
+      preLoaderRoute: typeof AuthenticatedAdminTeamsIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/teams/$orgId': {
+      id: '/_authenticated/admin/teams/$orgId'
+      path: '/teams/$orgId'
+      fullPath: '/admin/teams/$orgId'
+      preLoaderRoute: typeof AuthenticatedAdminTeamsOrgIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/users/': {
+      id: '/_authenticated/admin/users/'
+      path: '/users'
+      fullPath: '/admin/users/'
+      preLoaderRoute: typeof AuthenticatedAdminUsersIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/users/$userId': {
+      id: '/_authenticated/admin/users/$userId'
+      path: '/users/$userId'
+      fullPath: '/admin/users/$userId'
+      preLoaderRoute: typeof AuthenticatedAdminUsersUserIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/teams/$teamId/': {
+      id: '/_authenticated/teams/$teamId/'
+      path: '/'
+      fullPath: '/teams/$teamId/'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdIndexRouteImport
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
+    }
+    '/_authenticated/teams/$teamId/activity': {
+      id: '/_authenticated/teams/$teamId/activity'
+      path: '/activity'
+      fullPath: '/teams/$teamId/activity'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdActivityRouteImport
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
+    }
+    '/_authenticated/teams/$teamId/billing': {
+      id: '/_authenticated/teams/$teamId/billing'
+      path: '/billing'
+      fullPath: '/teams/$teamId/billing'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdBillingRouteImport
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
+    }
+    '/_authenticated/teams/$teamId/ihost': {
+      id: '/_authenticated/teams/$teamId/ihost'
+      path: '/ihost'
+      fullPath: '/teams/$teamId/ihost'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdIhostRouteImport
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
+    }
+    '/_authenticated/teams/$teamId/members': {
+      id: '/_authenticated/teams/$teamId/members'
+      path: '/members'
+      fullPath: '/teams/$teamId/members'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdMembersRouteImport
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
+    }
+    '/_authenticated/teams/$teamId/settings': {
+      id: '/_authenticated/teams/$teamId/settings'
+      path: '/settings'
+      fullPath: '/teams/$teamId/settings'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdSettingsRouteImport
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
     }
   }
 }

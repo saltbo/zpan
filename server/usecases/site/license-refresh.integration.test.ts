@@ -7,7 +7,7 @@ import { createLicensingCloudGateway } from '../../adapters/gateways/licensing-c
 import { createLicenseBindingRepo } from '../../adapters/repos/license-binding'
 import * as authSchema from '../../db/auth-schema'
 import * as appSchema from '../../db/schema'
-import { PUBLIC_KEYS } from '../../domain/license-keys'
+import { trustTestLicenseKey, untrustTestLicenseKey } from '../../test/license-keys'
 import type { CreateLicenseBindingInput, EntitlementRefreshResponse, LicensingCloudGateway } from '../ports'
 import { performRefresh, runLicensingRefresh } from './licensing'
 
@@ -36,17 +36,13 @@ const SCHEMA_SQL = `
 `
 
 const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
-const originalKeys: string[] = []
 
 beforeAll(() => {
-  originalKeys.push(...PUBLIC_KEYS)
-  PUBLIC_KEYS.length = 0
-  PUBLIC_KEYS.push(TEST_PUBLIC)
+  trustTestLicenseKey(TEST_PUBLIC)
 })
 
 afterAll(() => {
-  PUBLIC_KEYS.length = 0
-  for (const k of originalKeys) PUBLIC_KEYS.push(k)
+  untrustTestLicenseKey(TEST_PUBLIC)
 })
 
 function makeDb() {

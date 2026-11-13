@@ -22,7 +22,6 @@ const e2eWorkerVars =
         BETTER_AUTH_URL: process.env.BETTER_AUTH_URL!,
         TRUSTED_ORIGINS: process.env.TRUSTED_ORIGINS!,
         ZPAN_CLOUD_URL: process.env.ZPAN_CLOUD_URL!,
-        ZPAN_LICENSE_PUBLIC_KEYS: process.env.ZPAN_LICENSE_PUBLIC_KEYS!,
         E2E_STORAGE_ENDPOINT: process.env.E2E_STORAGE_ENDPOINT!,
         E2E_STORAGE_BUCKET: process.env.E2E_STORAGE_BUCKET!,
         E2E_STORAGE_REGION: process.env.E2E_STORAGE_REGION!,
@@ -31,7 +30,7 @@ const e2eWorkerVars =
       }
     : undefined
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ command, mode }) => ({
   define: {
     'globalThis.__ZPAN_APP_VERSION__': JSON.stringify(appVersion),
     'globalThis.__ZPAN_APP_COMMIT__': JSON.stringify(appCommit),
@@ -68,8 +67,13 @@ export default defineConfig(({ mode }) => ({
           cloudflare({
             persistState: process.env.E2E_STATE_DIR ? { path: process.env.E2E_STATE_DIR } : undefined,
             inspectorPort: process.env.E2E_RUNTIME === 'cf' ? false : undefined,
+            // E2E dev servers run a test-only entry that trusts the fake Cloud's
+            // signing key; builds always use the wrangler.toml entry.
             config: e2eWorkerVars
-              ? (config) => ({ vars: { ...config.vars, ...e2eWorkerVars } })
+              ? (config) => ({
+                  ...(command === 'serve' ? { main: './e2e/server/worker-entry.ts' } : {}),
+                  vars: { ...config.vars, ...e2eWorkerVars },
+                })
               : undefined,
           }),
         ]),
