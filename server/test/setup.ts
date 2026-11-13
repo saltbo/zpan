@@ -64,7 +64,7 @@ const AUTH_SCHEMA_SQL = `
     updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
   );
   CREATE INDEX IF NOT EXISTS account_userId_idx ON account(user_id);
-  CREATE UNIQUE INDEX IF NOT EXISTS account_issuer_providerAccountId_unique ON account(issuer, account_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS account_providerId_accountId_unique ON account(provider_id, account_id);
   CREATE TABLE IF NOT EXISTS verification (
     id TEXT PRIMARY KEY,
     identifier TEXT NOT NULL,

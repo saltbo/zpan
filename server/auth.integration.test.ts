@@ -1,12 +1,10 @@
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { AuthorizationScope } from '@shared/authorization'
 import { BASE62_PATTERN } from '@shared/ids'
 import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import { deriveDpopAth } from 'better-auth/oauth2'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
@@ -402,43 +400,32 @@ describe('isEmailConfigured — via emailVerification conditional', () => {
   })
 })
 
-describe('Better Auth account issuer migration', () => {
-  it('restores email sign-in for a legacy credential account', async () => {
+describe('Better Auth account issuer (deprecated column)', () => {
+  it.each([
+    ['backfilled by 0089', 'local:credential'],
+    ['never backfilled', ''],
+  ])('signs in a legacy credential account whose issuer was %s', async (_label, issuer) => {
     const ctx = await createTestApp()
-    const email = 'legacy-issuer@example.com'
+    const email = `legacy-${issuer || 'empty'}@example.com`.replace(/:/g, '-')
     await signUp(ctx, email)
-    await ctx.db
-      .update(authSchema.account)
-      .set({ issuer: '' })
-      .where(
-        eq(
-          authSchema.account.userId,
-          (await ctx.db.query.user.findFirst({ where: eq(authSchema.user.email, email) }))!.id,
-        ),
-      )
+    const user = await ctx.db.query.user.findFirst({ where: eq(authSchema.user.email, email) })
+    await ctx.db.update(authSchema.account).set({ issuer }).where(eq(authSchema.account.userId, user!.id))
 
-    const rejected = await ctx.app.request('/api/auth/sign-in/email', {
+    const res = await ctx.app.request('/api/auth/sign-in/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password: 'password123456' }),
     })
-    expect(rejected.status).toBe(401)
+    expect(res.status).toBe(200)
+  })
 
-    const migration = readFileSync(
-      join(process.cwd(), 'migrations/0089_better-auth-account-issuer-backfill.sql'),
-      'utf-8',
-    )
-    for (const statement of migration.split('--> statement-breakpoint')) {
-      await ctx.db.run(sql.raw(statement))
-    }
-
-    const restored = await ctx.app.request('/api/auth/sign-in/email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: 'password123456' }),
-    })
-    expect(restored.status).toBe(200)
-    expect(restored.headers.getSetCookie()).not.toHaveLength(0)
+  it('leaves issuer at its default for accounts created by better-auth 1.7.7', async () => {
+    const ctx = await createTestApp()
+    const email = 'new-account@example.com'
+    await signUp(ctx, email)
+    const user = await ctx.db.query.user.findFirst({ where: eq(authSchema.user.email, email) })
+    const account = await ctx.db.query.account.findFirst({ where: eq(authSchema.account.userId, user!.id) })
+    expect(account).toMatchObject({ issuer: '', providerId: 'credential' })
   })
 })
 

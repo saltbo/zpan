@@ -55,8 +55,10 @@ export const account = sqliteTable(
   'account',
   {
     id: text('id').primaryKey(),
+    // Deprecated: written by better-auth 1.7 rc, unused since stable 1.7.7. Kept (expand/contract)
+    // so the previous release keeps working during rollout; drop it in a follow-up migration.
     issuer: text('issuer').notNull().default(''),
-    providerAccountId: text('account_id').notNull(),
+    accountId: text('account_id').notNull(),
     providerId: text('provider_id').notNull(),
     userId: text('user_id')
       .notNull()
@@ -81,7 +83,7 @@ export const account = sqliteTable(
   },
   (table) => [
     index('account_userId_idx').on(table.userId),
-    uniqueIndex('account_issuer_providerAccountId_unique').on(table.issuer, table.providerAccountId),
+    uniqueIndex('account_providerId_accountId_unique').on(table.providerId, table.accountId),
   ],
 )
 
