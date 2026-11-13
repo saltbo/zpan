@@ -61,14 +61,14 @@ importers:
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@hono/node-server':
-        specifier: ^2.1.3
-        version: 2.1.3(hono@4.13.11)
+        specifier: ^2.1.6
+        version: 2.1.6(hono@4.13.16)
       '@hono/zod-openapi':
         specifier: ^1.4.0
-        version: 1.4.0(hono@4.13.11)(zod@4.6.7)
+        version: 1.4.0(hono@4.13.16)(zod@4.6.7)
       '@hono/zod-validator':
         specifier: ^0.7.6
-        version: 0.7.6(hono@4.13.11)(zod@4.6.7)
+        version: 0.7.6(hono@4.13.16)(zod@4.6.7)
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.72.1(react@19.2.5))
@@ -83,7 +83,7 @@ importers:
         version: 1.65.0(mediabunny@1.65.0)
       '@scalar/hono-api-reference':
         specifier: ^0.11.3
-        version: 0.11.3(hono@4.13.11)
+        version: 0.11.3(hono@4.13.16)
       '@tanstack/react-query':
         specifier: ^5.100.9
         version: 5.100.9(react@19.2.5)
@@ -127,8 +127,8 @@ importers:
         specifier: ^0.8.3
         version: 0.8.3
       hono:
-        specifier: ^4.13.11
-        version: 4.13.11
+        specifier: ^4.13.16
+        version: 4.13.16
       i18next:
         specifier: ^26.4.0
         version: 26.4.0(typescript@7.0.2)
@@ -215,7 +215,7 @@ importers:
         version: 4.6.7
       zpan-cloud-sdk:
         specifier: ^2.5.2
-        version: 2.5.2(hono@4.13.11)(zod@4.6.7)
+        version: 2.5.2(hono@4.13.16)(zod@4.6.7)
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.4.10
@@ -231,7 +231,7 @@ importers:
         version: 5.20260921.1
       '@hono/vite-dev-server':
         specifier: ^0.26.1
-        version: 0.26.1(hono@4.13.11)(miniflare@4.20260526.0(@types/node@24.19.2))(wrangler@4.136.2(@cloudflare/workers-types@5.20260921.1)(@types/node@24.19.2))
+        version: 0.26.1(hono@4.13.16)(miniflare@4.20260526.0(@types/node@24.19.2))(wrangler@4.136.2(@cloudflare/workers-types@5.20260921.1)(@types/node@24.19.2))
       '@playwright/test':
         specifier: ^1.64.1
         version: 1.64.1
@@ -1307,6 +1307,12 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
+
+  '@hono/node-server@2.1.6':
+    resolution: {integrity: sha512-p/KH9MnfNcsm3sR6x4lNgm5j+QN4Et8srKredl9DZfXiyZ1UQ3aQ2YVpFLbqktYN5JI+DB+VZFKM2PqE5hLKjQ==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      hono: ^4 || ^5.0.0-0
 
   '@hono/vite-dev-server@0.26.1':
     resolution: {integrity: sha512-OlcWoXjNogKiJhVwV/ftMK87UcsJmIBfmImSdI4e8to/ZdwNHrW9ddKw2OGHjXI5/uS2RaZr+2y+l8T9VFbCmw==}
@@ -4452,8 +4458,8 @@ packages:
   hastscript@9.0.1:
     resolution: {integrity: sha512-g7df9rMFX/SPi34tyGCyUBREQoKkapwdY/T04Qn9TDWfHhAYt4/I0gMVirzK5wEzeUqIjEB+LXC/ypb7Aqno5w==}
 
-  hono@4.13.11:
-    resolution: {integrity: sha512-/SMX/RQNJn7oNmFwH6DtwDqcrzZU2otm1FD6OJe2cWF6cfy/F8hq0XVBv7xW3FTJshRQwuBnXHDq2kNsdZnshg==}
+  hono@4.13.16:
+    resolution: {integrity: sha512-AOLOEhvrV+iH92xXCnFr/5+3KjPKcI3xP63XJtX5spAnkznPdHijlIsUTpi7/9EhWqrTCekw5c5zh1K+YsVw7A==}
     engines: {node: '>=16.9.0'}
 
   hot-patcher@2.0.1:
@@ -7181,35 +7187,39 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@hono/node-server@2.1.3(hono@4.13.11)':
+  '@hono/node-server@2.1.3(hono@4.13.16)':
     dependencies:
-      hono: 4.13.11
+      hono: 4.13.16
 
-  '@hono/vite-dev-server@0.26.1(hono@4.13.11)(miniflare@4.20260526.0(@types/node@24.19.2))(wrangler@4.136.2(@cloudflare/workers-types@5.20260921.1)(@types/node@24.19.2))':
+  '@hono/node-server@2.1.6(hono@4.13.16)':
     dependencies:
-      '@hono/node-server': 2.1.3(hono@4.13.11)
-      hono: 4.13.11
+      hono: 4.13.16
+
+  '@hono/vite-dev-server@0.26.1(hono@4.13.16)(miniflare@4.20260526.0(@types/node@24.19.2))(wrangler@4.136.2(@cloudflare/workers-types@5.20260921.1)(@types/node@24.19.2))':
+    dependencies:
+      '@hono/node-server': 2.1.3(hono@4.13.16)
+      hono: 4.13.16
       minimatch: 9.0.9
     optionalDependencies:
       miniflare: 4.20260526.0(@types/node@24.19.2)
       wrangler: 4.136.2(@cloudflare/workers-types@5.20260921.1)(@types/node@24.19.2)
 
-  '@hono/zod-openapi@1.4.0(hono@4.13.11)(zod@4.6.7)':
+  '@hono/zod-openapi@1.4.0(hono@4.13.16)(zod@4.6.7)':
     dependencies:
       '@asteasolutions/zod-to-openapi': 8.5.0(zod@4.6.7)
-      '@hono/zod-validator': 0.8.0(hono@4.13.11)(zod@4.6.7)
-      hono: 4.13.11
+      '@hono/zod-validator': 0.8.0(hono@4.13.16)(zod@4.6.7)
+      hono: 4.13.16
       openapi3-ts: 4.6.0
       zod: 4.6.7
 
-  '@hono/zod-validator@0.7.6(hono@4.13.11)(zod@4.6.7)':
+  '@hono/zod-validator@0.7.6(hono@4.13.16)(zod@4.6.7)':
     dependencies:
-      hono: 4.13.11
+      hono: 4.13.16
       zod: 4.6.7
 
-  '@hono/zod-validator@0.8.0(hono@4.13.11)(zod@4.6.7)':
+  '@hono/zod-validator@0.8.0(hono@4.13.16)(zod@4.6.7)':
     dependencies:
-      hono: 4.13.11
+      hono: 4.13.16
       zod: 4.6.7
 
   '@hookform/resolvers@5.2.2(react-hook-form@7.72.1(react@19.2.5))':
@@ -8514,10 +8524,10 @@ snapshots:
 
   '@scalar/helpers@0.8.2': {}
 
-  '@scalar/hono-api-reference@0.11.3(hono@4.13.11)':
+  '@scalar/hono-api-reference@0.11.3(hono@4.13.16)':
     dependencies:
       '@scalar/client-side-rendering': 0.2.3
-      hono: 4.13.11
+      hono: 4.13.16
 
   '@scalar/schemas@0.4.3':
     dependencies:
@@ -10027,7 +10037,7 @@ snapshots:
       property-information: 7.1.0
       space-separated-tokens: 2.0.2
 
-  hono@4.13.11: {}
+  hono@4.13.16: {}
 
   hot-patcher@2.0.1: {}
 
@@ -12106,9 +12116,9 @@ snapshots:
 
   zod@4.6.7: {}
 
-  zpan-cloud-sdk@2.5.2(hono@4.13.11)(zod@4.6.7):
+  zpan-cloud-sdk@2.5.2(hono@4.13.16)(zod@4.6.7):
     dependencies:
-      hono: 4.13.11
+      hono: 4.13.16
       zod: 4.6.7
 
   zrender@6.1.0:
