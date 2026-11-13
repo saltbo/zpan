@@ -55,6 +55,7 @@ import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { initialStorageUsageProjectionQueries } from './adapters/repos/storage-usage-breakdown'
 import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import { recordUserActivity } from './adapters/repos/user-activity'
+import { createBetterAuthLogSink, createJwksDecryptMonitor } from './auth/jwks-decrypt-monitor'
 import { handleOAuthClientRegistrationManagement } from './auth/oauth-client-registration-management'
 import { oauthPushedAuthorizationRequests } from './auth/oauth-par'
 import { createOAuthProviderOptions } from './auth/oauth-provider'
@@ -458,6 +459,21 @@ export async function createAuth(
   const resourceAudience = baseURL ? `${new URL(baseURL).origin}/api` : undefined
   const oauthProviderOptions = createOAuthProviderOptions({ db, resourceAudience })
   const usesNativeWebDavRateLimit = Boolean(authPlatform.getBinding(WEBDAV_RATE_LIMITER_BINDING))
+  // Observe-only: logs which stored JWKS row the deployed secrets cannot
+  // decrypt, once per isolate, without changing the failing response.
+  const jwksDecryptMonitor = createJwksDecryptMonitor({
+    secrets: { secret, ...(secrets ? { secrets } : {}) },
+    runInBackground: backgroundTaskHandler,
+    listKeys: () =>
+      db
+        .select({
+          id: authSchema.jwks.id,
+          alg: authSchema.jwks.alg,
+          privateKey: authSchema.jwks.privateKey,
+          expiresAt: authSchema.jwks.expiresAt,
+        })
+        .from(authSchema.jwks),
+  })
   const authOptions = {
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
     // `secret` stays the legacy key so payloads written before versioning still
@@ -466,6 +482,7 @@ export async function createAuth(
     ...(secrets ? { secrets } : {}),
     baseURL,
     basePath: '/api/auth',
+    logger: { log: createBetterAuthLogSink(jwksDecryptMonitor) },
     // Function form: better-auth merges the result with baseURL per request.
     // Loopback/LAN origins are trusted automatically so self-hosted users can
     // log in via 127.0.0.1 or a LAN IP without configuring TRUSTED_ORIGINS.

@@ -120,6 +120,41 @@ back up the `jwks` rows on the staging D1, delete the undecryptable row, and let
 better-auth create a new key on the next token request. Never do this on
 production without an incident plan: existing id_tokens stop verifying.
 
+#### Spotting it in Workers Logs
+
+The first time a Worker isolate hits `Failed to decrypt private key`, ZPan
+checks every stored `jwks` row against the secrets that deployment holds and
+logs **one** line (at most once per isolate, so a broken key cannot flood the
+logs). The request itself still fails exactly as before; nothing is changed or
+deleted. The line never contains private keys or secret values:
+
+```text
+auth.jwks.decrypt_failed keys=1 undecryptable=[{"id":"<jwks-id>","alg":"EdDSA","expired":false,"encryptedWith":"v1","tried":"none","reason":"version_not_configured"}] configured_versions=[2]
+```
+
+- `encryptedWith`: which secret encrypted the row — `legacy`
+  (`BETTER_AUTH_SECRET`), `v<n>` (`BETTER_AUTH_SECRETS` version `n`), or
+  `unknown` when the stored value cannot be parsed.
+- `tried`: the secret this deployment used for the check
+  (`BETTER_AUTH_SECRET`, `BETTER_AUTH_SECRETS v<n>`, or `none`).
+- `reason`: `version_not_configured` (the row's version is not listed in this
+  deployment's `BETTER_AUTH_SECRETS`), `decrypt_failed` (the secret is listed
+  but holds a different value), or `unreadable`.
+- `configured_versions`: the `BETTER_AUTH_SECRETS` versions this deployment
+  lists (`[]` when only `BETTER_AUTH_SECRET` is set).
+- `check_error` replaces `keys`/`undecryptable` if the rows could not be read.
+
+To find it, open the Worker in the Cloudflare dashboard → **Workers Logs** and
+search for `auth.jwks.decrypt_failed`. A Preview logs under the same Worker, so
+filter by the Preview's version or the time of the failing token request. The
+same line appears in Node/Docker stderr.
+
+Each `id` in `undecryptable` is a candidate for `--id` below. Before deleting,
+check whether a secret fix is enough instead (for example a Preview missing a
+version that Base config lists — update or redeploy that Preview).
+
+#### Resetting the rows
+
 `pnpm reset:preview-jwks` codifies these steps. It only accepts the Preview D1
 (`PREVIEW_DB` / `zpan-db-staging` in `wrangler.preview-migrations.json`, which
 must match `[[previews.d1_databases]]` in `wrangler.toml` and differ from every
