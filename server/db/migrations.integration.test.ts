@@ -270,6 +270,53 @@ describe('migration 0097_better-auth-stable-account-id.sql', () => {
   })
 })
 
+describe('migration 0098_drop-account-issuer.sql', () => {
+  const migrationPath = join(process.cwd(), 'migrations/0098_drop-account-issuer.sql')
+  const migration = readFileSync(migrationPath, 'utf-8').replaceAll('--> statement-breakpoint', '')
+
+  it('drops the deprecated issuer column after 0097 without touching account identity', () => {
+    const db = new Database(':memory:')
+
+    try {
+      // Post-0097 shape: issuer still present, unique index already on (provider_id, account_id).
+      db.exec(`
+        CREATE TABLE account (
+          id TEXT PRIMARY KEY NOT NULL,
+          issuer TEXT DEFAULT '' NOT NULL,
+          account_id TEXT NOT NULL,
+          provider_id TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX account_providerId_accountId_unique ON account (provider_id, account_id);
+        INSERT INTO account (id, issuer, account_id, provider_id) VALUES
+          ('credential', 'local:credential', 'user-1', 'credential'),
+          ('github', 'local:oauth:github', '42', 'github'),
+          ('new', '', '7', 'github');
+      `)
+
+      db.exec(migration)
+
+      expect(db.prepare('SELECT * FROM account ORDER BY id').all()).toEqual([
+        { id: 'credential', account_id: 'user-1', provider_id: 'credential' },
+        { id: 'github', account_id: '42', provider_id: 'github' },
+        { id: 'new', account_id: '7', provider_id: 'github' },
+      ])
+      const indexes = db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'account' AND sql IS NOT NULL")
+        .all()
+      expect(indexes).toEqual([{ name: 'account_providerId_accountId_unique' }])
+
+      db.prepare('INSERT INTO account (id, account_id, provider_id) VALUES (?, ?, ?)').run('later', '8', 'github')
+      expect(() =>
+        db
+          .prepare('INSERT INTO account (id, account_id, provider_id) VALUES (?, ?, ?)')
+          .run('duplicate', '42', 'github'),
+      ).toThrow(/UNIQUE constraint failed: account.provider_id, account.account_id/)
+    } finally {
+      db.close()
+    }
+  })
+})
+
 describe('migration 0089_better-auth-account-issuer-backfill.sql', () => {
   const migrationPath = join(process.cwd(), 'migrations/0089_better-auth-account-issuer-backfill.sql')
   const migration = readFileSync(migrationPath, 'utf-8')
