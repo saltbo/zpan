@@ -1,20 +1,6 @@
 import type { ProFeature } from '@shared/types'
+import { useTranslation } from 'react-i18next'
 import { ProUpgradePrompt } from './ProUpgradePrompt'
-
-const FEATURE_LABELS: Record<ProFeature, string> = {
-  white_label: 'white-label branding',
-  open_registration: 'open registration',
-  teams_unlimited: 'unlimited teams',
-  storages_unlimited: 'unlimited storages',
-  social_login_unlimited: 'unlimited social logins',
-  downloaders_unlimited: 'unlimited downloaders',
-  audit_log: 'audit logs',
-  quota_store: 'storage quota store',
-  site_announcements: 'site announcements',
-  analytics: 'analytics',
-  image_custom_domains: 'image custom domains',
-  media_library: 'media library indexing',
-}
 
 export interface UpgradeHintProps {
   feature: ProFeature
@@ -23,16 +9,19 @@ export interface UpgradeHintProps {
   actionLabel?: string
 }
 
+// Default copy lives in the locale files: admin.upgrade.title/description/action
+// and admin.upgrade.feature.<gateKey>, so callers that pass no props render in
+// the active language. Callers with their own copy keep passing title,
+// description and actionLabel.
 export function UpgradeHint({ feature, title, description, actionLabel }: UpgradeHintProps) {
-  const featureLabel = FEATURE_LABELS[feature] ?? feature
-  const displayName = featureLabel.charAt(0).toUpperCase() + featureLabel.slice(1)
+  const { t } = useTranslation()
 
   return (
     <div data-slot="upgrade-hint">
       <ProUpgradePrompt
-        title={title ?? 'Unlock with ZPan Pro'}
-        description={description ?? `${displayName} is a Pro feature. Upgrade your plan to access it.`}
-        actionLabel={actionLabel ?? 'Upgrade to Pro'}
+        title={title ?? t('admin.upgrade.title')}
+        description={description ?? t('admin.upgrade.description', { feature: t(`admin.upgrade.feature.${feature}`) })}
+        actionLabel={actionLabel ?? t('admin.upgrade.action')}
       />
     </div>
   )
