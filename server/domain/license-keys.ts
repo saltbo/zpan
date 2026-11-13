@@ -21,8 +21,8 @@
 // Keys are PASERK k4.public.* strings (Ed25519, 32 raw bytes, base64url-encoded).
 
 const BUILTIN_PUBLIC_KEYS: readonly string[] = [
-  // zpan-cloud staging key — provisioned 2026-05-09
-  'k4.public.CCpUZ1yRWkFQy4fPZAblCYfzeJn4vDwPQrjtfiySwFc',
+  // zpan-cloud staging key — generated 2026-06-10 (staging-zpan-cloud.saltbo.workers.dev)
+  'k4.public.1wNfC6XwZPu991UOy5VrdxENoLJmpmwUf3ELy4pcX4w',
   // cloud.zpan.space production key — provisioned 2026-04-24
   'k4.public.N_r-lhhAfhR8sOk0pl8zlzU5dNRl2tvpUT94uODPZ1w',
 ]
