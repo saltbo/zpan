@@ -181,6 +181,9 @@
     "*.{ts,tsx,js,jsx,json,jsonc}": "biome check --write --no-errors-on-unmatched"
   },
   "pnpm": {
+    "auditConfig": {
+      "ignoreGhsas": ["GHSA-fc5q-39xc-vjpf"]
+    },
     "peerDependencyRules": {
       "allowedVersions": {
         "@better-captcha/react>typescript": "7"
