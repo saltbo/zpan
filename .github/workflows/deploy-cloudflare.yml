@@ -94,6 +94,44 @@ jobs:
           fi
           echo "id=$DB_ID" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure cache KV namespace exists
+        id: kv
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          KV_ID=$(pnpm exec wrangler kv namespace list | jq -r '.[] | select(.title == "zpan-cache") | .id')
+          if [ -z "$KV_ID" ]; then
+            KV_ID=$(curl --fail-with-body -sS -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d '{"title":"zpan-cache"}' | jq -er '.result.id')
+          fi
+          if [[ ! "$KV_ID" =~ ^[a-f0-9]{32}$ ]]; then
+            echo "::error::Failed to obtain cache KV namespace ID. Check Workers KV Storage:Edit permission."
+            exit 1
+          fi
+          echo "id=$KV_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Patch production cache KV binding
+        env:
+          KV_ID: ${{ steps.kv.outputs.id }}
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path("wrangler.toml")
+          config = path.read_text()
+          pattern = r'(\[\[kv_namespaces\]\]\s*binding = "CACHE_KV"\s*id = ")[^"]*(")'
+          config, count = re.subn(pattern, lambda match: match[1] + os.environ["KV_ID"] + match[2], config)
+          if count != 1:
+              raise SystemExit("Expected exactly one production CACHE_KV binding")
+          path.write_text(config)
+          PYTHON
+
       - name: Ensure Queue exists
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

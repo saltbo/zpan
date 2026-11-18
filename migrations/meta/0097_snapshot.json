@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "48552170-e701-4182-864e-0de6436906de",
+  "id": "d53b2334-4999-4f73-b543-0a4b8b65aaeb",
   "prevId": "0bc4560e-7f0c-43ef-af26-a7c7ea3c0a54",
   "tables": {
     "announcements": {
@@ -2054,131 +2054,6 @@
           "tableTo": "organization",
           "columnsFrom": [
             "org_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "media_scrapes": {
-      "name": "media_scrapes",
-      "columns": {
-        "matter_id": {
-          "name": "matter_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "org_id": {
-          "name": "org_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "library_id": {
-          "name": "library_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tmdb_type": {
-          "name": "tmdb_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "tmdb_id": {
-          "name": "tmdb_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "season": {
-          "name": "season",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "episode": {
-          "name": "episode",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "language": {
-          "name": "language",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "match_key": {
-          "name": "match_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_updated_at": {
-          "name": "file_updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "scraped_at": {
-          "name": "scraped_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "media_scrapes_library_idx": {
-          "name": "media_scrapes_library_idx",
-          "columns": [
-            "library_id",
-            "status",
-            "scraped_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "media_scrapes_library_id_media_libraries_id_fk": {
-          "name": "media_scrapes_library_id_media_libraries_id_fk",
-          "tableFrom": "media_scrapes",
-          "tableTo": "media_libraries",
-          "columnsFrom": [
-            "library_id"
           ],
           "columnsTo": [
             "id"
@@ -4251,10 +4126,10 @@
           ],
           "isUnique": false
         },
-        "account_issuer_providerAccountId_unique": {
-          "name": "account_issuer_providerAccountId_unique",
+        "account_providerId_accountId_unique": {
+          "name": "account_providerId_accountId_unique",
           "columns": [
-            "issuer",
+            "provider_id",
             "account_id"
           ],
           "isUnique": true

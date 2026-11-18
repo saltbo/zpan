@@ -17,6 +17,7 @@ export type { TrafficReportSource } from '../ports'
 
 export type CloudTrafficMeteringDeps = {
   licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
   licensingCloud: LicensingCloudGateway
   cloudTrafficReports: CloudTrafficReportRepo
 }

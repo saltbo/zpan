@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLicenseBindingRepo } from '../../adapters/repos/license-binding.js'
-import { cloudTrafficReports } from '../../db/schema.js'
+import { cloudTrafficReports, licenseBindings } from '../../db/schema.js'
 import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../../test/setup.js'
 
 describe('GET /api/site/licensing/binding', () => {
@@ -179,6 +179,26 @@ describe('POST /api/internal/licensing/refresh-runs', () => {
     expect(body.ok).toBe(true)
   })
 
+  it('reports the preview request origin during an internal refresh', async () => {
+    const { app, db, deps } = await createTestApp({ REFRESH_CRON_SECRET: 'cron-secret', ZPAN_PREVIEW: 'true' })
+    await seedProLicense(db)
+    await deps.systemOptions.set('site_public_origin', 'https://production.example.com')
+    await db.update(licenseBindings).set({ lastRefreshAt: 0 })
+    vi.mocked(fetch).mockResolvedValueOnce(
+      makeCloudResponse({ refreshToken: 'next', certificate: 'invalid-synthetic-cert' }),
+    )
+    const res = await app.request('https://pr-595-zpan.saltbo.workers.dev/api/internal/licensing/refresh-runs', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer cron-secret' },
+    })
+    expect(res.status).toBe(200)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    const request = vi.mocked(fetch).mock.calls[0]!
+    const body =
+      typeof request[1]?.body === 'string' ? request[1].body : await new Request(request[0], request[1]).text()
+    expect(JSON.parse(body)).toMatchObject({ instance: { url: 'https://pr-595-zpan.saltbo.workers.dev' } })
+  })
+
   it('returns 200 with { ok: true } even when performRefresh throws (error is swallowed) [spec: licensing/refresh-error-swallowed]', async () => {
     const { app, db } = await createTestApp({ REFRESH_CRON_SECRET: 'cron-secret' })
 
@@ -215,7 +235,7 @@ describe('POST /api/internal/licensing/refresh-runs', () => {
       REFRESH_CRON_SECRET: 'traffic-secret',
       ZPAN_CLOUD_URL: 'https://cloud.example',
     })
-    await seedBusinessLicense(db)
+    await seedBusinessLicense(db, 'https://cloud.example')
     await db.insert(cloudTrafficReports).values({
       id: 'report_traffic_cron',
       orgId: 'org_traffic_cron',

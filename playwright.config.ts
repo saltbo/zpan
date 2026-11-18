@@ -34,7 +34,7 @@ const nodeServers = [
   ...s3MockServer,
   ...cloudFakeServer,
   {
-    command: `PORT=${apiPort} ${nodeCommand} ${envFile} node_modules/tsx/dist/cli.mjs server/entry-node.ts`,
+    command: `PORT=${apiPort} ${nodeCommand} ${envFile} node_modules/tsx/dist/cli.mjs e2e/server/node-entry.ts`,
     port: apiPort,
     reuseExistingServer: false,
   },

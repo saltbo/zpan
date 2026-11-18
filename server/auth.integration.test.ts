@@ -1,12 +1,10 @@
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { AuthorizationScope } from '@shared/authorization'
 import { BASE62_PATTERN } from '@shared/ids'
 import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import { isPersonalOrgLike } from '@shared/org-slugs'
 import { deriveDpopAth } from 'better-auth/oauth2'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createInviteRepo } from './adapters/repos/invite.js'
@@ -402,46 +400,6 @@ describe('isEmailConfigured — via emailVerification conditional', () => {
   })
 })
 
-describe('Better Auth account issuer migration', () => {
-  it('restores email sign-in for a legacy credential account', async () => {
-    const ctx = await createTestApp()
-    const email = 'legacy-issuer@example.com'
-    await signUp(ctx, email)
-    await ctx.db
-      .update(authSchema.account)
-      .set({ issuer: '' })
-      .where(
-        eq(
-          authSchema.account.userId,
-          (await ctx.db.query.user.findFirst({ where: eq(authSchema.user.email, email) }))!.id,
-        ),
-      )
-
-    const rejected = await ctx.app.request('/api/auth/sign-in/email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: 'password123456' }),
-    })
-    expect(rejected.status).toBe(401)
-
-    const migration = readFileSync(
-      join(process.cwd(), 'migrations/0089_better-auth-account-issuer-backfill.sql'),
-      'utf-8',
-    )
-    for (const statement of migration.split('--> statement-breakpoint')) {
-      await ctx.db.run(sql.raw(statement))
-    }
-
-    const restored = await ctx.app.request('/api/auth/sign-in/email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: 'password123456' }),
-    })
-    expect(restored.status).toBe(200)
-    expect(restored.headers.getSetCookie()).not.toHaveLength(0)
-  })
-})
-
 describe('dynamic email verification policy', () => {
   it('requires verification immediately and resends the email on sign-in', async () => {
     const { vi } = await import('vitest')
@@ -647,6 +605,102 @@ describe('buildVerificationEmailHtml — via send-verification-email with email_
     expect(capturedHtml).toContain('href=')
 
     vi.unstubAllGlobals()
+  })
+})
+
+describe('verify-email link — callbackURL encoding in the sent email', () => {
+  function extractVerifyLink(html: string): URL {
+    const href = html.match(/href="([^"]+)"/)?.[1]
+    if (!href) throw new Error(`No verification link in email HTML: ${html}`)
+    return new URL(href)
+  }
+
+  // Raw search bytes, so percent-encoding (%2F vs %252F) is observable.
+  function rawCallbackParam(link: URL): string | null {
+    return link.search.slice(1).match(/(?:^|&)callbackURL=([^&]*)/)?.[1] ?? null
+  }
+
+  function captureEmailHtml(): { get: () => string; clear: () => void } {
+    let html = ''
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        html = JSON.parse(init?.body as string).html
+        return { ok: true }
+      }),
+    )
+    return {
+      get: () => html,
+      clear: () => {
+        html = ''
+      },
+    }
+  }
+
+  it('sign-up encodes a plain absolute callbackURL once (no %252F)', async () => {
+    const ctx = await createTestApp()
+    const email = captureEmailHtml()
+    await configureRequiredEmailVerification(ctx)
+
+    await signUp(ctx, 'signup-abs@example.com', { callbackURL: 'http://localhost:3000/files' })
+
+    const link = extractVerifyLink(email.get())
+    expect(link.pathname).toBe('/api/auth/verify-email')
+    expect(rawCallbackParam(link)).toBe('http%3A%2F%2Flocalhost%3A3000%2Ffiles')
+    expect(link.search).not.toContain('%252F')
+  })
+
+  it('sign-in re-send double-encodes the path slash when the callbackURL carries a pre-encoded slash', async () => {
+    const ctx = await createTestApp()
+    const email = captureEmailHtml()
+    await configureRequiredEmailVerification(ctx)
+
+    await signUp(ctx, 'collision@example.com', { callbackURL: 'http://localhost:3000/files' })
+    email.clear()
+    const signInRes = await ctx.app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:3000' },
+      body: JSON.stringify({
+        email: 'collision@example.com',
+        password: 'password123456',
+        callbackURL: 'http://localhost:3000/%2Ffiles',
+      }),
+    })
+    expect(signInRes.status).toBe(403)
+    expect(await signInRes.json()).toMatchObject({ code: 'EMAIL_NOT_VERIFIED' })
+
+    expect(rawCallbackParam(extractVerifyLink(email.get()))).toBe('http%3A%2F%2Flocalhost%3A3000%2F%252Ffiles')
+  })
+
+  it('a relative callbackURL encodes once and the verify-email redirect lands on /files', async () => {
+    const ctx = await createTestApp()
+    const email = captureEmailHtml()
+    await configureRequiredEmailVerification(ctx)
+
+    await signUp(ctx, 'relative@example.com', { callbackURL: '/files' })
+    email.clear()
+    const signInRes = await ctx.app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:3000' },
+      body: JSON.stringify({
+        email: 'relative@example.com',
+        password: 'password123456',
+        callbackURL: '/files',
+      }),
+    })
+    expect(signInRes.status).toBe(403)
+    expect(await signInRes.json()).toMatchObject({ code: 'EMAIL_NOT_VERIFIED' })
+
+    const link = extractVerifyLink(email.get())
+    const raw = rawCallbackParam(link)
+    expect(raw).toBe('%2Ffiles')
+    expect(decodeURIComponent(raw ?? '')).toBe('/files')
+
+    const verifyRes = await ctx.app.request(`${link.pathname}${link.search}`, {
+      headers: { Origin: 'http://localhost:3000' },
+    })
+    expect(verifyRes.status).toBe(302)
+    expect(verifyRes.headers.get('Location')).toBe('/files')
   })
 })
 

@@ -106,10 +106,34 @@ test('admin dashboard and analytics render chart geometry @desktop', async ({ pa
   await expect(page.locator('.recharts-sector')).toHaveCount(6)
 
   await page.goto('/admin/analytics')
-  await expect(page.getByText('用户规模趋势')).toBeVisible()
+  // The analytics copy lives in locale files, so the page renders in the browser
+  // language. English users no longer see the Chinese copy this page used to ship.
+  await expect(page.getByText('User scale trend')).toBeVisible()
 
   await expect(page.locator('.recharts-line-curve')).toHaveCount(1)
   await expect(page.locator('.recharts-area-area')).toHaveCount(3)
   await expect(page.locator('.recharts-sector')).toHaveCount(3)
   expect(invalidChartDimensions).toEqual([])
+})
+
+test('the analytics page keeps its Chinese copy in the zh locale @desktop', async ({ page }) => {
+  // Moving the copy into locale files must not change zh rendering: the chart
+  // titles are the same strings the page used to hardcode.
+  await page.route('**/api/site/analytics', (route) => route.fulfill({ json: overview }))
+  await page.route('**/api/site/licensing/entitlements', (route) =>
+    route.fulfill({
+      json: { bound: true, active: true, edition: 'pro', features: ['analytics'] },
+    }),
+  )
+  await page.route('**/api/site/analytics/growth**', (route) => route.fulfill({ json: growth }))
+  // i18next-browser-languagedetector reads i18nextLng before the app boots, so a
+  // fresh navigation renders the page in Chinese. Signing in in English keeps the
+  // shared helper (which clicks the English submit label) working.
+  await signInAsAdmin(page)
+  await page.addInitScript(() => window.localStorage.setItem('i18nextLng', 'zh'))
+  await page.goto('/admin/analytics')
+
+  await expect(page.getByText('用户规模趋势')).toBeVisible()
+  // exact: true keeps the legend label, not the chart subtitle that mentions 累计用户规模.
+  await expect(page.getByText('累计用户', { exact: true })).toBeVisible()
 })

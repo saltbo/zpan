@@ -49,7 +49,6 @@ const AUTH_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS session_userId_idx ON session(user_id);
   CREATE TABLE IF NOT EXISTS account (
     id TEXT PRIMARY KEY,
-    issuer TEXT NOT NULL DEFAULT '',
     account_id TEXT NOT NULL,
     provider_id TEXT NOT NULL,
     user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
@@ -64,7 +63,7 @@ const AUTH_SCHEMA_SQL = `
     updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
   );
   CREATE INDEX IF NOT EXISTS account_userId_idx ON account(user_id);
-  CREATE UNIQUE INDEX IF NOT EXISTS account_issuer_providerAccountId_unique ON account(issuer, account_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS account_providerId_accountId_unique ON account(provider_id, account_id);
   CREATE TABLE IF NOT EXISTS verification (
     id TEXT PRIMARY KEY,
     identifier TEXT NOT NULL,
@@ -961,7 +960,24 @@ export async function authedHeaders(
   return { Cookie: cookies.join('; '), Origin: 'http://localhost:3000' }
 }
 
-const { secretKey: TEST_LICENSE_SECRET, publicKey: TEST_LICENSE_PUBLIC } = generateKeys('public')
+// One throwaway signing key per issuer, trusted through the test-only key hook
+// with that issuer and exact host matching.
+const testLicenseSecrets = new Map<string, string>()
+
+async function testLicenseSecretFor(issuer: string): Promise<string> {
+  const existing = testLicenseSecrets.get(issuer)
+  if (existing) return existing
+  const { secretKey, publicKey } = generateKeys('public')
+  const { trustLicenseKeyForTesting } = await import('../domain/license-keys.js')
+  trustLicenseKeyForTesting({
+    name: 'test',
+    publicKey,
+    issuer: { kind: 'exact', origin: issuer },
+    hosts: { kind: 'exact' },
+  })
+  testLicenseSecrets.set(issuer, secretKey)
+  return secretKey
+}
 
 function nowSec(): number {
   return Math.floor(Date.now() / 1000)
@@ -977,27 +993,29 @@ export async function seedProLicense(db: Awaited<ReturnType<typeof createTestApp
 /**
  * Insert a Business license binding row so commercial feature gates resolve as enabled.
  */
-export async function seedBusinessLicense(db: Awaited<ReturnType<typeof createTestApp>>['db']) {
-  return seedLicense(db, { edition: 'business' })
+export async function seedBusinessLicense(
+  db: Awaited<ReturnType<typeof createTestApp>>['db'],
+  issuer = ZPAN_CLOUD_URL_DEFAULT,
+) {
+  return seedLicense(db, { edition: 'business', issuer })
 }
 
 async function seedLicense(
   db: Awaited<ReturnType<typeof createTestApp>>['db'],
   input: {
     edition: LicenseEdition
+    issuer?: string
   },
 ) {
-  const { PUBLIC_KEYS } = await import('../domain/license-keys.js')
-  if (!PUBLIC_KEYS.includes(TEST_LICENSE_PUBLIC)) {
-    PUBLIC_KEYS.unshift(TEST_LICENSE_PUBLIC)
-  }
+  const issuer = input.issuer ?? ZPAN_CLOUD_URL_DEFAULT
+  const secretKey = await testLicenseSecretFor(issuer)
 
   const { createLicenseBindingRepo } = await import('../adapters/repos/license-binding.js')
   const issuedAt = nowSec()
   const expiresAt = issuedAt + 3600
-  const cachedCert = sign(TEST_LICENSE_SECRET, {
+  const cachedCert = sign(secretKey, {
     type: 'zpan.license',
-    issuer: ZPAN_CLOUD_URL_DEFAULT,
+    issuer,
     subject: 'test-binding',
     accountId: 'test-account',
     instanceId: 'test-instance',

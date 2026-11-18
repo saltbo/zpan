@@ -115,10 +115,6 @@ export function createOAuthProviderOptions(input: {
         requested.every((detail) => parseWorkspaceAuthorizationDetail(detail).identifier) ? requested : granted,
     },
     requestUriResolver: resolvePushedAuthorizationRequest,
-    silenceWarnings: {
-      oauthAuthServerConfig: true,
-      openidConfig: true,
-    },
     customAccessTokenClaims: async ({ user }) => (user?.id ? { zpan_actor: 'oauth' } : {}),
   }
 }

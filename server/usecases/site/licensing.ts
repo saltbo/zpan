@@ -7,7 +7,12 @@ import { FREE_TEAM_LIMIT, SignupMode, ZPAN_CLOUD_URL_DEFAULT } from '@shared/con
 import type { BindingState, LicenseAssertion, LicenseEdition } from '@shared/types'
 import { verify } from 'paseto-ts/v4'
 import { z } from 'zod'
-import { getTrustedPublicKeys } from '../../domain/license-keys'
+import {
+  getTrustedLicenseKeys,
+  licenseKeyAllowsHost,
+  licenseKeyAllowsIssuer,
+  type TrustedLicenseKey,
+} from '../../domain/license-keys'
 import { effectiveFeatures, hasFeature } from '../../domain/licensing'
 import {
   AppError,
@@ -65,7 +70,7 @@ export function normalizeHost(host: string | null | undefined): string | null {
   try {
     return new URL(host.includes('://') ? host : `http://${host}`).host.toLowerCase()
   } catch {
-    return host.split('/')[0]?.toLowerCase() || null
+    return null
   }
 }
 
@@ -79,7 +84,7 @@ export function verifyCertificate(cert: string, options: VerifyCertificateOption
 export function verifyCertificateResult(cert: string, options: VerifyCertificateOptions): VerifyCertificateResult {
   let claimReason: CertificateRejectionReason | null = null
 
-  for (const key of getTrustedPublicKeys()) {
+  for (const key of getTrustedLicenseKeys()) {
     const outcome = tryVerify(cert, key, options)
     if (outcome.ok) return outcome
     // Signature passed for this key but a claim failed — remember the first such
@@ -94,24 +99,30 @@ export function verifyCertificateResult(cert: string, options: VerifyCertificate
   return { ok: false, reason: claimReason ?? 'signature' }
 }
 
-function tryVerify(cert: string, publicKey: string, options: VerifyCertificateOptions): VerifyCertificateResult {
+function tryVerify(cert: string, key: TrustedLicenseKey, options: VerifyCertificateOptions): VerifyCertificateResult {
   let payload: LicenseAssertion
   try {
-    ;({ payload } = verify<LicenseAssertion>(publicKey, cert, { validatePayload: false }))
+    ;({ payload } = verify<LicenseAssertion>(key.publicKey, cert, { validatePayload: false }))
   } catch {
     return { ok: false, reason: 'signature' }
   }
 
   const now = Math.floor(Date.now() / 1000)
   const currentHost = normalizeHost(options.currentHost)
-  const authorizedHosts = Array.isArray(payload.authorizedHosts)
-    ? payload.authorizedHosts.map((host) => normalizeHost(host)).filter((host): host is string => Boolean(host))
-    : []
+  const rawHosts: unknown[] = Array.isArray(payload.authorizedHosts) ? payload.authorizedHosts : []
+  const authorizedHosts = rawHosts
+    .map((host) => (typeof host === 'string' ? normalizeHost(host) : null))
+    .filter((host): host is string => Boolean(host))
 
   if (payload.type !== 'zpan.license') {
     return { ok: false, reason: 'type' }
   }
-  if (payload.issuer !== trustedIssuerFromCloudUrl(options.cloudBaseUrl)) {
+  // The issuer must match both the key that signed the certificate and the cloud
+  // this instance is configured to trust.
+  if (
+    !licenseKeyAllowsIssuer(key, payload.issuer) ||
+    payload.issuer !== trustedIssuerFromCloudUrl(options.cloudBaseUrl)
+  ) {
     return { ok: false, reason: 'issuer' }
   }
   if (payload.instanceId !== options.instanceId) {
@@ -126,7 +137,13 @@ function tryVerify(cert: string, publicKey: string, options: VerifyCertificateOp
   if (payload.expiresAt <= now) {
     return { ok: false, reason: 'expired' }
   }
-  if (currentHost && !authorizedHosts.includes(currentHost)) {
+  // Hosts are matched exactly, and every host the certificate names must also lie
+  // inside the signing key's host scope.
+  if (authorizedHosts.length !== rawHosts.length || !authorizedHosts.every((host) => licenseKeyAllowsHost(key, host))) {
+    return { ok: false, reason: 'host' }
+  }
+  if (options.currentHost && !currentHost) return { ok: false, reason: 'host' }
+  if (currentHost && (!authorizedHosts.includes(currentHost) || !licenseKeyAllowsHost(key, currentHost))) {
     return { ok: false, reason: 'host' }
   }
 
@@ -161,7 +178,7 @@ export interface VerifyCloudEventTokenOptions {
 }
 
 export function verifyCloudEventToken(token: string, options: VerifyCloudEventTokenOptions): CloudEventToken | null {
-  for (const key of getTrustedPublicKeys()) {
+  for (const key of getTrustedLicenseKeys()) {
     const event = tryVerifyCloudEventToken(token, key, options)
     if (event) return event
   }
@@ -170,16 +187,17 @@ export function verifyCloudEventToken(token: string, options: VerifyCloudEventTo
 
 function tryVerifyCloudEventToken(
   token: string,
-  publicKey: string,
+  key: TrustedLicenseKey,
   options: VerifyCloudEventTokenOptions,
 ): CloudEventToken | null {
   try {
-    const { payload } = verify<Record<string, unknown>>(publicKey, token, { validatePayload: false })
+    const { payload } = verify<Record<string, unknown>>(key.publicKey, token, { validatePayload: false })
     const parsed = cloudEventTokenSchema.safeParse(payload)
     if (!parsed.success) return null
 
     const event = parsed.data
     const now = Math.floor(Date.now() / 1000)
+    if (!licenseKeyAllowsIssuer(key, event.issuer)) return null
     if (event.issuer !== trustedIssuerFromCloudUrl(options.cloudBaseUrl)) return null
     if (event.audience !== options.instanceId && event.audience !== options.boundLicenseId) return null
     if (event.boundLicenseId !== options.boundLicenseId) return null
@@ -205,7 +223,7 @@ export interface BindingStateOptions {
 // Reads the active license binding and derives the runtime BindingState by
 // verifying the cached certificate. Orchestration: repo read + pure verify.
 export async function loadBindingState(
-  deps: { licenseBinding: LicenseBindingRepo },
+  deps: { licenseBinding: LicenseBindingRepo; licenseCloudBaseUrl?: string },
   options: BindingStateOptions = {},
 ): Promise<BindingState> {
   const state = await deps.licenseBinding.loadLicenseState()
@@ -223,7 +241,7 @@ export async function loadBindingState(
     const assertion = verifyCertificate(state.cachedCert, {
       instanceId: state.instanceId,
       currentHost: options.currentHost,
-      cloudBaseUrl: options.cloudBaseUrl,
+      cloudBaseUrl: options.cloudBaseUrl ?? deps.licenseCloudBaseUrl,
     })
     if (assertion) {
       result.active = true
@@ -252,13 +270,22 @@ function normaliseCert(
   return { cert: raw, certificateExpiresAt: assertion?.expiresAt ?? null }
 }
 
+// What a refresh cycle did. Recoverable failures are persisted on the binding
+// (last_refresh_error) and reported here so callers can log them instead of
+// mistaking a swallowed failure for success.
+export type RefreshOutcome =
+  | { status: 'unbound' }
+  | { status: 'ok'; certificateExpiresAt: number }
+  | { status: 'revoked' }
+  | { status: 'error'; error: string }
+
 export async function performRefresh(
   deps: { licensingCloud: LicensingCloudGateway; licenseBinding: LicenseBindingRepo },
   baseUrl: string,
   instance?: CloudInstanceInfo,
-): Promise<void> {
+): Promise<RefreshOutcome> {
   const state = await deps.licenseBinding.loadLicenseState()
-  if (!state.refreshToken || !state.instanceId) return
+  if (!state.refreshToken || !state.instanceId) return { status: 'unbound' }
 
   try {
     const data = await deps.licensingCloud.refreshEntitlement(baseUrl, state.refreshToken, instance)
@@ -268,11 +295,11 @@ export async function performRefresh(
     })
     if (!certificateExpiresAt) {
       await deps.licenseBinding.setLicenseRefreshError(state.id, INVALID_CERTIFICATE_ERROR)
-      return
+      return { status: 'error', error: INVALID_CERTIFICATE_ERROR }
     }
     if (!data.binding?.storeId || !data.account) {
       await deps.licenseBinding.setLicenseRefreshError(state.id, INVALID_ENTITLEMENT_RESPONSE_ERROR)
-      return
+      return { status: 'error', error: INVALID_ENTITLEMENT_RESPONSE_ERROR }
     }
 
     await deps.licenseBinding.updateLicenseBindingAfterRefresh({
@@ -284,15 +311,16 @@ export async function performRefresh(
       cloudAccountEmail: data.account.email,
       lastRefreshAt: Math.floor(Date.now() / 1000),
     })
+    return { status: 'ok', certificateExpiresAt }
   } catch (err) {
     if (err instanceof CloudUnboundError) {
       await deps.licenseBinding.clearLicenseBinding('revoked')
-      return
+      return { status: 'revoked' }
     }
 
     if (err instanceof CloudInvalidResponseError || err instanceof CloudNetworkError || err instanceof Error) {
       await deps.licenseBinding.setLicenseRefreshError(state.id, err.message)
-      return
+      return { status: 'error', error: err.message }
     }
 
     throw err
@@ -303,7 +331,8 @@ export type LicensingRefreshDeps = { licenseBinding: LicenseBindingRepo; licensi
 
 // Cron/route-safe entry over performRefresh: skips when unbound or refreshed
 // within the dedup window, and swallows every error (the scheduler must never
-// see a rejection). performRefresh itself owns the network/cert handling.
+// see a rejection). performRefresh itself owns the network/cert handling; this
+// logs its outcome so failures it records on the binding are visible in logs.
 export async function runLicensingRefresh(
   deps: LicensingRefreshDeps,
   cloudBaseUrl: string,
@@ -316,44 +345,63 @@ export async function runLicensingRefresh(
   if (state.lastRefreshAt != null && nowSec - state.lastRefreshAt < DEDUP_WINDOW_SEC) return
 
   try {
-    if (instance) {
-      await performRefresh(deps, cloudBaseUrl, instance)
-    } else {
-      await performRefresh(deps, cloudBaseUrl)
-    }
-    console.log('licensing.refresh.ok')
+    const outcome = instance
+      ? await performRefresh(deps, cloudBaseUrl, instance)
+      : await performRefresh(deps, cloudBaseUrl)
+    logRefreshOutcome(outcome)
   } catch (err) {
     const code = err instanceof Error ? err.message : String(err)
     console.error(`licensing.refresh.error code=${code}`)
   }
 }
 
+function logRefreshOutcome(outcome: RefreshOutcome): void {
+  switch (outcome.status) {
+    case 'ok':
+      console.log(`licensing.refresh.ok expires_at=${outcome.certificateExpiresAt}`)
+      return
+    case 'revoked':
+      console.warn('licensing.refresh.revoked')
+      return
+    case 'error':
+      console.error(`licensing.refresh.error code=${outcome.error}`)
+      return
+    case 'unbound':
+      return
+  }
+}
+
 // ─── License-gated policy ────────────────────────────────────────────────────
 
-export type TeamCountDeps = { memberCount: MemberCountRepo; licenseBinding: LicenseBindingRepo }
+export type TeamCountDeps = {
+  memberCount: MemberCountRepo
+  licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
+}
 
 export async function checkTeamLimit(
   deps: TeamCountDeps,
   userId: string,
 ): Promise<{ allowed: boolean; count: number; limit: number }> {
-  const [count, state] = await Promise.all([
-    deps.memberCount.countUserOrgs(userId),
-    loadBindingState({ licenseBinding: deps.licenseBinding }),
-  ])
+  const [count, state] = await Promise.all([deps.memberCount.countUserOrgs(userId), loadBindingState(deps)])
   const unlimited = hasFeature('teams_unlimited', state)
   return { allowed: unlimited || count < FREE_TEAM_LIMIT, count, limit: FREE_TEAM_LIMIT }
 }
 
-export type SignupModeDeps = { systemOptions: SystemOptionsRepo; licenseBinding: LicenseBindingRepo }
+export type SignupModeDeps = {
+  systemOptions: SystemOptionsRepo
+  licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
+}
 
 export async function resolveEffectiveSignupMode(
-  deps: Pick<SignupModeDeps, 'licenseBinding'>,
+  deps: Pick<SignupModeDeps, 'licenseBinding' | 'licenseCloudBaseUrl'>,
   raw: string | null | undefined,
 ): Promise<SignupMode> {
   if (raw === SignupMode.INVITE_ONLY || raw === SignupMode.CLOSED) return raw
   if (raw !== SignupMode.OPEN) return SignupMode.OPEN
 
-  const state = await loadBindingState({ licenseBinding: deps.licenseBinding })
+  const state = await loadBindingState(deps)
   return hasFeature('open_registration', state) ? SignupMode.OPEN : SignupMode.INVITE_ONLY
 }
 

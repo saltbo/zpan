@@ -46,6 +46,7 @@ const ALL_SETTING_KEYS = Object.values(SITE_SETTING_KEYS)
 export type SiteSettingsDeps = {
   systemOptions: SystemOptionsRepo
   licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
   cache?: import('../ports').CacheService
 }
 
@@ -156,7 +157,7 @@ export async function getSiteWebDavRuntimeConfig(
 }
 
 async function registrationFrom(
-  deps: Pick<SiteSettingsDeps, 'licenseBinding'>,
+  deps: Pick<SiteSettingsDeps, 'licenseBinding' | 'licenseCloudBaseUrl'>,
   values: Map<string, string>,
 ): Promise<SiteRegistrationSettings> {
   const raw = values.get(SITE_SETTING_KEYS.signupMode)
@@ -167,7 +168,7 @@ async function registrationFrom(
 }
 
 export async function getSiteSettings(
-  deps: Pick<SiteSettingsDeps, 'systemOptions' | 'licenseBinding'>,
+  deps: Pick<SiteSettingsDeps, 'systemOptions' | 'licenseBinding' | 'licenseCloudBaseUrl'>,
   requestUrl: string,
 ): Promise<SiteSettings> {
   const values = optionMap(await deps.systemOptions.getMany(ALL_SETTING_KEYS))

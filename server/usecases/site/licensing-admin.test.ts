@@ -2,7 +2,7 @@
 //
 // Unit tests for the licensing admin usecases (initiatePairing / pollPairing /
 // triggerRefresh / unbindLicense). Fake ports throughout; the real (in-module)
-// certificate verification runs against a test keypair swapped into PUBLIC_KEYS,
+// certificate verification runs against a test keypair trusted through the test-only key hook,
 // so the cert-acceptance and rejection branches are exercised end to end.
 //
 // The cert→features→state derivation and the HTTP wiring are covered by
@@ -11,7 +11,7 @@
 
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PUBLIC_KEYS } from '../../domain/license-keys'
+import { trustTestLicenseKey, untrustTestLicenseKey } from '../../test/license-keys'
 import {
   AppError,
   type CloudInstanceInfo,
@@ -48,17 +48,13 @@ const HOST = 'localhost'
 
 const { secretKey: TRUSTED_SECRET, publicKey: TRUSTED_PUBLIC } = generateKeys('public')
 const { secretKey: UNTRUSTED_SECRET } = generateKeys('public')
-const originalKeys: string[] = []
 
 beforeAll(() => {
-  originalKeys.push(...PUBLIC_KEYS)
-  PUBLIC_KEYS.length = 0
-  PUBLIC_KEYS.push(TRUSTED_PUBLIC)
+  trustTestLicenseKey(TRUSTED_PUBLIC)
 })
 
 afterAll(() => {
-  PUBLIC_KEYS.length = 0
-  for (const k of originalKeys.splice(0)) PUBLIC_KEYS.push(k)
+  untrustTestLicenseKey(TRUSTED_PUBLIC)
 })
 
 function nowSec(): number {

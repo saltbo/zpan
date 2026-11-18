@@ -126,6 +126,14 @@ When `TURSO_DATABASE_URL` is present:
 - Migrations are applied automatically at startup via `drizzle-orm/libsql/migrator`.
 - `TURSO_AUTH_TOKEN` may be omitted only for `file://` URLs (local libSQL files).
 
+### Rotating the auth secret
+
+`BETTER_AUTH_SECRET` is required and must stay stable: better-auth encrypts the
+OAuth signing keys with it. To rotate, keep `BETTER_AUTH_SECRET` and add
+`BETTER_AUTH_SECRETS=<version>:<secret>,...` (current version first, for example
+`1:<new>`); older versions stay listed so existing data still decrypts. See the
+[rotation runbook](worker-previews.md#rotation-runbook).
+
 ### Running migrations manually against Turso
 
 ```sh

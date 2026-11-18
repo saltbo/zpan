@@ -1,8 +1,5 @@
 import { SignupMode } from '@shared/constants'
 import { describe, expect, it } from 'vitest'
-import { absoluteAuthCallbackURL } from '@/lib/auth-callback'
-
-const PREVIEW_ORIGIN = 'https://feat-x402-paid-agent-uploads-zpan.saltbo.workers.dev'
 
 // SignUp is a React rendering component. The project has no jsdom or
 // @testing-library/react setup, so we cannot render it here.
@@ -89,7 +86,7 @@ function buildSignUpPayload(
     name: fields.name,
     email: fields.email,
     password: fields.password,
-    callbackURL: absoluteAuthCallbackURL('/files', PREVIEW_ORIGIN),
+    callbackURL: '/files',
     ...(authSignupMode === SignupMode.INVITE_ONLY ? { inviteCode: fields.inviteCode } : {}),
     ...(authSignupMode === SignupMode.CLOSED && fields.siteInvitationToken
       ? { siteInvitationToken: fields.siteInvitationToken }
@@ -137,12 +134,19 @@ describe('SignUp — submission payload construction', () => {
     expect(payload.siteInvitationToken).toBeUndefined()
   })
 
-  it('always sets callbackURL to the absolute current-origin files URL', () => {
+  it('passes the relative /files callbackURL to the email sign-up', () => {
     const payloadOpen = buildSignUpPayload(SignupMode.OPEN, baseFields)
     const payloadInvite = buildSignUpPayload(SignupMode.INVITE_ONLY, baseFields)
 
-    expect(payloadOpen.callbackURL).toBe(`${PREVIEW_ORIGIN}/files`)
-    expect(payloadInvite.callbackURL).toBe(`${PREVIEW_ORIGIN}/files`)
+    expect(payloadOpen.callbackURL).toBe('/files')
+    expect(payloadInvite.callbackURL).toBe('/files')
+  })
+
+  it('never carries a host or an encoded path slash into the callbackURL', () => {
+    const payload = buildSignUpPayload(SignupMode.OPEN, baseFields)
+
+    expect(payload.callbackURL).not.toMatch(/https?:\/\//)
+    expect(payload.callbackURL).not.toContain('%252F')
   })
 
   it('includes all base fields in payload', () => {

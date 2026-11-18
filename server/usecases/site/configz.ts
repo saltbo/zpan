@@ -20,6 +20,7 @@ import { SITE_SETTING_KEYS } from './setting-keys'
 export type ConfigzDeps = {
   systemOptions: SystemOptionsRepo
   licenseBinding: LicenseBindingRepo
+  licenseCloudBaseUrl?: string
   cache?: CacheService
 }
 

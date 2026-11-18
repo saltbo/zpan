@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
-import { PUBLIC_KEYS } from '../../domain/license-keys.js'
+import { trustTestLicenseKey, untrustTestLicenseKey } from '../../test/license-keys'
 import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense } from '../../test/setup.js'
 import { cloudGiftCardsResponseSchema, cloudPackageResponseSchema } from './helpers.js'
 
@@ -250,7 +250,7 @@ function requestHeader(init: RequestInit, name: string) {
 }
 
 beforeEach(() => {
-  if (!PUBLIC_KEYS.includes(EVENT_PUBLIC)) PUBLIC_KEYS.unshift(EVENT_PUBLIC)
+  trustTestLicenseKey(EVENT_PUBLIC)
   let lastTargetOrgId = 'org-placeholder'
   vi.stubGlobal(
     'fetch',
@@ -478,8 +478,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
-  const eventKeyIndex = PUBLIC_KEYS.indexOf(EVENT_PUBLIC)
-  if (eventKeyIndex >= 0) PUBLIC_KEYS.splice(eventKeyIndex, 1)
+  untrustTestLicenseKey(EVENT_PUBLIC)
 })
 
 describe('Quota Store API', () => {

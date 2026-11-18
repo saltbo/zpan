@@ -28,9 +28,35 @@ describe('Node bootstrap', () => {
     const deps = {} as Deps
 
     await expect(createBootstrap(platform, deps)).resolves.toBe(app)
-    expect(createAuthMock).toHaveBeenCalledWith(platform, 'test-secret', 'https://zpan.test', ['http://localhost:5185'])
+    expect(createAuthMock).toHaveBeenCalledWith(platform, { secret: 'test-secret' }, 'https://zpan.test', [
+      'http://localhost:5185',
+    ])
     expect(createAppMock).toHaveBeenCalledWith(platform, auth, deps)
     expect(db.all).not.toHaveBeenCalled()
     expect(db.run).not.toHaveBeenCalled()
+  })
+
+  it('passes versioned BETTER_AUTH_SECRETS alongside the legacy secret', async () => {
+    const vars: Record<string, string> = { BETTER_AUTH_SECRET: 'test-secret', BETTER_AUTH_SECRETS: '2:new,1:old' }
+    const platform = { db: {}, getEnv: (name: string) => vars[name] } as unknown as Platform
+
+    await createBootstrap(platform, {} as Deps)
+    expect(createAuthMock).toHaveBeenCalledWith(
+      platform,
+      {
+        secret: 'test-secret',
+        secrets: [
+          { version: 2, value: 'new' },
+          { version: 1, value: 'old' },
+        ],
+      },
+      'http://localhost:5185',
+      ['http://localhost:5185'],
+    )
+  })
+
+  it('requires BETTER_AUTH_SECRET', async () => {
+    const platform = { db: {}, getEnv: () => undefined } as unknown as Platform
+    await expect(createBootstrap(platform, {} as Deps)).rejects.toThrow('BETTER_AUTH_SECRET is required')
   })
 })

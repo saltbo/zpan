@@ -2,7 +2,7 @@ import { generateKeys, sign } from 'paseto-ts/v4'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createInstanceRepo } from '../../adapters/repos/instance.js'
 import { createLicenseBindingRepo } from '../../adapters/repos/license-binding.js'
-import { PUBLIC_KEYS } from '../../domain/license-keys.js'
+import { trustTestLicenseKey, untrustTestLicenseKey } from '../../test/license-keys'
 import { adminHeaders, authedHeaders, createTestApp } from '../../test/setup.js'
 
 function makeCloudResponse(body: unknown, status = 200): Response {
@@ -16,7 +16,6 @@ function makeCloudResponse(body: unknown, status = 200): Response {
 }
 
 const { secretKey: TEST_SECRET, publicKey: TEST_PUBLIC } = generateKeys('public')
-const originalKeys: string[] = []
 
 function nowSec(): number {
   return Math.floor(Date.now() / 1000)
@@ -97,15 +96,12 @@ describe('Licensing Admin API — auth guards', () => {
 describe('POST /api/site/licensing/pairings', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-    originalKeys.push(...PUBLIC_KEYS)
-    PUBLIC_KEYS.length = 0
-    PUBLIC_KEYS.push(TEST_PUBLIC)
+    trustTestLicenseKey(TEST_PUBLIC)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    PUBLIC_KEYS.length = 0
-    for (const key of originalKeys.splice(0)) PUBLIC_KEYS.push(key)
+    untrustTestLicenseKey(TEST_PUBLIC)
   })
 
   it('calls cloud and returns pairing info [spec: licensing-admin/pair-initiate]', async () => {
@@ -155,15 +151,12 @@ describe('POST /api/site/licensing/pairings', () => {
 describe('GET /api/site/licensing/pairings/:code', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-    originalKeys.push(...PUBLIC_KEYS)
-    PUBLIC_KEYS.length = 0
-    PUBLIC_KEYS.push(TEST_PUBLIC)
+    trustTestLicenseKey(TEST_PUBLIC)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    PUBLIC_KEYS.length = 0
-    for (const key of originalKeys.splice(0)) PUBLIC_KEYS.push(key)
+    untrustTestLicenseKey(TEST_PUBLIC)
   })
 
   it('returns pending status when cloud returns pending [spec: licensing-admin/poll-pending]', async () => {
@@ -347,15 +340,12 @@ describe('GET /api/site/licensing/pairings/:code', () => {
 describe('POST /api/site/licensing/refresh-runs', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-    originalKeys.push(...PUBLIC_KEYS)
-    PUBLIC_KEYS.length = 0
-    PUBLIC_KEYS.push(TEST_PUBLIC)
+    trustTestLicenseKey(TEST_PUBLIC)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    PUBLIC_KEYS.length = 0
-    for (const key of originalKeys.splice(0)) PUBLIC_KEYS.push(key)
+    untrustTestLicenseKey(TEST_PUBLIC)
   })
 
   it('returns success when binding exists and cloud responds OK [spec: licensing-admin/refresh]', async () => {

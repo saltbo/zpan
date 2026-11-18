@@ -26,6 +26,7 @@ function SignIn() {
     loadSignInRedirect(window.location.search, window.location.origin, window.sessionStorage),
   )
   const callbackURL = absoluteAuthCallbackURL(redirectTo ?? '/files', window.location.origin)
+  const emailCallbackURL = redirectTo ?? '/files'
   const { data: siteConfig } = useSiteConfig()
   const authSignupMode = siteConfig?.auth.signupMode
   const captcha = siteConfig?.auth.captcha
@@ -48,8 +49,8 @@ function SignIn() {
       const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identity)
       const fetchOptions = captcha?.enabled ? { headers: { 'x-captcha-response': captchaToken } } : undefined
       const result = isEmail
-        ? await signIn.email({ email: identity, password, callbackURL, fetchOptions })
-        : await signIn.username({ username: identity, password, callbackURL, fetchOptions })
+        ? await signIn.email({ email: identity, password, callbackURL: emailCallbackURL, fetchOptions })
+        : await signIn.username({ username: identity, password, callbackURL: emailCallbackURL, fetchOptions })
 
       if (result.error) {
         setError(

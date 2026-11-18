@@ -65,7 +65,10 @@ internal.post('/instance-telemetry/report', async (c) => {
 internal.post('/licensing/refresh-runs', async (c) => {
   requireBearerToken(c, REFRESH_TOKEN_ENV)
   const cloudBaseUrl = c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
-  const origin = (await getSitePublicOrigin(c.get('deps'))) ?? originFromRequestUrl(c.req.url)
+  const origin =
+    c.get('platform').getEnv('ZPAN_PREVIEW') === 'true'
+      ? originFromRequestUrl(c.req.url)
+      : ((await getSitePublicOrigin(c.get('deps'))) ?? originFromRequestUrl(c.req.url))
   const instance = origin
     ? await buildCloudInstanceInfo(c.get('deps'), { url: origin, runtime: runtimeInfo(c.get('platform')) })
     : undefined

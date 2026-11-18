@@ -55,9 +55,11 @@ import { createSiteInvitationRepo } from './adapters/repos/site-invitations'
 import { initialStorageUsageProjectionQueries } from './adapters/repos/storage-usage-breakdown'
 import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import { recordUserActivity } from './adapters/repos/user-activity'
+import { createBetterAuthLogSink, createJwksDecryptMonitor } from './auth/jwks-decrypt-monitor'
 import { handleOAuthClientRegistrationManagement } from './auth/oauth-client-registration-management'
 import { oauthPushedAuthorizationRequests } from './auth/oauth-par'
 import { createOAuthProviderOptions } from './auth/oauth-provider'
+import type { AuthSecretConfig } from './auth-secrets'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { executeWriteTransaction } from './db/transaction'
@@ -426,12 +428,16 @@ function buildResetPasswordEmailHtml(url: string): string {
 
 export async function createAuth(
   initialSource: Database | Platform,
-  secret: string,
+  secretConfig: string | AuthSecretConfig,
   baseURL?: string,
   trustedOrigins?: string[],
   backgroundTaskHandler?: (promise: Promise<unknown>) => void,
   passwordProvider: AuthPasswordProvider = productionPasswordProvider,
 ) {
+  // Only an object carries versioned secrets. Anything else is the legacy single
+  // secret (CF tests pass an unset env value straight through).
+  const { secret, secrets }: AuthSecretConfig =
+    typeof secretConfig === 'object' && secretConfig !== null ? secretConfig : { secret: secretConfig }
   const isPlatform = 'db' in initialSource
   const rawPlatform = isPlatform ? initialSource : null
   const rawDb = isPlatform ? initialSource.db : initialSource
@@ -453,11 +459,30 @@ export async function createAuth(
   const resourceAudience = baseURL ? `${new URL(baseURL).origin}/api` : undefined
   const oauthProviderOptions = createOAuthProviderOptions({ db, resourceAudience })
   const usesNativeWebDavRateLimit = Boolean(authPlatform.getBinding(WEBDAV_RATE_LIMITER_BINDING))
+  // Observe-only: logs which stored JWKS row the deployed secrets cannot
+  // decrypt, once per isolate, without changing the failing response.
+  const jwksDecryptMonitor = createJwksDecryptMonitor({
+    secrets: { secret, ...(secrets ? { secrets } : {}) },
+    runInBackground: backgroundTaskHandler,
+    listKeys: () =>
+      db
+        .select({
+          id: authSchema.jwks.id,
+          alg: authSchema.jwks.alg,
+          privateKey: authSchema.jwks.privateKey,
+          expiresAt: authSchema.jwks.expiresAt,
+        })
+        .from(authSchema.jwks),
+  })
   const authOptions = {
     database: drizzleAdapter(db, { provider: 'sqlite', schema: authSchema }),
+    // `secret` stays the legacy key so payloads written before versioning still
+    // decrypt; `secrets` (when configured) encrypts with the current version.
     secret,
+    ...(secrets ? { secrets } : {}),
     baseURL,
     basePath: '/api/auth',
+    logger: { log: createBetterAuthLogSink(jwksDecryptMonitor) },
     // Function form: better-auth merges the result with baseURL per request.
     // Loopback/LAN origins are trusted automatically so self-hosted users can
     // log in via 127.0.0.1 or a LAN IP without configuring TRUSTED_ORIGINS.
@@ -697,7 +722,11 @@ export async function createAuth(
               count: current_count,
               limit,
             } = await checkTeamLimit(
-              { memberCount: createMemberCountRepo(db), licenseBinding: createLicenseBindingRepo(db) },
+              {
+                memberCount: createMemberCountRepo(db),
+                licenseCloudBaseUrl: authPlatform.getEnv('ZPAN_CLOUD_URL'),
+                licenseBinding: createLicenseBindingRepo(db),
+              },
               user.id,
             )
             if (!allowed) {
@@ -820,6 +849,7 @@ export async function createAuth(
             if (!firstUser) {
               const mode = await getEffectiveSignupMode({
                 systemOptions: createSystemOptionsRepo(db),
+                licenseCloudBaseUrl: authPlatform.getEnv('ZPAN_CLOUD_URL'),
                 licenseBinding: createLicenseBindingRepo(db),
               })
               const email = String(user.email ?? '')
@@ -866,6 +896,7 @@ export async function createAuth(
             // Redeem invite code after user is created (user.id is now available)
             const mode = await getEffectiveSignupMode({
               systemOptions: createSystemOptionsRepo(db),
+              licenseCloudBaseUrl: authPlatform.getEnv('ZPAN_CLOUD_URL'),
               licenseBinding: createLicenseBindingRepo(db),
             })
             if (mode === SignupMode.INVITE_ONLY) {

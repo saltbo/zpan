@@ -3,8 +3,9 @@ import { expandSignInForm, expandSignUpForm, testIdentity } from './helpers'
 
 test.describe('Auth flow', () => {
   test('redirects to sign-in when not authenticated @all', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/files')
     await expect(page).toHaveURL(/sign-in/, { timeout: 5000 })
+    expect(new URL(page.url()).searchParams.get('redirect')).toBe('/files')
   })
 
   test('sign-up and redirect to files @all', async ({ page }) => {
@@ -44,9 +45,8 @@ test.describe('Auth flow', () => {
     expect(signUpResp.status()).toBe(200)
     await expect(page).toHaveURL(/files/, { timeout: 10000 })
 
-    // Clear cookies and go to sign-in
     await page.context().clearCookies()
-    await page.goto('/sign-in')
+    await page.goto('/files')
     await expandSignInForm(page)
     await page.locator('#identity').fill(email)
     await page.locator('#password').fill('password123456')
@@ -55,9 +55,10 @@ test.describe('Auth flow', () => {
       page.waitForResponse((r) => r.url().includes('/api/auth/sign-in')),
       page.getByRole('button', { name: 'Sign in' }).click(),
     ])
+    expect(signInResp.request().postDataJSON().callbackURL).toBe('/files')
     expect(signInResp.status()).toBe(200)
 
-    await expect(page).toHaveURL(/files/, { timeout: 10000 })
+    await expect(page).toHaveURL((url) => url.pathname === '/files', { timeout: 10000 })
 
     await page.goto('/sign-in')
     await expect(page.getByText('Last used')).toBeVisible()
