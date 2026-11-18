@@ -487,7 +487,11 @@ export interface ObjectUploadInstructions {
 }
 
 export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled'
-export type KnownBackgroundJobType = 'archive_compress' | 'archive_extract' | 'media_library_scan'
+export type KnownBackgroundJobType =
+  | 'archive_compress'
+  | 'archive_extract'
+  | 'media_library_scan'
+  | 'media_library_scrape'
 export type BackgroundJobType = KnownBackgroundJobType | (string & {})
 
 export interface BackgroundJobProgress {

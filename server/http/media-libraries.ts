@@ -12,7 +12,13 @@ import type { Context } from 'hono'
 import { authzActorIdentity, type Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
 import { backgroundJobsEnabled } from '../platform/interface'
-import { createMediaLibrary, deleteMediaLibrary, listMediaLibraries, scanMediaLibrary } from '../usecases/media-library'
+import {
+  createMediaLibrary,
+  deleteMediaLibrary,
+  listMediaLibraries,
+  scanMediaLibrary,
+  scrapeMediaLibrary,
+} from '../usecases/media-library'
 import { backgroundJobsUnavailable, type MediaLibraryView, notFound } from '../usecases/ports'
 import { backgroundJobSchema } from './background-jobs'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
@@ -30,6 +36,7 @@ function toMediaLibraryDTO(library: MediaLibraryView): MediaLibrary {
     folderId: library.folderId,
     folderPath: library.folder.path,
     scanning: library.scanning,
+    scraping: library.scraping,
     lastScannedAt: library.lastScannedAt?.toISOString() ?? null,
     createdBy: library.createdBy,
     createdAt: library.createdAt.toISOString(),
@@ -130,6 +137,29 @@ const scanRoute = authRoute(
   },
 )
 
+const scrapeRoute = authRoute(
+  { scopes: [AuthorizationScope.MEDIA_LIBRARIES_UPDATE], minTeamRole: 'editor' },
+  {
+    operationId: 'createMediaLibraryScrape',
+    summary: 'Scrape TMDB metadata for a media library',
+    description:
+      'Matches the videos that were never scraped, changed since, or were scraped in another language to TMDB. Writes Kodi/Jellyfin `.nfo` and artwork sidecars next to them without replacing existing files, and adds each match as `_media.tmdb` in `library.json` on the next scan.',
+    tags: ['Media Libraries'],
+    method: 'post',
+    path: '/{id}/scrapes',
+    middleware: [requireFeature('media_library')] as const,
+    request: { params: mediaLibraryParams },
+    responses: {
+      201: jsonContent(backgroundJobSchema, 'Queued scrape job'),
+      402: errorResponse('Media libraries require a Pro or Business license'),
+      404: errorResponse('Media library not found'),
+      409: errorResponse('A scrape is already queued or running, or the folder is unavailable'),
+      412: errorResponse('TMDB is not configured'),
+      503: errorResponse('Background jobs are unavailable in this environment'),
+    },
+  },
+)
+
 const app = new OpenAPIHono<Env>()
 
 export const mediaLibraries = app
@@ -165,5 +195,10 @@ export const mediaLibraries = app
   .openapi(scanRoute, async (c) => {
     if (!backgroundJobsEnabled(c.get('platform'))) throw backgroundJobsUnavailable()
     const job = await scanMediaLibrary(c.get('deps'), { ...requester(c), libraryId: c.req.valid('param').id })
+    return c.json(job, 201)
+  })
+  .openapi(scrapeRoute, async (c) => {
+    if (!backgroundJobsEnabled(c.get('platform'))) throw backgroundJobsUnavailable()
+    const job = await scrapeMediaLibrary(c.get('deps'), { ...requester(c), libraryId: c.req.valid('param').id })
     return c.json(job, 201)
   })

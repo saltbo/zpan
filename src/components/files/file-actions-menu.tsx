@@ -15,12 +15,12 @@ import {
   Pencil,
   RefreshCw,
   Share2,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ProBadge } from '@/components/ProBadge'
 import {
   ContextMenuContent,
   ContextMenuItem,
@@ -131,18 +131,24 @@ function MediaLibraryMenuItems({
     return (
       <MenuItem kind={kind} onClick={() => actions.onSet(folder)}>
         <Clapperboard />
-        <span className="flex-1">{t('mediaLibrary.set')}</span>
-        {actions.locked && <ProBadge />}
+        {t('mediaLibrary.set')}
       </MenuItem>
     )
   }
   return (
     <>
-      <MenuItem kind={kind} onClick={() => actions.onRescan(library)}>
-        <RefreshCw />
-        <span className="flex-1">{t('mediaLibrary.rescan')}</span>
-        {actions.locked && <ProBadge />}
-      </MenuItem>
+      {!actions.locked && (
+        <>
+          <MenuItem kind={kind} onClick={() => actions.onRescan(library)}>
+            <RefreshCw />
+            {t('mediaLibrary.rescan')}
+          </MenuItem>
+          <MenuItem kind={kind} onClick={() => actions.onScrape(library)}>
+            <Sparkles />
+            {t('mediaLibrary.scrape')}
+          </MenuItem>
+        </>
+      )}
       <MenuItem kind={kind} onClick={() => actions.onRemove(library)}>
         <X />
         {t('mediaLibrary.remove')}
@@ -155,6 +161,8 @@ function FileActionsMenuItems({ kind, item, handlers }: FileActionsMenuProps & {
   const { t } = useTranslation()
   const isFile = item.dirtype === DirType.FILE
   const isZipFile = isFile && item.name.toLowerCase().endsWith('.zip')
+  const showMediaLibrary =
+    !isFile && !!handlers.mediaLibrary && (!handlers.mediaLibrary.locked || !!handlers.mediaLibrary.libraryFor(item))
   const hasManagementActions = !!(
     handlers.onRename ||
     handlers.onCopy ||
@@ -163,7 +171,7 @@ function FileActionsMenuItems({ kind, item, handlers }: FileActionsMenuProps & {
     handlers.onShare ||
     handlers.onCompress ||
     (isZipFile && handlers.onExtract) ||
-    (!isFile && handlers.mediaLibrary)
+    showMediaLibrary
   )
   const hasDestructiveActions = !!(handlers.onTrash || handlers.onDelete)
 
@@ -230,7 +238,7 @@ function FileActionsMenuItems({ kind, item, handlers }: FileActionsMenuProps & {
           {t('files.extract')}
         </MenuItem>
       )}
-      {!isFile && handlers.mediaLibrary && (
+      {showMediaLibrary && handlers.mediaLibrary && (
         <MediaLibraryMenuItems kind={kind} folder={item} actions={handlers.mediaLibrary} />
       )}
 

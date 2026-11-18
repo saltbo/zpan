@@ -1,3 +1,5 @@
+import type { TmdbRef } from '@shared/schemas'
+import type { MediaScrapeResult, PreviousMediaScrape } from '../../domain/media-scrape'
 import type { ActorIdentity } from './audit'
 import type { Matter } from './matter'
 
@@ -25,6 +27,8 @@ export interface MediaLibraryState extends MediaLibraryRecord {
   folder: MediaLibraryFolder | null
   // A scan job for this library is queued or running within the scan lease.
   scanning: boolean
+  // Likewise for a scrape job.
+  scraping: boolean
 }
 
 export type MediaLibraryView = MediaLibraryState & { folder: MediaLibraryFolder }
@@ -33,7 +37,7 @@ export type MediaLibraryView = MediaLibraryState & { folder: MediaLibraryFolder 
 export interface MediaLibrarySweepState extends MediaLibraryState {
   // The live library.json index exists in the library root.
   indexed: boolean
-  // fingerprint() of the folder subtree as it is now; meaningless once the folder is purged.
+  // fingerprint() of the library as it is now; meaningless once the folder is purged.
   subtreeFingerprint: string
 }
 
@@ -45,6 +49,26 @@ export interface CreateMediaLibraryInput {
 }
 
 export type MediaLibraryFileCursor = Pick<Matter, 'parent' | 'name'>
+
+// A video with the TMDB match its last scrape found, for the index.
+export type MediaLibraryVideo = Matter & { tmdb: TmdbRef | null }
+
+// A video that needs scraping, with its last scrape if it has one.
+export interface MediaLibraryScrapeCandidate {
+  file: Matter
+  previous: PreviousMediaScrape | null
+}
+
+export interface RecordMediaScrapeInput {
+  matterId: string
+  orgId: string
+  libraryId: string
+  language: string
+  matchKey: string
+  // The video's updatedAt when it was scraped.
+  fileUpdatedAt: Date
+  result: MediaScrapeResult
+}
 
 export interface MediaLibraryRepo {
   // null when the folder already is a media library.
@@ -61,8 +85,9 @@ export interface MediaLibraryRepo {
   delete(orgId: string, id: string): Promise<boolean>
   deleteMany(ids: readonly string[]): Promise<void>
   recordScan(orgId: string, id: string, scan: { fingerprint: string; scannedAt?: Date }): Promise<void>
-  // Cheap change detector over the live subtree, excluding the library.json index.
-  fingerprint(orgId: string, folderPath: string): Promise<string>
+  // Cheap change detector over what a scan publishes: the live subtree,
+  // excluding the library.json index, and the library's matched scrapes.
+  fingerprint(orgId: string, libraryId: string, folderPath: string): Promise<string>
   // One page of the live files in the subtree with a video MIME type or
   // extension, ordered by (parent, name) under binary collation and starting
   // after the `after` file.
@@ -71,5 +96,22 @@ export interface MediaLibraryRepo {
     folderPath: string,
     extensions: readonly string[],
     page: { after: MediaLibraryFileCursor | null; limit: number },
-  ): Promise<Matter[]>
+  ): Promise<MediaLibraryVideo[]>
+  // A video needs scraping when it was never scraped, changed after its last
+  // scrape, or was scraped in another language. One predicate answers both of these.
+  hasVideosToScrape(
+    orgId: string,
+    folderPath: string,
+    extensions: readonly string[],
+    language: string,
+  ): Promise<boolean>
+  // One page of the videos that need scraping, in listVideoFilesPage order.
+  listVideosToScrape(
+    orgId: string,
+    folderPath: string,
+    extensions: readonly string[],
+    language: string,
+    page: { after: MediaLibraryFileCursor | null; limit: number },
+  ): Promise<MediaLibraryScrapeCandidate[]>
+  recordScrape(input: RecordMediaScrapeInput): Promise<void>
 }

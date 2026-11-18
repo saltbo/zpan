@@ -22,6 +22,19 @@ const ADMIN_SETTINGS_KEYS = [
   'admin.settings.saved',
   'admin.settings.identityInvalid',
   'admin.settings.positiveQuotaRequired',
+  'admin.settings.scrapingSection',
+  'admin.settings.scrapingTitle',
+  'admin.settings.scrapingDescription',
+  'admin.settings.scrapingProTooltip',
+  'admin.settings.scrapingUpgradeHint',
+  'admin.settings.tmdbTokenConfigured',
+  'admin.settings.tmdbTokenMissing',
+  'admin.settings.tmdbAccessToken',
+  'admin.settings.tmdbAccessTokenHint',
+  'admin.settings.tmdbAccessTokenPlaceholder',
+  'admin.settings.scrapingLanguage',
+  'admin.settings.scrapingLanguageHint',
+  'admin.settings.scrapingLanguagePlaceholder',
 ]
 
 const ADMIN_NAV_SETTINGS_KEYS = ['admin.nav.settings']

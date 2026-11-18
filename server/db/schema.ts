@@ -396,6 +396,34 @@ export const mediaLibraries = sqliteTable(
   ],
 )
 
+// The last TMDB scrape of each video in a media library. A video is scraped
+// again only when its matter changes after file_updated_at or the configured
+// language differs, so unmatched videos are not retried on every scan.
+export const mediaScrapes = sqliteTable(
+  'media_scrapes',
+  {
+    matterId: text('matter_id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    libraryId: text('library_id')
+      .notNull()
+      .references(() => mediaLibraries.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(),
+    tmdbType: text('tmdb_type'),
+    // For an episode, the series id; season and episode locate it.
+    tmdbId: integer('tmdb_id'),
+    season: integer('season'),
+    episode: integer('episode'),
+    language: text('language').notNull(),
+    source: text('source').notNull(),
+    // The parsed title the match came from; a later scrape reuses the match while it is unchanged.
+    matchKey: text('match_key').notNull(),
+    fileUpdatedAt: integer('file_updated_at', { mode: 'timestamp' }).notNull(),
+    scrapedAt: integer('scraped_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  // Covers the library fingerprint's count and latest scrape of matched rows.
+  (t) => [index('media_scrapes_library_idx').on(t.libraryId, t.status, t.scrapedAt)],
+)
+
 export const downloaders = sqliteTable(
   'downloaders',
   {

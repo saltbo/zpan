@@ -2,7 +2,7 @@ import type { BackgroundJob } from '@shared/types'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BackgroundTaskList, taskProgressPercent } from './task-list'
+import { BackgroundTaskList, formatResult, taskProgressPercent } from './task-list'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -15,6 +15,7 @@ vi.mock('lucide-react', () => ({
   Clapperboard: () => null,
   FileArchive: () => null,
   RotateCcw: () => null,
+  Sparkles: () => null,
   Square: () => null,
 }))
 
@@ -90,6 +91,43 @@ describe('BackgroundTaskList', () => {
     expect(view.getAllByText('tasks.type.mediaLibraryScan')).toHaveLength(2)
     expect(view.getByText('tasks.result.mediaItems:3')).toBeTruthy()
     expect(view.queryAllByTestId('progress')).toHaveLength(0)
+  })
+
+  it('labels metadata scrapes and shows how many videos matched [spec: media-scraping/folder-menu]', () => {
+    const view = render(
+      <BackgroundTaskList
+        jobs={[
+          makeJob({
+            id: 'scrape-done',
+            type: 'media_library_scrape',
+            status: 'completed',
+            resultMetadata: { matched: 4, unmatched: 1 },
+          }),
+        ]}
+        total={1}
+        filter="completed"
+        onFilterChange={vi.fn()}
+        onCancel={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    )
+
+    expect(view.getByText('tasks.type.mediaLibraryScrape')).toBeTruthy()
+    expect(view.getByText('tasks.result.mediaMatched')).toBeTruthy()
+    expect(view.queryAllByTestId('progress')).toHaveLength(0)
+  })
+
+  it('reports scrape failures and a quota stop next to the matches [spec: media-scraping/folder-menu]', () => {
+    const t = (key: string, values?: Record<string, unknown>) => (values ? `${key}:${JSON.stringify(values)}` : key)
+    const job = makeJob({
+      type: 'media_library_scrape',
+      status: 'completed',
+      resultMetadata: { matched: 4, unmatched: 1, failed: 2, quotaExceeded: true },
+    })
+
+    expect(formatResult(job, t)).toBe(
+      'tasks.result.mediaMatched:{"matched":4,"total":7}; tasks.result.mediaFailed:{"count":2}; tasks.result.mediaQuotaExceeded',
+    )
   })
 
   it('calls retry and cancel handlers for actionable jobs', () => {

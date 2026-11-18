@@ -19,10 +19,8 @@ import { isMusicPreviewFile } from '@/components/music/music-player-model'
 import { useMusicPlayer } from '@/components/music/music-player-provider'
 import type { PreviewFile } from '@/components/preview/file-preview-content'
 import { FilePreviewDialog } from '@/components/preview/file-preview-dialog'
-import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { UploadDropzone, type UploadDropzoneHandle } from '@/components/upload/upload-dropzone'
 import type { UploadRunnerContext } from '@/components/upload/upload-queue'
@@ -39,6 +37,7 @@ import {
   listMediaLibraries,
   listObjectsByPath,
   scanMediaLibrary,
+  scrapeMediaLibrary,
   updateObject,
 } from '@/lib/api'
 import { runSequentialOperation } from '@/lib/sequential-operation'
@@ -61,9 +60,10 @@ import type { BreadcrumbItem, FileActionHandlers, MediaLibraryActions } from './
 
 const FILES_PAGE_SIZE = 100
 
-const MEDIA_LIBRARY_REQUESTS: Record<'set' | 'rescan' | 'remove', (id: string) => Promise<unknown>> = {
+const MEDIA_LIBRARY_REQUESTS: Record<'set' | 'rescan' | 'scrape' | 'remove', (id: string) => Promise<unknown>> = {
   set: createMediaLibrary,
   rescan: scanMediaLibrary,
+  scrape: scrapeMediaLibrary,
   remove: deleteMediaLibrary,
 }
 
@@ -262,7 +262,6 @@ export function FileManager({
   const [shareTarget, setShareTarget] = useState<StorageObject | null>(null)
   const [transferTarget, setTransferTarget] = useState<StorageObject | null>(null)
   const [detailsTarget, setDetailsTarget] = useState<StorageObject | null>(null)
-  const [mediaLibraryUpgradeOpen, setMediaLibraryUpgradeOpen] = useState(false)
   const [mediaLibraryRemoveTarget, setMediaLibraryRemoveTarget] = useState<MediaLibrary | null>(null)
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -326,12 +325,12 @@ export function FileManager({
     if (!resolvedCapabilities.mediaLibrary || entitlement.isLoading) return undefined
     const libraries = new Map((mediaLibrariesQuery.data ?? []).map((library) => [library.folderId, library]))
     const request = mediaLibraryMutation.mutate
-    const upgrade = () => setMediaLibraryUpgradeOpen(true)
     return {
       locked: !mediaLibraryEntitled,
       libraryFor: (folder) => libraries.get(folder.id),
-      onSet: mediaLibraryEntitled ? (folder) => request({ type: 'set', id: folder.id }) : upgrade,
-      onRescan: mediaLibraryEntitled ? (library) => request({ type: 'rescan', id: library.id }) : upgrade,
+      onSet: (folder) => request({ type: 'set', id: folder.id }),
+      onRescan: (library) => request({ type: 'rescan', id: library.id }),
+      onScrape: (library) => request({ type: 'scrape', id: library.id }),
       onRemove: setMediaLibraryRemoveTarget,
     }
   }, [
@@ -840,15 +839,6 @@ export function FileManager({
           )
         }
       />
-      <Dialog open={mediaLibraryUpgradeOpen} onOpenChange={setMediaLibraryUpgradeOpen}>
-        <DialogContent className="max-w-sm p-0">
-          <UpgradeHint
-            feature="media_library"
-            title={t('mediaLibrary.upgradeTitle')}
-            description={t('mediaLibrary.upgradeDescription')}
-          />
-        </DialogContent>
-      </Dialog>
     </div>
   )
 

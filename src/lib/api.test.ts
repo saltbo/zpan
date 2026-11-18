@@ -140,6 +140,7 @@ import {
   saveImageDomainProvider,
   saveShareToDrive,
   scanMediaLibrary,
+  scrapeMediaLibrary,
   sendDownloaderHeartbeat,
   serverEventsUrl,
   setSharePrivacy,
@@ -156,6 +157,7 @@ import {
   updateOrgEntitlement,
   updateSiteCaptcha,
   updateSiteIdentity,
+  updateSiteMediaScraping,
   updateSiteQuotas,
   updateSiteRegistration,
   updateSiteWebDav,
@@ -1631,6 +1633,34 @@ describe('api', () => {
       expect(init.method).toBe('POST')
     })
 
+    it('queues a media library metadata scrape', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'job-2', type: 'media_library_scrape' }, true, 201))
+
+      await expect(scrapeMediaLibrary('lib-1')).resolves.toMatchObject({ id: 'job-2', type: 'media_library_scrape' })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/media-libraries/lib-1/scrapes')
+      expect(init.method).toBe('POST')
+    })
+
+    it('throws ApiError when scraping is not configured', async () => {
+      const body = {
+        error: {
+          code: 412,
+          message: 'TMDB is not configured.',
+          status: 'FAILED_PRECONDITION',
+          details: [{ reason: 'MEDIA_SCRAPER_NOT_CONFIGURED', domain: 'zpan.dev' }],
+        },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(body, false, 412))
+
+      await expect(scrapeMediaLibrary('lib-1')).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 412,
+        reason: 'MEDIA_SCRAPER_NOT_CONFIGURED',
+      })
+    })
+
     it('throws ApiError for media library failures', async () => {
       const conflictBody = {
         error: {
@@ -2253,6 +2283,33 @@ describe('api', () => {
       expect(url).toContain('/api/site/settings/captcha')
       expect(init.method).toBe('PUT')
       expect(JSON.parse(String(init.body))).toEqual(input)
+    })
+
+    it('updates the scraping language and sends a token only when given', async () => {
+      const result = { language: 'zh-CN', tmdbTokenConfigured: true }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(result))
+      await expect(updateSiteMediaScraping({ language: 'zh-CN', tmdbAccessToken: 'token' })).resolves.toEqual(result)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/media-scraping')
+      expect(init.method).toBe('PUT')
+      expect(JSON.parse(String(init.body))).toEqual({ language: 'zh-CN', tmdbAccessToken: 'token' })
+    })
+
+    it('throws ApiError when scraping settings need a license', async () => {
+      const body = {
+        error: {
+          code: 402,
+          message: 'Feature not available',
+          status: 'FAILED_PRECONDITION',
+          details: [{ reason: 'FEATURE_NOT_AVAILABLE', domain: 'zpan.dev' }],
+        },
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(body, false, 402))
+      await expect(updateSiteMediaScraping({ language: 'en-US' })).rejects.toMatchObject({
+        name: 'ApiError',
+        status: 402,
+        reason: 'FEATURE_NOT_AVAILABLE',
+      })
     })
 
     it('throws when updating captcha fails', async () => {

@@ -33,6 +33,7 @@ vi.mock('lucide-react', () => ({
   ArrowRightLeft: () => null,
   RefreshCw: () => null,
   Share2: () => null,
+  Sparkles: () => null,
   Trash2: () => null,
   X: () => null,
 }))
@@ -294,7 +295,7 @@ describe('FileRowActions — component rendering', () => {
     expect(onCompress).toHaveBeenCalledWith(item)
   })
 
-  it('offers media library actions on folders only, following the folder state', () => {
+  it('offers media library actions on folders only, following the folder state [spec: media-scraping/folder-menu]', () => {
     const folder = makeObject(DirType.USER_FOLDER)
     const library = { id: 'lib-1', folderId: folder.id } as ReturnType<MediaLibraryActions['libraryFor']>
     const actions = (overrides: Partial<MediaLibraryActions>): MediaLibraryActions => ({
@@ -303,6 +304,7 @@ describe('FileRowActions — component rendering', () => {
       onSet: vi.fn(),
       onRemove: vi.fn(),
       onRescan: vi.fn(),
+      onScrape: vi.fn(),
       ...overrides,
     })
     const labels = (item: StorageObject, mediaLibrary: MediaLibraryActions) => {
@@ -322,17 +324,19 @@ describe('FileRowActions — component rendering', () => {
     const markedView = labels(folder, marked)
     expect(markedView.text).not.toContain('mediaLibrary.set')
     fireEvent.click(markedView.items.find((el) => el.textContent === 'mediaLibrary.rescan')!)
+    fireEvent.click(markedView.items.find((el) => el.textContent === 'mediaLibrary.scrape')!)
     fireEvent.click(markedView.items.find((el) => el.textContent === 'mediaLibrary.remove')!)
     expect(marked.onRescan).toHaveBeenCalledWith(library)
+    expect(marked.onScrape).toHaveBeenCalledWith(library)
     expect(marked.onRemove).toHaveBeenCalledWith(library)
     cleanup()
 
-    expect(labels(folder, actions({ locked: true })).text).toContain('mediaLibrary.setPro')
+    expect(labels(folder, actions({ locked: true })).text.some((text) => text?.startsWith('mediaLibrary.'))).toBe(false)
     cleanup()
 
     const lapsed = actions({ locked: true, libraryFor: () => library })
     const lapsedView = labels(folder, lapsed)
-    expect(lapsedView.text).toEqual(expect.arrayContaining(['mediaLibrary.rescanPro', 'mediaLibrary.remove']))
+    expect(lapsedView.text.filter((text) => text?.startsWith('mediaLibrary.'))).toEqual(['mediaLibrary.remove'])
     fireEvent.click(lapsedView.items.find((el) => el.textContent === 'mediaLibrary.remove')!)
     expect(lapsed.onRemove).toHaveBeenCalledWith(library)
     cleanup()

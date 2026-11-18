@@ -146,6 +146,8 @@ export interface MatterRepo {
   // Conflict-resolution primitives the confirmUpload usecase composes between
   // its quota reservation and the draft→active flip.
   findActiveConflict(orgId: string, parent: string, name: string, excludeId?: string): Promise<Matter | null>
+  // The live entries at any of these paths, matching names case-insensitively like findActiveConflict.
+  findActiveAt(orgId: string, paths: ReadonlyArray<{ parent: string; name: string }>): Promise<Matter[]>
   planConflictResolution(
     orgId: string,
     parent: string,
