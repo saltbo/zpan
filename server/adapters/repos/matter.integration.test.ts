@@ -707,7 +707,8 @@ describe('getMany', () => {
     await db.run(sql`UPDATE matters SET purged_at = ${now} WHERE id = 'gm-0'`)
     await db.run(sql`UPDATE matters SET org_id = ${otherOrgId} WHERE id = 'gm-1'`)
 
-    const rows = await createMatterRepo(db).getMany(orgId, ids)
+    // A duplicate split across chunks must still come back once.
+    const rows = await createMatterRepo(db).getMany(orgId, [...ids, 'gm-2'])
 
     expect(rows).toHaveLength(ids.length - 2)
     expect(new Set(rows.map((m) => m.id))).toEqual(new Set(ids.slice(2)))

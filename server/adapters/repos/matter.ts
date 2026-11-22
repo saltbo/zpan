@@ -99,7 +99,9 @@ function typeFilterCondition(typeFilter: string): SQL | undefined {
 const MATTER_IDS_PER_STATEMENT = D1_MAX_BOUND_PARAMS - 20
 
 function idChunks(ids: string[]): string[][] {
-  return chunk(ids, MATTER_IDS_PER_STATEMENT)
+  // Distinct first: IN de-duplicated a single list, but a duplicate split across two
+  // chunks would be read twice (and, in purge, decremented twice).
+  return chunk([...new Set(ids)], MATTER_IDS_PER_STATEMENT)
 }
 export function createMatterRepo(db: Database): MatterRepo {
   const matterChanges = (
