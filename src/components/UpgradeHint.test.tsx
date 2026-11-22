@@ -1,11 +1,21 @@
 // Tests for src/components/UpgradeHint.tsx
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import en from '@/i18n/locales/en.json'
 import { UpgradeHint } from './UpgradeHint'
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => {
+      const value = (en as Record<string, string>)[key] ?? key
+      return value.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(values?.[name] ?? ''))
+    },
+  }),
+}))
 
 vi.mock('@/components/ui/button', () => ({
   Button: ({
@@ -57,7 +67,8 @@ describe('UpgradeHint', () => {
 
   it('mentions the feature in the description', () => {
     const { getByText } = render(<UpgradeHint feature="white_label" />)
-    expect(getByText(/white-label/i)).toBeTruthy()
+    // the feature label comes from admin.upgrade.feature.white_label in en.json
+    expect(getByText(/Custom Branding/i)).toBeTruthy()
   })
 
   it('uses a custom action label when provided', () => {
