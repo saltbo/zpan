@@ -150,6 +150,12 @@ Feature: Objects
     When it is trashed
     Then its children are trashed too
 
+  @objects/trash-large-folder @api
+  Scenario: A folder with many items is trashed, restored and purged
+    Given a folder holding more than a hundred files and subfolders
+    When it is trashed, then restored, then trashed and permanently deleted
+    Then every step succeeds and applies to the whole subtree
+
   @objects/restore @api
   Scenario: A trashed file is restored
     Given a trashed file

@@ -20,8 +20,14 @@ import {
 } from 'drizzle-orm'
 import { generateId, generateToken } from '../../../shared/ids'
 import { matters } from '../../db/schema'
-import { type AtomicQuery, executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
+import {
+  type AtomicQuery,
+  D1_MAX_BOUND_PARAMS,
+  executeWriteTransaction,
+  executeWriteTransactionWithResults,
+} from '../../db/transaction'
 import { suggestRenamed } from '../../domain/matter-name-conflict'
+import { chunk } from '../../lib/chunk'
 import type { Database } from '../../platform/interface'
 import type {
   ConflictPlan,
@@ -88,6 +94,15 @@ function typeFilterCondition(typeFilter: string): SQL | undefined {
   }
 }
 
+// An id list bound into one statement must leave room under D1's per-statement cap for
+// the statement's other parameters (orgId, status, SET values), so lists are split.
+const MATTER_IDS_PER_STATEMENT = D1_MAX_BOUND_PARAMS - 20
+
+function idChunks(ids: string[]): string[][] {
+  // Distinct first: IN de-duplicated a single list, but a duplicate split across two
+  // chunks would be read twice (and, in purge, decremented twice).
+  return chunk([...new Set(ids)], MATTER_IDS_PER_STATEMENT)
+}
 export function createMatterRepo(db: Database): MatterRepo {
   const matterChanges = (
     orgId: string,
@@ -438,10 +453,16 @@ export function createMatterRepo(db: Database): MatterRepo {
 
     async getMany(orgId, ids) {
       if (ids.length === 0) return []
-      const rows = await db
-        .select()
-        .from(matters)
-        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids), isNull(matters.purgedAt)))
+      const rows = (
+        await Promise.all(
+          idChunks(ids).map((batch) =>
+            db
+              .select()
+              .from(matters)
+              .where(and(eq(matters.orgId, orgId), inArray(matters.id, batch), isNull(matters.purgedAt))),
+          ),
+        )
+      ).flat()
       return rows.map(toMatter)
     },
 
@@ -590,18 +611,20 @@ export function createMatterRepo(db: Database): MatterRepo {
       // child already trashed earlier keeps its own trashedAt (and restore later).
       await executeWriteTransaction(db, [
         ...matterTrashedProjectionQueries(db, orgId, allIds),
-        db
-          .update(matters)
-          .set({ trashedAt: nowTs, updatedAt: now })
-          .where(
-            and(
-              inArray(matters.id, allIds),
-              eq(matters.orgId, orgId),
-              eq(matters.status, ObjectStatus.ACTIVE),
-              isNull(matters.trashedAt),
-              isNull(matters.purgedAt),
+        ...idChunks(allIds).map((batch) =>
+          db
+            .update(matters)
+            .set({ trashedAt: nowTs, updatedAt: now })
+            .where(
+              and(
+                inArray(matters.id, batch),
+                eq(matters.orgId, orgId),
+                eq(matters.status, ObjectStatus.ACTIVE),
+                isNull(matters.trashedAt),
+                isNull(matters.purgedAt),
+              ),
             ),
-          ),
+        ),
         ...matterChanges(orgId, allIds, now, 'trashed', 'delete'),
       ])
       const trashed = { ...existing, trashedAt: nowTs, updatedAt: now }
@@ -652,17 +675,19 @@ export function createMatterRepo(db: Database): MatterRepo {
       // Clear the trash mark on the whole subtree (status is already 'active').
       await executeWriteTransaction(db, [
         ...matterRestoredProjectionQueries(db, orgId, allIds),
-        db
-          .update(matters)
-          .set({ trashedAt: null, updatedAt: now })
-          .where(
-            and(
-              inArray(matters.id, allIds),
-              eq(matters.orgId, orgId),
-              isNotNull(matters.trashedAt),
-              isNull(matters.purgedAt),
+        ...idChunks(allIds).map((batch) =>
+          db
+            .update(matters)
+            .set({ trashedAt: null, updatedAt: now })
+            .where(
+              and(
+                inArray(matters.id, batch),
+                eq(matters.orgId, orgId),
+                isNotNull(matters.trashedAt),
+                isNull(matters.purgedAt),
+              ),
             ),
-          ),
+        ),
         ...matterChanges(orgId, allIds, now, 'restored'),
       ])
 
@@ -675,10 +700,16 @@ export function createMatterRepo(db: Database): MatterRepo {
 
     async purge(orgId, ids): Promise<void> {
       if (ids.length === 0) return
-      const rows = await db
-        .select()
-        .from(matters)
-        .where(and(eq(matters.orgId, orgId), inArray(matters.id, ids), isNull(matters.purgedAt)))
+      const rows = (
+        await Promise.all(
+          idChunks(ids).map((batch) =>
+            db
+              .select()
+              .from(matters)
+              .where(and(eq(matters.orgId, orgId), inArray(matters.id, batch), isNull(matters.purgedAt))),
+          ),
+        )
+      ).flat()
       if (rows.length === 0) return
 
       const now = new Date()
@@ -695,23 +726,16 @@ export function createMatterRepo(db: Database): MatterRepo {
           rows.map((row) => row.id),
         ),
         ...rows.map((row) => matterPurgeLedgerQuery(db, orgId, row.id, now)),
-        db
-          .update(matters)
-          .set({
-            trashedAt: sql`COALESCE(${matters.trashedAt}, ${now.getTime()})`,
-            purgedAt: now.getTime(),
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(matters.orgId, orgId),
-              inArray(
-                matters.id,
-                rows.map((row) => row.id),
-              ),
-              isNull(matters.purgedAt),
-            ),
-          ),
+        ...idChunks(rows.map((row) => row.id)).map((batch) =>
+          db
+            .update(matters)
+            .set({
+              trashedAt: sql`COALESCE(${matters.trashedAt}, ${now.getTime()})`,
+              purgedAt: now.getTime(),
+              updatedAt: now,
+            })
+            .where(and(eq(matters.orgId, orgId), inArray(matters.id, batch), isNull(matters.purgedAt))),
+        ),
         ...matterChanges(
           orgId,
           rows.map((row) => row.id),
@@ -745,17 +769,19 @@ export function createMatterRepo(db: Database): MatterRepo {
       const now = new Date()
       await executeWriteTransaction(db, [
         ...matterTrashedProjectionQueries(db, orgId, ids),
-        db
-          .update(matters)
-          .set({ trashedAt: now.getTime(), updatedAt: now })
-          .where(
-            and(
-              eq(matters.orgId, orgId),
-              inArray(matters.id, ids),
-              isNull(matters.trashedAt),
-              isNull(matters.purgedAt),
+        ...idChunks(ids).map((batch) =>
+          db
+            .update(matters)
+            .set({ trashedAt: now.getTime(), updatedAt: now })
+            .where(
+              and(
+                eq(matters.orgId, orgId),
+                inArray(matters.id, batch),
+                isNull(matters.trashedAt),
+                isNull(matters.purgedAt),
+              ),
             ),
-          ),
+        ),
         ...matterChanges(orgId, ids, now, 'trashed', 'delete'),
       ])
     },
@@ -765,17 +791,19 @@ export function createMatterRepo(db: Database): MatterRepo {
       const now = new Date()
       await executeWriteTransaction(db, [
         ...matterRestoredProjectionQueries(db, orgId, ids),
-        db
-          .update(matters)
-          .set({ trashedAt: null, updatedAt: now })
-          .where(
-            and(
-              eq(matters.orgId, orgId),
-              inArray(matters.id, ids),
-              isNotNull(matters.trashedAt),
-              isNull(matters.purgedAt),
+        ...idChunks(ids).map((batch) =>
+          db
+            .update(matters)
+            .set({ trashedAt: null, updatedAt: now })
+            .where(
+              and(
+                eq(matters.orgId, orgId),
+                inArray(matters.id, batch),
+                isNotNull(matters.trashedAt),
+                isNull(matters.purgedAt),
+              ),
             ),
-          ),
+        ),
         ...matterChanges(orgId, ids, now, 'restored'),
       ])
     },

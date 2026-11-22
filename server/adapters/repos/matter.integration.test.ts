@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { orgQuotaEntitlements, orgQuotas } from '../../db/schema.js'
+import { D1_MAX_BOUND_PARAMS } from '../../db/transaction.js'
 import { createTestApp } from '../../test/setup.js'
 import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../../usecases/object'
 import type { UpdateMatterInput } from '../../usecases/ports'
@@ -682,5 +683,34 @@ describe('listTrashedRoots', () => {
 
     expect(roots).toHaveLength(1)
     expect(roots[0].id).toBe('archive-folder')
+  })
+})
+
+// ─── getMany ──────────────────────────────────────────────────────────────────
+
+describe('getMany', () => {
+  it('returns every matter when the id list is split across statements (#619)', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const otherOrgId = nanoid()
+    const storageId = await insertStorage(db, { id: 'st-getmany' })
+    const now = Date.now()
+    const ids: string[] = []
+    for (let i = 0; i < D1_MAX_BOUND_PARAMS + 50; i++) {
+      const id = `gm-${i}`
+      ids.push(id)
+      await db.run(sql`
+        INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+        VALUES (${id}, ${orgId}, ${`${id}-alias`}, ${`f${i}.txt`}, 'text/plain', 1, 0, '', ${`k/${id}`}, ${storageId}, 'active', ${now}, ${now})
+      `)
+    }
+    await db.run(sql`UPDATE matters SET purged_at = ${now} WHERE id = 'gm-0'`)
+    await db.run(sql`UPDATE matters SET org_id = ${otherOrgId} WHERE id = 'gm-1'`)
+
+    // A duplicate split across chunks must still come back once.
+    const rows = await createMatterRepo(db).getMany(orgId, [...ids, 'gm-2'])
+
+    expect(rows).toHaveLength(ids.length - 2)
+    expect(new Set(rows.map((m) => m.id))).toEqual(new Set(ids.slice(2)))
   })
 })
