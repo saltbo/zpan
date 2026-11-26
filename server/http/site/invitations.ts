@@ -59,6 +59,7 @@ const createRouteDoc = authRoute(
     request: jsonBody(createSchema),
     responses: {
       201: jsonContent(siteInvitationSchema, 'Created invitation'),
+      400: errorResponse('Email delivery is not configured'),
       401: errorResponse('Unauthorized'),
       409: errorResponse('Invitation conflict'),
     },
@@ -76,7 +77,7 @@ const resendRoute = authRoute(
     request: { params: z.object({ id: opaqueIdSchema }) },
     responses: {
       200: jsonContent(siteInvitationSchema, 'Resent invitation'),
-      400: errorResponse('Invitation is no longer pending'),
+      400: errorResponse('Invitation is no longer pending, or email delivery is not configured'),
       404: errorResponse('Invitation not found'),
     },
   },

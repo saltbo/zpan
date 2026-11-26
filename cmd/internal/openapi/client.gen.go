@@ -25429,6 +25429,7 @@ type CreateSiteInvitationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *SiteInvitation
+	JSON400      *Error
 	JSON401      *Error
 	JSON409      *Error
 }
@@ -33594,6 +33595,13 @@ func ParseCreateSiteInvitationResponse(rsp *http.Response) (*CreateSiteInvitatio
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error
