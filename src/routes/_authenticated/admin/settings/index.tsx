@@ -22,6 +22,7 @@ import { BrandingSection } from '@/components/admin/branding-section'
 import type { StorageQuotaUnit } from '@/components/admin/cloud-store-settings-section'
 import { EmailConfigSection } from '@/components/admin/email-config-section'
 import { ImageDomainProviderSection } from '@/components/admin/image-domain-provider-section'
+import { InviteCodesSection } from '@/components/admin/invite-codes-section'
 import { ProBadge } from '@/components/ProBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -412,6 +413,17 @@ export function SettingsPage() {
   const savedQuota = bytesToDisplay(quotaBytes)
   const savedTeamQuota = bytesToDisplay(teamQuotaBytes)
   const savedRegistrationsEnabled = effectiveSignupMode === SignupMode.OPEN
+  const inviteOnly = effectiveSignupMode === SignupMode.INVITE_ONLY
+  const registrationDetails = savedRegistrationsEnabled
+    ? t('admin.settings.registrationHintOpen')
+    : inviteOnly
+      ? t('admin.settings.registrationHintInviteOnly')
+      : t('admin.settings.registrationHintClosed')
+  const registrationStatusLabel = savedRegistrationsEnabled
+    ? t('admin.auth.enabled')
+    : inviteOnly
+      ? t('admin.auth.registrationInviteOnly')
+      : t('common.disabled')
 
   if (isLoading) {
     return (
@@ -453,21 +465,14 @@ export function SettingsPage() {
             icon={<UserPlus className="size-4" />}
             title={t('admin.settings.registrationTitle')}
             description={t('admin.settings.registrationDescription')}
-            details={
-              savedRegistrationsEnabled
-                ? t('admin.settings.registrationHintOpen')
-                : t('admin.settings.registrationHintClosed')
-            }
-            status={
-              <SettingsStatusBadge
-                enabled={savedRegistrationsEnabled}
-                label={savedRegistrationsEnabled ? t('admin.auth.enabled') : t('common.disabled')}
-              />
-            }
+            details={registrationDetails}
+            status={<SettingsStatusBadge enabled={savedRegistrationsEnabled} label={registrationStatusLabel} />}
             proTooltip={t('admin.settings.registrationUpgradeHint')}
             editLabel={t('common.edit')}
             onEdit={() => setSettingsDrawer('registration')}
           />
+
+          {inviteOnly && <InviteCodesSection />}
 
           <SettingsItemCard
             icon={<ShieldCheck className="size-4" />}

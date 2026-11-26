@@ -54,3 +54,16 @@ Feature: Invite codes
     Given a valid unused invite code
     When it is validated
     Then it reports as valid
+
+  @invite-codes/admin-console-visibility @web
+  Scenario: Admin settings shows invite codes only while sign-up needs one
+    Given the effective registration mode is invite-only
+    When an admin opens Admin → Settings
+    Then the invite codes card sits under New user registration
+    And it is absent when registration is open or closed
+
+  @invite-codes/admin-console-manage @web
+  Scenario: Admins manage invite codes from the admin console
+    Given the invite codes card in Admin → Settings
+    When an admin generates codes, copies one, and deletes an unused one
+    Then the list shows each code's status, and delete asks for confirmation first
