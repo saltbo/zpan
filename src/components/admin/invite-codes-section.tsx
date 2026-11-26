@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
+import { ConfirmActionDialog } from '@/components/admin/confirm-action-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -39,6 +40,7 @@ export function InviteCodesSection() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [count, setCount] = useState(10)
   const [expiresInDays, setExpiresInDays] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<InviteCode | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: inviteCodesQueryKey,
@@ -60,6 +62,7 @@ export function InviteCodesSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: inviteCodesQueryKey })
       toast.success(t('admin.auth.codeDeleted'))
+      setPendingDelete(null)
     },
     onError: (err) => toast.error(err.message),
   })
@@ -125,7 +128,7 @@ export function InviteCodesSection() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteMutation.mutate(code.id)}
+                        onClick={() => setPendingDelete(code)}
                         disabled={deleteMutation.isPending}
                       >
                         {t('common.delete')}
@@ -175,6 +178,20 @@ export function InviteCodesSection() {
           />
         </AdminFormField>
       </AdminFormDrawer>
+
+      <ConfirmActionDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+        title={t('admin.auth.deleteCodeTitle')}
+        description={t('admin.auth.deleteCodeConfirm', { code: pendingDelete?.code ?? '' })}
+        confirmLabel={t('common.delete')}
+        isPending={deleteMutation.isPending}
+        onConfirm={() => {
+          if (pendingDelete) deleteMutation.mutate(pendingDelete.id)
+        }}
+      />
     </div>
   )
 }
