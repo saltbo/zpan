@@ -155,7 +155,7 @@ docker compose -f docker-compose.rustfs.yml up -d
 
 ## Документация
 
-- [Дорожная карта](../../V2_ROADMAP.md)
+- [Дорожная карта](../../ROADMAP.md)
 - [Участие в разработке](../../CONTRIBUTING.md)
 
 ## v1

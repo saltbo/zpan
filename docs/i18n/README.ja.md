@@ -155,7 +155,7 @@ docker compose -f docker-compose.rustfs.yml up -d
 
 ## ドキュメント
 
-- [ロードマップ](../../V2_ROADMAP.md)
+- [ロードマップ](../../ROADMAP.md)
 - [コントリビューション](../../CONTRIBUTING.md)
 
 ## v1

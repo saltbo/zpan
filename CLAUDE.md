@@ -23,7 +23,7 @@ Core architecture: clients upload directly to S3-compatible storage via presigne
 - [docs/design/upload-policies.md](docs/design/upload-policies.md) — proposed selector-based upload placement policies for multiple storage backends
 - [docs/design/media-library.md](docs/design/media-library.md) — media library folders, the <library>/library.json JSON Feed index, fingerprint sweep, scan job, Pro/Business gating
 - [docs/design/oauth-server.md](docs/design/oauth-server.md) — OAuth, CI API keys, protocol-neutral authorization, Restish credential handling, and future Agent Auth compatibility
-- [V2_ROADMAP.md](V2_ROADMAP.md) — release plan (v2.0–v2.10), editions
+- [ROADMAP.md](ROADMAP.md) — release plan (v2.0–v2.10), editions
 - [docs/roadmap/](docs/roadmap/) — per-version technical specs (v2.0.md–v2.9.md)
 - [docs/design/license-key-trust.md](docs/design/license-key-trust.md) — hardcoded license keys, per-key issuer/host scopes, exact host matching, local Pro testing
 - [docs/design/spaces-quota-sharing.md](docs/design/spaces-quota-sharing.md) — spaces/quota/sharing design decisions (team billing, allocation, cross-space transfer, no per-item ACL)

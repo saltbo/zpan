@@ -23,8 +23,8 @@ who want a web UI over their own buckets.
 
 **It does:**
 
-- A web drive over the user's bucket: files, folders, previews, trash, quotas, and
-  team workspaces.
+- A full web drive over the user's bucket: files, folders, previews, trash,
+  quotas, and team workspaces.
 - Image hosting with stable URLs on the user's own domain, through upload tools and
   the API.
 - Sharing: links with password, expiry, and download limits, direct links, save to
@@ -50,7 +50,7 @@ who want a web UI over their own buckets.
 
 **Editions.** Community is free and open source. Pro and Business are paid
 licenses bound through ZPan Cloud. Which edition a feature belongs to is a pricing
-decision, recorded in [V2_ROADMAP.md](../V2_ROADMAP.md#community-vs-pro-vs-business).
+decision, recorded in [ROADMAP.md](../ROADMAP.md#community-vs-pro-vs-business).
 
 ## Convention
 

@@ -45,10 +45,14 @@ looks the same everywhere.
 
 ## Lists
 
-- **A list of unbounded length loads its next page as the user scrolls to its end**,
-  with no page numbers, per
-  [list pagination](docs/design/list-pagination-realtime.md). A small list with a
-  hard limit loads at once.
+- **User-facing lists of unbounded length load their next page as the user scrolls
+  to the end**, such as files, shares, trash, tasks, downloads, and activity,
+  because browsing a stream is how they are used.
+- **Admin tables page with previous and next controls and a page-size choice**,
+  such as users, audit, invitations, and storage cleanup, because an operator
+  works through records and needs to know where they are. Both run on the same
+  cursor, per [list pagination](docs/design/list-pagination-realtime.md); a small
+  list with a hard limit loads at once.
 - **Search, filter, sort, and the selected item live in the URL**, so back, reload,
   and a shared link restore the view. A display preference, such as list or grid
   view, stays in local storage.
@@ -74,8 +78,12 @@ looks the same everywhere.
 
 - The result of an action that leaves no lasting mark on the page goes to a toast.
   One that changes what the page shows needs no toast.
-- A toast says what happened in product language. A server error is translated
-  into what the user can do; its raw text is not shown.
+- **Error messages are written once, on the server.** An API error's `message` is
+  for the person using the product, in the language of the request, and the UI
+  shows it as it is. What is for investigation stays out of the response: the
+  `reason` code is for programs, and diagnostics go only to the server log, so an
+  unexpected failure reaches the user as a generic message.
+- A toast says what happened in product language.
 
 ## Destructive actions
 
