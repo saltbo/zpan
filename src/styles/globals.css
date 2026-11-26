@@ -53,6 +53,45 @@
   --color-sidebar-ring: var(--zpan-theme-ring);
 
   --radius: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  /* ── Elevation (frosted shadow system — per-theme values below) ── */
+  --shadow-2xs: var(--zpan-shadow-2xs);
+  --shadow-xs: var(--zpan-shadow-xs);
+  --shadow-sm: var(--zpan-shadow-sm);
+  --shadow-md: var(--zpan-shadow-md);
+  --shadow-lg: var(--zpan-shadow-lg);
+
+  /* ── Type (bundled self-hosted OFL fonts; see @font-face) ── */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Bundled self-hosted fonts (OFL, in public/fonts — offline/airgapped safe).
+   Latin subsets only; other scripts (e.g. Arabic) fall back to system fonts
+   per family. Variable files carry the full weight ranges. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/inter-latin-var.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-latin-var.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-var.woff2') format('woff2');
 }
 
 :root {
@@ -66,18 +105,32 @@
   --zpan-theme-chart-muted: oklch(0.86 0.01 255);
   --zpan-scrollbar-thumb: oklch(0.66 0.028 252);
   --zpan-scrollbar-thumb-hover: var(--zpan-theme-primary);
+
+  /* Elevation — cool Gridline-Blue tinted drops, not neutral black */
+  --zpan-shadow-2xs: 0 1px 2px -1px oklch(0.28 0.02 255 / 0.10);
+  --zpan-shadow-xs: 0 1px 2px -1px oklch(0.28 0.02 255 / 0.12);
+  --zpan-shadow-sm: 0 1px 3px -1px oklch(0.28 0.02 255 / 0.14),
+    0 1px 2px oklch(0.28 0.02 255 / 0.06);
+  --zpan-shadow-md: 0 4px 6px -1px oklch(0.28 0.02 255 / 0.14),
+    0 2px 4px -2px oklch(0.28 0.02 255 / 0.10);
+  --zpan-shadow-lg: 0 10px 24px -4px oklch(0.28 0.02 255 / 0.18),
+    0 4px 8px -2px oklch(0.28 0.02 255 / 0.12);
+
+  /* Display wordmark gradient — endpoints ≥3:1 on canvas */
+  --zpan-display-gradient: linear-gradient(100deg, var(--color-foreground),
+    var(--zpan-theme-primary));
 }
 
 .dark {
   /* ── Surfaces ──────────────────────────────────────── */
   --color-background: oklch(0.22 0 0);
-  --color-foreground: oklch(0.93 0.005 250);
+  --color-foreground: oklch(0.93 0.02 245);
   --color-card: oklch(0.27 0.003 250);
-  --color-card-foreground: oklch(0.93 0.005 250);
+  --color-card-foreground: oklch(0.93 0.02 245);
   --color-popover: oklch(0.27 0.003 250);
-  --color-popover-foreground: oklch(0.93 0.005 250);
+  --color-popover-foreground: oklch(0.93 0.02 245);
   /* Canvas darker than card to keep "card lifts off canvas" contrast */
-  --zpan-theme-canvas: oklch(0.18 0.005 250);
+  --zpan-theme-canvas: oklch(0.165 0.013 264);
 
   /* ── Primary (Google Blue · dark variant #8ab4f8) ──── */
   --zpan-theme-primary: oklch(0.764 0.111 254.1);
@@ -87,17 +140,17 @@
   --color-secondary: oklch(0.32 0.005 250);
   --color-secondary-foreground: oklch(0.86 0.008 250);
   --color-muted: oklch(0.32 0.005 250);
-  --color-muted-foreground: oklch(0.72 0.012 258);
+  --color-muted-foreground: oklch(0.82 0.02 245);
   --color-accent: oklch(0.36 0.005 250);
-  --color-accent-foreground: oklch(0.93 0.005 250);
+  --color-accent-foreground: oklch(0.93 0.02 245);
 
   /* ── Destructive (Google Red · dark variant #f28b82) ── */
   --color-destructive: oklch(0.756 0.139 28.1);
   --color-destructive-foreground: oklch(0.22 0 0);
 
   /* ── Borders / Inputs / Focus ring ─────────────────── */
-  --color-border: oklch(0.34 0.005 250);
-  --color-input: oklch(0.34 0.005 250);
+  --color-border: oklch(0.37 0.012 254);
+  --color-input: oklch(0.37 0.012 254);
   --zpan-theme-ring: oklch(0.764 0.111 254.1);
   --zpan-theme-chart-teal: oklch(0.75 0.12 185);
   --zpan-theme-chart-violet: oklch(0.75 0.13 292);
@@ -111,10 +164,30 @@
   --zpan-theme-sidebar-accent: oklch(0.32 0.08 258);
   --color-sidebar-accent-foreground: oklch(0.846 0.067 254.1);
   --color-sidebar-hover: oklch(0.32 0.005 250);
-  --color-sidebar-border: oklch(0.34 0.005 250);
+  --color-sidebar-border: oklch(0.37 0.012 254);
   --color-sidebar-ring: var(--zpan-theme-ring);
   --zpan-scrollbar-thumb: oklch(0.52 0.018 252);
   --zpan-scrollbar-thumb-hover: var(--zpan-theme-primary);
+
+  /* Elevation — frosted top hairline + deep cool drop + lit-from-below glow */
+  --zpan-shadow-2xs: inset 0 1px 0 oklch(0.92 0.02 245 / 0.10),
+    0 1px 2px -1px oklch(0.05 0.01 264 / 0.6);
+  --zpan-shadow-xs: inset 0 1px 0 oklch(0.92 0.02 245 / 0.10),
+    0 1px 3px -1px oklch(0.05 0.01 264 / 0.65);
+  --zpan-shadow-sm: inset 0 1px 0 oklch(0.92 0.02 245 / 0.12),
+    0 1px 3px -1px oklch(0.05 0.01 264 / 0.6),
+    0 6px 16px -4px oklch(0.05 0.01 264 / 0.45);
+  --zpan-shadow-md: inset 0 1px 0 oklch(0.92 0.02 245 / 0.14),
+    0 2px 4px -2px oklch(0.05 0.01 264 / 0.6),
+    0 12px 28px -6px oklch(0.05 0.01 264 / 0.5);
+  --zpan-shadow-lg: inset 0 1px 0 oklch(0.92 0.02 245 / 0.16),
+    0 4px 8px -2px oklch(0.05 0.01 264 / 0.55),
+    0 24px 48px -12px oklch(0.05 0.01 264 / 0.6),
+    0 16px 48px -12px oklch(0.78 0.1 245 / 0.06);
+
+  /* Display wordmark gradient — Skywash on midnight, hue follows branding */
+  --zpan-display-gradient: linear-gradient(100deg, var(--color-foreground),
+    color-mix(in oklab, var(--zpan-theme-primary) 45%, var(--color-foreground)));
 }
 
 @layer base {
@@ -125,7 +198,17 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family: var(--font-sans);
+  }
+
+  h1 {
+    letter-spacing: -0.02em;
+  }
+
+  /* Pill buttons (Authkit signature) — buttons only; icon buttons, inputs,
+     badges, sidebar rows, menus and thumbnails keep the 6px control radius. */
+  [data-slot='button']:not([data-size='icon']) {
+    border-radius: 999px;
   }
 
   *::-webkit-scrollbar {
