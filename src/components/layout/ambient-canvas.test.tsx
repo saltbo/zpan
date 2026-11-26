@@ -15,7 +15,7 @@ describe('AmbientCanvas', () => {
     const { container } = render(<AmbientCanvas variant="page" />)
     const layers = container.querySelectorAll('[style]')
     expect(layers.length).toBe(2)
-    const styles = [...layers].map((el) => el.getAttribute('style'))
+    const styles = [...layers].map((el) => el.getAttribute('style') ?? '')
     expect(styles.some((s) => s.includes('conic-gradient'))).toBe(true)
     expect(styles.some((s) => s.includes('repeating-linear-gradient'))).toBe(true)
   })

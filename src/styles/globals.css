@@ -241,20 +241,27 @@
   }
 
   /* Glass popups — keyed to the shadcn data-slot markers so no component
-     file is edited. Translucent card fill + frost blur in both themes. */
+     file is edited. Translucent card fill + frost blur in both themes.
+     Dropdown menus get the translucent fill WITHOUT backdrop-filter:
+     backdrop-filter makes a containing block for fixed-position descendants,
+     which traps Radix submenu panels inside the menu frame. */
   [data-slot="dialog-content"],
   [data-slot="sheet-content"],
   [data-slot="popover-content"],
-  [data-slot="dropdown-menu-content"],
   [data-slot="hover-card-content"] {
     background-color: color-mix(in oklab, var(--color-card) 90%, transparent);
     backdrop-filter: blur(12px) saturate(130%);
   }
+  [data-slot="dropdown-menu-content"] {
+    background-color: color-mix(in oklab, var(--color-card) 90%, transparent);
+  }
   .dark [data-slot="dialog-content"],
   .dark [data-slot="sheet-content"],
   .dark [data-slot="popover-content"],
-  .dark [data-slot="dropdown-menu-content"],
   .dark [data-slot="hover-card-content"] {
+    background-color: color-mix(in oklab, var(--color-card) 85%, transparent);
+  }
+  .dark [data-slot="dropdown-menu-content"] {
     background-color: color-mix(in oklab, var(--color-card) 85%, transparent);
   }
 }
