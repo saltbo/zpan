@@ -201,8 +201,11 @@ and clips it. Menus keep the translucent fill alone.
 
 Controls are 6 px rounded, cards 16 px. Buttons are pills (999 px) — icon
 buttons keep the 6 px control radius, and so do inputs, badges, sidebar rows,
-and menus, the same scope as Authkit's own. Pills, such as the Pro badge and
-avatars, are fully round.
+and menus, the same scope as Authkit's own. A `Button` used as a dropdown
+trigger (the Upload split button) is a pill too: Radix writes the trigger's
+`data-slot`, and only `Button` carries `data-variant`, so the rule matches
+`data-variant` and leaves the sidebar rows alone. Pills, such as the Pro badge
+and avatars, are fully round.
 
 ## Motion & Micro-interaction
 

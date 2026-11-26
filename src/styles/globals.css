@@ -235,8 +235,13 @@
 @layer utilities {
   /* Pill buttons (Authkit signature) — buttons only; icon buttons, inputs,
      badges, sidebar rows, menus and thumbnails keep the 6px control radius.
-     In the utilities layer so it outranks the rounded-md utility. */
-  [data-slot="button"]:not([data-size="icon"]) {
+     In the utilities layer so it outranks the rounded-md utility.
+     A shadcn Button rendered through a Radix trigger (the Upload split button)
+     reports the trigger's data-slot, not "button", and Radix writes
+     data-variant only on Button, so triggers with data-variant are Buttons.
+     Sidebar rows and ghost icon triggers carry no data-variant. */
+  [data-slot="button"]:not([data-size="icon"]),
+  [data-slot="dropdown-menu-trigger"][data-variant]:not([data-size="icon"]) {
     border-radius: 999px;
   }
 
