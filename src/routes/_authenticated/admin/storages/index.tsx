@@ -50,6 +50,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useUrlText } from '@/hooks/use-url-text'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import {
   ApiError,
@@ -170,6 +171,7 @@ export function StoragesPage() {
       replace,
     })
   }
+  const [queryText, setQueryText] = useUrlText(query, (q) => updateListSearch({ ...listSearch, q }, true))
 
   const storagesQuery = useQuery({
     queryKey: ['admin', 'storages'],
@@ -399,8 +401,8 @@ export function StoragesPage() {
           <div className="relative min-w-0 flex-1 lg:w-60">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              value={query}
-              onChange={(event) => updateListSearch({ ...listSearch, q: event.target.value }, true)}
+              value={queryText}
+              onChange={(event) => setQueryText(event.target.value)}
               placeholder={t('admin.storages.searchPlaceholder')}
               className="h-8 rounded-lg bg-card pl-9 text-xs"
             />

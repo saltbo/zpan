@@ -90,6 +90,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useUrlText } from '@/hooks/use-url-text'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import {
@@ -689,9 +690,11 @@ function DownloadFilters({
 }) {
   const { t } = useTranslation()
   const status = filters.status ?? 'all'
-  const category = filters.category ?? ''
-  const tag = filters.tag ?? ''
-  const active = status !== 'all' || Boolean(category || tag)
+  const [category, setCategory] = useUrlText(filters.category ?? '', (value) =>
+    onChange({ ...filters, category: value }, true),
+  )
+  const [tag, setTag] = useUrlText(filters.tag ?? '', (value) => onChange({ ...filters, tag: value }, true))
+  const active = status !== 'all' || Boolean(filters.category || filters.tag)
 
   return (
     <Popover>
@@ -731,7 +734,7 @@ function DownloadFilters({
           <Input
             id="download-filter-category"
             value={category}
-            onChange={(event) => onChange({ ...filters, category: event.target.value }, true)}
+            onChange={(event) => setCategory(event.target.value)}
             placeholder={t('downloads.filterCategory')}
             className="h-8"
           />
@@ -743,7 +746,7 @@ function DownloadFilters({
           <Input
             id="download-filter-tag"
             value={tag}
-            onChange={(event) => onChange({ ...filters, tag: event.target.value }, true)}
+            onChange={(event) => setTag(event.target.value)}
             placeholder={t('downloads.filterTag')}
             className="h-8"
           />

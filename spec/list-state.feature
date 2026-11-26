@@ -43,3 +43,10 @@ Feature: List state in the URL
     Given a link whose list filter, sort, or page is not one the list offers
     When a user opens it
     Then that value is ignored and the list opens with its default
+
+  @list-state/search-typing @web
+  Scenario: Typing quickly in a list's search keeps every character
+    Given a list whose search lives in the link
+    When a user types several characters in quick succession
+    Then the search field and the link both hold the full text
+    And going back to a link with another search shows that search in the field

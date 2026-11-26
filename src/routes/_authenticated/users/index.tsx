@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useUrlText } from '@/hooks/use-url-text'
 import { getUserQuotaById } from '@/lib/api'
 import { type AdminUser, adminListUsers, adminSetUserBanned } from '@/lib/auth-client'
 import { formatDate, formatSize, getInitials } from '@/lib/format'
@@ -29,6 +30,9 @@ export function UsersPage() {
   const listSearch = useSearch({ from: '/_authenticated/users/' })
   const search = listSearch.q ?? ''
   const page = listSearch.page ?? 1
+  const [searchText, setSearchText] = useUrlText(search, (q) =>
+    navigate({ to: '/users', search: { q: q || undefined }, replace: true }),
+  )
   const pageSize = 20
 
   const usersQuery = useQuery({
@@ -77,10 +81,6 @@ export function UsersPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const isLoading = usersQuery.isLoading
 
-  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
-    navigate({ to: '/users', search: { q: e.target.value || undefined }, replace: true })
-  }
-
   function goToPage(nextPage: number) {
     navigate({ to: '/users', search: { q: search || undefined, page: nextPage > 1 ? nextPage : undefined } })
   }
@@ -101,8 +101,8 @@ export function UsersPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('admin.users.searchPlaceholder')}
-            value={search}
-            onChange={handleSearchChange}
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
             className="pl-9"
           />
         </div>

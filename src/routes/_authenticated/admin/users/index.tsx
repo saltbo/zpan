@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useUrlText } from '@/hooks/use-url-text'
 import { getUserQuotaById } from '@/lib/api'
 import { type AdminUser, adminListUsers, adminRemoveUser, adminSetUserBanned } from '@/lib/auth-client'
 import { formatDate, formatStorageUsage, getInitials } from '@/lib/format'
@@ -50,6 +51,7 @@ export function UsersPage() {
   const search = listSearch.q ?? ''
   const page = listSearch.page ?? 1
   const pageSize = listSearch.size ?? DEFAULT_PAGE_SIZE
+  const [searchText, setSearchText] = useUrlText(search, (q) => updateListSearch({ q, size: pageSize }, true))
 
   const [deleteDialogUser, setDeleteDialogUser] = useState<{ id: string; name: string } | null>(null)
   const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false)
@@ -141,10 +143,6 @@ export function UsersPage() {
     setSelectedIds([])
   }
 
-  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
-    updateListSearch({ q: e.target.value, size: pageSize }, true)
-  }
-
   function goToPage(nextPage: number) {
     updateListSearch({ q: search, page: nextPage, size: pageSize })
   }
@@ -178,8 +176,8 @@ export function UsersPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder={t('admin.users.searchPlaceholder')}
-                value={search}
-                onChange={handleSearchChange}
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
                 className="pl-9"
               />
             </div>
