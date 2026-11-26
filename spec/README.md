@@ -8,6 +8,50 @@ back to scenarios by id.
 Technical designs and implementation proposals live in `docs/design/`; this
 directory contains behavior specifications and their conventions.
 
+## Positioning
+
+ZPan is an open-source, self-hostable file hosting platform on S3-compatible
+storage. Files move directly between the client and the bucket through presigned
+URLs; the server is the control plane. Every feature is judged against this
+section: inside it, a feature is built without asking; outside it, or a change to
+it, is Saltbo's call.
+
+**For** developers and bloggers who need an image bed, indie developers and small
+teams who share files and releases, screenshot-tool users (PicGo, ShareX,
+Flameshot, uPic), agents and CI that script uploads and sharing, and self-hosters
+who want a web UI over their own buckets.
+
+**It does:**
+
+- A web drive over the user's bucket: files, folders, previews, trash, quotas, and
+  team workspaces.
+- Image hosting with stable URLs on the user's own domain, through upload tools and
+  the API.
+- Sharing: links with password, expiry, and download limits, direct links, save to
+  drive, and a public `/u/<username>` page.
+- External access: WebDAV, remote download through download engines the user runs,
+  a self-describing API with delegated OAuth, and a sync protocol for clients that
+  live in their own repositories.
+- Deployment without a server to look after: Cloudflare Workers first, Docker and
+  the other runtimes in `docs/deploy/` too.
+- What a mature product of this kind is expected to have around these, such as
+  i18n, search, sort, paging, notifications, admin analytics, and audit.
+
+**It does not:**
+
+- Store files anywhere but S3-compatible buckets, or aggregate consumer cloud
+  drives, as AList does.
+- Proxy a transfer through the server when a presigned URL can carry it.
+- Grow into a groupware suite, such as real-time document co-editing in the manner
+  of Nextcloud Office.
+- Browse a server's local directories, as File Browser does.
+- Ship native desktop or mobile clients from this repository.
+- Run remote downloads as a cloud execution service.
+
+**Editions.** Community is free and open source. Pro and Business are paid
+licenses bound through ZPan Cloud. Which edition a feature belongs to is a pricing
+decision, recorded in [V2_ROADMAP.md](../V2_ROADMAP.md#community-vs-pro-vs-business).
+
 ## Convention
 
 - One `.feature` file per capability (`storages.feature`, `site-invitations.feature`, …).
