@@ -2,6 +2,7 @@ import { DEFAULT_SITE_NAME } from '@shared/constants'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AmbientCanvas } from '@/components/layout/ambient-canvas'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -48,8 +49,9 @@ function ResetPassword() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="w-full max-w-sm space-y-6 p-6">
+    <div className="relative flex min-h-screen items-center justify-center">
+      <AmbientCanvas />
+      <div className="relative w-full max-w-sm space-y-6 rounded-2xl border bg-card/90 p-6 shadow-lg backdrop-blur-md">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
           <p className="text-muted-foreground">{t('auth.resetPasswordSubtitle')}</p>

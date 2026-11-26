@@ -5,6 +5,7 @@ import { useTheme } from 'next-themes'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useBranding } from '@/components/branding/BrandingProvider'
+import { AmbientCanvas } from '@/components/layout/ambient-canvas'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -61,7 +62,8 @@ export function PublicLayout({ children }: PublicLayoutProps) {
       >
         {t('public.skipToContent')}
       </a>
-      <header className="sticky top-0 z-40 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+      <header className="sticky top-0 z-40 h-16 overflow-hidden border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+        <AmbientCanvas variant="band" />
         <div className="mx-auto flex h-full w-full max-w-[1180px] items-center justify-between gap-4 px-4 sm:px-6">
           <Link
             to="/"

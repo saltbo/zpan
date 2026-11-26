@@ -237,3 +237,23 @@
     background: transparent;
   }
 }
+
+@layer utilities {
+  /* Glass popups — keyed to the shadcn data-slot markers so no component
+     file is edited. Translucent card fill + frost blur in both themes. */
+  [data-slot="dialog-content"],
+  [data-slot="sheet-content"],
+  [data-slot="popover-content"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="hover-card-content"] {
+    background-color: color-mix(in oklab, var(--color-card) 90%, transparent);
+    backdrop-filter: blur(12px) saturate(130%);
+  }
+  .dark [data-slot="dialog-content"],
+  .dark [data-slot="sheet-content"],
+  .dark [data-slot="popover-content"],
+  .dark [data-slot="dropdown-menu-content"],
+  .dark [data-slot="hover-card-content"] {
+    background-color: color-mix(in oklab, var(--color-card) 85%, transparent);
+  }
+}
