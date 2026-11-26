@@ -8,7 +8,7 @@ import type {
   StorageObject,
 } from '@shared/types'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import {
   type ColumnDef,
   type ColumnOrderState,
@@ -60,6 +60,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { z } from 'zod'
 import { ActorIdentity } from '@/components/actor-identity'
 import { useFilesQuery } from '@/components/files/hooks/use-files-query'
 import { PageHeader } from '@/components/layout/page-header'
@@ -89,6 +90,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useUrlText } from '@/hooks/use-url-text'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import {
@@ -99,9 +101,31 @@ import {
   runDownloadTaskAction,
 } from '@/lib/api'
 import { DOWNLOAD_TASKS_QUERY_KEY, type DownloadTaskChange, syncDownloadTaskChange } from '@/lib/download-task-cache'
+import { enumParam, textParam } from '@/lib/list-search'
 import { cn } from '@/lib/utils'
 
+const FILTERABLE_STATUSES = [
+  'queued',
+  'downloading',
+  'uploading',
+  'suspended',
+  'paused',
+  'interrupted',
+  'completed',
+  'failed',
+  'canceled',
+] as const satisfies readonly DownloadTaskStatus[]
+
+export const downloadsSearchSchema = z.object({
+  status: enumParam(FILTERABLE_STATUSES),
+  category: textParam,
+  tag: textParam,
+})
+
+type DownloadsSearch = z.infer<typeof downloadsSearchSchema>
+
 export const Route = createFileRoute('/_authenticated/downloads/')({
+  validateSearch: downloadsSearchSchema,
   component: DownloadsPage,
 })
 
@@ -111,15 +135,7 @@ const PAUSABLE_STATUSES = new Set<DownloadTaskStatus>(['queued', 'assigned', 'do
 const DEFAULT_COLUMN_ORDER = ['select', 'source', 'status', 'progress', 'eta', 'category', 'tags']
 const STATUS_FILTERS: Array<{ value: DownloadTaskStatus | 'all'; labelKey: string }> = [
   { value: 'all', labelKey: 'downloads.statusFilter.all' },
-  { value: 'queued', labelKey: 'downloads.status.queued' },
-  { value: 'downloading', labelKey: 'downloads.status.downloading' },
-  { value: 'uploading', labelKey: 'downloads.status.uploading' },
-  { value: 'suspended', labelKey: 'downloads.status.suspended' },
-  { value: 'paused', labelKey: 'downloads.status.paused' },
-  { value: 'interrupted', labelKey: 'downloads.status.interrupted' },
-  { value: 'completed', labelKey: 'downloads.status.completed' },
-  { value: 'failed', labelKey: 'downloads.status.failed' },
-  { value: 'canceled', labelKey: 'downloads.status.canceled' },
+  ...FILTERABLE_STATUSES.map((value) => ({ value, labelKey: `downloads.status.${value}` })),
 ]
 type DownloadTaskDisplayStatus = DownloadTaskStatus | 'seeding'
 type DownloadTaskPhase = NonNullable<NonNullable<DownloadTask['status']['runtime']>['phase']>
@@ -170,9 +186,8 @@ export function DownloadsPage() {
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
   const [tagsInput, setTagsInput] = useState('')
-  const [filterCategory, setFilterCategory] = useState('')
-  const [filterTag, setFilterTag] = useState('')
-  const [filterStatus, setFilterStatus] = useState<DownloadTaskStatus | 'all'>('all')
+  const navigate = useNavigate()
+  const filters = useSearch({ from: '/_authenticated/downloads/' })
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -187,9 +202,9 @@ export function DownloadsPage() {
   const panelsRef = useRef<HTMLDivElement>(null)
   const tableFrameRef = useRef<HTMLElement>(null)
   const [tableFrameWidth, setTableFrameWidth] = useState(0)
-  const categoryFilterValue = filterCategory.trim() || undefined
-  const tagFilterValue = filterTag.trim() || undefined
-  const statusFilterValue = filterStatus === 'all' ? undefined : filterStatus
+  const categoryFilterValue = filters.category?.trim() || undefined
+  const tagFilterValue = filters.tag?.trim() || undefined
+  const statusFilterValue = filters.status
   const queryKey = useMemo(
     () => [...QUERY_KEY, statusFilterValue ?? '', categoryFilterValue ?? '', tagFilterValue ?? ''] as const,
     [categoryFilterValue, statusFilterValue, tagFilterValue],
@@ -432,12 +447,14 @@ export function DownloadsPage() {
               />
             )}
             <DownloadFilters
-              status={filterStatus}
-              category={filterCategory}
-              tag={filterTag}
-              onStatusChange={setFilterStatus}
-              onCategoryChange={setFilterCategory}
-              onTagChange={setFilterTag}
+              filters={filters}
+              onChange={(next, replace) =>
+                navigate({
+                  to: '/downloads',
+                  search: { status: next.status, category: next.category || undefined, tag: next.tag || undefined },
+                  replace,
+                })
+              }
             />
             <Button type="button" onClick={() => setCreateOpen(true)}>
               <Plus className="size-4" />
@@ -664,22 +681,20 @@ export function DownloadsPage() {
 }
 
 function DownloadFilters({
-  status,
-  category,
-  tag,
-  onStatusChange,
-  onCategoryChange,
-  onTagChange,
+  filters,
+  onChange,
 }: {
-  status: DownloadTaskStatus | 'all'
-  category: string
-  tag: string
-  onStatusChange: (value: DownloadTaskStatus | 'all') => void
-  onCategoryChange: (value: string) => void
-  onTagChange: (value: string) => void
+  filters: DownloadsSearch
+  // Typing replaces the history entry, so back does not step through each keystroke.
+  onChange: (next: DownloadsSearch, replace: boolean) => void
 }) {
   const { t } = useTranslation()
-  const active = status !== 'all' || Boolean(category || tag)
+  const status = filters.status ?? 'all'
+  const [category, setCategory] = useUrlText(filters.category ?? '', (value) =>
+    onChange({ ...filters, category: value }, true),
+  )
+  const [tag, setTag] = useUrlText(filters.tag ?? '', (value) => onChange({ ...filters, tag: value }, true))
+  const active = status !== 'all' || Boolean(filters.category || filters.tag)
 
   return (
     <Popover>
@@ -694,7 +709,12 @@ function DownloadFilters({
           <Label htmlFor="download-filter-status" className="text-xs">
             {t('downloads.table.status')}
           </Label>
-          <Select value={status} onValueChange={(value) => onStatusChange(value as DownloadTaskStatus | 'all')}>
+          <Select
+            value={status}
+            onValueChange={(value) =>
+              onChange({ ...filters, status: downloadsSearchSchema.shape.status.parse(value) }, false)
+            }
+          >
             <SelectTrigger id="download-filter-status" size="sm" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -714,7 +734,7 @@ function DownloadFilters({
           <Input
             id="download-filter-category"
             value={category}
-            onChange={(event) => onCategoryChange(event.target.value)}
+            onChange={(event) => setCategory(event.target.value)}
             placeholder={t('downloads.filterCategory')}
             className="h-8"
           />
@@ -726,23 +746,13 @@ function DownloadFilters({
           <Input
             id="download-filter-tag"
             value={tag}
-            onChange={(event) => onTagChange(event.target.value)}
+            onChange={(event) => setTag(event.target.value)}
             placeholder={t('downloads.filterTag')}
             className="h-8"
           />
         </div>
         {active && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="w-full"
-            onClick={() => {
-              onStatusChange('all')
-              onCategoryChange('')
-              onTagChange('')
-            }}
-          >
+          <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => onChange({}, false)}>
             {t('common.clear')}
           </Button>
         )}

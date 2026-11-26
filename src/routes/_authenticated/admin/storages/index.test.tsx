@@ -11,7 +11,17 @@ import {
   patchStorage,
   updateStorageEgressBilling,
 } from '@/lib/api'
-import { corsJsonForOrigin, StoragesPage } from './index'
+import { routerSearch } from '@/test/router-search'
+import { corsJsonForOrigin, StoragesPage, storagesSearchSchema } from './index'
+
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const { routerSearch } = await import('@/test/router-search')
+  return {
+    ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+    useNavigate: routerSearch.useNavigate,
+    useSearch: routerSearch.useSearch,
+  }
+})
 
 const mockHasFeature = vi.hoisted(() => vi.fn((_feature: string) => true))
 
@@ -170,6 +180,7 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
+  routerSearch.reset()
 })
 
 beforeEach(() => {
@@ -389,5 +400,36 @@ describe('StoragesPage connection test action', () => {
 
     await waitFor(() => expect(patchStorage).toHaveBeenCalledWith('storage-1', { capacity: 3 * 1024 * 1024 * 1024 }))
     expect(updateStorageEgressBilling).not.toHaveBeenCalled()
+  })
+})
+
+describe('StoragesPage list state in the URL', () => {
+  const alpha: Storage = { ...storage, id: 'storage-a', bucket: 'alpha-bucket' }
+  const beta: Storage = { ...storage, id: 'storage-b', bucket: 'beta-bucket', enabled: false }
+  const zeta: Storage = { ...storage, id: 'storage-z', bucket: 'zeta-bucket', enabled: false }
+
+  function bucketOrder() {
+    return screen.queryAllByText(/-bucket$/).map((node) => node.textContent)
+  }
+
+  it('restores filter, sort, and search from the link and writes changes back [spec: list-state/admin-storages]', async () => {
+    vi.mocked(listStorages).mockResolvedValue({ items: [zeta, alpha, beta], total: 3 })
+    routerSearch.reset(storagesSearchSchema.parse({ filter: 'disabled', sort: 'bucket', q: 'bucket' }))
+
+    renderStoragesPage()
+
+    expect(await screen.findByText('beta-bucket')).toBeTruthy()
+    expect(bucketOrder()).toEqual(['beta-bucket', 'zeta-bucket'])
+    const searchInput = screen.getByPlaceholderText('admin.storages.searchPlaceholder') as HTMLInputElement
+    expect(searchInput.value).toBe('bucket')
+
+    fireEvent.click(screen.getByRole('button', { name: /admin\.storages\.filter\.all/ }))
+    expect(routerSearch.search).toEqual({ sort: 'bucket', q: 'bucket' })
+    await waitFor(() => expect(bucketOrder()).toEqual(['alpha-bucket', 'beta-bucket', 'zeta-bucket']))
+
+    fireEvent.change(searchInput, { target: { value: 'zeta' } })
+    expect(routerSearch.search).toEqual({ sort: 'bucket', q: 'zeta' })
+    expect(routerSearch.navigate).toHaveBeenLastCalledWith(expect.objectContaining({ replace: true }))
+    await waitFor(() => expect(bucketOrder()).toEqual(['zeta-bucket']))
   })
 })

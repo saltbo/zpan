@@ -1,28 +1,38 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { Search, ShieldCheck, UserX } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { z } from 'zod'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useUrlText } from '@/hooks/use-url-text'
 import { getUserQuotaById } from '@/lib/api'
 import { type AdminUser, adminListUsers, adminSetUserBanned } from '@/lib/auth-client'
 import { formatDate, formatSize, getInitials } from '@/lib/format'
+import { pageParam, textParam } from '@/lib/list-search'
+
+export const usersSearchSchema = z.object({ q: textParam, page: pageParam })
 
 export const Route = createFileRoute('/_authenticated/users/')({
+  validateSearch: usersSearchSchema,
   component: UsersPage,
 })
 
 type UserRow = AdminUser & { quotaUsed: number; quotaTotal: number }
 
-function UsersPage() {
+export function UsersPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const listSearch = useSearch({ from: '/_authenticated/users/' })
+  const search = listSearch.q ?? ''
+  const page = listSearch.page ?? 1
+  const [searchText, setSearchText] = useUrlText(search, (q) =>
+    navigate({ to: '/users', search: { q: q || undefined }, replace: true }),
+  )
   const pageSize = 20
 
   const usersQuery = useQuery({
@@ -71,9 +81,8 @@ function UsersPage() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const isLoading = usersQuery.isLoading
 
-  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setSearch(e.target.value)
-    setPage(1)
+  function goToPage(nextPage: number) {
+    navigate({ to: '/users', search: { q: search || undefined, page: nextPage > 1 ? nextPage : undefined } })
   }
 
   if (isLoading) {
@@ -92,8 +101,8 @@ function UsersPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('admin.users.searchPlaceholder')}
-            value={search}
-            onChange={handleSearchChange}
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
             className="pl-9"
           />
         </div>
@@ -135,13 +144,13 @@ function UsersPage() {
 
       {totalPages > 1 && (
         <div className="flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
             {t('admin.users.prevPage')}
           </Button>
           <span className="text-sm text-muted-foreground">
             {t('admin.users.pageInfo', { page, total: totalPages })}
           </span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => goToPage(page + 1)}>
             {t('admin.users.nextPage')}
           </Button>
         </div>

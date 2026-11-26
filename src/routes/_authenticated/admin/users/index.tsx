@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { Search, ShieldCheck, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { z } from 'zod'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
 import { SiteInvitationsDialog } from '@/components/admin/site-invitations-dialog'
@@ -20,26 +21,37 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useUrlText } from '@/hooks/use-url-text'
 import { getUserQuotaById } from '@/lib/api'
 import { type AdminUser, adminListUsers, adminRemoveUser, adminSetUserBanned } from '@/lib/auth-client'
 import { formatDate, formatStorageUsage, getInitials } from '@/lib/format'
+import { numberOptionParam, pageParam, textParam } from '@/lib/list-search'
+
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
+const DEFAULT_PAGE_SIZE = 20
+
+export const adminUsersSearchSchema = z.object({
+  q: textParam,
+  page: pageParam,
+  size: numberOptionParam(PAGE_SIZE_OPTIONS),
+})
 
 export const Route = createFileRoute('/_authenticated/admin/users/')({
+  validateSearch: adminUsersSearchSchema,
   component: UsersPage,
 })
 
 type UserRow = AdminUser & { quotaUsed: number; quotaTotal: number }
 
-const PAGE_SIZE_OPTIONS = [20, 50, 100]
-const DEFAULT_PAGE_SIZE = 20
-
 export function UsersPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const listSearch = useSearch({ from: '/_authenticated/admin/users/' })
+  const search = listSearch.q ?? ''
+  const page = listSearch.page ?? 1
+  const pageSize = listSearch.size ?? DEFAULT_PAGE_SIZE
+  const [searchText, setSearchText] = useUrlText(search, (q) => updateListSearch({ q, size: pageSize }, true))
 
   const [deleteDialogUser, setDeleteDialogUser] = useState<{ id: string; name: string } | null>(null)
   const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false)
@@ -118,21 +130,25 @@ export function UsersPage() {
   const allPageSelected = pageUserIds.length > 0 && pageUserIds.every((id) => selectedIds.includes(id))
   const batchPending = batchStatusMutation.isPending || batchDeleteMutation.isPending
 
-  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setSearch(e.target.value)
-    setPage(1)
+  function updateListSearch(next: { q?: string; page?: number; size?: number }, replace = false) {
+    navigate({
+      to: '/admin/users',
+      search: {
+        q: next.q || undefined,
+        page: next.page && next.page > 1 ? next.page : undefined,
+        size: next.size === DEFAULT_PAGE_SIZE ? undefined : next.size,
+      },
+      replace,
+    })
     setSelectedIds([])
   }
 
   function goToPage(nextPage: number) {
-    setPage(nextPage)
-    setSelectedIds([])
+    updateListSearch({ q: search, page: nextPage, size: pageSize })
   }
 
   function handlePageSizeChange(value: string) {
-    setPageSize(Number(value))
-    setPage(1)
-    setSelectedIds([])
+    updateListSearch({ q: search, size: Number(value) })
   }
 
   function togglePageSelection(checked: boolean) {
@@ -160,8 +176,8 @@ export function UsersPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder={t('admin.users.searchPlaceholder')}
-                value={search}
-                onChange={handleSearchChange}
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
                 className="pl-9"
               />
             </div>
