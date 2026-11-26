@@ -851,6 +851,8 @@
   "admin.upgrade.title": "Unlock with ZPan Pro",
   "admin.upgrade.description": "{{feature}} is a Pro feature. Upgrade your plan to access it.",
   "admin.upgrade.action": "Upgrade to Pro",
+  "admin.upgrade.memberDescription": "{{feature}} is a ZPan Pro feature.",
+  "admin.upgrade.askAdmin": "Ask your site administrator to upgrade to ZPan Pro.",
   "admin.upgrade.feature.white_label": "Custom Branding",
   "admin.upgrade.feature.open_registration": "Open Registration",
   "admin.upgrade.feature.teams_unlimited": "Unlimited Teams",

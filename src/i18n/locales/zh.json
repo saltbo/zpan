@@ -851,6 +851,8 @@
   "admin.upgrade.title": "解锁 ZPan Pro",
   "admin.upgrade.description": "{{feature}} 是 Pro 功能。升级套餐后即可使用。",
   "admin.upgrade.action": "升级到 Pro",
+  "admin.upgrade.memberDescription": "{{feature}} 是 ZPan Pro 功能。",
+  "admin.upgrade.askAdmin": "请联系站点管理员升级到 ZPan Pro。",
   "admin.upgrade.feature.white_label": "自定义品牌",
   "admin.upgrade.feature.open_registration": "开放用户注册",
   "admin.upgrade.feature.teams_unlimited": "无限团队",
