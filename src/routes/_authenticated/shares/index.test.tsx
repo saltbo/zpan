@@ -45,7 +45,8 @@ vi.mock('@/components/shares/revoke-confirm-dialog', () => ({
   RevokeConfirmDialog: () => null,
 }))
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/api', async (importOriginal) => ({
+  ApiError: (await importOriginal<typeof import('@/lib/api')>()).ApiError,
   listReceivedShares: vi.fn(),
   listShares: vi.fn(),
   revokeShare: vi.fn(),
@@ -159,5 +160,24 @@ describe('authenticated Shares privacy actions', () => {
     expect(privateButton.hasAttribute('disabled')).toBe(false)
     fireEvent.click(privateButton)
     await waitFor(() => expect(setSharePrivacy).toHaveBeenCalledWith('expired-public-token', true))
+  })
+})
+
+describe('authenticated Shares load failure', () => {
+  it('shows an inline alert with retry instead of the empty state, and retry loads the list [spec: load-errors/shares-list]', async () => {
+    vi.mocked(listShares).mockReset()
+    vi.mocked(listShares)
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce({ items: shares, nextPageToken: null })
+    renderPage()
+
+    expect(await screen.findByText('common.loadError.title')).toBeTruthy()
+    expect(screen.getByText('common.loadError.description')).toBeTruthy()
+    expect(screen.queryByText('shares.emptyState')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+
+    expect(await screen.findByText('Public.pdf')).toBeTruthy()
+    expect(screen.queryByText('common.loadError.title')).toBeNull()
   })
 })

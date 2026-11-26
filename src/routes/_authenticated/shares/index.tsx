@@ -4,6 +4,7 @@ import { ChevronDown, ClipboardCopy, FileIcon, FolderIcon, Globe2, Lock, Share2,
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { LoadErrorAlert } from '@/components/errors/load-error-alert'
 import { PageHeader } from '@/components/layout/page-header'
 import { RevokeConfirmDialog } from '@/components/shares/revoke-confirm-dialog'
 import { ShareDetailPanel } from '@/components/shares/share-detail-panel'
@@ -114,6 +115,7 @@ export function SharesPage() {
   }, [sharesQuery.data, statusFilter])
 
   const items = sharesQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const loadFailed = sharesQuery.isError && !sharesQuery.data
 
   function setStatus(status: StatusFilter) {
     navigate({ to: '/shares', search: { status, box } })
@@ -205,10 +207,20 @@ export function SharesPage() {
               </DropdownMenu>
             )}
           </div>
-          <span className="text-sm text-muted-foreground">{t('shares.count', { count: items.length })}</span>
+          {!loadFailed && (
+            <span className="text-sm text-muted-foreground">{t('shares.count', { count: items.length })}</span>
+          )}
         </div>
         <div className="overflow-x-auto">
-          {box === 'received' ? (
+          {loadFailed ? (
+            <div className="p-4">
+              <LoadErrorAlert
+                error={sharesQuery.error}
+                onRetry={() => sharesQuery.refetch()}
+                retrying={sharesQuery.isFetching}
+              />
+            </div>
+          ) : box === 'received' ? (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
@@ -277,10 +289,18 @@ export function SharesPage() {
         </div>
       </Card>
 
-      {sharesQuery.hasNextPage && (
-        <div ref={loadMoreRef} className="py-3 text-center text-sm text-muted-foreground">
-          {sharesQuery.isFetchingNextPage ? t('common.loading') : ''}
-        </div>
+      {sharesQuery.isFetchNextPageError ? (
+        <LoadErrorAlert
+          error={sharesQuery.error}
+          onRetry={() => sharesQuery.fetchNextPage()}
+          retrying={sharesQuery.isFetchingNextPage}
+        />
+      ) : (
+        sharesQuery.hasNextPage && (
+          <div ref={loadMoreRef} className="py-3 text-center text-sm text-muted-foreground">
+            {sharesQuery.isFetchingNextPage ? t('common.loading') : ''}
+          </div>
+        )
       )}
 
       <ShareDetailPanel share={detailShare} onClose={() => setDetailShare(null)} />
