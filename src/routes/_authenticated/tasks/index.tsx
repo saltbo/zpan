@@ -1,26 +1,39 @@
 import type { BackgroundJobStatus } from '@shared/types'
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { ListChecks } from 'lucide-react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { type BackgroundTaskFilter, BackgroundTaskList } from '@/components/background-tasks/task-list'
+import { z } from 'zod'
+import {
+  BACKGROUND_TASK_FILTERS,
+  type BackgroundTaskFilter,
+  BackgroundTaskList,
+} from '@/components/background-tasks/task-list'
 import { PageHeader } from '@/components/layout/page-header'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { cancelBackgroundJob, listBackgroundJobs, retryBackgroundJob } from '@/lib/api'
+import { enumParam } from '@/lib/list-search'
+
+export const tasksSearchSchema = z.object({ filter: enumParam(BACKGROUND_TASK_FILTERS) })
 
 export const Route = createFileRoute('/_authenticated/tasks/')({
+  validateSearch: tasksSearchSchema,
   component: TasksPage,
 })
 
 const PAGE_SIZE = 50
 const QUERY_KEY = ['background-jobs']
 
-function TasksPage() {
+export function TasksPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [filter, setFilter] = useState<BackgroundTaskFilter>('active')
+  const navigate = useNavigate()
+  const filter = useSearch({ from: '/_authenticated/tasks/' }).filter ?? 'active'
+
+  function setFilter(next: BackgroundTaskFilter) {
+    navigate({ to: '/tasks', search: { filter: next === 'active' ? undefined : next } })
+  }
 
   const status = statusForFilter(filter)
   const jobsQuery = useInfiniteQuery({

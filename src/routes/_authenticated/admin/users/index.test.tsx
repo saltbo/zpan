@@ -4,12 +4,17 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getUserQuotaById } from '@/lib/api'
 import { type AdminUser, adminListUsers } from '@/lib/auth-client'
-import { UsersPage } from './index'
+import { routerSearch } from '@/test/router-search'
+import { adminUsersSearchSchema, UsersPage } from './index'
 
-vi.mock('@tanstack/react-router', () => ({
-  createFileRoute: () => (options: unknown) => options,
-  useNavigate: () => vi.fn(),
-}))
+vi.mock('@tanstack/react-router', async () => {
+  const { routerSearch } = await import('@/test/router-search')
+  return {
+    createFileRoute: () => (options: unknown) => options,
+    useNavigate: routerSearch.useNavigate,
+    useSearch: routerSearch.useSearch,
+  }
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -94,6 +99,34 @@ function renderUsersPage() {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  routerSearch.reset()
+})
+
+describe('UsersPage list state in the URL', () => {
+  it('restores search, page, and page size from the link and writes changes back [spec: list-state/admin-users]', async () => {
+    vi.mocked(getUserQuotaById).mockResolvedValue({ used: 0, total: 1024, hasPersonalOrg: true })
+    vi.mocked(adminListUsers).mockResolvedValue({
+      users: [user({ id: 'user-9', name: 'Alice Paged', email: 'alice@example.com' })],
+      total: 200,
+    })
+    routerSearch.reset(adminUsersSearchSchema.parse({ q: 'ali', page: 2, size: 50 }))
+    const clickingUser = userEvent.setup()
+
+    renderUsersPage()
+
+    expect(await screen.findByText('Alice Paged')).toBeTruthy()
+    expect(adminListUsers).toHaveBeenCalledWith({ limit: 50, offset: 50, search: 'ali' })
+    expect((screen.getByPlaceholderText('admin.users.searchPlaceholder') as HTMLInputElement).value).toBe('ali')
+    expect(screen.getByText('Page 2 of 4')).toBeTruthy()
+
+    await clickingUser.click(screen.getByRole('button', { name: 'admin.users.nextPage' }))
+    expect(routerSearch.search).toEqual({ q: 'ali', page: 3, size: 50 })
+    await waitFor(() => expect(adminListUsers).toHaveBeenCalledWith({ limit: 50, offset: 100, search: 'ali' }))
+
+    await clickingUser.type(screen.getByPlaceholderText('admin.users.searchPlaceholder'), 'c')
+    expect(routerSearch.search).toEqual({ q: 'alic', size: 50 })
+    expect(routerSearch.navigate).toHaveBeenLastCalledWith(expect.objectContaining({ replace: true }))
+  })
 })
 
 describe('UsersPage search refresh', () => {
