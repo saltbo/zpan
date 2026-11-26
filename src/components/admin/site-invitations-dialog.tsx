@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ClipboardCopy, Loader2, MailPlus, RotateCw, ShieldX } from 'lucide-react'
+import { AlertCircle, ClipboardCopy, Loader2, MailPlus, RotateCw, ShieldX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -13,6 +13,7 @@ import {
   resendSiteInvitation,
   revokeSiteInvitation,
 } from '@/lib/api'
+import { Alert, AlertDescription } from '../ui/alert'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 
@@ -66,9 +67,6 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
       queryClient.invalidateQueries({ queryKey: ['admin', 'site-invitations'] })
       toast.success(t('admin.users.inviteCreated'))
     },
-    onError: (error: ApiError | Error) => {
-      toast.error(error.message)
-    },
   })
 
   const resendMutation = useMutation({
@@ -77,10 +75,12 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
       queryClient.invalidateQueries({ queryKey: ['admin', 'site-invitations'] })
       toast.success(t('admin.users.inviteResent'))
     },
-    onError: (error: ApiError | Error) => {
-      toast.error(error.message)
-    },
   })
+
+  // Create and resend failures stay in the drawer, next to what failed, instead of
+  // a toast that the open drawer can hide. The server writes the message.
+  const createError = createMutation.error?.message
+  const resendError = resendMutation.error?.message
 
   const revokeMutation = useMutation({
     mutationFn: (id: string) => revokeSiteInvitation(id),
@@ -111,6 +111,7 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    resendMutation.reset()
     createMutation.mutate(email.trim())
   }
 
@@ -123,6 +124,8 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
           if (!nextOpen) {
             setEmail('')
             setPage(1)
+            createMutation.reset()
+            resendMutation.reset()
           }
         }}
         width="extra-wide"
@@ -160,7 +163,12 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
             <Input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                if (createMutation.isError) createMutation.reset()
+              }}
+              aria-invalid={createError ? true : undefined}
+              aria-describedby={createError ? 'invite-email-error' : undefined}
               placeholder={t('admin.users.inviteEmailPlaceholder')}
               required
             />
@@ -169,7 +177,19 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
             {createMutation.isPending ? <Loader2 className="animate-spin" /> : <MailPlus />}
             {t('admin.users.sendInvite')}
           </Button>
+          {createError && (
+            <p id="invite-email-error" role="alert" className="text-sm text-destructive md:col-span-2">
+              {createError}
+            </p>
+          )}
         </form>
+
+        {resendError && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertDescription>{resendError}</AlertDescription>
+          </Alert>
+        )}
 
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
@@ -231,7 +251,10 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
                             variant="ghost"
                             size="icon-xs"
                             disabled={invitation.status !== 'pending' || actionsDisabled}
-                            onClick={() => resendMutation.mutate(invitation.id)}
+                            onClick={() => {
+                              createMutation.reset()
+                              resendMutation.mutate(invitation.id)
+                            }}
                             title={t('admin.users.resendInvite')}
                             aria-label={t('admin.users.resendInvite')}
                           >

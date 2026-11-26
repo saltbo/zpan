@@ -27,7 +27,8 @@ vi.mock('@/lib/api', () => ({
   revokeSiteInvitation: vi.fn(),
 }))
 
-import { listSiteInvitations, revokeSiteInvitation } from '@/lib/api'
+import { toast } from 'sonner'
+import { createSiteInvitation, listSiteInvitations, resendSiteInvitation, revokeSiteInvitation } from '@/lib/api'
 
 const invitation: SiteInvitation = {
   id: 'inv-1',
@@ -89,5 +90,34 @@ describe('SiteInvitationsDialog revoke', () => {
     fireEvent.click(within(confirmDialog).getByRole('button', { name: 'common.cancel' }))
     await waitFor(() => expect(screen.queryByText('admin.users.revokeInviteConfirm:guest@example.com')).toBeNull())
     expect(revokeSiteInvitation).not.toHaveBeenCalled()
+  })
+})
+
+describe('SiteInvitationsDialog errors', () => {
+  it('shows a failed invite inline under the email field and clears it on edit', async () => {
+    vi.mocked(createSiteInvitation).mockRejectedValue(new Error('Configure email delivery before sending invitations'))
+    renderDialog()
+    const input = await screen.findByPlaceholderText('admin.users.inviteEmailPlaceholder')
+    fireEvent.change(input, { target: { value: 'new@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'admin.users.sendInvite' }))
+
+    const alert = await screen.findByText('Configure email delivery before sending invitations')
+    expect(alert.getAttribute('role')).toBe('alert')
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(input.getAttribute('aria-describedby')).toBe(alert.id)
+    expect(toast.error).not.toHaveBeenCalled()
+
+    fireEvent.change(input, { target: { value: 'other@example.com' } })
+    await waitFor(() => expect(screen.queryByText('Configure email delivery before sending invitations')).toBeNull())
+  })
+
+  it('shows a failed resend inline in the drawer', async () => {
+    vi.mocked(resendSiteInvitation).mockRejectedValue(new Error('Configure email delivery before sending invitations'))
+    renderDialog()
+    fireEvent.click(await screen.findByRole('button', { name: 'admin.users.resendInvite' }))
+
+    const message = await screen.findByText('Configure email delivery before sending invitations')
+    expect(message.closest('[role="alert"]')).not.toBeNull()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

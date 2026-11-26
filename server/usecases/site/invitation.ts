@@ -6,15 +6,16 @@
 
 import type { SiteInvitation } from '@shared/types'
 import type { Platform } from '../../platform/interface'
-import { type AppError, badRequest, conflict, type EmailGateway, notFound, type SiteInvitationRepo } from '../ports'
+import { AppError, badRequest, conflict, type EmailGateway, notFound, type SiteInvitationRepo } from '../ports'
 
 export type SiteInvitationDeps = {
   siteInvitations: SiteInvitationRepo
   email: EmailGateway
 }
 
-// createSiteInvitation throws on a duplicate pending invite, rendered as a 409
-// carrying the thrown message.
+// createSiteInvitation returns a 409 carrying the repo's message on a duplicate
+// pending invite. Both create and resend return emailNotConfigured() when email
+// delivery is disabled or unconfigured, before any invitation row changes.
 export type CreateSiteInvitationOutcome = { ok: true; invitation: SiteInvitation } | { ok: false; error: AppError }
 
 export type ResendSiteInvitationOutcome = { ok: true; invitation: SiteInvitation } | { ok: false; error: AppError }
@@ -30,17 +31,24 @@ function buildSignupInviteEmailHtml(data: { siteName: string; inviteLink: string
 </div>`
 }
 
-// Reads email config (which throws when email is not configured, the same guard
-// the create/resend flows rely on), builds the /sign-up?invite=<token> link off
-// the request URL, and sends the invite. requestUrl is the inbound request URL —
-// the invite link is rooted at the same origin.
+// An invitation is useless unless its email can be sent, so the admin is told to
+// configure email first instead of getting an internal error.
+function emailNotConfigured(): AppError {
+  return new AppError(400, 'Configure email delivery before sending invitations', {
+    reason: 'EMAIL_NOT_CONFIGURED',
+    canonicalStatus: 'FAILED_PRECONDITION',
+  })
+}
+
+// Builds the /sign-up?invite=<token> link off the request URL and sends the
+// invite. requestUrl is the inbound request URL — the invite link is rooted at
+// the same origin.
 async function sendSiteInvitationEmail(
   deps: Pick<SiteInvitationDeps, 'siteInvitations' | 'email'>,
   platform: Platform,
   requestUrl: string,
   invitation: SiteInvitation,
 ): Promise<void> {
-  await deps.email.getConfig(platform)
   const siteName = await deps.siteInvitations.getSiteName()
   const inviteLink = new URL('/sign-up', requestUrl)
   inviteLink.searchParams.set('invite', invitation.token)
@@ -69,9 +77,9 @@ export async function createSiteInvitation(
   params: { userId: string; email: string; requestUrl: string },
 ): Promise<CreateSiteInvitationOutcome> {
   const { userId, email, requestUrl } = params
-  // Validate email config before creating — mirrors the handler ordering so a
-  // misconfigured mailer surfaces before an invitation row is written.
-  await deps.email.getConfig(platform)
+  // Check email before creating, so a missing mailer never leaves an invitation
+  // row behind.
+  if (!(await deps.email.isConfigured(platform))) return { ok: false, error: emailNotConfigured() }
   let invitation: SiteInvitation
   try {
     invitation = await deps.siteInvitations.createSiteInvitation(userId, email)
@@ -88,6 +96,7 @@ export async function resendSiteInvitation(
   platform: Platform,
   params: { id: string; requestUrl: string },
 ): Promise<ResendSiteInvitationOutcome> {
+  if (!(await deps.email.isConfigured(platform))) return { ok: false, error: emailNotConfigured() }
   const invitation = await deps.siteInvitations.resendSiteInvitation(params.id)
   if (invitation === 'not_found') return { ok: false, error: notFound('Invitation not found') }
   if (invitation === 'already_accepted') return { ok: false, error: badRequest('Invitation has already been used') }

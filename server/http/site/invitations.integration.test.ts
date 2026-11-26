@@ -296,6 +296,43 @@ describe('Admin Site Invitations API — resend/revoke guards', () => {
     const body = (await second.json()) as { error: { message: string } }
     expect(body.error.message).toBe('Invitation has already been revoked')
   })
+
+  it('create returns 400 and writes nothing when email is not configured [spec: site-invitations/email-not-configured]', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    const headers = await adminHeaders(ctx.app)
+
+    const res = await ctx.app.request('/api/site/invitations', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'invitee@example.com' }),
+    })
+
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as {
+      error: { message: string; status: string; details?: Array<{ reason?: string }> }
+    }
+    expect(body.error.message).toBe('Configure email delivery before sending invitations')
+    expect(body.error.status).toBe('FAILED_PRECONDITION')
+    expect(body.error.details?.[0]?.reason).toBe('EMAIL_NOT_CONFIGURED')
+    const rows = await ctx.db.select().from(siteInvitations)
+    expect(rows).toHaveLength(0)
+  })
+
+  it('resend returns 400 when email is not configured [spec: site-invitations/email-not-configured]', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    await seedEmailOptions(ctx)
+    const id = await createInvitation(ctx, 'resend-no-email@example.com')
+    await ctx.db.delete(systemOptions).where(eq(systemOptions.key, 'email_provider'))
+    const headers = await adminHeaders(ctx.app)
+
+    const res = await ctx.app.request(`/api/site/invitations/${id}/deliveries`, { method: 'POST', headers })
+
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Configure email delivery before sending invitations')
+  })
 })
 
 describe('Public Site Invitations API', () => {

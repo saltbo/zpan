@@ -48,3 +48,10 @@ Feature: Site invitations
     Given an existing invitation
     When it is requested by token
     Then the invitation is returned
+
+  @site-invitations/email-not-configured @api
+  Scenario: Inviting needs email to be configured
+    Given email delivery is not configured
+    When an admin invites an email address or resends an invitation
+    Then the API responds 400 with a message to configure email first
+    And no invitation is created
