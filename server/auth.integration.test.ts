@@ -1688,7 +1688,7 @@ describe('OAuth consent guards', () => {
       method: 'POST',
       headers: { Authorization: basic, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        token: `${exchanged.access_token.slice(0, -1)}x`,
+        token: tamperSignature(exchanged.access_token),
         token_type_hint: 'access_token',
       }).toString(),
     })
@@ -2277,3 +2277,11 @@ describe('origin check — loopback and LAN origins are trusted without config',
     expect(res.status).toBe(403)
   })
 })
+
+// Changes a character well inside the JWS signature. The last base64url character of a
+// 64-byte signature carries 4 ignored bits, so tampering it can leave the token valid.
+function tamperSignature(token: string): string {
+  const index = token.length - 10
+  const replacement = token[index] === 'A' ? 'B' : 'A'
+  return `${token.slice(0, index)}${replacement}${token.slice(index + 1)}`
+}
