@@ -49,6 +49,9 @@ vi.mock('@/components/admin/branding-section', () => ({ BrandingSection: () => <
 vi.mock('@/components/admin/email-config-section', () => ({
   EmailConfigSection: () => <section>email-config</section>,
 }))
+vi.mock('@/components/admin/invite-codes-section', () => ({
+  InviteCodesSection: () => <section>invite-codes</section>,
+}))
 vi.mock('@/components/admin/image-domain-provider-section', () => ({
   ImageDomainProviderSection: () => <section>image-domain-provider</section>,
 }))
@@ -104,6 +107,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   state.whiteLabel = true
+  state.settings.registration = { configuredMode: 'open', effectiveMode: 'open' }
 })
 
 describe('SettingsPage', () => {
@@ -192,6 +196,27 @@ describe('SettingsPage', () => {
         minScore: null,
       }),
     )
+  })
+
+  it('shows invite code management when registration is invite-only [spec: invite-codes/admin-console-visibility]', () => {
+    state.settings.registration = { configuredMode: 'invite_only', effectiveMode: 'invite_only' }
+    const view = renderSettingsPage()
+    expect(view.getByText('invite-codes')).toBeTruthy()
+    expect(view.getByText('admin.settings.registrationHintInviteOnly')).toBeTruthy()
+    expect(view.getByText('admin.auth.registrationInviteOnly')).toBeTruthy()
+  })
+
+  it('shows invite code management when open registration falls back to invite-only without Pro', () => {
+    state.settings.registration = { configuredMode: 'open', effectiveMode: 'invite_only' }
+    expect(renderSettingsPage().getByText('invite-codes')).toBeTruthy()
+  })
+
+  it.each([
+    ['open', 'open'],
+    ['closed', 'closed'],
+  ])('hides invite code management when registration is %s', (configuredMode, effectiveMode) => {
+    state.settings.registration = { configuredMode, effectiveMode }
+    expect(renderSettingsPage().queryByText('invite-codes')).toBeNull()
   })
 
   it('shows email configuration on the settings page', () => {
