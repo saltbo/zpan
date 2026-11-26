@@ -31,32 +31,41 @@ colors:
   on-muted-dark: "oklch(0.82 0.02 245)"
   destructive-dark: "oklch(0.756 0.139 28.1)"
   border-dark: "oklch(0.37 0.012 254)"
+  popup-fill: "color-mix(in oklab, oklch(1 0 0) 90%, transparent)"
+  popup-fill-dark: "color-mix(in oklab, oklch(0.27 0.003 250) 85%, transparent)"
 typography:
   page-title:
-    fontFamily: system-ui
+    fontFamily: Inter
     fontSize: 24px
     fontWeight: 600
     lineHeight: 1.3
+    letterSpacing: -0.02em
   section-title:
-    fontFamily: system-ui
+    fontFamily: Inter
     fontSize: 16px
     fontWeight: 600
     lineHeight: 1
   body:
-    fontFamily: system-ui
+    fontFamily: Inter
     fontSize: 14px
     fontWeight: 400
     lineHeight: 1.5
   label:
-    fontFamily: system-ui
+    fontFamily: Inter
     fontSize: 14px
     fontWeight: 500
     lineHeight: 1.4
   caption:
-    fontFamily: system-ui
+    fontFamily: Inter
     fontSize: 12px
     fontWeight: 400
     lineHeight: 1.4
+  wordmark:
+    fontFamily: Inter
+    fontSize: 24px
+    fontWeight: 700
+    letterSpacing: -0.02em
+    fill: "var(--zpan-display-gradient)"
 rounded:
   sm: 4px
   md: 6px
@@ -98,6 +107,30 @@ components:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
     rounded: "{rounded.full}"
+  dialog:
+    backgroundColor: "{colors.popup-fill}"
+    backdropFilter: "blur(12px) saturate(130%)"
+    rounded: "{rounded.lg}"
+    shadow: "{shadows.overlay-light}"
+  sheet:
+    backgroundColor: "{colors.popup-fill}"
+    backdropFilter: "blur(12px) saturate(130%)"
+    shadow: "{shadows.overlay-light}"
+  popover:
+    backgroundColor: "{colors.popup-fill}"
+    backdropFilter: "blur(12px) saturate(130%)"
+    rounded: "{rounded.md}"
+    shadow: "{shadows.overlay-light}"
+  hover-card:
+    backgroundColor: "{colors.popup-fill}"
+    backdropFilter: "blur(12px) saturate(130%)"
+    rounded: "{rounded.md}"
+    shadow: "{shadows.overlay-light}"
+  dropdown-menu:
+    backgroundColor: "{colors.popup-fill}"
+    backdropFilter: none
+    rounded: "{rounded.md}"
+    shadow: "{shadows.overlay-light}"
 ---
 
 # ZPan design
@@ -157,8 +190,12 @@ canvas. Shadows are tinted, not neutral black: cool Gridline-Blue drops in
 light; in dark a frosted inset hairline on the top edge, a deep cool drop, and
 a faint blue glow, so surfaces read as glass plates lit from below. Popovers,
 menus, dialogs, and sheets are the only things above that, and they wear glass:
-a translucent card fill with a frost blur, keyed to their `data-slot` markers
-in `globals.css` so no installed component is edited.
+a translucent card fill (90 % in light, 85 % in dark) keyed to their
+`data-slot` markers in `globals.css` so no installed component is edited. Dialogs, sheets, popovers, and hover cards
+add the frost blur on top of that fill. Dropdown menus **never** take the
+blur: a `backdrop-filter` turns the menu into the containing block for
+fixed-position descendants, which traps a submenu panel inside the menu frame
+and clips it. Menus keep the translucent fill alone.
 
 ## Shapes
 
