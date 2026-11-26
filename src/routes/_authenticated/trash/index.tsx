@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { LoadErrorAlert } from '@/components/errors/load-error-alert'
 import { NameConflictDialog } from '@/components/files/dialogs/name-conflict-dialog'
 import { OperationProgress, type OperationProgressState } from '@/components/files/dialogs/operation-progress'
 import { useConflictResolver, withConflictRetry } from '@/components/files/hooks/use-conflict-resolver'
@@ -31,7 +32,7 @@ export const Route = createFileRoute('/_authenticated/trash/')({
 const QUERY_KEY = ['objects', 'trashed']
 const PAGE_SIZE = 20
 
-function TrashPage() {
+export function TrashPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -254,7 +255,13 @@ function TrashPage() {
         isDeleting={deleteMutation.isPending}
       />
 
-      {items.length === 0 ? (
+      {trashQuery.isError && !trashQuery.data ? (
+        <LoadErrorAlert
+          error={trashQuery.error}
+          onRetry={() => trashQuery.refetch()}
+          retrying={trashQuery.isFetching}
+        />
+      ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted-foreground">
           <Trash2 className="h-16 w-16" />
           <p className="text-sm">{t('trash.placeholder')}</p>
@@ -270,10 +277,18 @@ function TrashPage() {
             onDeletePermanently={handleDeleteSingle}
           />
 
-          {trashQuery.hasNextPage && (
-            <div ref={loadMoreRef} className="py-3 text-center text-sm text-muted-foreground">
-              {trashQuery.isFetchingNextPage ? t('common.loading') : ''}
-            </div>
+          {trashQuery.isFetchNextPageError ? (
+            <LoadErrorAlert
+              error={trashQuery.error}
+              onRetry={() => trashQuery.fetchNextPage()}
+              retrying={trashQuery.isFetchingNextPage}
+            />
+          ) : (
+            trashQuery.hasNextPage && (
+              <div ref={loadMoreRef} className="py-3 text-center text-sm text-muted-foreground">
+                {trashQuery.isFetchingNextPage ? t('common.loading') : ''}
+              </div>
+            )
           )}
         </>
       )}

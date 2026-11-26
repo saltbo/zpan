@@ -14,6 +14,7 @@ import { ChevronDown, Clock3, FolderOpen, FolderPlus, FolderUp, Upload } from 'l
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { LoadErrorAlert } from '@/components/errors/load-error-alert'
 import { PageHeader, type PageHeaderItem } from '@/components/layout/page-header'
 import { isMusicPreviewFile } from '@/components/music/music-player-model'
 import { useMusicPlayer } from '@/components/music/music-player-provider'
@@ -703,7 +704,11 @@ export function FileManager({
           onShare={resolvedCapabilities.share ? handleToolbarShare : undefined}
         />
 
-        {items.length === 0 ? (
+        {query.isError && !query.data ? (
+          <div className="p-4">
+            <LoadErrorAlert error={query.error} onRetry={() => query.refetch()} retrying={query.isFetching} />
+          </div>
+        ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 py-20 text-muted-foreground">
             <FolderOpen className="h-16 w-16" />
             <p className="text-sm">{emptyStateLabel ?? t('files.emptyState')}</p>
@@ -730,10 +735,20 @@ export function FileManager({
             />
           </div>
         )}
-        {query.hasNextPage && (
-          <div ref={loadMoreRef} className="py-3 text-center text-sm text-muted-foreground">
-            {query.isFetchingNextPage ? t('common.loading') : ''}
+        {query.isFetchNextPageError ? (
+          <div className="p-4">
+            <LoadErrorAlert
+              error={query.error}
+              onRetry={() => query.fetchNextPage()}
+              retrying={query.isFetchingNextPage}
+            />
           </div>
+        ) : (
+          query.hasNextPage && (
+            <div ref={loadMoreRef} className="py-3 text-center text-sm text-muted-foreground">
+              {query.isFetchingNextPage ? t('common.loading') : ''}
+            </div>
+          )
         )}
       </FileManagerSurface>
 
