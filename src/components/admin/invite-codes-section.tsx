@@ -106,7 +106,7 @@ export function InviteCodesSection() {
   )
 
   return (
-    <Card data-settings-row className="gap-0 rounded-lg border-border/70 py-0 shadow-xs">
+    <Card data-settings-row className="min-w-0 gap-0 rounded-lg border-border/70 py-0 shadow-xs">
       <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted text-muted-foreground">
@@ -150,7 +150,7 @@ export function InviteCodesSection() {
               <TableRow>
                 <TableHead>{t('admin.auth.colCode')}</TableHead>
                 <TableHead>{t('admin.auth.colStatus')}</TableHead>
-                <TableHead className="hidden md:table-cell">{t('admin.auth.colUsedBy')}</TableHead>
+                <TableHead className="hidden lg:table-cell">{t('admin.auth.colUsedBy')}</TableHead>
                 <TableHead className="hidden md:table-cell">{t('admin.auth.colExpiresAt')}</TableHead>
                 <TableHead className="hidden md:table-cell">{t('admin.auth.colCreatedAt')}</TableHead>
                 <TableHead className="text-right">{t('admin.auth.colActions')}</TableHead>
@@ -165,7 +165,12 @@ export function InviteCodesSection() {
                     <TableCell>
                       <StatusBadge status={status} />
                     </TableCell>
-                    <TableCell className="hidden text-sm md:table-cell">{code.usedBy ?? '—'}</TableCell>
+                    <TableCell
+                      className="hidden max-w-40 truncate text-sm lg:table-cell"
+                      title={code.usedBy ?? undefined}
+                    >
+                      {code.usedBy ?? '—'}
+                    </TableCell>
                     <TableCell className="hidden text-sm md:table-cell">
                       {code.expiresAt ? new Date(code.expiresAt).toLocaleDateString() : '—'}
                     </TableCell>
