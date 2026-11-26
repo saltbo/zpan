@@ -1,7 +1,8 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronsUpDown, Languages, LogOut, Palette, Settings, ShieldCheck, UserRound } from 'lucide-react'
+import { ChevronsUpDown, LogOut, Palette, Settings, ShieldCheck, UserRound } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useTranslation } from 'react-i18next'
+import { LanguageMenuSub } from '@/components/layout/language-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -26,7 +27,7 @@ export function UserAccountMenu({
   showAdminLink?: boolean
   showFrontendLinks?: boolean
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { theme, setTheme } = useTheme()
   const navigate = useNavigate()
   const { data: session } = useSession()
@@ -82,21 +83,7 @@ export function UserAccountMenu({
             </DropdownMenuRadioGroup>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Languages className="mr-2 h-4 w-4" />
-            <span>{t('settings.appearance.language')}</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuRadioGroup
-              value={i18n.resolvedLanguage?.startsWith('zh') ? 'zh' : 'en'}
-              onValueChange={(lang) => i18n.changeLanguage(lang)}
-            >
-              <DropdownMenuRadioItem value="en">English</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="zh">中文</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+        <LanguageMenuSub />
         {showAdminLink && isAdmin && (
           <DropdownMenuItem asChild>
             <Link to="/admin">
