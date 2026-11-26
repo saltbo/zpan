@@ -25,12 +25,12 @@ colors:
   primary-dark: "oklch(0.764 0.111 254.1)"
   on-primary-dark: "oklch(0.22 0 0)"
   background-dark: "oklch(0.22 0 0)"
-  on-background-dark: "oklch(0.93 0.005 250)"
-  canvas-dark: "oklch(0.18 0.005 250)"
+  on-background-dark: "oklch(0.93 0.02 245)"
+  canvas-dark: "oklch(0.165 0.013 264)"
   surface-dark: "oklch(0.27 0.003 250)"
-  on-muted-dark: "oklch(0.72 0.012 258)"
+  on-muted-dark: "oklch(0.82 0.02 245)"
   destructive-dark: "oklch(0.756 0.139 28.1)"
-  border-dark: "oklch(0.34 0.005 250)"
+  border-dark: "oklch(0.37 0.012 254)"
 typography:
   page-title:
     fontFamily: system-ui
@@ -60,8 +60,9 @@ typography:
 rounded:
   sm: 4px
   md: 6px
-  lg: 8px
-  xl: 12px
+  lg: 12px
+  xl: 16px
+  pill: 999px
   full: 9999px
 spacing:
   xs: 4px
@@ -69,16 +70,21 @@ spacing:
   md: 12px
   lg: 16px
   xl: 24px
+shadows:
+  card-light: "0 1px 3px -1px oklch(0.28 0.02 255 / 0.14), 0 1px 2px oklch(0.28 0.02 255 / 0.06)"
+  card-dark: "inset 0 1px 0 oklch(0.92 0.02 245 / 0.12), 0 1px 3px -1px oklch(0.05 0.01 264 / 0.6), 0 6px 16px -4px oklch(0.05 0.01 264 / 0.45)"
+  overlay-light: "0 10px 24px -4px oklch(0.28 0.02 255 / 0.18), 0 4px 8px -2px oklch(0.28 0.02 255 / 0.12)"
+  overlay-dark: "inset 0 1px 0 oklch(0.92 0.02 245 / 0.16), 0 4px 8px -2px oklch(0.05 0.01 264 / 0.55), 0 24px 48px -12px oklch(0.05 0.01 264 / 0.6), 0 16px 48px -12px oklch(0.78 0.1 245 / 0.06)"
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.pill}"
     height: 36px
   button-destructive:
     backgroundColor: "{colors.destructive}"
     textColor: "{colors.on-destructive}"
-    rounded: "{rounded.md}"
+    rounded: "{rounded.pill}"
     height: 36px
   input:
     backgroundColor: "{colors.background}"
@@ -115,7 +121,11 @@ stand out.
   admin can replace it through branding, so nothing may depend on its exact hue,
   such as text that is readable only on blue.
 - **Canvas** sits behind cards and is darker than a card in both themes, so a card
-  always lifts off the page.
+  always lifts off the page. The dark canvas is midnight `oklch(0.165 0.013 264)`.
+- Ambient atmosphere (the blueprint grid and the spotlight halo on the auth pages
+  and the public header band) derives from `--zpan-theme-ring` through
+  `color-mix`, so a branded site paints its own hue; the layer is static,
+  `aria-hidden`, and never intercepts pointer events.
 - **Destructive** is used for irreversible actions and their confirm buttons, and
   for error text. It is never decoration.
 - **Muted** text is for secondary information such as sizes, dates, and hints.
@@ -123,10 +133,15 @@ stand out.
 
 ## Typography
 
-The system font stack throughout, with no web font, so the UI matches the user's
-platform and loads nothing extra. Body and labels are 14 px; captions, badges, and
-field errors are 12 px. Weight, not size, carries hierarchy inside a card: titles
-are semibold, labels medium.
+Inter is the UI font, Space Grotesk the display font, and JetBrains Mono the
+mono font, bundled as self-hosted woff2 files in `public/fonts` (OFL, latin
+subsets), so the UI loads nothing from the network and stays airgapped; scripts
+outside latin fall back to system fonts per family. `h1` tracks −0.02em, and the
+site-name heading on the auth pages is the display wordmark painted with
+`--zpan-display-gradient` (endpoints ≥3:1 on the canvas in both themes, hue
+following branding). Body and labels are 14 px; captions, badges, and field
+errors are 12 px. Weight, not size, carries hierarchy inside a card: titles are
+semibold, labels medium.
 
 ## Layout
 
@@ -138,12 +153,19 @@ except in a dense, table-like editor.
 ## Elevation & Depth
 
 Depth is one step: a card has a hairline border and a small shadow over the
-canvas. Popovers, menus, dialogs, and sheets are the only things above that.
+canvas. Shadows are tinted, not neutral black: cool Gridline-Blue drops in
+light; in dark a frosted inset hairline on the top edge, a deep cool drop, and
+a faint blue glow, so surfaces read as glass plates lit from below. Popovers,
+menus, dialogs, and sheets are the only things above that, and they wear glass:
+a translucent card fill with a frost blur, keyed to their `data-slot` markers
+in `globals.css` so no installed component is edited.
 
 ## Shapes
 
-Controls are 6 px rounded, cards 12 px. Pills, such as the Pro badge and avatars,
-are fully round.
+Controls are 6 px rounded, cards 16 px. Buttons are pills (999 px) — icon
+buttons keep the 6 px control radius, and so do inputs, badges, sidebar rows,
+and menus, the same scope as Authkit's own. Pills, such as the Pro badge and
+avatars, are fully round.
 
 ## Motion & Micro-interaction
 
@@ -165,7 +187,7 @@ menus, and no motion on data. Reduced motion is honoured.
 Built from shadcn/ui (new-york style, neutral base) with tokens from the theme;
 installed components are adapted where they are used, never edited. ZPan's own
 shared pieces are `AdminFormDrawer` and its field components, `PageHeader`,
-`AdminPageHeader`, `ProBadge`, and `UpgradeHint`.
+`AdminPageHeader`, `ProBadge`, `UpgradeHint`, and `AmbientCanvas`.
 
 ## Do's and Don'ts
 

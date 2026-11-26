@@ -72,7 +72,9 @@ function SignUp() {
         <AmbientCanvas />
         <div className="relative w-full max-w-sm space-y-6 rounded-2xl border bg-card/90 p-6 shadow-lg backdrop-blur-md">
           <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
+            <h1 className="text-2xl font-bold bg-[image:var(--zpan-display-gradient)] bg-clip-text text-transparent">
+              {siteName || DEFAULT_SITE_NAME}
+            </h1>
             <p className="text-muted-foreground">{t('auth.registrationClosed')}</p>
           </div>
           <p className="text-center text-sm text-muted-foreground">
@@ -92,7 +94,9 @@ function SignUp() {
         <AmbientCanvas />
         <div className="relative w-full max-w-sm space-y-6 rounded-2xl border bg-card/90 p-6 shadow-lg backdrop-blur-md">
           <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
+            <h1 className="text-2xl font-bold bg-[image:var(--zpan-display-gradient)] bg-clip-text text-transparent">
+              {siteName || DEFAULT_SITE_NAME}
+            </h1>
             <p className="text-muted-foreground">{t('common.loading')}</p>
           </div>
         </div>
@@ -106,7 +110,9 @@ function SignUp() {
         <AmbientCanvas />
         <div className="relative w-full max-w-sm space-y-6 rounded-2xl border bg-card/90 p-6 shadow-lg backdrop-blur-md">
           <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
+            <h1 className="text-2xl font-bold bg-[image:var(--zpan-display-gradient)] bg-clip-text text-transparent">
+              {siteName || DEFAULT_SITE_NAME}
+            </h1>
             <p className="text-muted-foreground">{t('auth.invalidInvitation')}</p>
             <p className="text-sm text-muted-foreground">
               {siteInvitation?.status === 'expired'
@@ -135,7 +141,9 @@ function SignUp() {
         <AmbientCanvas />
         <div className="relative flex w-full max-w-sm flex-col gap-6 rounded-2xl border bg-card/90 p-6 text-center shadow-lg backdrop-blur-md">
           <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-bold">{t('auth.verifyEmailTitle')}</h1>
+            <h1 className="text-2xl font-bold bg-[image:var(--zpan-display-gradient)] bg-clip-text text-transparent">
+              {t('auth.verifyEmailTitle')}
+            </h1>
             <p className="text-muted-foreground">{t('auth.verifyEmailSent', { email: verificationSentTo })}</p>
           </div>
           <Button asChild variant="outline">
@@ -182,7 +190,9 @@ function SignUp() {
       <AmbientCanvas />
       <div className="relative w-full max-w-sm space-y-6 rounded-2xl border bg-card/90 p-6 shadow-lg backdrop-blur-md">
         <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
+          <h1 className="text-2xl font-bold bg-[image:var(--zpan-display-gradient)] bg-clip-text text-transparent">
+            {siteName || DEFAULT_SITE_NAME}
+          </h1>
           <p className="text-muted-foreground">{t('auth.signUpSubtitle')}</p>
         </div>
         <OAuthButtons />
