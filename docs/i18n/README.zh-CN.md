@@ -157,7 +157,7 @@ docker compose -f docker-compose.rustfs.yml up -d
 
 ## 文档
 
-- [路线图](../../V2_ROADMAP.md)
+- [路线图](../../ROADMAP.md)
 - [贡献指南](../../CONTRIBUTING.md)
 
 ## v1

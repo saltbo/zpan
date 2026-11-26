@@ -12,8 +12,10 @@ type CursorPage<T> = {
 ```
 
 Clients pass `pageSize` and, after the first request, the opaque
-`nextPageToken` as `pageToken`. Product lists load the next page when a bottom
-sentinel approaches the viewport; they do not expose page-number controls.
+`nextPageToken` as `pageToken`. User-facing lists load the next page when a
+bottom sentinel approaches the viewport. Admin tables page through the same
+cursor with previous and next controls and a page-size choice. Neither exposes
+page-number controls, which would need a count on every query.
 Counts needed independently by navigation or dashboards use a dedicated stats
 endpoint instead of making every page query execute a count.
 

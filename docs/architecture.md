@@ -1,7 +1,7 @@
 # Architecture & Technical Decisions
 
 Technical reference for the current ZPan implementation. Product sequencing and
-future scope live in [V2_ROADMAP.md](../V2_ROADMAP.md) and
+future scope live in [ROADMAP.md](../ROADMAP.md) and
 [`docs/roadmap/`](roadmap/), not in this document.
 
 ## System Shape

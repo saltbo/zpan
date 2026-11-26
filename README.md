@@ -164,7 +164,7 @@ After startup:
 ## Documentation
 
 - [v2 Launch Offers](docs/v2-launch-offers.md) — earn ZPan Pro for free
-- [Roadmap](V2_ROADMAP.md)
+- [Roadmap](ROADMAP.md)
 - [Contributing](CONTRIBUTING.md)
 
 ## v1
