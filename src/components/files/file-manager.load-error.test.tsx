@@ -71,10 +71,12 @@ describe('FileManager load failure', () => {
     expect(await screen.findByText('Something went wrong on our side')).toBeTruthy()
     expect(screen.getByText('common.loadError.title')).toBeTruthy()
     expect(screen.queryByText('files.emptyState')).toBeNull()
+    expect(screen.queryByText('files.count')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
 
     expect(await screen.findByText('files.emptyState')).toBeTruthy()
+    expect(screen.getByText('files.count')).toBeTruthy()
     expect(screen.queryByText('common.loadError.title')).toBeNull()
     expect(listObjectsByPath).toHaveBeenCalledTimes(2)
   })

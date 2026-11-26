@@ -684,6 +684,8 @@ export function FileManager({
       </>
     ) : null
 
+  const listFailed = query.isError && !query.data
+
   const content = (
     <div className="space-y-4">
       <FileManagerSurface
@@ -696,7 +698,7 @@ export function FileManager({
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           selectedCount={selectedIds.length}
-          totalItems={items.length}
+          totalItems={listFailed ? undefined : items.length}
           onBatchTrash={resolvedCapabilities.trash ? () => setDeleteTargetIds(selectedIds) : undefined}
           onBatchMove={resolvedCapabilities.move ? () => setMoveTargetIds(selectedIds) : undefined}
           onBatchCompress={resolvedCapabilities.archive ? handleBatchCompress : undefined}
@@ -704,7 +706,7 @@ export function FileManager({
           onShare={resolvedCapabilities.share ? handleToolbarShare : undefined}
         />
 
-        {query.isError && !query.data ? (
+        {listFailed ? (
           <div className="p-4">
             <LoadErrorAlert error={query.error} onRetry={() => query.refetch()} retrying={query.isFetching} />
           </div>
