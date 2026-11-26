@@ -205,12 +205,6 @@
     letter-spacing: -0.02em;
   }
 
-  /* Pill buttons (Authkit signature) — buttons only; icon buttons, inputs,
-     badges, sidebar rows, menus and thumbnails keep the 6px control radius. */
-  [data-slot='button']:not([data-size='icon']) {
-    border-radius: 999px;
-  }
-
   *::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -239,6 +233,13 @@
 }
 
 @layer utilities {
+  /* Pill buttons (Authkit signature) — buttons only; icon buttons, inputs,
+     badges, sidebar rows, menus and thumbnails keep the 6px control radius.
+     In the utilities layer so it outranks the rounded-md utility. */
+  [data-slot="button"]:not([data-size="icon"]) {
+    border-radius: 999px;
+  }
+
   /* Glass popups — keyed to the shadcn data-slot markers so no component
      file is edited. Translucent card fill + frost blur in both themes. */
   [data-slot="dialog-content"],
