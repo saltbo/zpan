@@ -3,7 +3,7 @@ version: alpha
 name: ZPan
 description: A calm, Google-flavoured workspace for files, shares, and image hosting on the user's own S3 bucket.
 colors:
-  primary: "oklch(0.587 0.201 258.4)"
+  primary: "oklch(0.57 0.201 258.4)"
   on-primary: "oklch(1 0 0)"
   background: "oklch(1 0 0)"
   on-background: "oklch(0.22 0 0)"
@@ -15,7 +15,7 @@ colors:
   muted: "oklch(0.972 0.003 247.9)"
   on-muted: "oklch(0.48 0.01 258)"
   accent: "oklch(0.945 0.005 250)"
-  destructive: "oklch(0.619 0.228 26.8)"
+  destructive: "oklch(0.59 0.228 26.8)"
   on-destructive: "oklch(1 0 0)"
   border: "oklch(0.92 0.003 247)"
   sidebar: "oklch(0.972 0.003 247.9)"
