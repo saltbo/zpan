@@ -95,7 +95,6 @@ import { useUrlText } from '@/hooks/use-url-text'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import {
-  ApiError,
   createDownloadTask,
   getDownloadTask,
   listDownloadTaskEvents,
@@ -103,6 +102,7 @@ import {
   runDownloadTaskAction,
 } from '@/lib/api'
 import { DOWNLOAD_TASKS_QUERY_KEY, type DownloadTaskChange, syncDownloadTaskChange } from '@/lib/download-task-cache'
+import { formLevelError, type ServerFieldMap, setServerFieldError } from '@/lib/form-errors'
 import { enumParam, textParam } from '@/lib/list-search'
 import { cn } from '@/lib/utils'
 
@@ -2025,8 +2025,8 @@ function isHttpUrl(value: string) {
   }
 }
 
-// The server names the failing request field; the link's belongs under the link.
-const isLinkError = (err: unknown): err is ApiError => err instanceof ApiError && err.metadata?.field === 'source.uri'
+// Only the link field shows an error of its own; the rest stay above the submit button.
+const CREATE_TASK_SERVER_FIELDS: ServerFieldMap<keyof CreateDownloadTaskFormValues> = { 'source.uri': 'uri' }
 
 function CreateDownloadTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation()
@@ -2047,10 +2047,10 @@ function CreateDownloadTaskDialog({ open, onOpenChange }: { open: boolean; onOpe
       handleOpenChange(false)
     },
     onError: (err) => {
-      if (isLinkError(err)) form.setError('uri', { type: 'server', message: err.message })
+      setServerFieldError(form.setError, err, CREATE_TASK_SERVER_FIELDS)
     },
   })
-  const formError = createMutation.error && !isLinkError(createMutation.error) ? createMutation.error.message : null
+  const formError = formLevelError(createMutation.error, CREATE_TASK_SERVER_FIELDS)
 
   function handleOpenChange(nextOpen: boolean) {
     onOpenChange(nextOpen)

@@ -3,7 +3,7 @@ import type { Storage } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createStorage, patchStorage } from '@/lib/api'
+import { ApiError, createStorage, patchStorage } from '@/lib/api'
 import { StorageFormDrawer } from './storage-form-drawer'
 
 class TestResizeObserver {
@@ -25,7 +25,8 @@ vi.mock('sonner', () => ({
   },
 }))
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/api', async (importOriginal) => ({
+  ApiError: (await importOriginal<typeof import('@/lib/api')>()).ApiError,
   createStorage: vi.fn(),
   patchStorage: vi.fn(),
 }))
@@ -116,6 +117,43 @@ describe('StorageFormDrawer', () => {
     expect(createStorage).not.toHaveBeenCalledWith(expect.objectContaining({ capacity: expect.any(Number) }))
     expect(createStorage).not.toHaveBeenCalledWith(expect.objectContaining({ egressCreditBillingEnabled: false }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('shows a value the server rejects under its field [spec: form-errors/admin-drawer]', async () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    vi.mocked(patchStorage).mockRejectedValue(
+      new ApiError(400, {
+        error: {
+          code: 400,
+          message: 'Bucket name is not allowed',
+          status: 'INVALID_ARGUMENT',
+          details: [{ reason: 'INVALID_ARGUMENT', domain: 'zpan.dev', metadata: { field: 'bucket' } }],
+        },
+      }),
+    )
+    const onOpenChange = vi.fn()
+    renderStorageFormDrawer({ storage, onOpenChange })
+
+    const bucket = screen.getByLabelText('admin.storages.fieldBucket')
+    fireEvent.change(bucket, { target: { value: 'renamed' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    const error = await screen.findByText('Bucket name is not allowed')
+    expect(bucket.getAttribute('aria-invalid')).toBe('true')
+    expect(bucket.getAttribute('aria-describedby')).toContain(error.id)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+  })
+
+  it('shows a rejected save that names no field above the save button', async () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    vi.mocked(patchStorage).mockRejectedValue(new Error('Storage is in use'))
+    renderStorageFormDrawer({ storage })
+
+    fireEvent.change(screen.getByLabelText('admin.storages.fieldBucket'), { target: { value: 'renamed' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Storage is in use')
   })
 
   it('keeps write-only credentials blank while editing and omits them from an ordinary update', async () => {

@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { createStorage, patchStorage } from '@/lib/api'
 import { eplistEndpointUrl, findEplistProvider, listEplistEndpoints, listEplistProviders } from '@/lib/eplist'
+import { formLevelError, type ServerFieldMap, setServerFieldError } from '@/lib/form-errors'
 
 const storageFormSchema = z.object({
   provider: z.string(),
@@ -38,6 +39,17 @@ const DEFAULT_VALUES: StorageFormValues = {
   accessKey: '',
   secretKey: '',
   forcePathStyle: true,
+}
+
+// Every request field this drawer sends sits under the field of the same name.
+const SERVER_FIELDS: ServerFieldMap<keyof StorageFormValues> = {
+  provider: 'provider',
+  bucket: 'bucket',
+  endpoint: 'endpoint',
+  region: 'region',
+  accessKey: 'accessKey',
+  secretKey: 'secretKey',
+  forcePathStyle: 'forcePathStyle',
 }
 
 const PREVIEW_OBJECT_KEY = 'example-object'
@@ -106,9 +118,15 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
       toast.success(isEditing ? t('admin.storages.updated') : t('admin.storages.created'))
     },
     onError: (err) => {
-      toast.error(err.message)
+      setServerFieldError(form.setError, err, SERVER_FIELDS)
     },
   })
+  const formError = formLevelError(mutation.error, SERVER_FIELDS)
+  const resetMutation = mutation.reset
+
+  useEffect(() => {
+    if (open) resetMutation()
+  }, [open, resetMutation])
 
   function onSubmit(values: StorageFormValues) {
     mutation.mutate(values)
@@ -178,6 +196,7 @@ export function StorageFormDrawer({ open, onOpenChange, storage, onCreated }: St
       title={isEditing ? t('admin.storages.editTitle') : t('admin.storages.addTitle')}
       bodyClassName="grid auto-rows-min content-start gap-4"
       formProps={{ onSubmit: form.handleSubmit(onSubmit) }}
+      error={formError}
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

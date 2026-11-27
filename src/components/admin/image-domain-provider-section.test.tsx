@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { getImageDomainProvider, saveImageDomainProvider, testImageDomainProvider } from '@/lib/api'
+import { ApiError, getImageDomainProvider, saveImageDomainProvider, testImageDomainProvider } from '@/lib/api'
 import { ImageDomainProviderSection } from './image-domain-provider-section'
 
 const locale = vi.hoisted(() => ({ value: 'en' as 'en' | 'zh' }))
@@ -97,7 +97,8 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/api', async (importOriginal) => ({
+  ApiError: (await importOriginal<typeof import('@/lib/api')>()).ApiError,
   getImageDomainProvider: vi.fn(),
   saveImageDomainProvider: vi.fn(),
   testImageDomainProvider: vi.fn(),
@@ -190,6 +191,39 @@ describe('ImageDomainProviderSection', () => {
         },
       }),
     )
+  })
+
+  it('shows a DNS record the server rejects under the records field [spec: form-errors/admin-drawer]', async () => {
+    vi.mocked(saveImageDomainProvider).mockRejectedValue(
+      new ApiError(400, {
+        error: {
+          code: 400,
+          message: 'CNAME value must be a hostname',
+          status: 'INVALID_ARGUMENT',
+          details: [{ reason: 'INVALID_ARGUMENT', domain: 'zpan.dev', metadata: { field: 'manual.records.0.value' } }],
+        },
+      }),
+    )
+    const view = renderSection()
+    fireEvent.click(await view.findByRole('button', { name: 'Edit' }))
+    const records = view.getByLabelText('DNS records')
+    fireEvent.change(records, { target: { value: 'CNAME not a host' } })
+    fireEvent.click(view.getByRole('button', { name: 'Save' }))
+
+    const error = await view.findByText('CNAME value must be a hostname')
+    expect(records.getAttribute('aria-invalid')).toBe('true')
+    expect(records.getAttribute('aria-describedby')).toContain(error.id)
+    expect(view.queryByRole('alert')).toBeNull()
+  })
+
+  it('shows a rejected save that names no field above the save button [spec: form-errors/admin-drawer]', async () => {
+    vi.mocked(saveImageDomainProvider).mockRejectedValue(new Error('Provider unavailable'))
+    const view = renderSection()
+    fireEvent.click(await view.findByRole('button', { name: 'Edit' }))
+    fireEvent.click(view.getByRole('button', { name: 'Save' }))
+
+    expect((await view.findByRole('alert')).textContent).toBe('Provider unavailable')
+    expect(view.getByLabelText('DNS records').getAttribute('aria-invalid')).toBeNull()
   })
 
   it('runs the provider test action', async () => {
