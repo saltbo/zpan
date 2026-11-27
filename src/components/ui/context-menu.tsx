@@ -2,10 +2,12 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
 import { ContextMenu as ContextMenuPrimitive } from 'radix-ui'
 import type * as React from 'react'
 
+import { menuDirection } from '@/lib/document-direction'
 import { cn } from '@/lib/utils'
 
 function ContextMenu({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
-  return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />
+  // Same single source as the dropdown menu: Radix places submenus from `dir`.
+  return <ContextMenuPrimitive.Root data-slot="context-menu" dir={menuDirection()} {...props} />
 }
 
 function ContextMenuTrigger({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Trigger>) {

@@ -269,4 +269,43 @@
   .dark [data-slot="dropdown-menu-content"] {
     background-color: color-mix(in oklab, var(--color-card) 85%, transparent);
   }
+
+  /* RTL shim — flips the physical shapes the shadcn primitives ship with, keyed
+     to the same data-slot markers the glass rules use, so one rule fixes the
+     pattern app-wide instead of editing call sites. Logical properties are the
+     rule for new code; `dir` on <html> is set by useDocumentDirection.
+     Physical padding on the leading/trailing sides (pr-8, pl-8, mr-2) is already
+     side-correct in RTL, so only alignment, absolute insets and chevrons flip. */
+  [dir="rtl"] [data-slot="table-head"],
+  [dir="rtl"] [data-slot="dialog-header"],
+  [dir="rtl"] [data-slot="sidebar-menu-button"] {
+    text-align: start;
+  }
+  [dir="rtl"] [data-slot="dialog-footer"] {
+    justify-content: flex-start;
+  }
+  [dir="rtl"] [data-slot="dialog-close"],
+  [dir="rtl"] [data-slot="sheet-close"],
+  [dir="rtl"] [data-slot="sidebar-group-action"] {
+    inset-inline-start: auto;
+    inset-inline-end: 1rem;
+  }
+  [dir="rtl"] [data-slot="sidebar-menu-action"],
+  [dir="rtl"] [data-slot="sidebar-menu-badge"] {
+    inset-inline-start: auto;
+    inset-inline-end: 0.25rem;
+  }
+  [dir="rtl"] [data-slot="dropdown-menu-checkbox-item"] > span:first-child,
+  [dir="rtl"] [data-slot="dropdown-menu-radio-item"] > span:first-child,
+  [dir="rtl"] [data-slot="context-menu-checkbox-item"] > span:first-child,
+  [dir="rtl"] [data-slot="context-menu-radio-item"] > span:first-child {
+    inset-inline-start: 0.5rem;
+    inset-inline-end: auto;
+  }
+  [dir="rtl"] [data-slot="dropdown-menu-sub-trigger"] > svg:last-child,
+  [dir="rtl"] [data-slot="context-menu-sub-trigger"] > svg:last-child {
+    transform: rotate(180deg);
+  }
 }
+
+

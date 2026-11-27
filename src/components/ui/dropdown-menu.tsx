@@ -4,10 +4,13 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
 import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
 import type * as React from 'react'
 
+import { menuDirection } from '@/lib/document-direction'
 import { cn } from '@/lib/utils'
 
 function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+  // Radix positions submenu panels from `dir`, so menus follow the document's
+  // direction — the same single source useDocumentDirection writes.
+  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" dir={menuDirection()} {...props} />
 }
 
 function DropdownMenuPortal({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {

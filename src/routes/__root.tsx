@@ -5,13 +5,15 @@ import { MusicPlayerProvider } from '@/components/music/music-player-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { UploadQueueProvider } from '@/components/upload/upload-queue'
+import { useDocumentDirection } from '@/hooks/use-document-direction'
 
 interface RouterContext {
   queryClient: QueryClient
 }
 
-export const Route = createRootRouteWithContext<RouterContext>()({
-  component: () => (
+function RootLayout() {
+  useDocumentDirection()
+  return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <TooltipProvider>
         <MusicPlayerProvider>
@@ -22,5 +24,9 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         <Toaster />
       </TooltipProvider>
     </ThemeProvider>
-  ),
+  )
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({
+  component: RootLayout,
 })
