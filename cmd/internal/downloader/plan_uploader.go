@@ -80,7 +80,7 @@ type tmdbReference struct {
 // sidecar takes the name its video was given, and a live entry already at a
 // sidecar or kept path is kept and referenced instead. Once the files are up,
 // the videos and the show folder get their `media`.
-func (u *Uploader) uploadPlan(ctx context.Context, log *slog.Logger, task client.DownloadTask, plan UploadPlan) (string, []string, error) {
+func (u *Uploader) uploadPlan(ctx context.Context, log *slog.Logger, task client.DownloadTask, plan UploadPlan, torrentPaths map[string]string) (string, []string, error) {
 	token := task.UploadToken()
 	target := task.TargetFolder()
 	folder, err := u.ensureFolder(ctx, token, target, plan.Folder)
@@ -121,7 +121,7 @@ func (u *Uploader) uploadPlan(ctx context.Context, log *slog.Logger, task client
 	for _, file := range files {
 		parent := folders[planDir(file.Path)]
 		if file.Sidecar == nil && !file.Keep {
-			live, err := u.uploadSingleFile(ctx, log, task, file.LocalPath, path.Base(file.Path), file.Size, parent, client.OnConflictRename, progress)
+			live, err := u.uploadSingleFile(ctx, log, task, file.LocalPath, path.Base(file.Path), file.Size, parent, client.OnConflictRename, torrentPathOf(torrentPaths, file.LocalPath), progress)
 			if err != nil {
 				return "", nil, err
 			}
@@ -138,7 +138,7 @@ func (u *Uploader) uploadPlan(ctx context.Context, log *slog.Logger, task client
 			}
 			name = strings.TrimSuffix(videoName, path.Ext(videoName)) + file.Sidecar.Suffix
 		}
-		id, uploaded, err := u.uploadUnlessPresent(ctx, log, task, file, name, parent, progress)
+		id, uploaded, err := u.uploadUnlessPresent(ctx, log, task, file, name, parent, torrentPathOf(torrentPaths, file.LocalPath), progress)
 		if err != nil {
 			return "", nil, err
 		}
@@ -163,9 +163,10 @@ func (u *Uploader) uploadUnlessPresent(
 	file PlannedFile,
 	name string,
 	parent string,
+	torrentPath string,
 	progress *uploadProgress,
 ) (string, bool, error) {
-	live, err := u.uploadSingleFile(ctx, log, task, file.LocalPath, name, file.Size, parent, client.OnConflictFail, progress)
+	live, err := u.uploadSingleFile(ctx, log, task, file.LocalPath, name, file.Size, parent, client.OnConflictFail, torrentPath, progress)
 	if err == nil {
 		return live.ID, true, nil
 	}

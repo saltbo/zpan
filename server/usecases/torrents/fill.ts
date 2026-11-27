@@ -1,18 +1,16 @@
 // Filling Torrents from downloads (docs/design/torrents.md §4, §7).
 //
 // A magnet task knows its infoHash at submit; a torrent_url task learns it when
-// its downloader registers the info dictionary. With the infoHash known, a ready
-// torrent completes the task at once by instant transfer, a downloading or
-// verifying one attaches the task as a 'join', and otherwise a downloader that
-// reports the fill capability downloads it as the torrent's 'fill': it registers
-// the info dictionary (check 1), uploads every file to its bt/<infoHash>/<id>
-// entry through presigned uploads, and completes the torrent (check 2).
-// Completion moves the torrent to verifying, queues torrent_verify (check 3),
-// and gives the requester its files by instant transfer. Until the downloader
-// uploads through the object API (docs/design/torrents.md §14), a fill records
-// the torrent's own tree only: no sidecars, folders, or media.
+// its downloader reports the info dictionary on the task. With the infoHash
+// known, a ready torrent completes the task at once by instant transfer, a
+// downloading or verifying one attaches the task as a 'join', and otherwise the
+// reporting task becomes the torrent's 'fill' (check 1 runs on the report). A
+// fill uploads through the object API like any task (./fill-upload.ts): the
+// server stores its uploads under bt/<infoHash>/ and records them in
+// torrent_files. Completing the task runs check 2 and queues piece verification
+// (./complete.ts). A downloader that never reports a dictionary uploads ordinary
+// drive files.
 
-import type { CompleteTorrentFileUploadInput, TaskTorrentRegistration, TorrentFileUpload } from '@shared/schemas'
 import { hasFeature } from '../../domain/licensing'
 import {
   parseMagnetInfoHash,
@@ -23,21 +21,14 @@ import {
 } from '../../domain/torrent-info'
 import { torrentInfoObjectKey } from '../../domain/torrents'
 import type { Deps } from '../deps'
-import { badRequest, conflict, type DownloadTaskRecord, forbidden, notFound, type TorrentRecord } from '../ports'
+import { badRequest, type DownloadTaskRecord, notFound, type TorrentRecord } from '../ports'
 import { loadBindingState } from '../site/licensing'
 import { transferTorrent } from './instant-transfer'
 
-// Reported by a downloader that fills torrents through the upload API below.
-export const TORRENT_FILL_CAPABILITY = 'torrent-cache'
 export const TORRENT_INVALID_MESSAGE = 'The torrent failed verification'
 
 const TORRENT_SOURCE_TYPES = ['magnet', 'torrent_url']
 const TERMINAL_STATUSES = ['completed', 'failed', 'canceled']
-const FILL_UPLOAD_STATUSES = ['assigned', 'downloading', 'uploading']
-const SINGLE_UPLOAD_MAX_BYTES = 64 * 1024 * 1024
-const MULTIPART_PART_SIZE_BYTES = 64 * 1024 * 1024
-const MAX_UPLOAD_PARTS = 10_000
-const UPLOAD_URL_TTL_SECONDS = 6 * 60 * 60
 
 export type TorrentFillDeps = Pick<
   Deps,
@@ -103,7 +94,6 @@ export async function completeByTransfer(
   task: DownloadTaskRecord,
   torrent: TorrentRecord,
   now: Date,
-  options: { source?: boolean } = {},
 ): Promise<'completed' | 'failed'> {
   const outcome = await transferTorrent(deps, {
     torrentId: torrent.id,
@@ -111,7 +101,6 @@ export async function completeByTransfer(
     userId: task.createdByUserId,
     targetFolder: task.targetFolder,
     taskId: task.id,
-    sourceTaskId: options.source ? task.id : undefined,
     now,
   })
   if (!outcome.ok) {
@@ -130,7 +119,7 @@ export async function completeByTransfer(
     status: 'completed',
     infoHash: torrent.infoHash,
     torrentId: torrent.id,
-    ...(options.source ? {} : { torrentEvent: 'cache_hit' as const }),
+    torrentEvent: 'cache_hit',
     errorCode: null,
     errorMessage: null,
     downloadCompletedAt: task.downloadCompletedAt ?? now,
@@ -190,25 +179,17 @@ async function failInvalid(deps: TorrentFillDeps, task: DownloadTaskRecord, now:
   })
 }
 
-// ─── Torrent upload API ──────────────────────────────────────────────────────
+// ─── Reporting the info dictionary ──────────────────────────────────────────
 
-export async function fillingTask(
-  deps: TorrentFillDeps,
-  params: { taskId: string; downloaderId: string },
-): Promise<DownloadTaskRecord> {
-  const task = await deps.downloadTasks.findRecord(params.taskId)
-  if (!task || task.assignedDownloaderId !== params.downloaderId) throw forbidden()
-  if (task.torrentRole !== 'fill' || !FILL_UPLOAD_STATUSES.includes(task.status)) {
-    throw conflict('Task is not filling a torrent', 'TORRENT_NOT_FILLING')
-  }
-  return task
-}
-
-export async function fillingTorrent(deps: TorrentFillDeps, task: DownloadTaskRecord): Promise<TorrentRecord> {
-  const torrent = task.torrentId ? await deps.torrents.get(task.torrentId) : null
-  if (!torrent || torrent.sourceTaskId !== task.id || torrent.status !== 'downloading') {
-    throw conflict('Torrent is not being downloaded', 'TORRENT_NOT_DOWNLOADING')
-  }
+// The torrent a task is filling, while it still fills it: downloading, with the
+// task as its source. Null for any other task.
+export async function fillingTorrent(
+  deps: Pick<TorrentFillDeps, 'torrents'>,
+  task: DownloadTaskRecord,
+): Promise<TorrentRecord | null> {
+  if (task.torrentRole !== 'fill' || !task.torrentId) return null
+  const torrent = await deps.torrents.get(task.torrentId)
+  if (!torrent || torrent.sourceTaskId !== task.id || torrent.status !== 'downloading') return null
   return torrent
 }
 
@@ -224,29 +205,20 @@ async function sha1Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   return toHex(new Uint8Array(await crypto.subtle.digest('SHA-1', bytes)))
 }
 
-function registration(
-  outcome: TaskTorrentRegistration['outcome'],
-  infoHash: string,
-  info: ReturnType<typeof parseTorrentInfo>,
-): TaskTorrentRegistration {
-  return {
-    outcome,
-    infoHash,
-    name: info.name,
-    files: info.files
-      .filter((file) => !file.padding)
-      .map((file) => ({ fileIdx: file.fileIdx, path: file.path, size: file.size })),
-  }
-}
-
-// Check 1: the info dictionary's SHA-1 must be the task's infoHash. A magnet
-// task carries it from submit; a torrent_url task learns it here.
-export async function registerTaskTorrent(
+// The downloader reported the bencoded info dictionary of the torrent its task
+// downloads. Check 1: its SHA-1 must be the task's infoHash; a torrent_url task
+// learns its infoHash here. The task then fills the torrent, completes from a
+// ready one, joins one in progress, or (an invalid or evicting torrent) carries
+// on uploading into the drive. A completed or joined task is no longer assigned
+// to the downloader, which drops its download. Without the entitlement, or for
+// a source that is not a torrent, the report is ignored.
+export async function reportTaskTorrentInfo(
   deps: TorrentFillDeps,
-  params: { taskId: string; downloaderId: string; info: string },
+  params: { task: DownloadTaskRecord; downloaderId: string; info: string },
   now = new Date(),
-): Promise<TaskTorrentRegistration> {
-  const task = await fillingTask(deps, params)
+): Promise<void> {
+  const { task } = params
+  if (!isTorrentSource(task.sourceType) || !(await torrentsEnabled(deps))) return
   const bytes = decodeBase64(params.info)
   const infoHash = await sha1Hex(bytes)
   if (task.infoHash && task.infoHash !== infoHash) {
@@ -259,6 +231,8 @@ export async function registerTaskTorrent(
     if (error instanceof TorrentInfoError) throw badRequest('Torrent metadata is invalid', 'TORRENT_INFO_INVALID')
     throw error
   }
+  // Reported again (a retried request): the task already fills the torrent.
+  if (await fillingTorrent(deps, task)) return
 
   let torrent = await deps.torrents.getByInfoHash(infoHash)
   if (!torrent) {
@@ -277,31 +251,29 @@ export async function registerTaskTorrent(
       now,
     })
     torrent = result.torrent
-    if (result.created) return startFill(deps, task, torrent, bytes, info, now)
+    if (result.created) return startFill(deps, task, torrent, bytes, now)
   }
 
-  if (torrent.status === 'downloading' && torrent.sourceTaskId === task.id) {
-    await deps.torrents.setSource(torrent.id, { taskId: task.id, downloaderId: params.downloaderId }, now)
-    return startFill(deps, task, torrent, bytes, info, now)
-  }
   if (torrent.status === 'ready') {
     await completeByTransfer(deps, task, torrent, now)
-    return registration('completed', infoHash, info)
+    return
   }
   if (torrent.status === 'verifying' || (torrent.status === 'downloading' && (await fillerActive(deps, torrent)))) {
-    await joinTorrent(deps, task, torrent, now)
-    return registration('joined', infoHash, info)
+    if (torrent.sourceTaskId !== task.id) {
+      await joinTorrent(deps, task, torrent, now)
+      return
+    }
   }
   if (torrent.status === 'downloading') {
-    // The download that started this torrent stopped; this one takes it over
-    // and uploads the same entries again.
+    // The download that started this torrent stopped (or this task runs
+    // again): this one takes it over and uploads every entry anew.
     await deps.torrents.setSource(torrent.id, { taskId: task.id, downloaderId: params.downloaderId }, now)
-    return startFill(deps, task, torrent, bytes, info, now)
+    await deps.torrents.resetEntries(torrent.id)
+    return startFill(deps, task, torrent, bytes, now)
   }
-  // Invalid or being evicted: the torrent cannot be filled, so the task uploads into
-  // the drive the way a downloader without the capability does.
+  // Invalid or being evicted: the torrent cannot be filled, so the task uploads
+  // into the drive the way a downloader that reports nothing does.
   await deps.downloadTasks.setFields(task.id, { infoHash, torrentId: null, torrentRole: null, updatedAt: now })
-  return registration('drive', infoHash, info)
 }
 
 async function startFill(
@@ -309,9 +281,8 @@ async function startFill(
   task: DownloadTaskRecord,
   torrent: TorrentRecord,
   bytes: Uint8Array,
-  info: ReturnType<typeof parseTorrentInfo>,
   now: Date,
-): Promise<TaskTorrentRegistration> {
+): Promise<void> {
   const storage = await deps.storages.get(torrent.storageId)
   if (!storage) throw notFound('Torrent not found')
   await deps.s3.putObject(
@@ -321,76 +292,12 @@ async function startFill(
     'application/x-bittorrent',
     bytes.length,
   )
-  await deps.downloadTasks.setFields(task.id, { infoHash: torrent.infoHash, torrentId: torrent.id, updatedAt: now })
-  return registration('fill', torrent.infoHash, info)
-}
-
-async function fillTarget(deps: TorrentFillDeps, params: { taskId: string; downloaderId: string; fileIdx: number }) {
-  const task = await fillingTask(deps, params)
-  const torrent = await fillingTorrent(deps, task)
-  const file = (await deps.torrents.listFiles(torrent.id)).find((item) => item.fileIdx === params.fileIdx)
-  if (!file) throw notFound('Torrent file not found')
-  const storage = await deps.storages.get(torrent.storageId)
-  if (!storage) throw notFound('Torrent not found')
-  return { task, torrent, file, storage }
-}
-
-export async function createTorrentFileUpload(
-  deps: TorrentFillDeps,
-  params: { taskId: string; downloaderId: string; fileIdx: number },
-): Promise<TorrentFileUpload> {
-  const { file, storage } = await fillTarget(deps, params)
-  const expiresAt = new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1000).toISOString()
-  if (file.size <= SINGLE_UPLOAD_MAX_BYTES) {
-    const url = await deps.s3.presignUpload(storage, file.objectKey, undefined, UPLOAD_URL_TTL_SECONDS)
-    return {
-      uploadId: null,
-      partSize: file.size,
-      expiresAt,
-      parts: [{ partNumber: 1, url, offset: 0, length: file.size }],
-    }
-  }
-  const partSize = Math.max(MULTIPART_PART_SIZE_BYTES, Math.ceil(file.size / MAX_UPLOAD_PARTS))
-  const partCount = Math.ceil(file.size / partSize)
-  const uploadId = await deps.s3.createMultipartUpload(storage, file.objectKey, file.mime || undefined)
-  const parts = await Promise.all(
-    Array.from({ length: partCount }, async (_, i) => ({
-      partNumber: i + 1,
-      url: await deps.s3.presignUploadPart(storage, file.objectKey, uploadId, i + 1, UPLOAD_URL_TTL_SECONDS),
-      offset: i * partSize,
-      length: Math.min(partSize, file.size - i * partSize),
-    })),
-  )
-  return { uploadId, partSize, expiresAt, parts }
-}
-
-export async function completeTorrentFileUpload(
-  deps: TorrentFillDeps,
-  params: { taskId: string; downloaderId: string; fileIdx: number; input: CompleteTorrentFileUploadInput },
-  now = new Date(),
-): Promise<{ fileIdx: number; size: number }> {
-  const { torrent, file, storage } = await fillTarget(deps, params)
-  const { uploadId, parts } = params.input
-  if (uploadId) {
-    if (!parts?.length) throw badRequest('Uploaded file size does not match the torrent', 'TORRENT_FILE_PARTS_MISSING')
-    await deps.s3.completeMultipartUpload(storage, file.objectKey, uploadId, parts)
-  }
-  const head = await deps.s3.headObject(storage, file.objectKey).catch(() => null)
-  if (!head || head.size !== file.size) {
-    throw badRequest('Uploaded file size does not match the torrent', 'TORRENT_FILE_SIZE_MISMATCH')
-  }
-  await deps.torrents.markFileUploaded(torrent.id, file.fileIdx, now)
-  return { fileIdx: file.fileIdx, size: file.size }
-}
-
-// Abandons a multipart upload whose parts failed, so the bucket does not keep
-// its parts until a lifecycle rule (if any) removes them.
-export async function abortTorrentFileUpload(
-  deps: TorrentFillDeps,
-  params: { taskId: string; downloaderId: string; fileIdx: number; uploadId: string },
-): Promise<void> {
-  const { file, storage } = await fillTarget(deps, params)
-  await deps.s3.abortMultipartUpload(storage, file.objectKey, params.uploadId)
+  await deps.downloadTasks.setFields(task.id, {
+    infoHash: torrent.infoHash,
+    torrentId: torrent.id,
+    torrentRole: 'fill',
+    updatedAt: now,
+  })
 }
 
 // ─── After verification ──────────────────────────────────────────────────────

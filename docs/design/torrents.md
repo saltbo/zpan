@@ -194,8 +194,8 @@ follows the [upload layout](media-library.md#upload-layout) rules: movie, show,
 and season folders are reused by name, a sidecar already present wins, and a
 video whose name is taken is renamed (`X (1).mkv`).
 
-The first requester's task finishes through the same transfer, so its drive
-files are laid out exactly as everyone else's.
+The first requester's task needs no transfer: its drive files are the ones it
+uploaded, at the layout every later holder replays.
 
 **Organization quota** grows by the full size of the drive files a transfer
 writes, as for any file, and the reservation runs before the rows are written.
@@ -234,7 +234,8 @@ poison every later hit. Three checks close this:
    compared with the dictionary. Files are concatenated in order, because
    pieces span file boundaries.
 
-Checks 1 and 2 run when the `fill` task completes. Check 3 runs as a
+Check 1 runs when the downloader reports the dictionary, and check 2 when the
+`fill` task completes. Check 3 runs as a
 `torrent_verify` background job that streams pieces through
 `crypto.DigestStream` on Workers or `createHash` on Node and continues in
 follow-up messages over piece ranges, so no invocation hits CPU or subrequest
@@ -391,7 +392,8 @@ sidecars and an uploaded `layout.json` (#721, #726). None of it is in a release
 yet, and production holds no torrent data, so the rework changes tables without
 migrating rows.
 
-The rework, in order:
+The rework, in order; phases 1 and 2 are built (#737 and its successor), and
+phase 3 remains:
 
 1. **Rename and simplify the server.** Rename *torrent cache* to *Torrents*
    throughout: the entitlement `torrents`, `download_tasks.torrent_role`,

@@ -135,14 +135,16 @@ func (m *Manager) Capabilities() []string {
 	return out
 }
 
-// TorrentCacheCapability is reported in the heartbeat by a downloader that can
-// fill torrents (docs/design/torrents.md §4).
-const TorrentCacheCapability = "torrent-cache"
-
-// SupportsTorrentCache reports whether the engine that runs magnet tasks can
-// hand over their metadata.
-func (m *Manager) SupportsTorrentCache() bool {
-	downloader, err := m.selectDownloader(DownloadTask{Source: Source{Type: "magnet"}})
+// CanReportTorrent reports whether the engine that runs the task can hand
+// over the torrent's metadata, so the downloader can report its info
+// dictionary (docs/design/torrents.md §4).
+func (m *Manager) CanReportTorrent(task DownloadTask) bool {
+	switch task.Source.Type {
+	case "magnet", "torrent_url":
+	default:
+		return false
+	}
+	downloader, err := m.selectDownloader(task)
 	if err != nil {
 		return false
 	}

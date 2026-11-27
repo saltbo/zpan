@@ -190,7 +190,7 @@ describe('transferTorrent', () => {
     })
   })
 
-  it('replays every entry at its layout path, with media naming the files it wrote [spec: torrents/layout-replay]', async () => {
+  it('replays every entry at its layout path, with media naming the files it wrote', async () => {
     const { db, deps } = await createTestApp()
     await seedStorage(db)
     await seedWorkspace(db, 'org-a', 10_000)

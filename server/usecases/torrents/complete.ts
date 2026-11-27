@@ -1,60 +1,64 @@
-// Completing a cache download (docs/design/torrents.md §6, §7): check 2,
-// then piece verification (check 3) and the requester's instant transfer.
+// Completing a fill task (docs/design/torrents.md §7): check 2, then piece
+// verification (check 3). The task's drive files are the ones it uploaded, so
+// the requester needs no transfer; later holders replay its entries by layout
+// path once the torrent is verified.
 
-import type { CompleteTaskTorrentInput, TorrentVerifyJobRequest } from '@shared/schemas'
-import { type ActorIdentity, type BackgroundJobMessage, badRequest, conflict, type DownloadTaskRecord } from '../ports'
-import { completeByTransfer, fillingTask, fillingTorrent } from './fill'
+import type { TorrentVerifyJobRequest } from '@shared/schemas'
+import type { ActorIdentity, BackgroundJobMessage, DownloadTaskRecord, TorrentRecord } from '../ports'
+import { failJoinedTasks, fillingTorrent } from './fill'
 import { processTorrentVerify, type TorrentVerifyDeps } from './verify'
 
-// Check 2: the uploaded files' count, paths, and sizes match the dictionary
-// (padding files have no rows and are not uploaded). The torrent then verifies
-// on the background job queue, and the requester gets its files now. Where no
-// queue runs (background jobs disabled, as on Worker Previews), a sample of
-// pieces is verified within the request instead, so the torrent never stays
-// unverified.
-export async function completeTaskTorrent(
+// The fill task completed its upload. Sidecars whose upload never completed
+// are dropped, and check 2 requires every file of the torrent to have landed at
+// its size (padding files have no rows and are not uploaded). A torrent that
+// fails it is invalid and never reaches another workspace, while the task
+// still completes with the drive files it uploaded. Otherwise the torrent
+// verifies on the background job queue; where no queue runs (background jobs
+// disabled, as on Worker Previews), a sample of pieces is verified within the
+// request instead, so the torrent never stays unverified.
+export async function completeFillTask(
   deps: TorrentVerifyDeps,
-  params: { taskId: string; downloaderId: string; input: CompleteTaskTorrentInput; backgroundJobs: boolean },
+  params: { task: DownloadTaskRecord; backgroundJobs: boolean },
   now = new Date(),
 ): Promise<void> {
-  const task = await fillingTask(deps, params)
+  const { task } = params
   const torrent = await fillingTorrent(deps, task)
+  if (!torrent) return
+  await deps.torrents.deleteIncompleteSidecars(torrent.id)
   const files = await deps.torrents.listFiles(torrent.id)
-  const reported = new Map(params.input.files.map((file) => [file.path, file.size]))
-  const matches =
-    reported.size === params.input.files.length &&
-    reported.size === files.length &&
-    files.every((file) => reported.get(file.path) === file.size)
-  if (!matches) throw badRequest('Uploaded files do not match the torrent', 'TORRENT_STRUCTURE_MISMATCH')
-  if (files.some((file) => file.uploadedAt === null)) {
-    throw badRequest('Some torrent files are not uploaded yet', 'TORRENT_FILES_MISSING')
+  const complete = files.length === torrent.fileCount && files.every((file) => file.uploadedAt !== null)
+  if (!complete) {
+    if (await deps.torrents.transition(torrent.id, ['downloading'], 'invalid', { now })) {
+      await failJoinedTasks(deps, { ...torrent, status: 'invalid' }, now)
+    }
+    await deps.storageUsage.reconcileStorages([torrent.storageId])
+    return
   }
-  if (!(await deps.torrents.transition(torrent.id, ['downloading'], 'verifying', { now }))) {
-    throw conflict('Torrent is not being downloaded', 'TORRENT_NOT_DOWNLOADING')
-  }
-  // The cached objects landed in the storage: count them once.
+  if (!(await deps.torrents.transition(torrent.id, ['downloading'], 'verifying', { now }))) return
+  // The torrent's objects landed in the storage: count them once.
   await deps.storageUsage.reconcileStorages([torrent.storageId])
-  const message = await createVerifyJob(deps, torrent.id, torrent.name, task, !params.backgroundJobs)
+  const message = await createVerifyJob(deps, torrent, task, !params.backgroundJobs)
   if (params.backgroundJobs) await deps.jobQueue.dispatch(message)
   else await processTorrentVerify(deps, message)
-  const current = (await deps.torrents.get(torrent.id)) ?? { ...torrent, status: 'verifying' as const }
-  await completeByTransfer(deps, task, current, now, { source: true })
 }
 
 async function createVerifyJob(
   deps: TorrentVerifyDeps,
-  torrentId: string,
-  torrentName: string,
+  torrent: TorrentRecord,
   task: DownloadTaskRecord,
   sample: boolean,
 ): Promise<BackgroundJobMessage<TorrentVerifyJobRequest>> {
-  const request: TorrentVerifyJobRequest = { type: 'torrent_verify', torrentId, ...(sample ? { sample } : {}) }
+  const request: TorrentVerifyJobRequest = {
+    type: 'torrent_verify',
+    torrentId: torrent.id,
+    ...(sample ? { sample } : {}),
+  }
   const job = await deps.backgroundJobs.create({
     orgId: task.orgId,
     userId: task.createdByUserId,
     type: 'torrent_verify',
     targetFolder: task.targetFolder,
-    targetPath: torrentName,
+    targetPath: torrent.name,
     metadata: request,
     cancelable: false,
     retryable: true,

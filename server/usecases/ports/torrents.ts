@@ -50,6 +50,26 @@ export interface TorrentFileRecord extends TorrentEntryRecord {
   objectKey: string
 }
 
+export interface NewTorrentEntryInput {
+  id: string
+  torrentId: string
+  kind: 'sidecar' | 'folder'
+  layoutPath: string
+  size: number
+  mime: string
+  storageId: string
+  objectKey: string | null
+  media?: Record<string, unknown> | null
+}
+
+export interface TorrentEntryUpdate {
+  layoutPath?: string
+  size?: number
+  mime?: string
+  media?: Record<string, unknown> | null
+  uploadedAt?: Date | null
+}
+
 export interface CreateTorrentInput {
   infoHash: string
   storageId: string
@@ -105,7 +125,18 @@ export interface TorrentRepo {
   ): Promise<boolean>
   // Records an access on a torrent in one of the statuses; false otherwise.
   touch(id: string, statuses: readonly TorrentStatus[], now: Date): Promise<boolean>
-  markFileUploaded(torrentId: string, fileIdx: number, now: Date): Promise<void>
+  // The entry stored at an object of the storage, if any.
+  findEntryByObject(storageId: string, objectKey: string): Promise<TorrentEntryRecord | null>
+  // The folder entry at a layout path of the torrent, if any.
+  findFolderEntry(torrentId: string, layoutPath: string): Promise<TorrentEntryRecord | null>
+  // Records a sidecar or folder the filling download uploaded or created.
+  insertEntry(input: NewTorrentEntryInput): Promise<TorrentEntryRecord>
+  updateEntry(id: string, fields: TorrentEntryUpdate): Promise<void>
+  // Forgets what an earlier fill uploaded, before another download fills the
+  // torrent anew: sidecars and folders go, and files are no longer uploaded.
+  resetEntries(torrentId: string): Promise<void>
+  // Drops the sidecars whose upload never completed.
+  deleteIncompleteSidecars(torrentId: string): Promise<void>
   // The torrent's own tree: its file entries by file index.
   listFiles(torrentId: string): Promise<TorrentFileRecord[]>
   // Every entry of the torrent, files, sidecars, and folders, by layout path.

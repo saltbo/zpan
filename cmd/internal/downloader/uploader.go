@@ -41,7 +41,7 @@ func (u *Uploader) Upload(
 	result Result,
 ) (string, error) {
 	if result.Plan != nil {
-		id, notices, err := u.uploadPlan(ctx, log, task, *result.Plan)
+		id, notices, err := u.uploadPlan(ctx, log, task, *result.Plan, result.TorrentPaths)
 		var unusable *planUnusableError
 		if !errors.As(err, &unusable) {
 			for _, notice := range notices {
@@ -54,7 +54,7 @@ func (u *Uploader) Upload(
 	}
 	if !result.IsDir {
 		progress := &uploadProgress{totalBytes: result.Size, lastAt: time.Now()}
-		draft, err := u.uploadSingleFile(ctx, log, task, result.Path, result.Name, result.Size, task.TargetFolder(), client.OnConflictRename, progress)
+		draft, err := u.uploadSingleFile(ctx, log, task, result.Path, result.Name, result.Size, task.TargetFolder(), client.OnConflictRename, torrentPathOf(result.TorrentPaths, result.Path), progress)
 		return draft.ID, err
 	}
 
@@ -94,7 +94,7 @@ func (u *Uploader) Upload(
 			}
 			continue
 		}
-		live, err := u.uploadSingleFile(ctx, log, task, entry.path, entry.name, entry.size, parent, client.OnConflictRename, progress)
+		live, err := u.uploadSingleFile(ctx, log, task, entry.path, entry.name, entry.size, parent, client.OnConflictRename, torrentPathOf(result.TorrentPaths, entry.path), progress)
 		if err != nil {
 			return "", err
 		}
@@ -113,10 +113,11 @@ func (u *Uploader) uploadSingleFile(
 	size int64,
 	parent string,
 	onConflict client.OnConflict,
+	torrentPath string,
 	progress *uploadProgress,
 ) (client.ObjectDraft, error) {
-	log.Info("creating remote object", "name", name, "size", size, "target_folder", parent)
-	draft, err := u.createObject(ctx, task.UploadToken(), name, size, parent, onConflict)
+	log.Info("creating remote object", "name", name, "size", size, "target_folder", parent, "torrent_path", torrentPath)
+	draft, err := u.createObject(ctx, task.UploadToken(), name, size, parent, onConflict, torrentPath)
 	if err != nil {
 		return client.ObjectDraft{}, fmt.Errorf("create remote object: %w", err)
 	}
@@ -170,9 +171,7 @@ func (u *Uploader) uploadObjectSlices(
 		if remaining := size - offset; remaining < length {
 			length = remaining
 		}
-		etag, err := uploadFilePart(ctx, part.URL, part.Headers, file, offset, length, func(written int64) error {
-			return u.reportUploadProgress(ctx, log, task, progress, written)
-		})
+		etag, err := u.putPart(ctx, log, task, file, part, offset, length, progress)
 		if err != nil {
 			return client.ObjectDraft{}, fmt.Errorf("upload part %d: %w", partNumber, err)
 		}
@@ -187,6 +186,48 @@ func (u *Uploader) uploadObjectSlices(
 	}
 	completed = true
 	return live, nil
+}
+
+// Each presigned part PUT is tried this many times, waiting partRetryDelay,
+// doubled each time, between attempts.
+const partAttempts = 3
+
+var partRetryDelay = time.Second
+
+// putPart PUTs one part, retrying a failed attempt with backoff. The bytes of a
+// failed attempt are taken back out of the upload progress.
+func (u *Uploader) putPart(
+	ctx context.Context,
+	log *slog.Logger,
+	task client.DownloadTask,
+	file *os.File,
+	part client.PresignedObjectUploadPart,
+	offset int64,
+	length int64,
+	progress *uploadProgress,
+) (string, error) {
+	delay := partRetryDelay
+	for attempt := 1; ; attempt++ {
+		var written int64
+		etag, err := uploadFilePart(ctx, part.URL, part.Headers, file, offset, length, func(n int64) error {
+			written += n
+			return u.reportUploadProgress(ctx, log, task, progress, n)
+		})
+		if err == nil {
+			return etag, nil
+		}
+		progress.uploaded -= written
+		if attempt >= partAttempts || ctx.Err() != nil {
+			return "", err
+		}
+		log.Warn("retrying part upload", "part", part.PartNumber, "attempt", attempt, "error", err)
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(delay):
+		}
+		delay *= 2
+	}
 }
 
 func (u *Uploader) reportUploadProgress(
@@ -261,11 +302,11 @@ func (u *Uploader) createFolder(ctx context.Context, token string, name string, 
 	return draft, err
 }
 
-func (u *Uploader) createObject(ctx context.Context, token string, name string, size int64, parent string, onConflict client.OnConflict) (client.ObjectDraft, error) {
+func (u *Uploader) createObject(ctx context.Context, token string, name string, size int64, parent string, onConflict client.OnConflict, torrentPath string) (client.ObjectDraft, error) {
 	var draft client.ObjectDraft
 	err := callAPI(ctx, nil, "create object", func(ctx context.Context) error {
 		var err error
-		draft, err = u.api.CreateObject(ctx, token, name, size, parent, onConflict)
+		draft, err = u.api.CreateObject(ctx, token, name, size, parent, onConflict, torrentPath)
 		return err
 	})
 	return draft, err
@@ -363,6 +404,15 @@ func collectDirectoryEntries(root string) ([]directoryEntry, error) {
 		return entries[i].relativePath < entries[j].relativePath
 	})
 	return entries, err
+}
+
+// torrentPathOf is the path inside the reported torrent of a local file, or
+// empty for a file that is not one of the torrent's.
+func torrentPathOf(paths map[string]string, localPath string) string {
+	if len(paths) == 0 {
+		return ""
+	}
+	return paths[filepath.Clean(localPath)]
 }
 
 func joinObjectPath(parent string, name string) string {

@@ -42,6 +42,7 @@ import {
   type StorageRecord,
   type StorageRepo,
   type StorageUsageRepo,
+  type TorrentRepo,
 } from './ports'
 import { confirmDownloadTraffic, meterDownloadTraffic } from './store/traffic-metering'
 
@@ -108,6 +109,7 @@ function makeDeps(
     objectUploadSessions?: Partial<ObjectUploadSessionRepo>
     downloaders?: Partial<DownloaderRepo>
     downloadTasks?: Partial<DownloadTaskRepo>
+    torrents?: Partial<TorrentRepo>
   } = {},
 ) {
   const record = vi.fn(async () => {})
@@ -193,6 +195,7 @@ function makeDeps(
       ...overrides.objectUploadSessions,
     } as unknown as ObjectUploadSessionRepo,
     downloaders: { ...overrides.downloaders } as unknown as DownloaderRepo,
+    torrents: { findEntryByObject: async () => null, ...overrides.torrents } as unknown as TorrentRepo,
     downloadTasks: {
       findRecord: async () =>
         ({ id: 't1', assignedDownloaderId: 'd1', status: 'uploading' }) as unknown as DownloadTaskRecord,

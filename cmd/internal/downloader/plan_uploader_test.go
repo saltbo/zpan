@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,12 +44,22 @@ type fakeDrive struct {
 	// raceComplete makes the completion of an upload of this name answer 409
 	// after another task's upload of the same name went live.
 	raceComplete string
+	// reported holds the info dictionaries reported on the task; a report
+	// answers reportErr, or the task in reportState ("assigned" when empty).
+	reported    [][]byte
+	reportState string
+	reportErr   error
+	// failPuts presigned PUTs answer 500 before they succeed; -1 fails all.
+	failPuts int
+	puts     int
+	aborted  []string
 }
 
 type driveEntry struct {
 	id, parent, name string
 	folder           bool
 	content          string
+	torrentPath      string
 }
 
 func newFakeDrive(t *testing.T) *fakeDrive {
@@ -56,6 +67,15 @@ func newFakeDrive(t *testing.T) *fakeDrive {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		data, _ := io.ReadAll(r.Body)
 		d.mu.Lock()
+		d.puts++
+		if d.failPuts != 0 {
+			if d.failPuts > 0 {
+				d.failPuts--
+			}
+			d.mu.Unlock()
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		if draft := d.drafts[strings.TrimPrefix(r.URL.Path, "/")]; draft != nil {
 			draft.content = string(data)
 		}
@@ -115,7 +135,7 @@ func (d *fakeDrive) CreateFolder(_ context.Context, _ string, name, parent strin
 	return client.ObjectDraft{ID: entry.id, Name: entry.name}, nil
 }
 
-func (d *fakeDrive) CreateObject(_ context.Context, _ string, name string, _ int64, parent string, onConflict client.OnConflict) (client.ObjectDraft, error) {
+func (d *fakeDrive) CreateObject(_ context.Context, _ string, name string, _ int64, parent string, onConflict client.OnConflict, torrentPath string) (client.ObjectDraft, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if _, taken := d.entries[d.key(parent, name)]; taken {
@@ -126,7 +146,7 @@ func (d *fakeDrive) CreateObject(_ context.Context, _ string, name string, _ int
 	}
 	d.nextID++
 	id := fmt.Sprintf("obj-%d", d.nextID)
-	d.drafts[id] = &driveEntry{id: id, parent: parent, name: name}
+	d.drafts[id] = &driveEntry{id: id, parent: parent, name: name, torrentPath: torrentPath}
 	return client.ObjectDraft{ID: id, Name: name, Upload: &client.ObjectUploadInstructions{
 		SessionID: "session-" + id,
 		PartSize:  1 << 20,
@@ -149,7 +169,11 @@ func (d *fakeDrive) CompleteObjectUpload(_ context.Context, _ string, id string,
 	return client.ObjectDraft{ID: draft.id, Name: draft.name}, nil
 }
 
-func (d *fakeDrive) AbortObjectUploadSession(context.Context, string, string, string) error {
+func (d *fakeDrive) AbortObjectUploadSession(_ context.Context, _ string, id string, _ string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.aborted = append(d.aborted, id)
+	delete(d.drafts, id)
 	return nil
 }
 
@@ -199,6 +223,21 @@ func (d *fakeDrive) UpdateTask(_ context.Context, id string, patch client.TaskPa
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.patches = append(d.patches, patch)
+	if patch.TorrentInfo != "" {
+		if d.reportErr != nil {
+			return client.DownloadTask{}, d.reportErr
+		}
+		info, err := base64.StdEncoding.DecodeString(patch.TorrentInfo)
+		if err != nil {
+			d.t.Fatalf("torrentInfo is not base64: %v", err)
+		}
+		d.reported = append(d.reported, info)
+		state := d.reportState
+		if state == "" {
+			state = "assigned"
+		}
+		return clientTaskWithUploadToken(id, state), nil
+	}
 	return clientTaskWithUploadToken(id, "uploading"), nil
 }
 

@@ -23,7 +23,7 @@ import { generateId } from '../../../shared/ids'
 import { fallbackActorAttribution } from '../../domain/actor-attribution'
 import { parseDownloadTaskEvents } from '../../domain/download-task-events'
 import { hasFeature } from '../../domain/licensing'
-import type { Platform } from '../../platform/interface'
+import { backgroundJobsEnabled, type Platform } from '../../platform/interface'
 import { resolveActorAttributions } from '../audit-actors'
 import { purgeCanceledTaskFiles } from '../object'
 import type {
@@ -49,15 +49,16 @@ import type {
 } from '../ports'
 import { actorIdentityKey, DownloadError, featureBlocked, unauthorized } from '../ports'
 import { loadBindingState } from '../site/licensing'
+import { completeFillTask } from '../torrents/complete'
 import {
   isTorrentSource,
+  reportTaskTorrentInfo,
   serveTaskFromTorrents,
   settleJoinedTasks,
   submittedInfoHash,
-  TORRENT_FILL_CAPABILITY,
-  type TorrentFillDeps,
   torrentsEnabled,
 } from '../torrents/fill'
+import type { TorrentVerifyDeps } from '../torrents/verify'
 import { ensureDownloadFolderPath } from './download-folders'
 import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from './remote-download-usage'
 
@@ -82,7 +83,7 @@ export type DownloadsDeps = {
   matter: MatterRepo
   storages: StorageRepo
   share: ShareRepo
-} & Omit<TorrentFillDeps, 'downloadTasks' | 'licenseBinding' | 'licenseCloudBaseUrl' | 'matter' | 'storages'>
+} & Omit<TorrentVerifyDeps, 'downloadTasks' | 'licenseBinding' | 'licenseCloudBaseUrl' | 'matter' | 'storages'>
 
 const DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES = 100 * 1024 * 1024
 const UPLOAD_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
@@ -471,6 +472,13 @@ export async function updateDownloadTask(
   if (task.assignedDownloaderId !== actor.downloaderId) throw new DownloadError('forbidden')
 
   const now = new Date()
+  if (input.torrentInfo !== undefined) {
+    if (!['assigned', 'downloading', 'uploading'].includes(task.status)) {
+      throw new DownloadError('invalid_state', `Task is ${task.status}`)
+    }
+    await reportTaskTorrentInfo(deps, { task, downloaderId: actor.downloaderId, info: input.torrentInfo }, now)
+    return deps.downloadTasks.get(task.orgId, id)
+  }
   if (task.status === 'pausing' && input.status === 'paused') {
     await deps.downloadTasks.setFields(id, {
       status: 'paused',
@@ -553,6 +561,11 @@ export async function updateDownloadTask(
         throw error
       }
     }
+  }
+
+  // A task filling a torrent completes it: check 2 and piece verification.
+  if (status === 'completed' && task.status !== 'completed' && task.torrentRole === 'fill') {
+    await completeFillTask(deps, { task, backgroundJobs: backgroundJobsEnabled(platform) }, now)
   }
 
   const nextFinishedAt =
@@ -738,17 +751,15 @@ async function claimQueuedTasksForDownloader(
   for (const task of tasks) {
     if (remaining <= 0) break
     if (!canDownloaderRunSource(params.capabilities, task.sourceType)) continue
-    let torrentRole: 'fill' | null | undefined
     if (isTorrentSource(task.sourceType)) {
       cacheEnabled ??= await torrentsEnabled(deps)
       // The torrent may have reached the instance, or started downloading, since submit.
       if (cacheEnabled && (await serveTaskFromTorrents(deps, task, params.now)) !== 'miss') continue
-      // Only a downloader reporting the capability fills a torrent;
-      // every other one uploads into the drive as before.
-      if (cacheEnabled && params.capabilities.includes(TORRENT_FILL_CAPABILITY)) torrentRole = 'fill'
-      else if (task.torrentRole) torrentRole = null
     }
-    const options = torrentRole === undefined ? undefined : { torrentRole }
+    // A task fills a torrent only once its downloader reports the info
+    // dictionary (docs/design/torrents.md §4); a fresh assignment starts without
+    // a role, and a downloader that never reports one uploads into the drive.
+    const options = task.torrentRole ? { torrentRole: null } : undefined
     if (await deps.downloadTasks.claimQueued(task.id, params.id, params.now, options)) {
       remaining -= 1
     }
@@ -1151,7 +1162,6 @@ function downloadTaskFromRecord(row: DownloadTaskRecord): DownloadTask {
             downloaderId: row.assignedDownloaderId,
             assignedAt: row.assignedAt?.toISOString() ?? null,
             executor: fallbackActorAttribution({ type: 'device', ref: row.assignedDownloaderId, issuer: null }),
-            ...(row.torrentRole === 'fill' ? { torrentCache: true as const } : {}),
           }
         : null,
       progress: runtime?.progress ?? {

@@ -961,7 +961,7 @@ func (a *happyPathAPI) CreateFolder(context.Context, string, string, string, cli
 	return client.ObjectDraft{}, errors.New("unexpected folder creation")
 }
 
-func (a *happyPathAPI) CreateObject(context.Context, string, string, int64, string, client.OnConflict) (client.ObjectDraft, error) {
+func (a *happyPathAPI) CreateObject(context.Context, string, string, int64, string, client.OnConflict, string) (client.ObjectDraft, error) {
 	return a.draft, nil
 }
 
