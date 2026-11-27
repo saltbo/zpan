@@ -6,7 +6,7 @@
       "type": "archive",
       "description": "Use ZPan through Realmroot to browse private workspaces; list, inspect, upload, download, rename, move, copy, delete, restore, or purge files and folders; create or revoke shares; inspect quota and storage usage; and handle workspace-scoped access or upload-capacity workflows. Use whenever an Agent needs to read or operate a user's private ZPan storage with controller-approved least-privilege access.",
       "url": "/.well-known/agent-skills/use-zpan.tar.gz",
-      "digest": "sha256:0c3a46eaa73ff9488fa6de137b0d0082ae8e43d39253c676def0aba41d5fce01"
+      "digest": "sha256:00968ca32a2462152aed2e7190359bae39d6d374aae838a51c649949bcd91d24"
     }
   ]
 }

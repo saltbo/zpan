@@ -1297,21 +1297,6 @@ func (e BrandingThemePreset) Valid() bool {
 	}
 }
 
-// Defines values for CapacityRequiredError.
-const (
-	CAPACITYREQUIRED CapacityRequiredError = "CAPACITY_REQUIRED"
-)
-
-// Valid indicates whether the value is a known member of the CapacityRequiredError enum.
-func (e CapacityRequiredError) Valid() bool {
-	switch e {
-	case CAPACITYREQUIRED:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CaptchaProvider.
 const (
 	Captchafox          CaptchaProvider = "captchafox"
@@ -5698,7 +5683,12 @@ type BrandingThemeValues struct {
 
 // CapacityRequired defines model for CapacityRequired.
 type CapacityRequired struct {
-	Error  CapacityRequiredError `json:"error"`
+	Error struct {
+		Code    int          `json:"code"`
+		Details *[]ErrorInfo `json:"details,omitempty"`
+		Message string       `json:"message"`
+		Status  string       `json:"status"`
+	} `json:"error"`
 	Offers []struct {
 		Amount        int     `json:"amount"`
 		Currency      string  `json:"currency"`
@@ -5717,9 +5707,6 @@ type CapacityRequired struct {
 	RequestedBytes int    `json:"requestedBytes"`
 	UsedBytes      int    `json:"usedBytes"`
 }
-
-// CapacityRequiredError defines model for CapacityRequired.Error.
-type CapacityRequiredError string
 
 // CaptchaProvider defines model for CaptchaProvider.
 type CaptchaProvider string

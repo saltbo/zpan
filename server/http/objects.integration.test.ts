@@ -2639,7 +2639,12 @@ describe('Objects API — quota enforcement', () => {
 
       expect(res.status).toBe(402)
       await expect(res.json()).resolves.toMatchObject({
-        error: 'CAPACITY_REQUIRED',
+        error: {
+          code: 402,
+          message: 'This workspace does not have enough storage for this file. Upgrade its storage to continue.',
+          status: 'RESOURCE_EXHAUSTED',
+          details: [{ reason: 'CAPACITY_REQUIRED', domain: 'zpan.dev' }],
+        },
         requestHash: expect.stringMatching(/^[0-9a-f]{64}$/),
         requestedBytes: 11,
         usedBytes: 90,
@@ -2655,6 +2660,32 @@ describe('Objects API — quota enforcement', () => {
           },
         ],
       })
+    })
+
+    it('answers the capacity offer in the request language [spec: objects/create-capacity-offer]', async () => {
+      const { app, db } = await createTestApp()
+      await seedProLicense(db)
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      await setOrgQuota(db, orgId, 0, 90)
+      await addStorageEntitlement(db, orgId, 100)
+      stubCapacityStoreWithOffer()
+
+      const res = await createDraftResponse(
+        app,
+        { ...headers, 'Accept-Language': 'zh-CN' },
+        { name: 'upgrade.txt', size: 11 },
+      )
+
+      expect(res.status).toBe(402)
+      const body = (await res.json()) as {
+        error: { message: string; details: { reason: string }[] }
+        offers: unknown[]
+      }
+      expect(body.error.message).toBe('此空间的存储空间不足，无法上传该文件。升级存储后即可继续。')
+      expect(body.error.details[0].reason).toBe('CAPACITY_REQUIRED')
+      expect(body.offers).toHaveLength(1)
     })
 
     it('rejects upload preparation when no capacity offer can satisfy the request [spec: objects/create-capacity-unavailable]', async () => {

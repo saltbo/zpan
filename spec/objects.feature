@@ -76,7 +76,16 @@ Feature: Objects
   Scenario: Creating a file over quota offers an immediate capacity upgrade
     Given a file would exceed the workspace quota and a larger published plan is available
     When the file object is created
-    Then the API responds 402 with the eligible capacity offer and a purchase request hash
+    Then the API responds 402 with the standard error body and reason CAPACITY_REQUIRED
+    And the body still carries the eligible capacity offer and a purchase request hash
+    And the error message is in the request's language, not the reason code
+
+  @objects/create-capacity-message @web
+  Scenario: An upload over quota explains itself when a capacity upgrade exists
+    Given a workspace over quota on a site whose store offers a larger plan
+    When a user uploads a file there with the UI in English or 中文
+    Then the upload panel says in that language that the workspace lacks storage
+    And it never shows the reason code
 
   @objects/create-capacity-unavailable @api
   Scenario: Creating a file over quota fails when no immediate capacity upgrade exists

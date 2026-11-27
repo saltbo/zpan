@@ -8,6 +8,7 @@ import {
   createMatterSchema,
   cursorPageQuerySchema,
   cursorPageSchema,
+  errorResponseSchema,
   mediaMetadataSchema,
   objectTorrentSchema,
   objectUploadInstructionsSchema,
@@ -19,7 +20,9 @@ import {
 } from '@shared/schemas'
 import type { Context } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
+import { buildErrorBody } from '../lib/http-errors'
 import { transferAuditActor } from '../middleware/audit-transfers'
+import { requestLanguage } from '../middleware/error-handler'
 import { boundWorkspaceOrgId, type Env } from '../middleware/platform'
 import { setTaskMediaMetadata } from '../usecases/media'
 import {
@@ -42,7 +45,16 @@ import {
   trashObject,
   updateObject,
 } from '../usecases/object'
-import { badRequest, forbidden, type Matter, type MatterListItem, quotaExceeded, unauthorized } from '../usecases/ports'
+import {
+  badRequest,
+  type ErrorText,
+  forbidden,
+  localizeMessage,
+  type Matter,
+  type MatterListItem,
+  quotaExceeded,
+  unauthorized,
+} from '../usecases/ports'
 import { describeCapacityRequirement } from '../usecases/store/store'
 import { getObjectTorrent } from '../usecases/torrent-cache/object-torrent'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
@@ -128,9 +140,13 @@ const objectPageSchema = cursorPageSchema(objectListItemSchema, 'ObjectPage')
 // instructions: the server-decided part size and the presigned URLs to PUT each
 // slice to (1 URL = single PutObject, N URLs = multipart).
 const objectCreateResultSchema = matterSchema.extend({ upload: objectUploadInstructionsSchema.optional() })
-const capacityRequiredSchema = z
-  .object({
-    error: z.literal('CAPACITY_REQUIRED'),
+const CAPACITY_REQUIRED_MESSAGE: ErrorText =
+  'This workspace does not have enough storage for this file. Upgrade its storage to continue.'
+
+// 402 is the standard AIP-193 error (reason CAPACITY_REQUIRED, message in the
+// request's language) plus the offer a client needs to buy capacity and retry.
+const capacityRequiredSchema = errorResponseSchema
+  .extend({
     requestHash: z.string(),
     requestedBytes: z.number().int().nonnegative(),
     usedBytes: z.number().int().nonnegative(),
@@ -616,7 +632,10 @@ const objects = app
       const requestHash = await createCapacityRequestHash(orgId, input)
       return c.json(
         {
-          error: 'CAPACITY_REQUIRED' as const,
+          ...buildErrorBody(402, localizeMessage(CAPACITY_REQUIRED_MESSAGE, requestLanguage(c.req.raw)), {
+            reason: 'CAPACITY_REQUIRED',
+            status: 'RESOURCE_EXHAUSTED',
+          }),
           requestHash,
           requestedBytes: capacity.value.requestedBytes,
           usedBytes: capacity.value.usedBytes,
