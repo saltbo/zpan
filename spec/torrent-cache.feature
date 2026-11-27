@@ -80,3 +80,21 @@ Feature: Torrent cache
     Given a downloader that does not report torrent cache support
     When a magnet task is assigned to it
     Then it uploads into the drive exactly as before
+
+  @torrent-cache/admin-list @api
+  Scenario: Admins list the cached torrents
+    Given cached torrents with different holders and states
+    When an instance admin lists torrents
+    Then each shows its name, size, holders, status, verification and last access, page by page
+
+  @torrent-cache/admin-evict @api
+  Scenario: Admins evict a torrent nobody holds
+    Given one cached torrent nobody holds and one that is held
+    When an admin evicts each
+    Then the unheld one is deleted and evicting the held one is refused
+
+  @torrent-cache/admin-settings @web
+  Scenario: Admins set how long unheld torrents stay cached
+    Given the Torrents admin page
+    When an admin changes the retention and the capacity
+    Then the new values are saved and shown after a reload

@@ -6,6 +6,8 @@ import type {
   AdminSiteInvitationsRoute,
   AdminStatsRoute,
   AdminTeamsRoute,
+  AdminTorrentCacheSettingsRoute,
+  AdminTorrentsRoute,
   AnnouncementsRoute,
   AuthedSharesRoute,
   AuthProvidersRoute,
@@ -96,6 +98,8 @@ export const licensingApi = hc<LicensingRoute>('/api/site/licensing', opts)
 export const licensingAdminApi = hc<LicensingAdminRoute>('/api/site/licensing', opts)
 export const brandingAdminApi = hc<BrandingAdminRoute>('/api/site/settings/branding', opts)
 export const adminAuditApi = hc<AdminAuditRoute>('/api/site/audit-events', opts)
+export const adminTorrentsApi = hc<AdminTorrentsRoute>('/api/site/torrents', opts)
+export const adminTorrentCacheSettingsApi = hc<AdminTorrentCacheSettingsRoute>('/api/site/settings/torrent-cache', opts)
 export const adminOverviewApi = hc<AdminOverviewRoute>('/api/site/analytics', opts)
 export const siteStatsApi = hc<AdminStatsRoute>('/api/site/analytics', opts)
 export const publicSiteInvitations = hc<PublicSiteInvitationsRoute>('/api/site/invitations', opts)

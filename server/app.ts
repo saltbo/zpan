@@ -46,6 +46,7 @@ import { licensing, licensingAdmin } from './http/site/licensing'
 import { siteSettings } from './http/site/settings'
 import storages from './http/site/storages'
 import system from './http/site/system'
+import { adminTorrentCacheSettings, adminTorrents } from './http/site/torrents'
 import storageUsage from './http/storage-usage'
 import { cloudStore, cloudStoreWebhooks } from './http/store'
 import { adminTeams, publicTeams, teams } from './http/teams'
@@ -398,6 +399,8 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/site/licensing', licensingAdmin)
   app.route('/api/site/settings/branding', brandingAdmin)
   app.route('/api/site/audit-events', adminAudit)
+  app.route('/api/site/torrents', adminTorrents)
+  app.route('/api/site/settings/torrent-cache', adminTorrentCacheSettings)
   app.route('/api/site/analytics', adminOverview)
   app.route('/api/site/analytics', adminStats)
   app.route('/api/downloads/downloaders', downloaders)
@@ -523,6 +526,8 @@ export type LicensingRoute = typeof licensing
 export type LicensingAdminRoute = typeof licensingAdmin
 export type BrandingAdminRoute = typeof brandingAdmin
 export type AdminAuditRoute = typeof adminAudit
+export type AdminTorrentsRoute = typeof adminTorrents
+export type AdminTorrentCacheSettingsRoute = typeof adminTorrentCacheSettings
 export type AdminOverviewRoute = typeof adminOverview
 export type AdminStatsRoute = typeof adminStats
 export type StorageUsageRoute = typeof storageUsage

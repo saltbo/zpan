@@ -55,6 +55,13 @@ export const OAUTH_GRANT_SCOPE_METADATA = {
   [Scope.ANNOUNCEMENTS_UPDATE]: scope('Update announcements', '更新公告'),
   [Scope.ANNOUNCEMENTS_DELETE]: scope('Delete announcements', '删除公告'),
   [Scope.AUDIT_EVENTS_READ]: scope('Read audit events', '查看审计事件'),
+  [Scope.TORRENTS_READ]: scope('List cached torrents', '查看缓存的种子'),
+  [Scope.TORRENTS_DELETE]: scope('Evict cached torrents', '清除缓存的种子'),
+  [Scope.TORRENT_CACHE_SETTINGS_READ]: scope('Read torrent cache retention and capacity', '查看种子缓存保留期和容量'),
+  [Scope.TORRENT_CACHE_SETTINGS_UPDATE]: scope(
+    'Change torrent cache retention and capacity',
+    '更改种子缓存保留期和容量',
+  ),
   [Scope.AUTH_PROVIDERS_READ]: scope('List and inspect authentication providers', '列出和查看认证提供商'),
   [Scope.AUTH_PROVIDERS_UPDATE]: scope('Update authentication providers', '更新认证提供商'),
   [Scope.AUTH_PROVIDERS_DELETE]: scope('Delete authentication providers', '删除认证提供商'),

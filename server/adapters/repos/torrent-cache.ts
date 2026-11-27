@@ -1,16 +1,18 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { generateId } from '../../../shared/ids'
-import { matters, torrentCacheConfigs, torrentFiles, torrents } from '../../db/schema'
+import { downloaders, matters, torrentCacheConfigs, torrentFiles, torrents } from '../../db/schema'
 import { executeWriteTransaction } from '../../db/transaction'
 import { torrentFileObjectKey } from '../../domain/torrent-cache'
 import type { Database } from '../../platform/interface'
 import type {
+  AdminTorrentRecord,
   EvictionCandidate,
   TorrentCacheConfigRepo,
   TorrentFileRecord,
   TorrentRecord,
   TorrentRepo,
 } from '../../usecases/ports'
+import { afterCreatedAtId, keysetPage } from './keyset'
 
 const EVICTABLE_STATUSES = ['ready', 'invalid'] as const
 
@@ -18,6 +20,15 @@ const EVICTABLE_STATUSES = ['ready', 'invalid'] as const
 // any status including trash. Uses the (storage_id, object) index on matters.
 const referenced = sql`EXISTS (
   SELECT 1 FROM ${matters}
+  WHERE ${matters.storageId} = ${torrents.storageId}
+    AND ${matters.object} >= 'bt/' || ${torrents.infoHash} || '/'
+    AND ${matters.object} < 'bt/' || ${torrents.infoHash} || '0'
+    AND ${matters.purgedAt} IS NULL
+)`
+
+// Drive files, live or in trash, that reference one of the torrent's objects.
+const holderCount = sql<number>`(
+  SELECT COUNT(*) FROM ${matters}
   WHERE ${matters.storageId} = ${torrents.storageId}
     AND ${matters.object} >= 'bt/' || ${torrents.infoHash} || '/'
     AND ${matters.object} < 'bt/' || ${torrents.infoHash} || '0'
@@ -178,6 +189,31 @@ export function createTorrentRepo(db: Database): TorrentRepo {
         db.delete(torrentFiles).where(eq(torrentFiles.torrentId, id)),
         db.delete(torrents).where(eq(torrents.id, id)),
       ])
+    },
+
+    async listForAdmin(opts) {
+      const found = await db
+        .select({ torrent: torrents, holders: holderCount, sourceDownloaderName: downloaders.name })
+        .from(torrents)
+        .leftJoin(downloaders, eq(downloaders.id, torrents.sourceDownloaderId))
+        .where(afterCreatedAtId(torrents.createdAt, torrents.id, opts.after))
+        .orderBy(desc(torrents.createdAt), desc(torrents.id))
+        .limit(opts.pageSize + 1)
+      const { rows, next } = keysetPage(found, opts.pageSize, (row) => ({
+        createdAt: row.torrent.createdAt,
+        id: row.torrent.id,
+      }))
+      const items: AdminTorrentRecord[] = rows.map((row) => ({
+        ...toTorrent(row.torrent),
+        holders: Number(row.holders),
+        sourceDownloaderName: row.sourceDownloaderName ?? null,
+      }))
+      return { items, nextBoundary: next }
+    },
+
+    async countHolders(id) {
+      const rows = await db.select({ holders: holderCount }).from(torrents).where(eq(torrents.id, id)).limit(1)
+      return Number(rows[0]?.holders ?? 0)
     },
   }
   return repo

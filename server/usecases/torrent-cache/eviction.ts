@@ -11,6 +11,7 @@ import {
   torrentLayoutObjectKey,
 } from '../../domain/torrent-cache'
 import type { Deps } from '../deps'
+import type { EvictionCandidate } from '../ports'
 
 export const TORRENT_CACHE_OPTION_KEYS = {
   retentionDays: 'torrent_cache_retention_days',
@@ -54,19 +55,28 @@ export async function evictTorrentCache(deps: TorrentEvictionDeps, now = new Dat
   const touchedStorages = new Set<string>()
   for (const candidate of selected) {
     if (!(await deps.torrents.claimForEviction(candidate))) continue
-    const storage = await deps.storages.get(candidate.storageId)
-    if (storage) {
-      const files = await deps.torrents.listFiles(candidate.id)
-      await deps.s3.evictTorrentCacheObjects(storage, [
-        ...files.map((file) => file.objectKey),
-        torrentInfoObjectKey(candidate.infoHash),
-        torrentLayoutObjectKey(candidate.infoHash),
-      ])
-    }
-    await deps.torrents.delete(candidate.id)
+    await deleteClaimedTorrent(deps, candidate)
     touchedStorages.add(candidate.storageId)
     evicted++
   }
   if (touchedStorages.size > 0) await deps.storageUsage.reconcileStorages(touchedStorages)
   return evicted
+}
+
+// Deletes a torrent already claimed for eviction: its objects first, then its
+// rows. The caller reconciles the storage's usage afterwards.
+export async function deleteClaimedTorrent(
+  deps: Pick<Deps, 'torrents' | 'storages' | 's3'>,
+  candidate: Pick<EvictionCandidate, 'id' | 'infoHash' | 'storageId'>,
+): Promise<void> {
+  const storage = await deps.storages.get(candidate.storageId)
+  if (storage) {
+    const files = await deps.torrents.listFiles(candidate.id)
+    await deps.s3.evictTorrentCacheObjects(storage, [
+      ...files.map((file) => file.objectKey),
+      torrentInfoObjectKey(candidate.infoHash),
+      torrentLayoutObjectKey(candidate.infoHash),
+    ])
+  }
+  await deps.torrents.delete(candidate.id)
 }
