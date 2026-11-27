@@ -820,3 +820,24 @@ export const torrentCacheConfigs = sqliteTable('torrent_cache_configs', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+// stremthru_links — the playback link last issued to a user for a held file, so a
+// regenerated link is the same one (and charged once) while it has time left
+export const stremthruLinks = sqliteTable(
+  'stremthru_links',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    orgId: text('org_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    matterId: text('matter_id').notNull(),
+    url: text('url').notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('stremthru_links_user_matter_uniq').on(t.userId, t.matterId),
+    index('stremthru_links_expires_idx').on(t.expiresAt),
+  ],
+)

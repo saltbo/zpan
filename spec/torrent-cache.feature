@@ -98,3 +98,39 @@ Feature: Torrent cache
     Given the Torrents admin page
     When an admin changes the retention and the capacity
     Then the new values are saved and shown after a reload
+
+  @torrent-cache/stremthru-check @api
+  Scenario: Addons see which torrents are cached
+    Given a StremThru key and a ready cached torrent
+    When an addon checks that torrent's infoHash and an unknown one
+    Then the cached torrent is reported cached with its files and the other is not
+
+  @torrent-cache/stremthru-add-and-play @api
+  Scenario: Adding a cached torrent through StremThru transfers it and yields a playable link
+    Given a StremThru key and a ready cached torrent
+    When an addon adds its magnet and generates a link for one of its files
+    Then the files appear in the workspace's torrent folder and the link downloads that file
+
+  @torrent-cache/stremthru-link-metered-once @api
+  Scenario: Regenerating a link within its lifetime is charged once
+    Given a generated playback link
+    When the addon generates it again an hour later
+    Then the same link is returned and traffic is charged once
+
+  @torrent-cache/stremthru-remove-trashes @api
+  Scenario: Removing a torrent through StremThru moves its files to the trash
+    Given a torrent added through StremThru
+    When the addon removes it
+    Then its files are in the workspace trash and the cached torrent remains
+
+  @torrent-cache/stremthru-auth @api
+  Scenario: StremThru requests need a valid key and a licensed instance
+    Given a request without a key, one with a revoked key, and one on an unlicensed instance
+    When each calls the StremThru API
+    Then they get the unauthorized, unauthorized and payment-required errors
+
+  @torrent-cache/stremthru-settings @web
+  Scenario: A workspace shows how to connect a StremThru addon
+    Given a licensed workspace
+    When an admin opens its StremThru settings and creates a StremThru key
+    Then they see the torrent folder, the address, and the MediaFusion token for the new key

@@ -25,6 +25,7 @@ import {
   apiKeyMetadata,
   IHOST_API_KEY_PERMISSIONS,
   REMOTE_DOWNLOAD_API_KEY_PERMISSIONS,
+  STREMTHRU_API_KEY_PERMISSIONS,
   WEBDAV_API_KEY_PERMISSIONS,
   WEBDAV_API_KEY_RATE_LIMIT_MAX_REQUESTS,
   WEBDAV_API_KEY_RATE_LIMIT_WINDOW_MS,
@@ -835,6 +836,22 @@ export async function createAuth(
           },
           permissions: {
             defaultPermissions: REMOTE_DOWNLOAD_API_KEY_PERMISSIONS,
+          },
+        },
+        {
+          configId: ApiKeyTemplate.STREMTHRU,
+          customKeyGenerator: generateApiKey,
+          references: 'user',
+          enableMetadata: true,
+          // Addons check up to 500 hashes per request and call again for every
+          // title a viewer opens.
+          rateLimit: {
+            enabled: true,
+            timeWindow: 60_000,
+            maxRequests: 600,
+          },
+          permissions: {
+            defaultPermissions: STREMTHRU_API_KEY_PERMISSIONS,
           },
         },
       ]),

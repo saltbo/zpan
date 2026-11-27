@@ -1,12 +1,14 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { ObjectStatus } from '@shared/constants'
+import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { generateId } from '../../../shared/ids'
-import { downloaders, matters, torrentCacheConfigs, torrentFiles, torrents } from '../../db/schema'
+import { downloaders, matters, stremthruLinks, torrentCacheConfigs, torrentFiles, torrents } from '../../db/schema'
 import { executeWriteTransaction } from '../../db/transaction'
-import { torrentFileObjectKey } from '../../domain/torrent-cache'
+import { torrentFileObjectKey, torrentKeyRange } from '../../domain/torrent-cache'
 import type { Database } from '../../platform/interface'
 import type {
   AdminTorrentRecord,
   EvictionCandidate,
+  StremThruLinkRepo,
   TorrentCacheConfigRepo,
   TorrentFileRecord,
   TorrentRecord,
@@ -15,6 +17,14 @@ import type {
 import { afterCreatedAtId, keysetPage } from './keyset'
 
 const EVICTABLE_STATUSES = ['ready', 'invalid'] as const
+// D1 binds at most 100 parameters per statement.
+const IN_CHUNK = 90
+
+function chunks<T>(items: readonly T[]): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += IN_CHUNK) out.push(items.slice(i, i + IN_CHUNK))
+  return out
+}
 
 // True when some drive file still references one of the torrent's objects, in
 // any status including trash. Uses the (storage_id, object) index on matters.
@@ -89,6 +99,47 @@ export function createTorrentRepo(db: Database): TorrentRepo {
     async getByInfoHash(infoHash) {
       const rows = await db.select().from(torrents).where(eq(torrents.infoHash, infoHash.toLowerCase())).limit(1)
       return rows[0] ? toTorrent(rows[0]) : null
+    },
+
+    async listByInfoHashes(infoHashes) {
+      const hashes = [...new Set(infoHashes.map((hash) => hash.toLowerCase()))]
+      const rows = await Promise.all(
+        chunks(hashes).map((batch) => db.select().from(torrents).where(inArray(torrents.infoHash, batch))),
+      )
+      return rows.flat().map(toTorrent)
+    },
+
+    async listFilesOf(torrentIds) {
+      const ids = [...new Set(torrentIds)]
+      const rows = await Promise.all(
+        chunks(ids).map((batch) =>
+          db
+            .select()
+            .from(torrentFiles)
+            .where(inArray(torrentFiles.torrentId, batch))
+            .orderBy(asc(torrentFiles.torrentId), asc(torrentFiles.fileIdx)),
+        ),
+      )
+      return rows.flat()
+    },
+
+    async listWorkspaceReferences(orgId, torrent) {
+      const range = torrentKeyRange(torrent.infoHash)
+      return db
+        .select()
+        .from(matters)
+        .where(
+          and(
+            eq(matters.storageId, torrent.storageId),
+            gte(matters.object, range.from),
+            lt(matters.object, range.to),
+            eq(matters.orgId, orgId),
+            eq(matters.status, ObjectStatus.ACTIVE),
+            isNull(matters.trashedAt),
+            isNull(matters.purgedAt),
+          ),
+        )
+        .orderBy(desc(matters.createdAt), asc(matters.id))
     },
 
     async listFiles(torrentId): Promise<TorrentFileRecord[]> {
@@ -236,6 +287,37 @@ export function createTorrentCacheConfigRepo(db: Database): TorrentCacheConfigRe
         .insert(torrentCacheConfigs)
         .values({ orgId, folder, createdAt: now, updatedAt: now })
         .onConflictDoUpdate({ target: torrentCacheConfigs.orgId, set: { folder, updatedAt: now } })
+    },
+  }
+}
+
+export function createStremThruLinkRepo(db: Database): StremThruLinkRepo {
+  return {
+    async get(userId, matterId) {
+      const rows = await db
+        .select({ url: stremthruLinks.url, expiresAt: stremthruLinks.expiresAt })
+        .from(stremthruLinks)
+        .where(and(eq(stremthruLinks.userId, userId), eq(stremthruLinks.matterId, matterId)))
+        .limit(1)
+      return rows[0] ?? null
+    },
+
+    async save(input) {
+      await db
+        .insert(stremthruLinks)
+        .values({
+          id: generateId(),
+          userId: input.userId,
+          orgId: input.orgId,
+          matterId: input.matterId,
+          url: input.url,
+          expiresAt: input.expiresAt,
+          createdAt: input.now,
+        })
+        .onConflictDoUpdate({
+          target: [stremthruLinks.userId, stremthruLinks.matterId],
+          set: { orgId: input.orgId, url: input.url, expiresAt: input.expiresAt, createdAt: input.now },
+        })
     },
   }
 }

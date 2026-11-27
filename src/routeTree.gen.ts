@@ -69,6 +69,7 @@ import { Route as AuthenticatedTeamsTeamIdBillingRouteImport } from './routes/_a
 import { Route as AuthenticatedTeamsTeamIdIhostRouteImport } from './routes/_authenticated/teams/$teamId/ihost'
 import { Route as AuthenticatedTeamsTeamIdMembersRouteImport } from './routes/_authenticated/teams/$teamId/members'
 import { Route as AuthenticatedTeamsTeamIdSettingsRouteImport } from './routes/_authenticated/teams/$teamId/settings'
+import { Route as AuthenticatedTeamsTeamIdStremthruRouteImport } from './routes/_authenticated/teams/$teamId/stremthru'
 
 const authRouteRoute = authRouteRouteImport.update({
   id: '/(auth)',
@@ -403,6 +404,12 @@ const AuthenticatedTeamsTeamIdSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
   } as any)
+const AuthenticatedTeamsTeamIdStremthruRoute =
+  AuthenticatedTeamsTeamIdStremthruRouteImport.update({
+    id: '/stremthru',
+    path: '/stremthru',
+    getParentRoute: () => AuthenticatedTeamsTeamIdRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -458,6 +465,7 @@ export interface FileRoutesByFullPath {
   '/teams/$teamId/ihost': typeof AuthenticatedTeamsTeamIdIhostRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
+  '/teams/$teamId/stremthru': typeof AuthenticatedTeamsTeamIdStremthruRoute
   '/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
   '/admin/storages/': typeof AuthenticatedAdminStoragesIndexRoute
   '/admin/teams/': typeof AuthenticatedAdminTeamsIndexRoute
@@ -515,6 +523,7 @@ export interface FileRoutesByTo {
   '/teams/$teamId/ihost': typeof AuthenticatedTeamsTeamIdIhostRoute
   '/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
+  '/teams/$teamId/stremthru': typeof AuthenticatedTeamsTeamIdStremthruRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsIndexRoute
   '/admin/storages': typeof AuthenticatedAdminStoragesIndexRoute
   '/admin/teams': typeof AuthenticatedAdminTeamsIndexRoute
@@ -578,6 +587,7 @@ export interface FileRoutesById {
   '/_authenticated/teams/$teamId/ihost': typeof AuthenticatedTeamsTeamIdIhostRoute
   '/_authenticated/teams/$teamId/members': typeof AuthenticatedTeamsTeamIdMembersRoute
   '/_authenticated/teams/$teamId/settings': typeof AuthenticatedTeamsTeamIdSettingsRoute
+  '/_authenticated/teams/$teamId/stremthru': typeof AuthenticatedTeamsTeamIdStremthruRoute
   '/_authenticated/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
   '/_authenticated/admin/storages/': typeof AuthenticatedAdminStoragesIndexRoute
   '/_authenticated/admin/teams/': typeof AuthenticatedAdminTeamsIndexRoute
@@ -640,6 +650,7 @@ export interface FileRouteTypes {
     | '/teams/$teamId/ihost'
     | '/teams/$teamId/members'
     | '/teams/$teamId/settings'
+    | '/teams/$teamId/stremthru'
     | '/admin/settings/'
     | '/admin/storages/'
     | '/admin/teams/'
@@ -697,6 +708,7 @@ export interface FileRouteTypes {
     | '/teams/$teamId/ihost'
     | '/teams/$teamId/members'
     | '/teams/$teamId/settings'
+    | '/teams/$teamId/stremthru'
     | '/admin/settings'
     | '/admin/storages'
     | '/admin/teams'
@@ -759,6 +771,7 @@ export interface FileRouteTypes {
     | '/_authenticated/teams/$teamId/ihost'
     | '/_authenticated/teams/$teamId/members'
     | '/_authenticated/teams/$teamId/settings'
+    | '/_authenticated/teams/$teamId/stremthru'
     | '/_authenticated/admin/settings/'
     | '/_authenticated/admin/storages/'
     | '/_authenticated/admin/teams/'
@@ -1198,6 +1211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeamsTeamIdSettingsRouteImport
       parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
     }
+    '/_authenticated/teams/$teamId/stremthru': {
+      id: '/_authenticated/teams/$teamId/stremthru'
+      path: '/stremthru'
+      fullPath: '/teams/$teamId/stremthru'
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdStremthruRouteImport
+      parentRoute: typeof AuthenticatedTeamsTeamIdRouteRoute
+    }
   }
 }
 
@@ -1295,6 +1315,7 @@ interface AuthenticatedTeamsTeamIdRouteRouteChildren {
   AuthenticatedTeamsTeamIdIhostRoute: typeof AuthenticatedTeamsTeamIdIhostRoute
   AuthenticatedTeamsTeamIdMembersRoute: typeof AuthenticatedTeamsTeamIdMembersRoute
   AuthenticatedTeamsTeamIdSettingsRoute: typeof AuthenticatedTeamsTeamIdSettingsRoute
+  AuthenticatedTeamsTeamIdStremthruRoute: typeof AuthenticatedTeamsTeamIdStremthruRoute
   AuthenticatedTeamsTeamIdIndexRoute: typeof AuthenticatedTeamsTeamIdIndexRoute
 }
 
@@ -1307,6 +1328,8 @@ const AuthenticatedTeamsTeamIdRouteRouteChildren: AuthenticatedTeamsTeamIdRouteR
     AuthenticatedTeamsTeamIdMembersRoute: AuthenticatedTeamsTeamIdMembersRoute,
     AuthenticatedTeamsTeamIdSettingsRoute:
       AuthenticatedTeamsTeamIdSettingsRoute,
+    AuthenticatedTeamsTeamIdStremthruRoute:
+      AuthenticatedTeamsTeamIdStremthruRoute,
     AuthenticatedTeamsTeamIdIndexRoute: AuthenticatedTeamsTeamIdIndexRoute,
   }
 

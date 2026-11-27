@@ -88,6 +88,7 @@ function TeamLayout() {
     },
     { to: '/teams/$teamId/members', params: { teamId }, label: t('teams.tabMembers'), hidden: isPersonal },
     { to: '/teams/$teamId/ihost', params: { teamId }, label: t('settings.tabImageHosting') },
+    { to: '/teams/$teamId/stremthru', params: { teamId }, label: t('teams.tabStremThru') },
     { to: '/teams/$teamId/billing', params: { teamId }, label: t('teams.tabBilling') },
     { to: '/teams/$teamId/activity', params: { teamId }, label: t('teams.tabActivity') },
   ]

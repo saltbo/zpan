@@ -12,7 +12,7 @@ import { apikey, member } from '../../db/auth-schema'
 import type { Database } from '../../platform/interface'
 import { resolveOrganizationOwnerUserId } from './organization-owner'
 
-const WORKSPACE_TEMPLATES = [ApiKeyTemplate.IHOST, ApiKeyTemplate.REMOTE_DOWNLOAD]
+const WORKSPACE_TEMPLATES = [ApiKeyTemplate.IHOST, ApiKeyTemplate.REMOTE_DOWNLOAD, ApiKeyTemplate.STREMTHRU]
 
 export function scopeForApiKey(configId: string, metadata: unknown): ApiKeyScope | null {
   const scope = parseApiKeyScope(metadata)
