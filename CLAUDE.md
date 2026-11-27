@@ -22,6 +22,7 @@ Core architecture: clients upload directly to S3-compatible storage via presigne
 - [DESIGN.md](DESIGN.md) — visual tokens and style
 - [docs/design/upload-policies.md](docs/design/upload-policies.md) — proposed selector-based upload placement policies for multiple storage backends
 - [docs/design/media-library.md](docs/design/media-library.md) — media library folders, the <library>/library.json JSON Feed index, fingerprint sweep, scan job, downloader TMDB scraping into file metadata, Movies and TV views, Pro/Business gating
+- [docs/design/torrent-cache.md](docs/design/torrent-cache.md) — instance-wide torrent cache keyed by infoHash, instant transfer as `bt/` references in `matters`, piece verification, StremThru Store API and Stremio addon
 - [docs/design/oauth-server.md](docs/design/oauth-server.md) — OAuth, CI API keys, protocol-neutral authorization, Restish credential handling, and future Agent Auth compatibility
 - [ROADMAP.md](ROADMAP.md) — release plan (v2.0–v2.10), editions
 - [docs/roadmap/](docs/roadmap/) — per-version technical specs (v2.0.md–v2.9.md)
