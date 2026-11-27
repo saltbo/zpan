@@ -10,6 +10,7 @@ import {
   noStorage,
   notFound,
   payloadTooLarge,
+  textMessage,
   unsupportedMediaType,
 } from '../usecases/ports'
 import { getUserQuota } from '../usecases/quota'
@@ -55,16 +56,16 @@ const updateEntitlementSchema = z.object({
 // to the matching error factory — keeping the sub-usecase status out of the http
 // boundary's own logic.
 function failureError(failure: { status: 400 | 404; error: string }) {
-  return failure.status === 404 ? notFound(failure.error) : badRequest(failure.error)
+  return failure.status === 404 ? notFound(textMessage(failure.error)) : badRequest(textMessage(failure.error))
 }
 
 // Maps the image-upload gateway outcome ({ status, error }) to its error factory.
 function imageUploadError(status: 400 | 403 | 413 | 500 | 503, error: string) {
-  if (status === 413) return payloadTooLarge(error)
-  if (status === 503) return noStorage(error)
-  if (status === 403) return forbidden(error)
-  if (status === 500) return internalError(error)
-  return badRequest(error)
+  if (status === 413) return payloadTooLarge(textMessage(error))
+  if (status === 503) return noStorage(textMessage(error))
+  if (status === 403) return forbidden(textMessage(error))
+  if (status === 500) return internalError(textMessage(error))
+  return badRequest(textMessage(error))
 }
 
 const setAvatarRoute = authRoute(

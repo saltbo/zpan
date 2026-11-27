@@ -10,7 +10,7 @@ import {
 } from '@shared/schemas'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import { badGateway, badRequest, forbidden } from '../../usecases/ports'
+import { badGateway, badRequest, forbidden, textMessage } from '../../usecases/ports'
 import {
   cancelOrder,
   continueOrderPayment,
@@ -408,17 +408,17 @@ export const cloudStore = app
   })
   .openapi(ordersRoute, async (c) => {
     const ready = await getStoreReadiness(c.get('deps'))
-    if (!ready.ready) throw forbidden(ready.error)
+    if (!ready.ready) throw forbidden(textMessage(ready.error))
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) throw badRequest('No active organization')
     const query = c.req.valid('query')
     const result = await getCloudOrders(c, { limit: query.limit, offset: query.offset, customerId: targetOrgId })
-    if ('error' in result) throw badGateway(result.error)
+    if ('error' in result) throw badGateway(textMessage(result.error))
     return c.json(result, 200)
   })
   .openapi(continuePaymentRoute, async (c) => {
     const ready = await getStoreReadiness(c.get('deps'))
-    if (!ready.ready) throw forbidden(ready.error)
+    if (!ready.ready) throw forbidden(textMessage(ready.error))
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) throw badRequest('No active organization')
     const result = await continueOrderPayment(c.get('deps'), getCloudBaseUrl(c), {
@@ -431,7 +431,7 @@ export const cloudStore = app
   })
   .openapi(cancelOrderRoute, async (c) => {
     const ready = await getStoreReadiness(c.get('deps'))
-    if (!ready.ready) throw forbidden(ready.error)
+    if (!ready.ready) throw forbidden(textMessage(ready.error))
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) throw badRequest('No active organization')
     const result = await cancelOrder(c.get('deps'), getCloudBaseUrl(c), {

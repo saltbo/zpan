@@ -6,7 +6,15 @@
 
 import type { SiteInvitation } from '@shared/types'
 import type { Platform } from '../../platform/interface'
-import { AppError, badRequest, conflict, type EmailGateway, notFound, type SiteInvitationRepo } from '../ports'
+import {
+  AppError,
+  badRequest,
+  conflict,
+  type EmailGateway,
+  notFound,
+  type SiteInvitationRepo,
+  textMessage,
+} from '../ports'
 
 export type SiteInvitationDeps = {
   siteInvitations: SiteInvitationRepo
@@ -85,7 +93,7 @@ export async function createSiteInvitation(
     invitation = await deps.siteInvitations.createSiteInvitation(userId, email)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create invitation'
-    return { ok: false, error: conflict(message) }
+    return { ok: false, error: conflict(textMessage(message)) }
   }
   await sendSiteInvitationEmail(deps, platform, requestUrl, invitation)
   return { ok: true, invitation }

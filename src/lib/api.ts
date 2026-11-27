@@ -97,6 +97,7 @@ import type {
   StorageUsageSortDirection,
   StorageUsageSortField,
 } from '@shared/types'
+import { requestLanguageHeaders } from './request-language'
 import {
   adminAuditApi,
   adminDownloadersApi,
@@ -1518,6 +1519,7 @@ async function putImageMultipart(url: string, file: File): Promise<{ url: string
     method: 'PUT',
     body: form,
     credentials: 'include',
+    headers: requestLanguageHeaders(),
   })
   if (!res.ok) {
     const parsed = await res.json().catch(() => ({}))
@@ -1586,6 +1588,7 @@ export async function saveBranding(data: {
     method: 'PUT',
     body: form,
     credentials: 'include',
+    headers: requestLanguageHeaders(),
   })
   if (!res.ok) {
     const parsed = await res.json().catch(() => ({}))

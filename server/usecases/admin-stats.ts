@@ -7,7 +7,7 @@ import type {
   AdminDashboardTrafficStats,
 } from '@shared/types'
 import { addCalendarDays, statsDayKey, utcDateStart } from '../domain/admin-stats-time'
-import { type AdminStatsDateRange, type AdminStatsRepo, badRequest } from './ports'
+import { type AdminStatsDateRange, type AdminStatsRepo, badRequest, msg } from './ports'
 
 export type AdminStatsDeps = {
   adminStats: AdminStatsRepo
@@ -35,7 +35,10 @@ export function normalizeStatsRange(input: AdminStatsRangeInput, now = new Date(
     throw badRequest('to must end on a UTC hour', 'INVALID_TIME_RANGE')
   }
   if (calendarDayCount(from, to) > MAX_DASHBOARD_RANGE_DAYS) {
-    throw badRequest(`time range cannot exceed ${MAX_DASHBOARD_RANGE_DAYS} days`, 'TIME_RANGE_TOO_LARGE')
+    throw badRequest(
+      msg('time range cannot exceed {days} days', { days: MAX_DASHBOARD_RANGE_DAYS }),
+      'TIME_RANGE_TOO_LARGE',
+    )
   }
   const currentHourStart = Math.floor(now.getTime() / 3_600_000) * 3_600_000
   if (from.getTime() >= currentHourStart) {

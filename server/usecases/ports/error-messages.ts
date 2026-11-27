@@ -1,0 +1,282 @@
+// The user-facing text of every API error, in each language the product ships.
+// English is the key: call sites write the English text (`notFound('Team not found')`),
+// and the factories only accept a key of this catalog, so a message without its
+// Chinese text does not compile. `{name}` marks a parameter filled by `msg()`.
+// The HTTP boundary picks the language from the request (see error-handler).
+export const ZH_ERROR_MESSAGES = {
+  // Shared defaults
+  'Not found': '未找到',
+  Forbidden: '没有权限',
+  Unauthorized: '未登录或登录已失效',
+  'Password required': '需要密码',
+  Expired: '已过期',
+  'Internal error': '服务器内部错误',
+  'Internal Server Error': '服务器内部错误',
+  'Payload too large': '内容过大',
+  'Unsupported media type': '不支持的媒体类型',
+  'Background jobs are unavailable in this environment': '当前环境不支持后台任务',
+  'No storage configured': '尚未配置存储',
+  'Quota exceeded': '超出配额',
+  'Insufficient credits': '额度不足',
+  'Feature not available': '当前版本不提供此功能',
+  'Rate limit exceeded.': '请求过于频繁，请稍后再试。',
+
+  // Requests
+  'Expected multipart/form-data': '请求须为 multipart/form-data',
+  'Expected multipart/form-data with a file field': '请求须为包含 file 字段的 multipart/form-data',
+  'Invalid JSON body': '请求体不是有效的 JSON',
+  'Invalid base64 in file field': 'file 字段的 base64 内容无效',
+  'Invalid page token': '分页标记无效',
+  'Invalid payload': '请求内容无效',
+  'Invalid reference': '引用无效',
+  'Unsupported Content-Type. Use multipart/form-data or application/json with base64.':
+    '不支持的 Content-Type，请使用 multipart/form-data 或带 base64 内容的 application/json。',
+  'file field (base64 string) is required': '缺少 file 字段（base64 字符串）',
+  'file field is required': '缺少 file 字段',
+  'Invalid field. Valid fields: {fields}': '字段无效。可用字段：{fields}',
+
+  // Workspaces and teams
+  'No active organization': '没有当前空间',
+  'No organization found': '未找到空间',
+  'Invalid workspace selection': '所选空间无效',
+  'Workspace not found': '未找到空间',
+  'Workspace plan already exists': '该空间的套餐已存在',
+  'Team not found': '未找到团队',
+  'Already a member of this team': '你已是该团队成员',
+  'Target must be a different space': '目标须为另一个空间',
+  'User not found': '未找到用户',
+  'Only admin-granted entitlements can be modified': '只能修改管理员授予的权益',
+
+  // Files and folders
+  'Matter not found': '未找到文件',
+  'Folder not found': '未找到文件夹',
+  'File not found or not accessible': '文件不存在或无权访问',
+  'Cannot download a folder directly': '无法直接下载文件夹',
+  'Folder is in use by a download task': '该文件夹正被下载任务使用',
+  'Target folder is outside task authorization': '目标文件夹超出任务的授权范围',
+  'Target folder path contains a file': '目标文件夹路径中包含文件',
+  'File exceeds the 5 TiB maximum': '文件超过 5 TiB 上限',
+  'File exceeds the maximum allowed size': '文件超过允许的最大大小',
+  'Invalid path': '路径无效',
+  'Invalid upload session state': '上传会话状态无效',
+  "An item named '{name}' already exists in this location": '此位置已存在名为“{name}”的项目',
+  'README.md is too large': 'README.md 过大',
+  'README.md must be UTF-8 text': 'README.md 须为 UTF-8 文本',
+  'README.md not found': '未找到 README.md',
+  'Upload completion parts do not match the session': '完成上传的分片与会话不一致',
+  'Duplicate part numbers are not allowed': '分片编号不能重复',
+  'Part number is outside this upload session': '分片编号超出此上传会话的范围',
+  'Uploaded object ETag does not match': '上传对象的 ETag 不一致',
+  'Upload already completed': '上传已完成',
+  'Storage cleanup failed: {detail}': '存储清理失败：{detail}',
+
+  // WebDAV
+  'Invalid DAV path': 'DAV 路径无效',
+  'Ambiguous DAV path': 'DAV 路径有歧义',
+  'Invalid path encoding': '路径编码无效',
+  'Invalid DAV path segment': 'DAV 路径片段无效',
+  'Parent collection not found': '未找到上级目录',
+  'Not a collection': '不是目录',
+  'WebDAV must be enabled before its domain can be verified': '须先启用 WebDAV，才能验证其域名',
+
+  // Storage
+  'Storage not found': '未找到存储',
+  'Storage is not active or has no available capacity': '存储未启用或没有可用容量',
+  'Storage is referenced by existing files': '存储仍被现有文件引用',
+  'Storage selection is not allowed for task uploads': '任务上传不允许选择存储',
+  'Quota exceeded for the media library index': '媒体库索引超出配额',
+  'Traffic quota exceeded': '超出流量配额',
+
+  // Shares
+  'Share not found': '未找到分享',
+  'Share not found or revoked': '分享不存在或已撤销',
+  'Share has expired': '分享已过期',
+  'Share target has been deleted': '分享的文件已被删除',
+  'File no longer available': '文件已不可用',
+  'Download limit exceeded': '已超过下载次数上限',
+  'Not a folder share': '不是文件夹分享',
+  'Authentication required for password-protected share': '访问受密码保护的分享需要验证',
+  'Invalid password': '密码错误',
+  'Direct link shares cannot be saved. Ask the sender for a landing share.':
+    '直链分享无法转存，请让分享者提供落地页分享。',
+  'Direct shares cannot be folders': '直链分享不能是文件夹',
+  'Direct shares cannot have a password': '直链分享不能设置密码',
+  'Direct shares cannot have recipients': '直链分享不能指定接收人',
+  'Only untargeted landing shares have configurable privacy': '只有未指定接收人的落地页分享可以设置隐私',
+
+  // Media libraries
+  'Media library not found': '未找到媒体库',
+  'Only folders can be media libraries': '只有文件夹可以设为媒体库',
+  'Folder is already a media library': '该文件夹已是媒体库',
+  'A scan of this media library is already queued or running': '该媒体库的扫描已在排队或进行中',
+  'The media library folder is in trash or no longer exists': '媒体库文件夹已在回收站中或已不存在',
+  'Media libraries cannot be nested: "{path}" is a media library': '媒体库不能嵌套：“{path}”已是媒体库',
+  '"{path}" already exists; rename or remove it to make this folder a media library':
+    '“{path}”已存在；请重命名或移除它，才能将此文件夹设为媒体库',
+
+  // Background jobs and downloads
+  'Background job cannot be canceled': '后台任务无法取消',
+  'Background job cannot be retried': '后台任务无法重试',
+  'Invalid task status': '任务状态无效',
+  'Task is {status}': '任务当前状态为 {status}',
+  'Only completed, failed, or canceled tasks can be deleted': '只能删除已完成、失败或已取消的任务',
+  'Only queued, assigned, or downloading tasks can be paused': '只能暂停排队中、已分配或下载中的任务',
+  'Only paused or suspended tasks can be resumed': '只能恢复已暂停或已挂起的任务',
+  'Only active, interrupted, suspended, or paused tasks can be canceled':
+    '只能取消进行中、已中断、已挂起或已暂停的任务',
+  'Only failed tasks can be retried': '只能重试失败的任务',
+  'Only inactive tasks can be restarted': '只能重新开始未在运行的任务',
+  'Invalid event token': '事件令牌无效',
+
+  // Invitations and invite codes
+  'Announcement not found': '未找到公告',
+  'Not found or not in draft status': '不存在或不是草稿状态',
+  'Invitation not found': '未找到邀请',
+  'Invitation has been revoked': '邀请已被撤销',
+  'Invitation has already been revoked': '邀请已经撤销过了',
+  'Invitation has already been used': '邀请已被使用',
+  'Invite code not found': '未找到邀请码',
+  'Cannot delete a used invite code': '已使用的邀请码无法删除',
+  'Invalid invite link': '邀请链接无效',
+  'Invalid or expired invite link': '邀请链接无效或已过期',
+  'Invite link has expired': '邀请链接已过期',
+  'Configure email delivery before sending invitations': '请先配置邮件发送，再发送邀请',
+  'Failed to create invitation': '创建邀请失败',
+  'Email must be enabled before email verification can be required': '须先启用邮件，才能要求邮箱验证',
+  'Unknown error': '未知错误',
+
+  // OAuth
+  'Invalid OAuth authorization details': 'OAuth 授权详情无效',
+  'Invalid OAuth redirect URI': 'OAuth 回调地址无效',
+  'Invalid OAuth request': 'OAuth 请求无效',
+  'Invalid OAuth scope': 'OAuth 权限范围无效',
+  'OAuth grant not found': '未找到 OAuth 授权',
+  'Workspace access is required for OAuth': 'OAuth 需要空间访问权限',
+  'At least one workspace authorization request is required': '至少需要一项空间授权请求',
+
+  // Sign-in providers and site settings
+  'discoveryUrl is required for OIDC providers': 'OIDC 登录方式需要填写 discoveryUrl',
+  'Unknown builtin provider: {id}': '未知的内置登录方式：{id}',
+  'Provider ID must contain only lowercase letters, numbers, and hyphens': '登录方式 ID 只能包含小写字母、数字和连字符',
+  'Captcha configuration is invalid': '人机验证配置无效',
+  'Public URL must be an HTTP or HTTPS origin': '公开地址须为 HTTP 或 HTTPS 源',
+  'SVG images are not allowed': '不允许 SVG 图片',
+  'theme_mode must be preset or custom': '主题模式须为预设或自定义',
+  'theme_preset is invalid': '主题预设无效',
+  '{field} must be a CSS hex color': '{field} 须为 CSS 十六进制颜色',
+  '{field} is required for custom theme': '自定义主题需要填写 {field}',
+  'wordmark_text must be 24 characters or fewer': '文字标志不能超过 24 个字符',
+  'Invalid file type for {field}. Allowed: {types}': '{field} 的文件类型无效。允许：{types}',
+  '{label} too large. Max {size} KB.': '{label}过大，最大 {size} KB。',
+  'Only PNG, JPG, WebP, and GIF images are allowed': '只允许 PNG、JPG、WebP 和 GIF 图片',
+  'File too large. Max 1 MiB.': '文件过大，最大 1 MiB。',
+
+  // Image hosting and custom domains
+  'image hosting not enabled for this organization': '此空间未启用图床',
+  'forbidden referer': '来源网站不被允许',
+  'invalid path: path contains invalid characters': '路径无效：包含不允许的字符',
+  'invalid path: path must not start with /': '路径无效：不能以 / 开头',
+  'invalid path: path must not end with /': '路径无效：不能以 / 结尾',
+  'invalid path: path must not contain ..': '路径无效：不能包含 ..',
+  'invalid path: path must not contain //': '路径无效：不能包含 //',
+  'invalid path: path exceeds {max} characters': '路径无效：超过 {max} 个字符',
+  'invalid path: path depth exceeds {max} segments': '路径无效：层级超过 {max} 级',
+  'Custom domain cannot be the application default host': '自定义域名不能是应用的默认主机',
+  'Domain already registered by another organization': '该域名已被其他空间注册',
+  'Domain verification not found': '未找到域名验证',
+  'Image custom-domain provider is not configured': '尚未配置图床自定义域名服务',
+  'Image custom-domain provider is not ready': '图床自定义域名服务尚未就绪',
+  'Invalid certificate': '证书无效',
+
+  // Admin analytics
+  'admin analytics uses UTC calendar boundaries': '管理统计按 UTC 日历边界计算',
+  'createdFrom must be before createdTo': 'createdFrom 须早于 createdTo',
+  'from must align to a UTC hour': 'from 须对齐到 UTC 整点',
+  'from must be before to': 'from 须早于 to',
+  'time range must include a closed UTC hour': '时间范围须包含一个完整的 UTC 小时',
+  'to must end on a UTC hour': 'to 须结束于 UTC 整点',
+  'time range cannot exceed {days} days': '时间范围不能超过 {days} 天',
+
+  // Store, licensing, and cloud
+  'Capacity offer does not increase the workspace quota': '该容量方案不会增加空间配额',
+  'Cloud capacity purchase response is missing its resource identity': '云端容量购买响应缺少资源标识',
+  'Invalid capacity offer': '容量方案无效',
+  'Order not found': '未找到订单',
+  'Package price missing': '缺少套餐价格',
+  'Payment was not completed': '支付未完成',
+  'Purchase initialization is in progress': '购买正在初始化',
+  'Purchase request conflict': '购买请求冲突',
+  'Too many pending capacity purchases': '待处理的容量购买过多',
+  'License unbound locally, but cloud unbind failed': '已在本地解绑授权，但云端解绑失败',
+  quota_store_binding_missing: '此站点尚未绑定云端商店',
+  unsupported_media_type: '不支持的媒体类型',
+  payload_too_large: '内容过大',
+  license_inactive: '授权未激活',
+  cloud_required: '需要连接 ZPan Cloud',
+  invalid_cloud_response: '云端响应无效',
+  cloud_request_failed: '云端请求失败',
+} as const
+
+export type ErrorText = keyof typeof ZH_ERROR_MESSAGES
+export type ErrorLanguage = 'en' | 'zh'
+type Params = Record<string, string | number>
+
+// An error message that is not a plain catalog key: a template with parameters, or
+// text produced elsewhere (an upstream service, a library) that is looked up at
+// render time and shown as is when the catalog does not know it.
+export class Message {
+  constructor(
+    readonly template: string,
+    readonly params: Params = {},
+  ) {}
+}
+
+export type ErrorMessage = ErrorText | Message
+
+/** A catalog template with its parameters, e.g. `msg('Task is {status}', { status })`. */
+export const msg = (template: ErrorText, params: Params) => new Message(template, params)
+
+/** Text from outside the catalog's call sites, translated when the catalog matches it. */
+export const textMessage = (text: string) => new Message(text)
+
+const fill = (template: string, params: Params) =>
+  template.replace(/\{(\w+)\}/g, (whole, name: string) => (name in params ? String(params[name]) : whole))
+
+/** The English text, used for `Error.message` and the server log. */
+export function englishMessage(message: ErrorMessage): string {
+  return typeof message === 'string' ? message : fill(message.template, message.params)
+}
+
+const catalog: Record<string, string> = ZH_ERROR_MESSAGES
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const templatePatterns = Object.keys(catalog)
+  .filter((key) => /\{\w+\}/.test(key))
+  .map((key) => {
+    const names = [...key.matchAll(/\{(\w+)\}/g)].map((match) => match[1])
+    const source = key
+      .split(/\{\w+\}/)
+      .map(escapeRegExp)
+      .join('(.+?)')
+    return { key, names, pattern: new RegExp(`^${source}$`) }
+  })
+
+// Finds the catalog entry behind already-filled English text, so text that arrives
+// as a plain string (a domain error, an adapter result) is still translated.
+function resolve(message: ErrorMessage): { template: string; params: Params } | null {
+  const template = typeof message === 'string' ? message : message.template
+  const params = typeof message === 'string' ? {} : message.params
+  if (template in catalog) return { template, params }
+  for (const entry of templatePatterns) {
+    const match = entry.pattern.exec(template)
+    if (match) return { template: entry.key, params: Object.fromEntries(entry.names.map((n, i) => [n, match[i + 1]])) }
+  }
+  return null
+}
+
+/** The message in the requested language, falling back to English. */
+export function localizeMessage(message: ErrorMessage, language: ErrorLanguage): string {
+  if (language === 'en') return englishMessage(message)
+  const resolved = resolve(message)
+  if (!resolved) return englishMessage(message)
+  return fill(catalog[resolved.template], resolved.params)
+}

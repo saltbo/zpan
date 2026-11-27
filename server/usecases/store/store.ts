@@ -59,6 +59,7 @@ import {
   notFound,
   type QuotaRepo,
   rateLimited,
+  textMessage,
 } from '../ports'
 import { verifyCloudEventToken } from '../site/licensing'
 
@@ -200,9 +201,9 @@ function capacityPurchaseCloudError(error: CloudError): AppError {
     return badRequest('Invalid capacity offer', 'CAPACITY_OFFER_NOT_FOUND')
   }
   const reason = error.error.toUpperCase()
-  if (error.status === 400 || error.status === 422) return badRequest(error.error, reason)
-  if (error.status === 404 || error.status === 409) return conflict(error.error, reason)
-  return badGateway(error.error)
+  if (error.status === 400 || error.status === 422) return badRequest(textMessage(error.error), reason)
+  if (error.status === 404 || error.status === 409) return conflict(textMessage(error.error), reason)
+  return badGateway(textMessage(error.error))
 }
 
 // ─── Storefront reads ────────────────────────────────────────────────────────
@@ -215,7 +216,7 @@ async function listDeliverables(
   deliverableType: 'zpan.plan' | 'zpan.credits',
 ): Promise<StorefrontReadOutcome<{ items: unknown[]; total: number }>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
+  if (!ready.ready) return { ok: false, error: forbidden(textMessage(ready.error)) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId'].products.$get({
@@ -225,7 +226,7 @@ async function listDeliverables(
       cloudPackageListResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
+  if (isCloudError(result)) return { ok: false, error: badGateway(textMessage(result.error)) }
   const items = result.items.filter((item) => item.metadata.deliverable.type === deliverableType)
   return { ok: true, value: { ...result, items, total: items.length } }
 }
@@ -257,7 +258,7 @@ export async function listCapacityOffers(
       storePublicationSchema,
     ),
   )
-  if (isCloudError(publication)) return { ok: false, error: badGateway(publication.error) }
+  if (isCloudError(publication)) return { ok: false, error: badGateway(textMessage(publication.error)) }
   const quota = await deps.quota.getEffectiveQuota(params.orgId)
   const capacityOutsideCurrentPlan = Math.max(0, quota.quota - (quota.currentPlan?.storageBytes ?? 0))
   const minimumStorageBytes = Math.max(1, quota.used + params.requestedBytes - capacityOutsideCurrentPlan)
@@ -364,7 +365,7 @@ export async function purchaseCapacity(
   },
 ): Promise<CapacityPurchaseOutcome> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
+  if (!ready.ready) return { ok: false, error: forbidden(textMessage(ready.error)) }
 
   const context = await cloudRequest(deps, cloudBaseUrl, async (bound) => {
     const publication = await unwrapCloudResponse(
@@ -648,7 +649,7 @@ export async function listTargets(
   userId: string,
 ): Promise<StorefrontReadOutcome<{ items: CloudStoreTarget[]; total: number }>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
+  if (!ready.ready) return { ok: false, error: forbidden(textMessage(ready.error)) }
   const items = await deps.cloudStore.getAccessibleTargets(userId)
   return { ok: true, value: { items, total: items.length } }
 }
@@ -663,7 +664,7 @@ export async function getCreditBalance(
   orgId: string,
 ): Promise<StorefrontReadOutcome<unknown>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
+  if (!ready.ready) return { ok: false, error: forbidden(textMessage(ready.error)) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId']['credit-accounts'][':customerId'].balance.$get({
@@ -672,7 +673,7 @@ export async function getCreditBalance(
       cloudCreditBalanceResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
+  if (isCloudError(result)) return { ok: false, error: badGateway(textMessage(result.error)) }
   return { ok: true, value: result }
 }
 
@@ -682,7 +683,7 @@ export async function getCreditLedger(
   orgId: string,
 ): Promise<StorefrontReadOutcome<unknown>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
+  if (!ready.ready) return { ok: false, error: forbidden(textMessage(ready.error)) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId']['credit-accounts'][':customerId']['ledger-entries'].$get({
@@ -692,7 +693,7 @@ export async function getCreditLedger(
       cloudCreditLedgerResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
+  if (isCloudError(result)) return { ok: false, error: badGateway(textMessage(result.error)) }
   return { ok: true, value: result }
 }
 
@@ -702,7 +703,7 @@ export async function redeemGiftCard(
   params: { orgId: string; input: RedeemGiftCardInput },
 ): Promise<StorefrontReadOutcome<unknown>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
+  if (!ready.ready) return { ok: false, error: forbidden(textMessage(ready.error)) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId']['credit-accounts'][':customerId'].redemptions.$post({
@@ -712,7 +713,7 @@ export async function redeemGiftCard(
       redeemGiftCardResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
+  if (isCloudError(result)) return { ok: false, error: badGateway(textMessage(result.error)) }
   return { ok: true, value: result }
 }
 
@@ -722,14 +723,14 @@ export async function getDiscountQuote(
   input: DiscountQuoteInput,
 ): Promise<StorefrontReadOutcome<unknown>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
+  if (!ready.ready) return { ok: false, error: forbidden(textMessage(ready.error)) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId']['discount-quotes'].$post({ param: { storeId }, json: input }),
       cloudDiscountQuoteResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
+  if (isCloudError(result)) return { ok: false, error: badGateway(textMessage(result.error)) }
   return { ok: true, value: result }
 }
 
@@ -739,7 +740,7 @@ export async function createBillingPortalSession(
   params: { orgId: string; origin: string },
 ): Promise<StorefrontReadOutcome<unknown>> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
+  if (!ready.ready) return { ok: false, error: forbidden(textMessage(ready.error)) }
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
       await client.stores[':storeId'].billing['portal-sessions'].$post({
@@ -749,7 +750,7 @@ export async function createBillingPortalSession(
       cloudBillingPortalSessionResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
+  if (isCloudError(result)) return { ok: false, error: badGateway(textMessage(result.error)) }
   return { ok: true, value: result }
 }
 
@@ -769,7 +770,7 @@ export async function createCheckout(
   params: { userId: string; orgId: string; origin: string; input: CheckoutInput },
 ): Promise<CheckoutOutcome> {
   const ready = await getStoreReadiness(deps)
-  if (!ready.ready) return { ok: false, error: forbidden(ready.error) }
+  if (!ready.ready) return { ok: false, error: forbidden(textMessage(ready.error)) }
   const { userId, orgId, origin, input } = params
 
   const product = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
@@ -780,7 +781,7 @@ export async function createCheckout(
       cloudPackageResponseSchema,
     ),
   )
-  if (isCloudError(product)) return { ok: false, error: badGateway(product.error) }
+  if (isCloudError(product)) return { ok: false, error: badGateway(textMessage(product.error)) }
 
   const price = input.priceId
     ? product.prices.find(
@@ -811,7 +812,7 @@ export async function createCheckout(
       cloudOrderResponseSchema,
     ),
   )
-  if (isCloudError(order)) return { ok: false, error: badGateway(order.error) }
+  if (isCloudError(order)) return { ok: false, error: badGateway(textMessage(order.error)) }
 
   const payment = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
     unwrapCloudResponse(
@@ -826,7 +827,7 @@ export async function createCheckout(
       cloudCheckoutResponseSchema,
     ),
   )
-  if (isCloudError(payment)) return { ok: false, error: badGateway(payment.error) }
+  if (isCloudError(payment)) return { ok: false, error: badGateway(textMessage(payment.error)) }
   return { ok: true, value: payment }
 }
 
@@ -865,7 +866,7 @@ export async function continueOrderPayment(
   const orderId = params.orderId
 
   const order = await fetchOrder(deps, cloudBaseUrl, orderId)
-  if (isCloudError(order)) return { ok: false, error: badGateway(order.error) }
+  if (isCloudError(order)) return { ok: false, error: badGateway(textMessage(order.error)) }
   if (!orderBelongsToTarget(order.target, params.orgId)) return { ok: false, error: forbidden() }
 
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
@@ -877,7 +878,7 @@ export async function continueOrderPayment(
       cloudCheckoutResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
+  if (isCloudError(result)) return { ok: false, error: badGateway(textMessage(result.error)) }
   return { ok: true, value: result }
 }
 
@@ -890,7 +891,7 @@ export async function cancelOrder(
   const orderId = params.orderId
 
   const order = await fetchOrder(deps, cloudBaseUrl, orderId)
-  if (isCloudError(order)) return { ok: false, error: badGateway(order.error) }
+  if (isCloudError(order)) return { ok: false, error: badGateway(textMessage(order.error)) }
   if (!orderBelongsToTarget(order.target, params.orgId)) return { ok: false, error: forbidden() }
 
   const result = await cloudRequest(deps, cloudBaseUrl, async ({ client, storeId }) =>
@@ -902,7 +903,7 @@ export async function cancelOrder(
       cloudOrderResponseSchema,
     ),
   )
-  if (isCloudError(result)) return { ok: false, error: badGateway(result.error) }
+  if (isCloudError(result)) return { ok: false, error: badGateway(textMessage(result.error)) }
   return { ok: true, value: result }
 }
 
@@ -953,6 +954,6 @@ export async function processDeliveryWebhook(
     )
     return { ok: true, duplicate: result.duplicate, eventId: result.eventId, receipt: parsed.data }
   } catch (error) {
-    return { ok: false, error: badRequest((error as Error).message) }
+    return { ok: false, error: badRequest(textMessage((error as Error).message)) }
   }
 }

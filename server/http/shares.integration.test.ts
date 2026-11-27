@@ -1654,6 +1654,19 @@ describe('Public share routes', () => {
       expect(body.error.status).toBe('NOT_FOUND')
     })
 
+    it('answers in Chinese when the request asks for Chinese [spec: error-messages/request-language]', async () => {
+      const { app } = await createTestApp()
+      const res = await app.request('/api/shares/sNoSuchTok01/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept-Language': 'zh' },
+        body: JSON.stringify({ password: 'whatever' }),
+      })
+      expect(res.status).toBe(404)
+      const body = (await res.json()) as { error: { message: string; status: string } }
+      expect(body.error.message).toBe('分享不存在或已撤销')
+      expect(body.error.status).toBe('NOT_FOUND')
+    })
+
     it('returns 404 when verifying a password for a direct (non-landing) share', async () => {
       const { app, db } = await createTestApp()
       await authedHeaders(app)

@@ -228,7 +228,7 @@ async function handleImageDomainBeforeAuth(
     )
   } catch (error) {
     if (!isHandledError(error)) console.error(`image_domain.unhandled_error code=${String(error)}`)
-    return standaloneJsonError(error)
+    return standaloneJsonError(error, request)
   }
 }
 

@@ -8,7 +8,7 @@ import type {
   ImageHostingConfigRepo,
   SystemOptionsRepo,
 } from '../ports'
-import { badRequest, IMAGE_DOMAIN_OPTION_KEYS } from '../ports'
+import { badRequest, IMAGE_DOMAIN_OPTION_KEYS, textMessage } from '../ports'
 
 export type ImageDomainProviderDeps = {
   imageDomains: ImageDomainProviderGateway
@@ -200,7 +200,7 @@ export async function testImageDomainProvider(deps: ImageDomainProviderDeps): Pr
       { key: IMAGE_DOMAIN_OPTION_KEYS.lastTestedAt, value: new Date().toISOString() },
       { key: IMAGE_DOMAIN_OPTION_KEYS.error, value: message },
     ])
-    throw badRequest(message)
+    throw badRequest(textMessage(message))
   }
 }
 
