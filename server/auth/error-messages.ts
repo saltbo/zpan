@@ -1,3 +1,4 @@
+import { varyOnLanguage } from '../middleware/error-handler'
 import { type ErrorLanguage, localizeMessage, msg, textMessage } from '../usecases/ports'
 
 // Chinese text for every error Better Auth (and the plugins ZPan configures) can
@@ -229,7 +230,8 @@ export function localizeAuthErrorMessage(body: AuthErrorBody, language: ErrorLan
 
 /**
  * Rewrites the message of a Better Auth JSON error response into `language`,
- * keeping its status, headers and every other field. Other responses pass through.
+ * keeping its status, headers and every other field, and marks it `Vary: Accept-Language`.
+ * Other responses pass through.
  */
 export async function localizeAuthErrorResponse(response: Response, language: ErrorLanguage): Promise<Response> {
   if (response.ok || !response.headers.get('Content-Type')?.includes('application/json')) return response
@@ -239,8 +241,8 @@ export async function localizeAuthErrorResponse(response: Response, language: Er
     .catch(() => null)
   if (!isAuthErrorBody(body)) return response
   const message = localizeAuthErrorMessage(body, language)
-  if (message === body.message) return response
+  if (message === body.message) return varyOnLanguage(new Response(response.body, response))
   const headers = new Headers(response.headers)
   headers.delete('Content-Length')
-  return new Response(JSON.stringify({ ...body, message }), { status: response.status, headers })
+  return varyOnLanguage(new Response(JSON.stringify({ ...body, message }), { status: response.status, headers }))
 }

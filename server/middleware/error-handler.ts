@@ -31,7 +31,7 @@ export function jsonError(c: Context<Env>, err: unknown): Response {
       message: err.meta.diagnostics?.message ?? err.message,
       diagnostic: err.meta.diagnostics?.reason,
     })
-    return c.json(body, err.httpStatus as ContentfulStatusCode, err.meta.headers)
+    return varyOnLanguage(c.json(body, err.httpStatus as ContentfulStatusCode, err.meta.headers))
   }
 
   const mapped = mapDomainError(err)
@@ -40,12 +40,12 @@ export function jsonError(c: Context<Env>, err: unknown): Response {
       reason: mapped.json.error.details?.[0]?.reason ?? mapped.json.error.status,
       message: mapped.diagnostic ?? mapped.message,
     })
-    return c.json(localizeBody(mapped.json, language), mapped.status)
+    return varyOnLanguage(c.json(localizeBody(mapped.json, language), mapped.status))
   }
 
   const detail = formatError(err)
   c.set('errorLog', { reason: 'INTERNAL', message: detail })
-  return c.json(internalErrorBody(language), 500)
+  return varyOnLanguage(c.json(internalErrorBody(language), 500))
 }
 
 // Render the same JSON error outside Hono's request pipeline. Cloudflare's
@@ -53,20 +53,31 @@ export function jsonError(c: Context<Env>, err: unknown): Response {
 export function standaloneJsonError(err: unknown, request?: Request): Response {
   const language = request ? requestLanguage(request) : 'en'
   if (err instanceof AppError) {
-    return Response.json(
-      buildErrorBody(err.httpStatus, err.localizedMessage(language), {
-        reason: err.meta.reason,
-        status: err.meta.canonicalStatus,
-        metadata: err.meta.metadata,
-      }),
-      { status: err.httpStatus, headers: err.meta.headers },
+    return varyOnLanguage(
+      Response.json(
+        buildErrorBody(err.httpStatus, err.localizedMessage(language), {
+          reason: err.meta.reason,
+          status: err.meta.canonicalStatus,
+          metadata: err.meta.metadata,
+        }),
+        { status: err.httpStatus, headers: err.meta.headers },
+      ),
     )
   }
 
   const mapped = mapDomainError(err)
-  if (mapped) return Response.json(localizeBody(mapped.json, language), { status: mapped.status })
+  if (mapped) return varyOnLanguage(Response.json(localizeBody(mapped.json, language), { status: mapped.status }))
 
-  return Response.json(internalErrorBody(language), { status: 500 })
+  return varyOnLanguage(Response.json(internalErrorBody(language), { status: 500 }))
+}
+
+// Mark a response whose body depends on `Accept-Language`, so a shared cache keeps
+// each language apart. Appends to any existing `Vary` (CORS adds `Origin` after).
+export function varyOnLanguage<R extends Response>(response: R): R {
+  const vary = response.headers.get('Vary') ?? ''
+  const listed = vary.split(',').map((token) => token.trim().toLowerCase())
+  if (!listed.includes('accept-language') && !listed.includes('*')) response.headers.append('Vary', 'Accept-Language')
+  return response
 }
 
 // The supported language the request prefers most, by `Accept-Language` q-value.
