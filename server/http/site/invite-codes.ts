@@ -2,7 +2,7 @@ import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema, opaqueTokenSchema } from '@shared/schemas'
 import type { Env } from '../../middleware/platform'
-import { type InviteCodeRecord, unauthorized } from '../../usecases/ports'
+import { type InviteCodeListItem, type InviteCodeRecord, unauthorized } from '../../usecases/ports'
 import {
   deleteInviteCode,
   generateInviteCodes,
@@ -29,18 +29,41 @@ const inviteCodeSchema = z
   })
   .openapi('InviteCode')
 
+const inviteCodeRedeemerSchema = z
+  .object({
+    name: z.string().openapi({ description: "The redeeming user's display name" }),
+    email: z.string().openapi({ description: "The redeeming user's email address" }),
+  })
+  .openapi('InviteCodeRedeemer')
+
+const inviteCodeListItemSchema = inviteCodeSchema
+  .extend({
+    usedByUser: inviteCodeRedeemerSchema.optional().openapi({
+      description: 'The user who redeemed the code. Omitted when the code is unused or that user was deleted.',
+    }),
+  })
+  .openapi('InviteCodeListItem')
+
 type InviteCodeDTO = z.infer<typeof inviteCodeSchema>
 
 function toInviteCodeDTO(r: InviteCodeRecord): InviteCodeDTO {
   return {
-    ...r,
+    id: r.id,
+    code: r.code,
+    createdBy: r.createdBy,
+    usedBy: r.usedBy,
     usedAt: r.usedAt ? r.usedAt.toISOString() : null,
     expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null,
     createdAt: r.createdAt.toISOString(),
   }
 }
 
-const inviteCodeListSchema = cursorPageSchema(inviteCodeSchema, 'InviteCodeList')
+function toInviteCodeListItemDTO(r: InviteCodeListItem): z.infer<typeof inviteCodeListItemSchema> {
+  const dto = toInviteCodeDTO(r)
+  return r.usedByUser ? { ...dto, usedByUser: r.usedByUser } : dto
+}
+
+const inviteCodeListSchema = cursorPageSchema(inviteCodeListItemSchema, 'InviteCodeList')
 
 const generateSchema = z.object({
   count: z.number().int().min(1).max(100),
@@ -129,7 +152,7 @@ export const adminInviteCodes = new OpenAPIHono<Env>()
     const result = await listInviteCodes(c.get('deps'), { pageSize, after })
     return c.json(
       {
-        items: result.items.map(toInviteCodeDTO),
+        items: result.items.map(toInviteCodeListItemDTO),
         nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, page),
       },
       200,

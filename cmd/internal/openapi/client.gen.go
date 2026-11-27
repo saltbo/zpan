@@ -5944,8 +5944,31 @@ type InviteCode struct {
 
 // InviteCodeList defines model for InviteCodeList.
 type InviteCodeList struct {
-	Items         []InviteCode `json:"items"`
-	NextPageToken *string      `json:"nextPageToken"`
+	Items         []InviteCodeListItem `json:"items"`
+	NextPageToken *string              `json:"nextPageToken"`
+}
+
+// InviteCodeListItem defines model for InviteCodeListItem.
+type InviteCodeListItem struct {
+	Code      string  `json:"code"`
+	CreatedAt string  `json:"createdAt"`
+	CreatedBy string  `json:"createdBy"`
+	ExpiresAt *string `json:"expiresAt"`
+	Id        string  `json:"id"`
+	UsedAt    *string `json:"usedAt"`
+	UsedBy    *string `json:"usedBy"`
+
+	// UsedByUser The user who redeemed the code. Omitted when the code is unused or that user was deleted.
+	UsedByUser *InviteCodeRedeemer `json:"usedByUser,omitempty"`
+}
+
+// InviteCodeRedeemer The user who redeemed the code. Omitted when the code is unused or that user was deleted.
+type InviteCodeRedeemer struct {
+	// Email The redeeming user's email address
+	Email string `json:"email"`
+
+	// Name The redeeming user's display name
+	Name string `json:"name"`
 }
 
 // LicenseBindingState defines model for LicenseBindingState.

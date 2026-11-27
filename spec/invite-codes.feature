@@ -67,3 +67,17 @@ Feature: Invite codes
     Given the invite codes card in Admin → Settings
     When an admin generates codes, copies one, and deletes an unused one
     Then the list shows each code's status, and delete asks for confirmation first
+
+  @invite-codes/list-redeemer @api
+  Scenario: The list names who redeemed each used code
+    Given an invite code redeemed by a user
+    When an admin lists invite codes
+    Then that code carries the redeeming user's display name and email
+    And a code whose redeeming user was deleted still lists, without a name or email
+
+  @invite-codes/admin-console-redeemer @web
+  Scenario: The admin console shows who redeemed a code
+    Given used invite codes in the invite codes card
+    When an admin views the list
+    Then Used By shows the redeeming user's name, with their email as secondary detail
+    And a code whose redeeming user was deleted reads as a deleted user

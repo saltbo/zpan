@@ -37,6 +37,28 @@ function StatusBadge({ status }: { status: CodeStatus }) {
   return <Badge variant={status === 'available' ? 'outline' : 'secondary'}>{labels[status]}</Badge>
 }
 
+function UsedByCell({ code }: { code: InviteCode }) {
+  const { t } = useTranslation()
+  const className = 'hidden max-w-48 text-sm lg:table-cell'
+  if (code.usedByUser) {
+    const { name, email } = code.usedByUser
+    return (
+      <TableCell className={className} title={name ? `${name} · ${email}` : email}>
+        <div className="truncate font-medium">{name || email}</div>
+        {name && <div className="truncate text-xs text-muted-foreground">{email}</div>}
+      </TableCell>
+    )
+  }
+  if (code.usedBy) {
+    return (
+      <TableCell className={`${className} text-muted-foreground`} title={code.usedBy}>
+        {t('admin.auth.deletedUser')}
+      </TableCell>
+    )
+  }
+  return <TableCell className={className}>—</TableCell>
+}
+
 function RowAction({
   label,
   onClick,
@@ -167,12 +189,7 @@ export function InviteCodesSection() {
                     <TableCell>
                       <StatusBadge status={status} />
                     </TableCell>
-                    <TableCell
-                      className="hidden max-w-40 truncate text-sm lg:table-cell"
-                      title={code.usedBy ?? undefined}
-                    >
-                      {code.usedBy ?? '—'}
-                    </TableCell>
+                    <UsedByCell code={code} />
                     <TableCell className="hidden text-sm md:table-cell">
                       {code.expiresAt ? new Date(code.expiresAt).toLocaleDateString() : '—'}
                     </TableCell>

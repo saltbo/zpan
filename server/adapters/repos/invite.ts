@@ -1,8 +1,9 @@
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm'
 import { generateId, generateToken } from '../../../shared/ids'
+import { user } from '../../db/auth-schema'
 import { inviteCodes } from '../../db/schema'
 import type { Database } from '../../platform/interface'
-import type { InviteCodeRecord, InviteRepo } from '../../usecases/ports'
+import type { InviteCodeListItem, InviteCodeRecord, InviteRepo } from '../../usecases/ports'
 import { afterCreatedAtId, keysetPage } from './keyset'
 
 export function createInviteRepo(db: Database): InviteRepo {
@@ -55,13 +56,18 @@ export function createInviteRepo(db: Database): InviteRepo {
 
     async list({ pageSize, after }) {
       const rows = await db
-        .select()
+        .select({ code: inviteCodes, redeemerName: user.name, redeemerEmail: user.email })
         .from(inviteCodes)
+        .leftJoin(user, eq(user.id, inviteCodes.usedBy))
         .where(afterCreatedAtId(inviteCodes.createdAt, inviteCodes.id, after))
         .orderBy(desc(inviteCodes.createdAt), desc(inviteCodes.id))
         .limit(pageSize + 1)
-      const page = keysetPage(rows, pageSize, (row) => ({ createdAt: row.createdAt, id: row.id }))
-      return { items: page.rows, nextBoundary: page.next }
+      const page = keysetPage(rows, pageSize, (row) => ({ createdAt: row.code.createdAt, id: row.code.id }))
+      const items = page.rows.map(({ code, redeemerName, redeemerEmail }): InviteCodeListItem => {
+        if (redeemerName === null || redeemerEmail === null) return code
+        return { ...code, usedByUser: { name: redeemerName, email: redeemerEmail } }
+      })
+      return { items, nextBoundary: page.next }
     },
 
     async delete(codeId) {

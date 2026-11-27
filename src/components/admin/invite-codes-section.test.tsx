@@ -103,6 +103,28 @@ describe('InviteCodesSection list', () => {
     expect(screen.getAllByRole('button', { name: 'admin.auth.copyCode' })).toHaveLength(2)
   })
 
+  it('shows who redeemed each used code and marks a deleted redeemer [spec: invite-codes/admin-console-redeemer]', async () => {
+    vi.mocked(listInviteCodes).mockResolvedValue({
+      items: [
+        {
+          ...code,
+          id: 'code-2',
+          code: 'USED-0001',
+          usedBy: 'user-1',
+          usedByUser: { name: 'Ada Lovelace', email: 'ada@example.com' },
+        },
+        { ...code, id: 'code-3', code: 'USED-0002', usedBy: 'user-gone' },
+      ],
+      nextPageToken: null,
+    })
+    renderSection()
+    expect(await screen.findByText('Ada Lovelace')).toBeTruthy()
+    expect(screen.getByText('ada@example.com')).toBeTruthy()
+    expect(screen.queryByText('user-1')).toBeNull()
+    const deleted = screen.getByText('admin.auth.deletedUser')
+    expect(deleted.closest('td')?.getAttribute('title')).toBe('user-gone')
+  })
+
   it('copies a code from its row action', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('navigator', { clipboard: { writeText } })
