@@ -34,8 +34,8 @@ who want a web UI over their own buckets.
   live in their own repositories.
 - A private Debrid service for a self-hosted circle: torrents downloaded through
   those engines are cached once per instance, transferred instantly into any
-  member's drive, and streamed to Stremio through community addons or ZPan's
-  own.
+  member's drive, and streamed to Stremio through community addons that use
+  ZPan as their Debrid service.
 - Deployment without a server to look after: Cloudflare Workers first, Docker and
   the other runtimes in `docs/deploy/` too.
 - What a mature product of this kind is expected to have around these, such as
