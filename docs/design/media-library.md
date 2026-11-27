@@ -306,10 +306,11 @@ in its own package `pkg/mediascrape`, which imports nothing from the
 downloader and can be tested against a plain directory.
 
 A processor never changes the downloaded files, because the engine may still
-be seeding them. It writes what it adds into an overlay directory beside the
-download and returns the upload layout as a plan: where each downloaded
-video goes, and which overlay files go next to it. The uploader uploads the
-plan, not the download directory.
+be seeding them. It writes what it adds into an overlay directory under the
+downloader's state directory (`<state_dir>/overlays/<task id>`, removed once
+the upload ends) and returns the upload layout as a plan: where each
+downloaded video goes, and which overlay files go next to it. The uploader
+uploads the plan, not the download directory.
 
 The scraper hands its result to the rest of the pipeline only as files: the
 `.nfo` documents and images of the [sidecar layout](#sidecars). The step that
@@ -319,7 +320,10 @@ external tool such as FileBot or tinyMediaManager.
 
 A processor that fails, times out, or finds no match leaves the `Result`
 unchanged, so the task uploads exactly as it would without scraping. A
-scraping failure never fails the task. It is recorded in the task's activity.
+scraping failure never fails the task. The downloader reports its reason as
+`scrapeSkippedReason` on the task update, which appends a `scrape_skipped`
+event that the task timeline shows as a warning, while the task's own error
+stays empty.
 A TMDB `429` waits for `Retry-After` (1 to 300 s, 10 s when absent) up to 10
 times in a row before scraping gives up on the task; a `401` gives up at
 once, naming the token as the cause.
@@ -330,7 +334,19 @@ Scraping is a switch in the downloader's own configuration, off by default,
 and applies to every task the downloader runs; a task with no video in it is
 left alone. It takes a TMDB API Read Access Token (v4, sent as a bearer
 token), a language (a TMDB tag, `en-US` by default), and optional base URLs
-for the TMDB API and image hosts. The server stores no TMDB credential. A
+for the TMDB API and image hosts:
+
+```yaml
+downloader:
+  scrape:
+    enabled: true
+    tmdb_token: "<API Read Access Token>"
+    language: "zh-CN"
+    # tmdb_api_url: "https://api.themoviedb.org/3"
+    # tmdb_image_url: "https://image.tmdb.org/t/p"
+```
+
+Enabling it without a token stops the downloader at startup. The server stores no TMDB credential. A
 downloader often runs at home behind a network that cannot reach
 `api.themoviedb.org` or `image.tmdb.org` directly; the base URLs and the
 standard `HTTPS_PROXY` variable cover a mirror or a proxy.
@@ -349,8 +365,9 @@ root folder as the outermost folder, and settles its TMDB id in this order:
    first 64 KB of a file is read, in one forward pass over the tags that
    skips comments, processing instructions, and declarations, so a malformed
    file still yields its id.
-2. **An id from the source**, when the download engine or the task carries a
-   TMDB or IMDb id. An IMDb id is resolved through TMDB's find endpoint.
+2. **An id from the source**: a task tag `tmdb:<id>` or `imdb:<tt id>`, the
+   only place a task carries one today. An IMDb id is resolved through TMDB's
+   find endpoint.
 3. **A search** for the parsed title in the configured language and then in
    English, with the parsed year (`year` for movies, `first_air_date_year` for
    shows) and then without it. A search with no results at all skips the
@@ -359,8 +376,11 @@ root folder as the outermost folder, and settles its TMDB id in this order:
    instead.
 
 A video neither name classifies (such as `holiday-clip.mov`) is matched only
-through a `.nfo`, because a search for a title like that matches unrelated
-films.
+through a `.nfo` or a source id, because a search for a title like that
+matches unrelated films. A sample (a video whose base name ends in `sample`,
+or one in a `Sample` folder) is not a video for matching; it uploads as an
+ordinary file. Every video of the download must match the same movie, or the
+download is uploaded unscraped.
 
 A search result matches when its localized or original title has a Dice
 similarity of at least 0.85 to the parsed title (character bigrams after
@@ -411,7 +431,13 @@ and runs of spaces collapsed; `(Year)` is left out when TMDB has no date.
 
 The task upload token can therefore read, as well as create, inside the
 task's target folder: it gains `objects:read`, limited to that folder's
-subtree like its other scopes are limited to the task.
+subtree like its other scopes are limited to the task. The lookup is
+`GET /api/objects?parent=<folder>&name=<name>`, whose `name` filter matches
+one live entry case-insensitively. A task upload token is refused on every
+route that does not declare it confines the token to the target folder
+(`taskUpload` in the route's authorization policy), whatever scopes it
+carries: today the object list (without `search`), object create, the upload
+session routes, and the media metadata write.
 
 An unmatched download keeps today's layout, the torrent or requested name
 under the target folder.
@@ -460,7 +486,12 @@ Writes:
 - **Who writes.** A download task's scoped upload token may set `media`
   through `PUT /api/objects/{id}/metadata/media`, in every edition, on the
   objects that task created and on a reused show folder that has no `media`
-  yet, so an earlier task's show data is never overwritten. The downloader
+  yet, so an earlier task's show data is never overwritten. An object the
+  task created is a live matter in the task's target folder created by the
+  task's downloader since the task's current assignment, so two tasks of one
+  downloader running at once into the same folder can write each other's
+  objects. Any other folder in the target folder takes `media` only while it
+  has none (`409` otherwise); any other file is refused with `403`. The downloader
   sets it after the video's sidecars exist, since it references their ids.
   No other caller writes metadata yet, and the object DTO does not carry it.
 - **Fingerprint.** Setting metadata bumps the matter's `updated_at`, so the
@@ -563,15 +594,21 @@ browser or the server.
 
 | Endpoint | Returns |
 | --- | --- |
-| `GET /api/media/movies` | Live videos with `media.kind = movie`, a cursor page newest first (`created_at`, then `id`): matter id, path, `media` |
+| `GET /api/media/movies` | Live videos with `media.kind = movie`, a cursor page newest first (`created_at`, then `id`): matter id, path, `media`, `posterUrl` |
 | `GET /api/media/shows` | Live folders with `media.kind = tvshow`, the same page shape |
 | `GET /api/media/shows/{id}/episodes` | Live videos with `media.kind = episode` in that folder's subtree, ordered by season and episode |
 
-Each item carries short-lived download URLs for its `poster` (or `still`)
-and `fanart` that resolve to live matters; a missing image is omitted and the
-card shows the title on a placeholder. The lists use an expression index on
-`(org_id, json_extract(metadata, '$.media.kind'), created_at, id)` over live
-matters, and the episode list uses the subtree range from
+Each item carries a short-lived inline URL for its `poster` (or `still`) when
+the image resolves to a live matter, metered as a download of that image; a
+missing image, or one the workspace's traffic quota does not allow, is
+omitted and the card shows the title on a placeholder. Fanart is not in the
+list, since a page would meter a backdrop for every card: the sheet fetches
+it through `GET /api/objects/{id}` when it opens. The lists use a partial
+expression index `matters_media_kind_idx` on
+`(org_id, metadata ->> '$.media.kind', created_at desc, id desc)` over live
+matters (`->>` rather than `json_extract`, because drizzle-kit splits a
+function call's arguments when it writes the index), and the episode list
+uses the subtree range from
 [change detection](#3-change-detection). Scope is `objects:read`, with no
 feature gate, like scraping itself.
 
@@ -579,7 +616,8 @@ A movie card opens a sheet with the fanart, title, year, genres, runtime,
 overview, and a play action that opens the video in the existing preview. A
 show card opens the show's seasons, each listing its episodes with still,
 number, title, and overview. The pages follow the list rules in
-[UX.md](../../UX.md): the cursor page, and the page in the URL.
+[UX.md](../../UX.md): the next cursor page loads as the user scrolls, and the
+open movie is in the URL (`/movies?movie=<id>`).
 
 ## 9. Future phases
 

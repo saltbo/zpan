@@ -107,6 +107,34 @@ type Result struct {
 	Size  int64
 	IsDir bool
 	Seed  *Seed
+	// Plan, when a processor set one, is uploaded instead of Path.
+	Plan *UploadPlan
+}
+
+// UploadPlan lays a download out under one folder in the task's target
+// folder. A processor builds it; the downloaded files stay where they are.
+type UploadPlan struct {
+	// Folder is looked up by name in the target folder and created when absent.
+	Folder string
+	Files  []PlannedFile
+}
+
+// PlannedFile is one local file to upload. Path is slash-separated, relative
+// to the plan's folder.
+type PlannedFile struct {
+	LocalPath string
+	Path      string
+	Size      int64
+	Video     bool
+	// Sidecar is set for a file named after a video: it takes the name the
+	// video was given, and a live entry already at its path wins.
+	Sidecar *PlannedSidecar
+}
+
+type PlannedSidecar struct {
+	// Video is the Path of the video it belongs to.
+	Video  string
+	Suffix string
 }
 
 type Seed struct {

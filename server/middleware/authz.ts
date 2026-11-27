@@ -18,7 +18,11 @@ export type RequiredAuthorizationScopes = readonly [AuthorizationScope, ...Autho
 
 export type ScopedAuthorizationPolicy = {
   scopes: RequiredAuthorizationScopes
-  credential?: 'downloader'
+  credential?: 'downloader' | 'download-task-upload'
+  // The route accepts a download task's upload token and its handler confines
+  // that token to the task's target folder. Other routes refuse the token,
+  // whatever scopes it carries.
+  taskUpload?: true
   oauth?: boolean
   minTeamRole?: TeamRole
   siteRole?: 'admin'
@@ -68,6 +72,9 @@ async function evaluateScopedPolicy(
     return deny(context, 403, 'actor_not_allowed', policy)
   }
   if (policy.oauth === false && context.credential === 'oauth') return deny(context, 403, 'actor_not_allowed', policy)
+  if (context.credential === 'download-task-upload' && !policy.taskUpload) {
+    return deny(context, 403, 'actor_not_allowed', policy)
+  }
 
   for (const scope of policy.scopes) {
     if (!context.grantedScopes.has(scope)) return deny(context, 403, 'missing_scope', policy)

@@ -26,7 +26,7 @@ export function validDownloadTaskEventPredicate(eventValue: string): string {
   return `COALESCE((
     json_type(${eventValue}, '$.type') = 'text'
     AND json_extract(${eventValue}, '$.type') IN (
-      'status_changed', 'error_reported', 'cleanup_requested', 'cleanup_completed'
+      'status_changed', 'error_reported', 'scrape_skipped', 'cleanup_requested', 'cleanup_completed'
     )
     AND json_type(${eventValue}, '$.id') = 'text'
     AND length(json_extract(${eventValue}, '$.id')) > 0
@@ -66,7 +66,7 @@ export function validDownloadTaskEventPredicate(eventValue: string): string {
         )
       )
       OR (
-        json_extract(${eventValue}, '$.type') = 'error_reported'
+        json_extract(${eventValue}, '$.type') IN ('error_reported', 'scrape_skipped')
         AND json_type(${eventValue}, '$.errorMessage') = 'text'
         AND length(json_extract(${eventValue}, '$.errorMessage')) > 0
       )

@@ -60,11 +60,13 @@ type apiClient interface {
 	LocalResultTasks(context.Context) ([]client.DownloadTask, error)
 	SeedingTasks(context.Context) ([]client.DownloadTask, error)
 	UpdateTask(context.Context, string, client.TaskPatch) (client.DownloadTask, error)
-	CreateFolder(context.Context, string, string, string) (client.ObjectDraft, error)
-	CreateObject(context.Context, string, string, int64, string) (client.ObjectDraft, error)
-	CompleteObjectUpload(context.Context, string, string, string, []client.CompletedObjectUploadPart) error
+	CreateFolder(context.Context, string, string, string, client.OnConflict) (client.ObjectDraft, error)
+	CreateObject(context.Context, string, string, int64, string, client.OnConflict) (client.ObjectDraft, error)
+	CompleteObjectUpload(context.Context, string, string, string, []client.CompletedObjectUploadPart) (client.ObjectDraft, error)
 	AbortObjectUploadSession(context.Context, string, string, string) error
 	DeleteObject(context.Context, string, string) error
+	FindObject(context.Context, string, string, string) (client.ObjectEntry, bool, error)
+	PutMediaMetadata(context.Context, string, string, any) error
 }
 
 func NewTaskRunner(cfg config.Config) (*TaskRunner, error) {
@@ -556,7 +558,9 @@ func (w *TaskRunner) uploadAndComplete(
 	task.Status.Progress.Download = *transferProgress(result.Size, &result.Size, zero)
 	task.Status.Progress.Upload = *transferProgress(0, &result.Size, zero)
 	task.Status.Runtime = currentDetail
-	resultObjectID, err := w.uploader.Upload(ctx, log, task, result)
+	upload, cleanupOverlay := w.postProcess(ctx, log, task, result)
+	defer cleanupOverlay()
+	resultObjectID, err := w.uploader.Upload(ctx, log, task, upload)
 	if err != nil {
 		downloadedBytes := result.Size
 		if errors.Is(err, context.Canceled) {

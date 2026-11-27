@@ -300,3 +300,43 @@ func hasConfigLine(text string, line string) bool {
 	}
 	return false
 }
+
+func TestLoadScrapeConfig(t *testing.T) {
+	v := viper.New()
+	v.Set("server_url", "http://localhost:5173")
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Scrape.Enabled || cfg.Scrape.Language != "en-US" {
+		t.Fatalf("scraping defaults = %+v", cfg.Scrape)
+	}
+
+	v = viper.New()
+	v.Set("server_url", "http://localhost:5173")
+	v.Set("downloader.scrape.enabled", true)
+	if _, err := Load(v); err == nil || !strings.Contains(err.Error(), "tmdb_token") {
+		t.Fatalf("scraping without a token: %v", err)
+	}
+
+	v.Set("downloader.scrape.tmdb_token", " secret ")
+	v.Set("downloader.scrape.language", "zh-CN")
+	v.Set("downloader.scrape.tmdb_api_url", "https://tmdb.example/3")
+	cfg, err = Load(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Scrape.Enabled || cfg.Scrape.TMDBToken != "secret" || cfg.Scrape.Language != "zh-CN" || cfg.Scrape.TMDBAPIURL != "https://tmdb.example/3" {
+		t.Fatalf("scrape = %+v", cfg.Scrape)
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := WriteConfig(path, cfg, "token"); err != nil {
+		t.Fatal(err)
+	}
+	written, _ := os.ReadFile(path)
+	for _, line := range []string{"  scrape:\n    enabled: true\n", `tmdb_token: "secret"`, `language: "zh-CN"`, `tmdb_api_url: "https://tmdb.example/3"`} {
+		if !strings.Contains(string(written), line) {
+			t.Fatalf("written config lacks %q:\n%s", line, written)
+		}
+	}
+}

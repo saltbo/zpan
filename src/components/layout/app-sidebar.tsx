@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   ChevronRight,
+  Clapperboard,
   Download,
   FileText,
   FolderOpen,
@@ -64,6 +65,7 @@ export function AppSidebar() {
   const activeDownloads = pathname.startsWith('/downloads')
   const activeTasks = pathname.startsWith('/tasks')
   const activeImageHost = pathname === '/image-host'
+  const activeMovies = pathname.startsWith('/movies')
 
   return (
     <Sidebar>
@@ -123,6 +125,14 @@ export function AppSidebar() {
                   <Link to="/files" search={{ type: 'documents' }}>
                     <FileText className="h-4 w-4" />
                     <span>{t('nav.documents')}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={activeMovies}>
+                  <Link to="/movies">
+                    <Clapperboard className="h-4 w-4" />
+                    <span>{t('nav.movies')}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

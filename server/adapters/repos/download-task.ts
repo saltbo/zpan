@@ -143,6 +143,31 @@ function appendErrorEvent(
   return sql`CASE WHEN ${downloadTasks.errorMessage} IS NOT ${input.errorMessage} THEN ${appended} ELSE ${events} END`
 }
 
+// The download uploaded without scraping; the task carries on, so this is a
+// notice in the activity rather than the task's error.
+function appendScrapeSkippedEvent(
+  events: SQL,
+  input: { now: Date; attempt: SQL; category: SQL; downloaderId: SQL; runtime: SQL; billedBytes: SQL; reason: string },
+): SQL {
+  return sql`json_insert(${events}, '$[#]', json_object(
+    'id', ${generateId()},
+    'type', 'scrape_skipped',
+    'occurredAt', CAST(${input.now.getTime()} AS INTEGER),
+    'attempt', CAST(${input.attempt} AS INTEGER),
+    'reason', NULL,
+    'category', COALESCE(${input.category}, 'uncategorized'),
+    'downloaderId', ${input.downloaderId},
+    'transferredBytes', CASE
+      WHEN json_type(${input.runtime}, '$.progress.download.bytes') = 'integer'
+        THEN CAST(json_extract(${input.runtime}, '$.progress.download.bytes') AS INTEGER)
+      ELSE NULL
+    END,
+    'billedBytes', CAST(${input.billedBytes} AS INTEGER),
+    'errorCode', NULL,
+    'errorMessage', ${input.reason}
+  ))`
+}
+
 function appendCleanupEvent(events: SQL, type: 'cleanup_requested' | 'cleanup_completed', now: Date): SQL {
   return sql`json_insert(${events}, '$[#]', json_object(
     'id', ${generateId()},
@@ -608,9 +633,21 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
           errorMessage: fields.errorMessage,
         })
       }
+      const { scrapeSkippedReason, ...columns } = fields
+      if (scrapeSkippedReason) {
+        events = appendScrapeSkippedEvent(events, {
+          now,
+          attempt,
+          category,
+          downloaderId,
+          runtime,
+          billedBytes,
+          reason: scrapeSkippedReason,
+        })
+      }
       const update = db
         .update(downloadTasks)
-        .set({ ...fields, events })
+        .set({ ...columns, events })
         .where(and(eq(downloadTasks.id, id), isNull(downloadTasks.deletedAt)))
       const statusChanged = fields.status !== undefined && fields.status !== row.status
       await executeWriteTransaction(db, [

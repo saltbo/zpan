@@ -38,6 +38,7 @@ import { Route as AuthenticatedAdminLicensingRouteImport } from './routes/_authe
 import { Route as AuthenticatedDownloadsIndexRouteImport } from './routes/_authenticated/downloads/index'
 import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
 import { Route as AuthenticatedImageHostIndexRouteImport } from './routes/_authenticated/image-host/index'
+import { Route as AuthenticatedMoviesIndexRouteImport } from './routes/_authenticated/movies/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSettingsApiKeysRouteImport } from './routes/_authenticated/settings/api-keys'
 import { Route as AuthenticatedSettingsOauthAppsRouteImport } from './routes/_authenticated/settings/oauth-apps'
@@ -215,6 +216,12 @@ const AuthenticatedImageHostIndexRoute =
   AuthenticatedImageHostIndexRouteImport.update({
     id: '/image-host/',
     path: '/image-host/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedMoviesIndexRoute =
+  AuthenticatedMoviesIndexRouteImport.update({
+    id: '/movies/',
+    path: '/movies/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedSettingsIndexRoute =
@@ -412,6 +419,7 @@ export interface FileRoutesByFullPath {
   '/downloads/': typeof AuthenticatedDownloadsIndexRoute
   '/files/': typeof AuthenticatedFilesIndexRoute
   '/image-host/': typeof AuthenticatedImageHostIndexRoute
+  '/movies/': typeof AuthenticatedMoviesIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/shares/': typeof AuthenticatedSharesIndexRoute
   '/storages/': typeof AuthenticatedStoragesIndexRoute
@@ -465,6 +473,7 @@ export interface FileRoutesByTo {
   '/downloads': typeof AuthenticatedDownloadsIndexRoute
   '/files': typeof AuthenticatedFilesIndexRoute
   '/image-host': typeof AuthenticatedImageHostIndexRoute
+  '/movies': typeof AuthenticatedMoviesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/shares': typeof AuthenticatedSharesIndexRoute
   '/storages': typeof AuthenticatedStoragesIndexRoute
@@ -524,6 +533,7 @@ export interface FileRoutesById {
   '/_authenticated/downloads/': typeof AuthenticatedDownloadsIndexRoute
   '/_authenticated/files/': typeof AuthenticatedFilesIndexRoute
   '/_authenticated/image-host/': typeof AuthenticatedImageHostIndexRoute
+  '/_authenticated/movies/': typeof AuthenticatedMoviesIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/shares/': typeof AuthenticatedSharesIndexRoute
   '/_authenticated/storages/': typeof AuthenticatedStoragesIndexRoute
@@ -582,6 +592,7 @@ export interface FileRouteTypes {
     | '/downloads/'
     | '/files/'
     | '/image-host/'
+    | '/movies/'
     | '/settings/'
     | '/shares/'
     | '/storages/'
@@ -635,6 +646,7 @@ export interface FileRouteTypes {
     | '/downloads'
     | '/files'
     | '/image-host'
+    | '/movies'
     | '/settings'
     | '/shares'
     | '/storages'
@@ -693,6 +705,7 @@ export interface FileRouteTypes {
     | '/_authenticated/downloads/'
     | '/_authenticated/files/'
     | '/_authenticated/image-host/'
+    | '/_authenticated/movies/'
     | '/_authenticated/settings/'
     | '/_authenticated/shares/'
     | '/_authenticated/storages/'
@@ -928,6 +941,13 @@ declare module '@tanstack/react-router' {
       path: '/image-host'
       fullPath: '/image-host/'
       preLoaderRoute: typeof AuthenticatedImageHostIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/movies/': {
+      id: '/_authenticated/movies/'
+      path: '/movies'
+      fullPath: '/movies/'
+      preLoaderRoute: typeof AuthenticatedMoviesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings/': {
@@ -1244,6 +1264,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDownloadsIndexRoute: typeof AuthenticatedDownloadsIndexRoute
   AuthenticatedFilesIndexRoute: typeof AuthenticatedFilesIndexRoute
   AuthenticatedImageHostIndexRoute: typeof AuthenticatedImageHostIndexRoute
+  AuthenticatedMoviesIndexRoute: typeof AuthenticatedMoviesIndexRoute
   AuthenticatedSharesIndexRoute: typeof AuthenticatedSharesIndexRoute
   AuthenticatedStoragesIndexRoute: typeof AuthenticatedStoragesIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
@@ -1262,6 +1283,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDownloadsIndexRoute: AuthenticatedDownloadsIndexRoute,
   AuthenticatedFilesIndexRoute: AuthenticatedFilesIndexRoute,
   AuthenticatedImageHostIndexRoute: AuthenticatedImageHostIndexRoute,
+  AuthenticatedMoviesIndexRoute: AuthenticatedMoviesIndexRoute,
   AuthenticatedSharesIndexRoute: AuthenticatedSharesIndexRoute,
   AuthenticatedStoragesIndexRoute: AuthenticatedStoragesIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,

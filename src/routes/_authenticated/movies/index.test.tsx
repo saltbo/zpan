@@ -1,0 +1,147 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError, getObject, listMovies, type Movie } from '@/lib/api'
+import { MoviesPage } from './index'
+
+const search: { movie?: string } = {}
+const navigate = vi.fn((options: { search: { movie?: string } }) => {
+  search.movie = options.search.movie
+})
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => (values ? `${key}:${JSON.stringify(values)}` : key),
+  }),
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  createFileRoute: () => (options: unknown) => options,
+  useNavigate: () => navigate,
+  useSearch: () => search,
+}))
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('@/hooks/useServerEvents', () => ({ useServerEventSubscription: vi.fn() }))
+vi.mock('@/components/layout/page-header', () => ({ PageHeader: () => null }))
+vi.mock('@/components/preview/file-preview-dialog', () => ({
+  FilePreviewDialog: ({ file, open }: { file: { name: string; downloadUrl: string } | null; open: boolean }) =>
+    open && file ? <div role="dialog" aria-label="preview">{`${file.name} ${file.downloadUrl}`}</div> : null,
+}))
+
+vi.mock('@/lib/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/api')>()),
+  listMovies: vi.fn(),
+  getObject: vi.fn(),
+}))
+
+const bunny: Movie = {
+  id: 'video-1',
+  path: 'Movies/Big Buck Bunny (2008)/bbb.mkv',
+  posterUrl: 'https://images.example.com/poster.jpg',
+  media: {
+    kind: 'movie',
+    tmdb: { id: 10378, type: 'movie' },
+    title: 'Big Buck Bunny',
+    year: 2008,
+    runtime: 10,
+    genres: ['Animation', 'Comedy'],
+    overview: 'A giant rabbit.',
+    fanart: 'fanart-1',
+  },
+}
+const sintel: Movie = {
+  id: 'video-2',
+  path: 'Movies/Sintel (2010)/sintel.mkv',
+  media: { kind: 'movie', tmdb: { id: 45745, type: 'movie' }, title: 'Sintel', year: 2010 },
+}
+
+function renderPage() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MoviesPage />
+    </QueryClientProvider>,
+  )
+}
+
+beforeEach(() => {
+  delete search.movie
+})
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
+describe('Movies page [spec: media-catalog/movies]', () => {
+  it('shows scraped movies as posters, with the title on a placeholder when the poster is missing', async () => {
+    vi.mocked(listMovies).mockResolvedValueOnce({ items: [bunny, sintel], nextPageToken: null })
+    renderPage()
+
+    const poster = await screen.findByRole('img', { name: 'Big Buck Bunny' })
+    expect(poster.getAttribute('src')).toBe('https://images.example.com/poster.jpg')
+    const sintelCard = screen.getByRole('button', { name: /Sintel/ })
+    expect(within(sintelCard).queryByRole('img')).toBeNull()
+    expect(within(sintelCard).getAllByText('Sintel')).toHaveLength(2)
+    expect(listMovies).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 24 })
+  })
+
+  it('opens the selected movie in a sheet with its fanart, facts and overview, and plays it in the preview', async () => {
+    vi.mocked(listMovies).mockResolvedValue({ items: [bunny], nextPageToken: null })
+    vi.mocked(getObject).mockImplementation(async (id: string) =>
+      id === 'fanart-1'
+        ? ({ id, name: 'bbb-fanart.jpg', downloadUrl: 'https://images.example.com/fanart.jpg' } as never)
+        : ({
+            id,
+            name: 'bbb.mkv',
+            type: 'video/x-matroska',
+            size: 10,
+            downloadUrl: 'https://video.example.com/bbb',
+          } as never),
+    )
+    const view = renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Big Buck Bunny/ }))
+    expect(navigate).toHaveBeenCalledWith({ search: { movie: 'video-1' } })
+    view.rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <MoviesPage />
+      </QueryClientProvider>,
+    )
+
+    const sheet = await screen.findByRole('dialog')
+    expect(within(sheet).getByText('Big Buck Bunny')).toBeTruthy()
+    expect(within(sheet).getByText(/2008 · movies.runtime:\{"minutes":10\}/)).toBeTruthy()
+    expect(within(sheet).getByText('Animation')).toBeTruthy()
+    expect(within(sheet).getByText('A giant rabbit.')).toBeTruthy()
+    await vi.waitFor(() =>
+      expect(sheet.querySelector('img')?.getAttribute('src')).toBe('https://images.example.com/fanart.jpg'),
+    )
+
+    fireEvent.click(within(sheet).getByRole('button', { name: /movies.play/ }))
+    const preview = await screen.findByRole('dialog', { name: 'preview' })
+    expect(preview.textContent).toBe('bbb.mkv https://video.example.com/bbb')
+  })
+
+  it('says what would be here when there are no movies', async () => {
+    vi.mocked(listMovies).mockResolvedValueOnce({ items: [], nextPageToken: null })
+    renderPage()
+
+    expect(await screen.findByText('movies.emptyTitle')).toBeTruthy()
+    expect(screen.getByText('movies.emptyHint')).toBeTruthy()
+  })
+
+  it('shows an inline alert with retry when the list fails to load', async () => {
+    vi.mocked(listMovies)
+      .mockRejectedValueOnce(
+        new ApiError(503, { error: { code: 503, message: 'Movies are unavailable', status: 'UNAVAILABLE' } }),
+      )
+      .mockResolvedValueOnce({ items: [sintel], nextPageToken: null })
+    renderPage()
+
+    expect(await screen.findByText('Movies are unavailable')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+    expect(await screen.findByRole('button', { name: /Sintel/ })).toBeTruthy()
+  })
+})

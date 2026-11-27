@@ -546,6 +546,7 @@ export async function updateDownloadTask(
     billingChargedCredits,
     billingStatus,
     errorMessage: input.errorMessage === undefined ? task.errorMessage : input.errorMessage,
+    scrapeSkippedReason: input.scrapeSkippedReason,
     resultObjectId: input.resultObjectId === undefined ? task.resultObjectId : input.resultObjectId,
     runtime: serializeTaskRuntime(nextRuntime),
     startedAt: task.startedAt ?? (status === 'downloading' ? now : null),
@@ -797,7 +798,7 @@ function createTaskUploadToken(
     orgId: params.orgId,
     targetFolder: params.targetFolder,
     createdByUserId: params.createdByUserId,
-    scopes: ['objects:create', 'objects:upload', 'objects:confirm'],
+    scopes: ['objects:read', 'objects:create', 'objects:upload', 'objects:confirm'],
     jti: `${params.taskId}:${params.downloaderId}:${params.assignedAt.getTime()}`,
     iat: issuedAt,
     exp,
@@ -969,7 +970,9 @@ function taskEventTimelineItem(taskId: string, event: DownloadTaskEvent): Downlo
         ? 'download_task_cleanup_requested'
         : event.type === 'cleanup_completed'
           ? 'download_task_cleanup_completed'
-          : 'download_task_error'
+          : event.type === 'scrape_skipped'
+            ? 'download_task_scrape_skipped'
+            : 'download_task_error'
   const metadata = {
     attempt: event.attempt,
     from: event.from,
@@ -1039,6 +1042,7 @@ function actionTitle(action: string): string {
     download_task_restart_requested: 'Restart requested',
     download_task_deleted: 'Task deleted',
     download_task_error: 'Error reported',
+    download_task_scrape_skipped: 'Uploaded without media scraping',
     download_task_cleanup_requested: 'Downloader cleanup requested',
     download_task_cleanup_completed: 'Downloader cleanup completed',
     download_resolve_started: 'Resolving source',
@@ -1071,7 +1075,7 @@ function actionDetail(metadata: Record<string, unknown> | null): string | null {
 
 function actionSeverity(action: string): DownloadTaskTimelineItem['severity'] {
   if (action.includes('failed') || action.includes('error')) return 'error'
-  if (action.includes('suspended') || action.includes('offline')) return 'warning'
+  if (action.includes('suspended') || action.includes('offline') || action.includes('skipped')) return 'warning'
   if (action.includes('completed')) return 'success'
   return 'info'
 }

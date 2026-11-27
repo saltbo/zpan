@@ -111,6 +111,6 @@ function openApiSecurity(auth: RouteAuthorizationDeclaration): { security?: Reco
 }
 
 function openApiPolicySecurity(policy: ScopedAuthorizationPolicy): Record<string, string[]>[] {
-  if (policy.credential === 'downloader') return [{ bearerAuth: [] }]
+  if (policy.credential) return [{ bearerAuth: [] }]
   return [...(policy.oauth === false ? [] : [{ oauth2: [...policy.scopes] }]), { bearerAuth: [] }, { cookieAuth: [] }]
 }

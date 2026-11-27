@@ -35,12 +35,25 @@ type Config struct {
 	SeedMaxConcurrent     int
 	Aria2Configured       bool
 	QBittorrentConfigured bool
+	Scrape                ScrapeConfig
+}
+
+// ScrapeConfig turns on media scraping for every task the downloader runs.
+type ScrapeConfig struct {
+	Enabled bool
+	// TMDBToken is a TMDB API Read Access Token (v4).
+	TMDBToken string
+	// Language is a TMDB language tag such as en-US or zh-CN.
+	Language     string
+	TMDBAPIURL   string
+	TMDBImageURL string
 }
 
 const (
 	DefaultServerURL      = "http://localhost:5173"
 	DefaultAria2URL       = "ws://127.0.0.1:6800/jsonrpc"
 	DefaultQBittorrentURL = "http://127.0.0.1:8080"
+	DefaultScrapeLanguage = "en-US"
 )
 
 func Defaults(v *viper.Viper) {
@@ -61,6 +74,8 @@ func Defaults(v *viper.Viper) {
 	v.SetDefault("downloader.seed.cache_limit", "10GB")
 	v.SetDefault("downloader.seed.ratio", 0)
 	v.SetDefault("downloader.seed.max_concurrent", 10)
+	v.SetDefault("downloader.scrape.enabled", false)
+	v.SetDefault("downloader.scrape.language", DefaultScrapeLanguage)
 }
 
 func Load(v *viper.Viper) (Config, error) {
@@ -113,6 +128,13 @@ func Load(v *viper.Viper) (Config, error) {
 		SeedCacheLimit:     seedCacheLimit,
 		SeedRatio:          v.GetFloat64("downloader.seed.ratio"),
 		SeedMaxConcurrent:  v.GetInt("downloader.seed.max_concurrent"),
+		Scrape: ScrapeConfig{
+			Enabled:      v.GetBool("downloader.scrape.enabled"),
+			TMDBToken:    strings.TrimSpace(v.GetString("downloader.scrape.tmdb_token")),
+			Language:     strings.TrimSpace(v.GetString("downloader.scrape.language")),
+			TMDBAPIURL:   strings.TrimSpace(v.GetString("downloader.scrape.tmdb_api_url")),
+			TMDBImageURL: strings.TrimSpace(v.GetString("downloader.scrape.tmdb_image_url")),
+		},
 		Aria2Configured: aria2Configured &&
 			(v.GetString("downloader.aria2.url") != DefaultAria2URL || v.GetString("downloader.aria2.secret") != ""),
 		QBittorrentConfigured: qbittorrentConfigured &&
@@ -143,6 +165,12 @@ func Load(v *viper.Viper) (Config, error) {
 	}
 	if cfg.SeedMaxConcurrent < 0 {
 		return Config{}, errors.New("downloader.seed.max_concurrent must not be negative")
+	}
+	if cfg.Scrape.Enabled && cfg.Scrape.TMDBToken == "" {
+		return Config{}, errors.New("downloader.scrape.tmdb_token is required when downloader.scrape.enabled is true")
+	}
+	if cfg.Scrape.Language == "" {
+		return Config{}, errors.New("downloader.scrape.language must not be empty")
 	}
 	return cfg, nil
 }
@@ -224,6 +252,18 @@ func configYAML(cfg Config, includeRuntimeHints bool) string {
 	fmt.Fprintf(&b, "    cache_limit: %s\n", yamlString(formatSeedCacheLimit(cfg.SeedCacheLimit)))
 	fmt.Fprintf(&b, "    ratio: %s\n", strconv.FormatFloat(cfg.SeedRatio, 'f', -1, 64))
 	fmt.Fprintf(&b, "    max_concurrent: %d\n", nonZero(cfg.SeedMaxConcurrent, 10))
+	if cfg.Scrape.Enabled {
+		b.WriteString("  scrape:\n")
+		b.WriteString("    enabled: true\n")
+		fmt.Fprintf(&b, "    tmdb_token: %s\n", yamlString(cfg.Scrape.TMDBToken))
+		fmt.Fprintf(&b, "    language: %s\n", yamlString(nonEmpty(cfg.Scrape.Language, DefaultScrapeLanguage)))
+		if cfg.Scrape.TMDBAPIURL != "" {
+			fmt.Fprintf(&b, "    tmdb_api_url: %s\n", yamlString(cfg.Scrape.TMDBAPIURL))
+		}
+		if cfg.Scrape.TMDBImageURL != "" {
+			fmt.Fprintf(&b, "    tmdb_image_url: %s\n", yamlString(cfg.Scrape.TMDBImageURL))
+		}
+	}
 	if shouldWriteAria2Config(cfg) {
 		b.WriteString("  aria2:\n")
 		fmt.Fprintf(&b, "    url: %s\n", yamlString(nonEmpty(cfg.Aria2URL, DefaultAria2URL)))
@@ -255,6 +295,13 @@ func configYAML(cfg Config, includeRuntimeHints bool) string {
 		fmt.Fprintf(&b, "  #   url: %s\n", yamlString(DefaultQBittorrentURL))
 		fmt.Fprintf(&b, "  #   username: %s\n", yamlString("admin"))
 		fmt.Fprintf(&b, "  #   password: %s\n", yamlString("password"))
+		b.WriteString("\n")
+		b.WriteString("  # To upload movies as \"Title (Year)/\" with posters and .nfo files,\n")
+		b.WriteString("  # add a TMDB API Read Access Token and uncomment this block.\n")
+		b.WriteString("  # scrape:\n")
+		b.WriteString("  #   enabled: true\n")
+		fmt.Fprintf(&b, "  #   tmdb_token: %s\n", yamlString("your-tmdb-read-access-token"))
+		fmt.Fprintf(&b, "  #   language: %s\n", yamlString(DefaultScrapeLanguage))
 	}
 	return b.String()
 }

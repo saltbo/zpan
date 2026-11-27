@@ -18,6 +18,7 @@ import type {
   EmailSettings,
   ImageDomainProviderResponse,
   MediaLibrary,
+  MovieMediaMetadata,
   OAuthConsentContext,
   OAuthConsentResult,
   OAuthConsentSubmit,
@@ -124,6 +125,7 @@ import {
   inviteCodes,
   licensingAdminApi,
   licensingApi,
+  mediaApi,
   mediaLibrariesApi,
   notificationsApi,
   oauthGrantsApi,
@@ -560,6 +562,25 @@ export function retryBackgroundJob(id: string) {
 // Media Libraries API
 
 // The file manager joins libraries to folders by id, so it needs every page.
+// Scraped movies, newest first: what the downloader wrote into file metadata.
+export interface Movie {
+  id: string
+  path: string
+  media: MovieMediaMetadata
+  posterUrl?: string
+}
+
+export function listMovies(opts: { pageToken?: string; pageSize?: number } = {}) {
+  return unwrap<CursorPage<Movie>>(
+    mediaApi.movies.$get({
+      query: {
+        pageSize: String(opts.pageSize ?? 24),
+        ...(opts.pageToken ? { pageToken: opts.pageToken } : {}),
+      },
+    }),
+  )
+}
+
 export async function listMediaLibraries(): Promise<MediaLibrary[]> {
   const libraries: MediaLibrary[] = []
   let pageToken: string | undefined

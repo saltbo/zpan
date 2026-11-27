@@ -1744,6 +1744,36 @@ func (e EmptyImageDomainSettingsEnabled) Valid() bool {
 	}
 }
 
+// Defines values for EpisodeMediaMetadataKind.
+const (
+	Episode EpisodeMediaMetadataKind = "episode"
+)
+
+// Valid indicates whether the value is a known member of the EpisodeMediaMetadataKind enum.
+func (e EpisodeMediaMetadataKind) Valid() bool {
+	switch e {
+	case Episode:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EpisodeMediaMetadataTmdbType.
+const (
+	EpisodeMediaMetadataTmdbTypeTv EpisodeMediaMetadataTmdbType = "tv"
+)
+
+// Valid indicates whether the value is a known member of the EpisodeMediaMetadataTmdbType enum.
+func (e EpisodeMediaMetadataTmdbType) Valid() bool {
+	switch e {
+	case EpisodeMediaMetadataTmdbTypeTv:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ErrorInfoType.
 const (
 	TypeGoogleapisComgoogleRpcErrorInfo ErrorInfoType = "type.googleapis.com/google.rpc.ErrorInfo"
@@ -1996,6 +2026,36 @@ func (e MediaScraperLanguage) Valid() bool {
 	}
 }
 
+// Defines values for MovieMediaMetadataKind.
+const (
+	MovieMediaMetadataKindMovie MovieMediaMetadataKind = "movie"
+)
+
+// Valid indicates whether the value is a known member of the MovieMediaMetadataKind enum.
+func (e MovieMediaMetadataKind) Valid() bool {
+	switch e {
+	case MovieMediaMetadataKindMovie:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MovieMediaMetadataTmdbType.
+const (
+	MovieMediaMetadataTmdbTypeMovie MovieMediaMetadataTmdbType = "movie"
+)
+
+// Valid indicates whether the value is a known member of the MovieMediaMetadataTmdbType enum.
+func (e MovieMediaMetadataTmdbType) Valid() bool {
+	switch e {
+	case MovieMediaMetadataTmdbTypeMovie:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PublicAuthProviderType.
 const (
 	PublicAuthProviderTypeBuiltin PublicAuthProviderType = "builtin"
@@ -2203,6 +2263,36 @@ func (e StorageUsageItemSource) Valid() bool {
 	case StorageUsageItemSourceImageHosting:
 		return true
 	case StorageUsageItemSourceTrash:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TvShowMediaMetadataKind.
+const (
+	Tvshow TvShowMediaMetadataKind = "tvshow"
+)
+
+// Valid indicates whether the value is a known member of the TvShowMediaMetadataKind enum.
+func (e TvShowMediaMetadataKind) Valid() bool {
+	switch e {
+	case Tvshow:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TvShowMediaMetadataTmdbType.
+const (
+	TvShowMediaMetadataTmdbTypeTv TvShowMediaMetadataTmdbType = "tv"
+)
+
+// Valid indicates whether the value is a known member of the TvShowMediaMetadataTmdbType enum.
+func (e TvShowMediaMetadataTmdbType) Valid() bool {
+	switch e {
+	case TvShowMediaMetadataTmdbTypeTv:
 		return true
 	default:
 		return false
@@ -5778,6 +5868,31 @@ type EntitlementResult struct {
 	OrgId       string           `json:"orgId"`
 }
 
+// EpisodeMediaMetadata defines model for EpisodeMediaMetadata.
+type EpisodeMediaMetadata struct {
+	Aired    *string                  `json:"aired,omitempty"`
+	Episode  int                      `json:"episode"`
+	Kind     EpisodeMediaMetadataKind `json:"kind"`
+	Overview *string                  `json:"overview,omitempty"`
+	Season   int                      `json:"season"`
+
+	// Still Matter id of the episode still image.
+	Still *string `json:"still,omitempty"`
+	Title *string `json:"title,omitempty"`
+
+	// Tmdb The series.
+	Tmdb struct {
+		Id   int                          `json:"id"`
+		Type EpisodeMediaMetadataTmdbType `json:"type"`
+	} `json:"tmdb"`
+}
+
+// EpisodeMediaMetadataKind defines model for EpisodeMediaMetadata.Kind.
+type EpisodeMediaMetadataKind string
+
+// EpisodeMediaMetadataTmdbType defines model for EpisodeMediaMetadata.Tmdb.Type.
+type EpisodeMediaMetadataTmdbType string
+
 // Error defines model for Error.
 type Error struct {
 	Error struct {
@@ -6070,8 +6185,60 @@ type MediaLibraryPage struct {
 	NextPageToken *string        `json:"nextPageToken"`
 }
 
+// MediaMetadata defines model for MediaMetadata.
+type MediaMetadata struct {
+	union json.RawMessage
+}
+
 // MediaScraperLanguage TMDB language tag the metadata is scraped in.
 type MediaScraperLanguage string
+
+// Movie defines model for Movie.
+type Movie struct {
+	// Id The video's matter id.
+	Id    string             `json:"id"`
+	Media MovieMediaMetadata `json:"media"`
+
+	// Path Slash-delimited path of the video within the workspace.
+	Path string `json:"path"`
+
+	// PosterUrl Short-lived URL of the poster image. Absent when the poster is missing.
+	PosterUrl *string `json:"posterUrl,omitempty"`
+}
+
+// MovieMediaMetadata defines model for MovieMediaMetadata.
+type MovieMediaMetadata struct {
+	// Fanart Matter id of the fanart image.
+	Fanart        *string                `json:"fanart,omitempty"`
+	Genres        *[]string              `json:"genres,omitempty"`
+	Kind          MovieMediaMetadataKind `json:"kind"`
+	OriginalTitle *string                `json:"originalTitle,omitempty"`
+	Overview      *string                `json:"overview,omitempty"`
+
+	// Poster Matter id of the poster image.
+	Poster *string `json:"poster,omitempty"`
+
+	// Runtime Minutes.
+	Runtime *int   `json:"runtime,omitempty"`
+	Title   string `json:"title"`
+	Tmdb    struct {
+		Id   int                        `json:"id"`
+		Type MovieMediaMetadataTmdbType `json:"type"`
+	} `json:"tmdb"`
+	Year *int `json:"year,omitempty"`
+}
+
+// MovieMediaMetadataKind defines model for MovieMediaMetadata.Kind.
+type MovieMediaMetadataKind string
+
+// MovieMediaMetadataTmdbType defines model for MovieMediaMetadata.Tmdb.Type.
+type MovieMediaMetadataTmdbType string
+
+// MoviePage defines model for MoviePage.
+type MoviePage struct {
+	Items         []Movie `json:"items"`
+	NextPageToken *string `json:"nextPageToken"`
+}
 
 // Notification defines model for Notification.
 type Notification struct {
@@ -6649,6 +6816,28 @@ type TrashObjectPage struct {
 	NextPageToken *string       `json:"nextPageToken"`
 }
 
+// TvShowMediaMetadata defines model for TvShowMediaMetadata.
+type TvShowMediaMetadata struct {
+	Fanart        *string                 `json:"fanart,omitempty"`
+	Genres        *[]string               `json:"genres,omitempty"`
+	Kind          TvShowMediaMetadataKind `json:"kind"`
+	OriginalTitle *string                 `json:"originalTitle,omitempty"`
+	Overview      *string                 `json:"overview,omitempty"`
+	Poster        *string                 `json:"poster,omitempty"`
+	Title         string                  `json:"title"`
+	Tmdb          struct {
+		Id   int                         `json:"id"`
+		Type TvShowMediaMetadataTmdbType `json:"type"`
+	} `json:"tmdb"`
+	Year *int `json:"year,omitempty"`
+}
+
+// TvShowMediaMetadataKind defines model for TvShowMediaMetadata.Kind.
+type TvShowMediaMetadataKind string
+
+// TvShowMediaMetadataTmdbType defines model for TvShowMediaMetadata.Tmdb.Type.
+type TvShowMediaMetadataTmdbType string
+
 // UpdateEmailSettings defines model for UpdateEmailSettings.
 type UpdateEmailSettings struct {
 	union json.RawMessage
@@ -7159,7 +7348,10 @@ type UpdateDownloadTaskJSONBody struct {
 		} `json:"trackers,omitempty"`
 		UpdatedAt *string `json:"updatedAt,omitempty"`
 	} `json:"runtime,omitempty"`
-	Status *UpdateDownloadTaskJSONBodyStatus `json:"status,omitempty"`
+
+	// ScrapeSkippedReason Why the downloader uploaded this download without media scraping. Recorded in the task activity; the task carries on.
+	ScrapeSkippedReason *string                           `json:"scrapeSkippedReason,omitempty"`
+	Status              *UpdateDownloadTaskJSONBodyStatus `json:"status,omitempty"`
 }
 
 // UpdateDownloadTaskJSONBodyCleanupCompleted defines parameters for UpdateDownloadTask.
@@ -7226,6 +7418,12 @@ type CreateMediaLibraryJSONBody struct {
 	FolderId string `json:"folderId"`
 }
 
+// ListMoviesParams defines parameters for ListMovies.
+type ListMoviesParams struct {
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+}
+
 // ListNotificationsParams defines parameters for ListNotifications.
 type ListNotificationsParams struct {
 	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
@@ -7263,7 +7461,10 @@ type ListObjectsParams struct {
 	Parent *string `form:"parent,omitempty" json:"parent,omitempty"`
 
 	// Path Alias for parent: the slash-delimited parent folder path relative to the workspace root.
-	Path   *string `form:"path,omitempty" json:"path,omitempty"`
+	Path *string `form:"path,omitempty" json:"path,omitempty"`
+
+	// Name Only the live entry in the parent folder with this name, compared case-insensitively.
+	Name   *string `form:"name,omitempty" json:"name,omitempty"`
 	Type   *string `form:"type,omitempty" json:"type,omitempty"`
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
 	OrgId  *string `form:"orgId,omitempty" json:"orgId,omitempty"`
@@ -7887,6 +8088,9 @@ type UpdateObjectJSONRequestBody UpdateObjectJSONBody
 
 // CopyObjectJSONRequestBody defines body for CopyObject for application/json ContentType.
 type CopyObjectJSONRequestBody CopyObjectJSONBody
+
+// ReplaceObjectMediaMetadataJSONRequestBody defines body for ReplaceObjectMediaMetadata for application/json ContentType.
+type ReplaceObjectMediaMetadataJSONRequestBody = MediaMetadata
 
 // TransferObjectJSONRequestBody defines body for TransferObject for application/json ContentType.
 type TransferObjectJSONRequestBody TransferObjectJSONBody
@@ -10505,6 +10709,125 @@ func (t *ImageDomainSettings) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsMovieMediaMetadata returns the union data inside the MediaMetadata as a MovieMediaMetadata
+func (t MediaMetadata) AsMovieMediaMetadata() (MovieMediaMetadata, error) {
+	var body MovieMediaMetadata
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMovieMediaMetadata overwrites any union data inside the MediaMetadata as the provided MovieMediaMetadata
+func (t *MediaMetadata) FromMovieMediaMetadata(v MovieMediaMetadata) error {
+	v.Kind = "movie"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMovieMediaMetadata performs a merge with any union data inside the MediaMetadata, using the provided MovieMediaMetadata
+func (t *MediaMetadata) MergeMovieMediaMetadata(v MovieMediaMetadata) error {
+	v.Kind = "movie"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTvShowMediaMetadata returns the union data inside the MediaMetadata as a TvShowMediaMetadata
+func (t MediaMetadata) AsTvShowMediaMetadata() (TvShowMediaMetadata, error) {
+	var body TvShowMediaMetadata
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTvShowMediaMetadata overwrites any union data inside the MediaMetadata as the provided TvShowMediaMetadata
+func (t *MediaMetadata) FromTvShowMediaMetadata(v TvShowMediaMetadata) error {
+	v.Kind = "tvshow"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTvShowMediaMetadata performs a merge with any union data inside the MediaMetadata, using the provided TvShowMediaMetadata
+func (t *MediaMetadata) MergeTvShowMediaMetadata(v TvShowMediaMetadata) error {
+	v.Kind = "tvshow"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEpisodeMediaMetadata returns the union data inside the MediaMetadata as a EpisodeMediaMetadata
+func (t MediaMetadata) AsEpisodeMediaMetadata() (EpisodeMediaMetadata, error) {
+	var body EpisodeMediaMetadata
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEpisodeMediaMetadata overwrites any union data inside the MediaMetadata as the provided EpisodeMediaMetadata
+func (t *MediaMetadata) FromEpisodeMediaMetadata(v EpisodeMediaMetadata) error {
+	v.Kind = "episode"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEpisodeMediaMetadata performs a merge with any union data inside the MediaMetadata, using the provided EpisodeMediaMetadata
+func (t *MediaMetadata) MergeEpisodeMediaMetadata(v EpisodeMediaMetadata) error {
+	v.Kind = "episode"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MediaMetadata) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t MediaMetadata) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "episode":
+		return t.AsEpisodeMediaMetadata()
+	case "movie":
+		return t.AsMovieMediaMetadata()
+	case "tvshow":
+		return t.AsTvShowMediaMetadata()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t MediaMetadata) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MediaMetadata) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsPublicCaptcha0 returns the union data inside the PublicCaptcha as a PublicCaptcha0
 func (t PublicCaptcha) AsPublicCaptcha0() (PublicCaptcha0, error) {
 	var body PublicCaptcha0
@@ -11321,6 +11644,9 @@ type ClientInterface interface {
 	// CreateMediaLibraryScrape request
 	CreateMediaLibraryScrape(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListMovies request
+	ListMovies(ctx context.Context, params *ListMoviesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListNotifications request
 	ListNotifications(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -11373,6 +11699,11 @@ type ClientInterface interface {
 
 	// GetObjectCreator request
 	GetObjectCreator(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceObjectMediaMetadataWithBody request with any body
+	ReplaceObjectMediaMetadataWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ReplaceObjectMediaMetadata(ctx context.Context, id string, body ReplaceObjectMediaMetadataJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TransferObjectWithBody request with any body
 	TransferObjectWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -12509,6 +12840,18 @@ func (c *Client) CreateMediaLibraryScrape(ctx context.Context, id string, reqEdi
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListMovies(ctx context.Context, params *ListMoviesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListMoviesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListNotifications(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListNotificationsRequest(c.Server, params)
 	if err != nil {
@@ -12727,6 +13070,30 @@ func (c *Client) CopyObject(ctx context.Context, id string, body CopyObjectJSONR
 
 func (c *Client) GetObjectCreator(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetObjectCreatorRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceObjectMediaMetadataWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceObjectMediaMetadataRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceObjectMediaMetadata(ctx context.Context, id string, body ReplaceObjectMediaMetadataJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceObjectMediaMetadataRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -16420,6 +16787,72 @@ func NewCreateMediaLibraryScrapeRequest(server string, id string) (*http.Request
 	return req, nil
 }
 
+// NewListMoviesRequest generates requests for ListMovies
+func NewListMoviesRequest(server string, params *ListMoviesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/media/movies")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListNotificationsRequest generates requests for ListNotifications
 func NewListNotificationsRequest(server string, params *ListNotificationsParams) (*http.Request, error) {
 	var err error
@@ -16813,6 +17246,18 @@ func NewListObjectsRequest(server string, params *ListObjectsParams) (*http.Requ
 
 		}
 
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name", *params.Name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.Type != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "type", *params.Type, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
@@ -17095,6 +17540,53 @@ func NewGetObjectCreatorRequest(server string, id string) (*http.Request, error)
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewReplaceObjectMediaMetadataRequest calls the generic ReplaceObjectMediaMetadata builder with application/json body
+func NewReplaceObjectMediaMetadataRequest(server string, id string, body ReplaceObjectMediaMetadataJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplaceObjectMediaMetadataRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewReplaceObjectMediaMetadataRequestWithBody generates requests for ReplaceObjectMediaMetadata with any type of body
+func NewReplaceObjectMediaMetadataRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s/metadata/media", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -22261,6 +22753,9 @@ type ClientWithResponsesInterface interface {
 	// CreateMediaLibraryScrapeWithResponse request
 	CreateMediaLibraryScrapeWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*CreateMediaLibraryScrapeResponse, error)
 
+	// ListMoviesWithResponse request
+	ListMoviesWithResponse(ctx context.Context, params *ListMoviesParams, reqEditors ...RequestEditorFn) (*ListMoviesResponse, error)
+
 	// ListNotificationsWithResponse request
 	ListNotificationsWithResponse(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*ListNotificationsResponse, error)
 
@@ -22313,6 +22808,11 @@ type ClientWithResponsesInterface interface {
 
 	// GetObjectCreatorWithResponse request
 	GetObjectCreatorWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetObjectCreatorResponse, error)
+
+	// ReplaceObjectMediaMetadataWithBodyWithResponse request with any body
+	ReplaceObjectMediaMetadataWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceObjectMediaMetadataResponse, error)
+
+	ReplaceObjectMediaMetadataWithResponse(ctx context.Context, id string, body ReplaceObjectMediaMetadataJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceObjectMediaMetadataResponse, error)
 
 	// TransferObjectWithBodyWithResponse request with any body
 	TransferObjectWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TransferObjectResponse, error)
@@ -24172,6 +24672,37 @@ func (r CreateMediaLibraryScrapeResponse) ContentType() string {
 	return ""
 }
 
+type ListMoviesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MoviePage
+	JSON400      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListMoviesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListMoviesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListMoviesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListNotificationsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -24760,6 +25291,39 @@ func (r GetObjectCreatorResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetObjectCreatorResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ReplaceObjectMediaMetadataResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *MediaMetadata
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplaceObjectMediaMetadataResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplaceObjectMediaMetadataResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReplaceObjectMediaMetadataResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -28892,6 +29456,15 @@ func (c *ClientWithResponses) CreateMediaLibraryScrapeWithResponse(ctx context.C
 	return ParseCreateMediaLibraryScrapeResponse(rsp)
 }
 
+// ListMoviesWithResponse request returning *ListMoviesResponse
+func (c *ClientWithResponses) ListMoviesWithResponse(ctx context.Context, params *ListMoviesParams, reqEditors ...RequestEditorFn) (*ListMoviesResponse, error) {
+	rsp, err := c.ListMovies(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListMoviesResponse(rsp)
+}
+
 // ListNotificationsWithResponse request returning *ListNotificationsResponse
 func (c *ClientWithResponses) ListNotificationsWithResponse(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*ListNotificationsResponse, error) {
 	rsp, err := c.ListNotifications(ctx, params, reqEditors...)
@@ -29057,6 +29630,23 @@ func (c *ClientWithResponses) GetObjectCreatorWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseGetObjectCreatorResponse(rsp)
+}
+
+// ReplaceObjectMediaMetadataWithBodyWithResponse request with arbitrary body returning *ReplaceObjectMediaMetadataResponse
+func (c *ClientWithResponses) ReplaceObjectMediaMetadataWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceObjectMediaMetadataResponse, error) {
+	rsp, err := c.ReplaceObjectMediaMetadataWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceObjectMediaMetadataResponse(rsp)
+}
+
+func (c *ClientWithResponses) ReplaceObjectMediaMetadataWithResponse(ctx context.Context, id string, body ReplaceObjectMediaMetadataJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceObjectMediaMetadataResponse, error) {
+	rsp, err := c.ReplaceObjectMediaMetadata(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceObjectMediaMetadataResponse(rsp)
 }
 
 // TransferObjectWithBodyWithResponse request with arbitrary body returning *TransferObjectResponse
@@ -32235,6 +32825,39 @@ func ParseCreateMediaLibraryScrapeResponse(rsp *http.Response) (*CreateMediaLibr
 	return response, nil
 }
 
+// ParseListMoviesResponse parses an HTTP response from a ListMoviesWithResponse call
+func ParseListMoviesResponse(rsp *http.Response) (*ListMoviesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListMoviesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MoviePage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListNotificationsResponse parses an HTTP response from a ListNotificationsWithResponse call
 func ParseListNotificationsResponse(rsp *http.Response) (*ListNotificationsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -32901,6 +33524,53 @@ func ParseGetObjectCreatorResponse(rsp *http.Response) (*GetObjectCreatorRespons
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReplaceObjectMediaMetadataResponse parses an HTTP response from a ReplaceObjectMediaMetadataWithResponse call
+func ParseReplaceObjectMediaMetadataResponse(rsp *http.Response) (*ReplaceObjectMediaMetadataResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplaceObjectMediaMetadataResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MediaMetadata
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	}
 
