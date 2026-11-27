@@ -54,7 +54,7 @@ traffic metering. This proposal adds what is missing:
 | `id`, `info_hash` | `info_hash` is the lowercase hex v1 infoHash, unique on the instance |
 | `storage_id` | Where its objects live, chosen by the normal storage selection when the download starts |
 | `name`, `total_size`, `file_count`, `private` | From the info dictionary. `private` is reported to clients and does not limit sharing: private-tracker torrents are shared across the instance like any other, and honouring a tracker's rules is the operator's call |
-| `status` | `downloading`, `verifying`, `ready`, `invalid` |
+| `status` | `downloading`, `verifying`, `ready`, `invalid`, and `evicting` while eviction deletes it, which keeps an instant transfer from claiming it |
 | `verified` | `full` or `sampled`, set when verification passes |
 | `source_task_id`, `source_downloader_id` | The download that filled it, kept for blame when verification fails |
 | `last_accessed_at` | Updated by instant transfer and link generation; drives eviction |
@@ -144,7 +144,7 @@ today:
 | `purgeRecursively` in `server/usecases/object.ts` (permanent delete, trash expiry, upload replace) | Purges the row; leaves the object to eviction |
 | `putWebDavFile` / `persistWebDavUpload` in `server/usecases/webdav.ts` (overwrite) | Rejected with `409`; cached files are read-only |
 | `copyObject` in `object.ts`, WebDAV `COPY` in `webdav.ts` | Writes a new reference instead of `CopyObject` |
-| `saveFile` in `object.ts` (save a share to a drive) | Writes a new reference when the target storage is the torrent's storage |
+| `saveFile` in `object.ts` (save a share to a drive) | Writes a new reference when the target storage is the torrent's storage, and copies the bytes into an owned object otherwise |
 | Cross-storage moves | Rejected; a reference cannot leave its storage |
 
 The S3 gateway is the backstop. `deleteObject` and `deleteObjects` refuse cache
