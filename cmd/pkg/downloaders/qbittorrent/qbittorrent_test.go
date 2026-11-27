@@ -185,6 +185,7 @@ func authQBittorrent(t *testing.T) *httptest.Server {
 	return server
 }
 
+// [spec: download-tasks/qbittorrent-missing-credentials]
 func TestQBittorrentCheckWithoutCredentialsFailsOnAuthenticatedWebUI(t *testing.T) {
 	server := authQBittorrent(t)
 	err := (QBittorrent{URL: server.URL}).Check(context.Background())
@@ -193,6 +194,7 @@ func TestQBittorrentCheckWithoutCredentialsFailsOnAuthenticatedWebUI(t *testing.
 	}
 }
 
+// [spec: download-tasks/qbittorrent-password-auth]
 func TestQBittorrentCheckSignsInWithUsernameAndPassword(t *testing.T) {
 	server := authQBittorrent(t)
 	if err := (QBittorrent{URL: server.URL, Username: "admin", Password: "secret"}).Check(context.Background()); err != nil {
@@ -203,6 +205,7 @@ func TestQBittorrentCheckSignsInWithUsernameAndPassword(t *testing.T) {
 	}
 }
 
+// [spec: download-tasks/qbittorrent-api-key-auth]
 func TestQBittorrentCheckUsesAPIKey(t *testing.T) {
 	server := authQBittorrent(t)
 	d, err := New(downloader.Config{QBittorrent: downloader.QBittorrentConfig{URL: server.URL, APIKey: "api-key", Configured: true}})

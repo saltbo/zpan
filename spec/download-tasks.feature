@@ -247,3 +247,28 @@ Feature: Remote download tasks
     Given a task the user canceled
     When its upload token calls the object API, including deleting its own file
     Then the API responds 401
+
+  @download-tasks/qbittorrent-password-auth @downloader
+  Scenario: A downloader connects to an external qBittorrent that requires a WebUI password
+    Given an external qBittorrent with WebUI authentication
+    When the downloader is configured with its username and password
+    Then the downloader's health check passes and it can run tasks there
+
+  @download-tasks/qbittorrent-api-key-auth @downloader
+  Scenario: A downloader connects to an external qBittorrent with a WebUI API key
+    Given an external qBittorrent with WebUI authentication
+    When the downloader is configured with only its API key, in the config file or the environment
+    Then the downloader uses that external qBittorrent instead of starting its own
+    And its health check passes
+
+  @download-tasks/qbittorrent-missing-credentials @downloader
+  Scenario: A downloader without credentials explains why an authenticated qBittorrent refuses it
+    Given an external qBittorrent with WebUI authentication
+    When the downloader has no username, password or API key for it
+    Then the health check fails with a message naming the settings to add
+
+  @download-tasks/qbittorrent-api-key-saved @downloader
+  Scenario: A saved downloader config keeps the qBittorrent API key
+    Given a downloader configured with a qBittorrent API key
+    When its config is written and loaded again
+    Then the API key is still set

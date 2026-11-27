@@ -341,6 +341,7 @@ func TestLoadScrapeConfig(t *testing.T) {
 	}
 }
 
+// [spec: download-tasks/qbittorrent-api-key-auth]
 func TestLoadReadsQBittorrentAPIKeyFromYAML(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, []byte("server_url: http://localhost:5173\ndownloader:\n  qbittorrent:\n    url: http://qbit:8080\n    api_key: yaml-key\n"), 0o600); err != nil {
@@ -361,6 +362,7 @@ func TestLoadReadsQBittorrentAPIKeyFromYAML(t *testing.T) {
 	}
 }
 
+// [spec: download-tasks/qbittorrent-api-key-auth]
 func TestLoadReadsQBittorrentAPIKeyFromEnv(t *testing.T) {
 	t.Setenv("ZPAN_DOWNLOADER_QBITTORRENT_URL", "http://qbit:8080")
 	t.Setenv("ZPAN_DOWNLOADER_QBITTORRENT_API_KEY", "env-key")
@@ -393,6 +395,7 @@ func TestLoadTreatsQBittorrentAPIKeyAloneAsConfigured(t *testing.T) {
 	}
 }
 
+// [spec: download-tasks/qbittorrent-api-key-saved]
 func TestWriteConfigStoresQBittorrentAPIKey(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	cfg := Config{
