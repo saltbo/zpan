@@ -449,6 +449,47 @@ describe('torrent cache fill', () => {
     expect(body).toBeTruthy()
     expect(await ctx.db.all(sql`SELECT id FROM torrents`)).toEqual([])
   })
+  it('takes a drive upload from a cache-mode task whose downloader fell back before registering', async () => {
+    const { ctx, a } = await setup()
+    const capabilities = ['magnet', 'torrent', 'torrent-cache']
+    const created = await createDownloader(
+      ctx.deps,
+      ctx.platform,
+      { name: 'dl-fallback', heartbeat: { ...heartbeat, capabilities } },
+      a.userId,
+    )
+    const downloaderHeaders = bearer(created.token)
+    const torrent = sampleTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    const beat = await ctx.app.request('/api/downloads/downloaders/me/heartbeats', {
+      method: 'POST',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ ...heartbeat, capabilities }),
+    })
+    const [assigned] = ((await beat.json()) as { assignments: DownloadTask[] }).assignments
+    const [role] = await ctx.db.all<{ torrent_cache_role: string | null }>(
+      sql`SELECT torrent_cache_role FROM download_tasks WHERE id = ${assigned.id}`,
+    )
+    expect(role.torrent_cache_role).toBe('fill')
+
+    // The engine never handed over metadata, so the downloader uploads into the drive.
+    const token = assigned.status.assignment?.uploadToken as string
+    const object = await ctx.app.request('/api/objects', {
+      method: 'POST',
+      headers: bearer(token),
+      body: JSON.stringify({ name: 'E01.mkv', type: 'video/x-matroska', size: 70_000, parent: 'Downloads' }),
+    })
+    expect(object.status).toBe(201)
+    const { id: objectId } = (await object.json()) as { id: string }
+    const completed = await ctx.app.request(`/api/downloads/tasks/${assigned.id}`, {
+      method: 'PATCH',
+      headers: downloaderHeaders,
+      body: JSON.stringify({ status: 'completed', resultObjectId: objectId }),
+    })
+    expect(completed.status).toBe(200)
+    expect((await getTask(ctx.app, a.headers, assigned.id)).status.state).toBe('completed')
+    expect(await ctx.db.all(sql`SELECT id FROM torrents`)).toEqual([])
+  })
 })
 
 async function submitTorrentUrl(app: TestApp['app'], headers: Record<string, string>) {

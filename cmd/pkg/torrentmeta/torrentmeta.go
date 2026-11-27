@@ -8,18 +8,19 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
-	"fmt"
 )
 
 var ErrInvalid = errors.New("torrent metadata is invalid")
 
 // InfoDict returns the bencoded info dictionary of a .torrent file. Data that
 // is itself an info dictionary (it has no `info` key) is returned unchanged.
+// Whitespace after the file's dictionary, as some tools append, is ignored.
 func InfoDict(data []byte) ([]byte, error) {
 	end, err := skip(data, 0)
-	if err != nil || end != len(data) || data[0] != 'd' {
+	if err != nil || data[0] != 'd' || len(bytes.TrimRight(data[end:], " \t\r\n")) != 0 {
 		return nil, ErrInvalid
 	}
+	data = data[:end]
 	pos := 1
 	for pos < len(data) && data[pos] != 'e' {
 		keyStart := pos
@@ -83,15 +84,21 @@ func skip(data []byte, pos int) (int, error) {
 		if colon < 1 {
 			return 0, ErrInvalid
 		}
-		var length int
-		if _, err := fmt.Sscanf(string(data[pos:pos+colon]), "%d", &length); err != nil || length < 0 {
-			return 0, ErrInvalid
+		digits := data[pos : pos+colon]
+		// Digit by digit, stopping once the length passes what is left, so a
+		// huge length can neither overflow nor be accepted.
+		remaining := len(data) - pos - colon - 1
+		length := 0
+		for _, digit := range digits {
+			if digit < '0' || digit > '9' {
+				return 0, ErrInvalid
+			}
+			length = length*10 + int(digit-'0')
+			if length > remaining {
+				return 0, ErrInvalid
+			}
 		}
-		end := pos + colon + 1 + length
-		if end > len(data) {
-			return 0, ErrInvalid
-		}
-		return end, nil
+		return pos + colon + 1 + length, nil
 	}
 	return 0, ErrInvalid
 }

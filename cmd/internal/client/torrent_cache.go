@@ -93,6 +93,16 @@ func (c *Client) CompleteTorrentFileUpload(ctx context.Context, token string, ta
 	return expectStatus("POST", path, res.StatusCode(), res.Body, http.StatusOK)
 }
 
+// AbortTorrentFileUpload abandons a multipart upload whose parts failed.
+func (c *Client) AbortTorrentFileUpload(ctx context.Context, token string, taskID string, fileIdx int, uploadID string) error {
+	path := "/api/downloads/tasks/" + taskID + "/torrent/files/" + strconv.Itoa(fileIdx) + "/uploads/" + uploadID
+	res, err := c.api.AbortTorrentFileUploadWithResponse(ctx, taskID, fileIdx, uploadID, bearer(token))
+	if err != nil {
+		return err
+	}
+	return expectStatus("DELETE", path, res.StatusCode(), res.Body, http.StatusNoContent)
+}
+
 func (c *Client) CreateTorrentSidecarUpload(ctx context.Context, token string, taskID string, n int, size int64) (TorrentUpload, error) {
 	path := "/api/downloads/tasks/" + taskID + "/torrent/sidecars/" + strconv.Itoa(n) + "/uploads"
 	data, err := jsonBody(map[string]int64{"size": size})

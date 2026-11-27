@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/saltbo/zpan/internal/client"
 	"github.com/saltbo/zpan/internal/config"
@@ -50,16 +51,35 @@ type metadataEngine struct {
 	mu       sync.Mutex
 	metadata []byte
 	pending  int
+	// partial calls return a .torrent cut short, as one still being written.
+	partial int
+	err     error
+	calls   int
 }
 
 func (e *metadataEngine) TorrentMetadata(context.Context, DownloadTask) ([]byte, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.calls++
+	if e.err != nil {
+		return nil, e.err
+	}
 	if e.pending > 0 {
 		e.pending--
 		return nil, ErrTorrentMetadataPending
 	}
+	if e.partial > 0 {
+		e.partial--
+		return e.metadata[:len(e.metadata)/2], nil
+	}
 	return e.metadata, nil
+}
+
+// fastRetries makes the metadata and part retries immediate for a test.
+func fastRetries(t *testing.T) {
+	metadata, part := metadataRetryDelay, partRetryDelay
+	metadataRetryDelay, partRetryDelay = time.Millisecond, time.Millisecond
+	t.Cleanup(func() { metadataRetryDelay, partRetryDelay = metadata, part })
 }
 
 // cacheServer fakes the torrent cache API over the recording API: presigned
@@ -77,6 +97,12 @@ type cacheServer struct {
 	layouts      []json.RawMessage
 	completions  [][]client.TorrentFile
 	refuseLayout int
+	aborted      []string
+	registerErr  error
+	// failPuts presigned PUTs answer 500 before they succeed; -1 fails all.
+	failPuts int
+	puts     int
+	uploadID *string
 }
 
 func newCacheServer(t *testing.T, outcome string, name string, files []client.TorrentFile) *cacheServer {
@@ -84,8 +110,16 @@ func newCacheServer(t *testing.T, outcome string, name string, files []client.To
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		data, _ := io.ReadAll(r.Body)
 		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.puts++
+		if s.failPuts != 0 {
+			if s.failPuts > 0 {
+				s.failPuts--
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		s.bucket[strings.TrimPrefix(r.URL.Path, "/")] = string(data)
-		s.mu.Unlock()
 		w.Header().Set("ETag", `"etag"`)
 	}))
 	t.Cleanup(server.Close)
@@ -97,11 +131,14 @@ func (s *cacheServer) RegisterTaskTorrent(_ context.Context, _ string, _ string,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.registered = append(s.registered, info)
+	if s.registerErr != nil {
+		return client.TorrentRegistration{}, s.registerErr
+	}
 	return client.TorrentRegistration{Outcome: s.outcome, InfoHash: "abc", Name: s.name, Files: s.files}, nil
 }
 
 func (s *cacheServer) upload(key string, size int64) client.TorrentUpload {
-	return client.TorrentUpload{PartSize: size, Parts: []client.TorrentUploadPart{{PartNumber: 1, URL: s.url + "/" + key, Length: size}}}
+	return client.TorrentUpload{UploadID: s.uploadID, PartSize: size, Parts: []client.TorrentUploadPart{{PartNumber: 1, URL: s.url + "/" + key, Length: size}}}
 }
 
 func (s *cacheServer) CreateTorrentFileUpload(_ context.Context, _ string, _ string, fileIdx int) (client.TorrentUpload, error) {
@@ -111,6 +148,13 @@ func (s *cacheServer) CreateTorrentFileUpload(_ context.Context, _ string, _ str
 		}
 	}
 	return client.TorrentUpload{}, errors.New("no such file")
+}
+
+func (s *cacheServer) AbortTorrentFileUpload(_ context.Context, _ string, _ string, fileIdx int, uploadID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.aborted = append(s.aborted, fmt.Sprintf("file/%d %s", fileIdx, uploadID))
+	return nil
 }
 
 func (s *cacheServer) CompleteTorrentFileUpload(_ context.Context, _ string, _ string, fileIdx int, _ *string, _ []client.CompletedObjectUploadPart) error {
@@ -282,6 +326,25 @@ func TestDriveOutcomeAndTasksOutsideCacheModeUploadIntoTheDrive(t *testing.T) {
 	}
 }
 
+// probedEngine is a metadata engine that may lack the export, like a
+// qBittorrent older than 4.5.
+type probedEngine struct {
+	*metadataEngine
+	canExport bool
+}
+
+func (e *probedEngine) CanExportTorrentMetadata(context.Context) bool { return e.canExport }
+
+func TestCapabilityFollowsTheEnginesExport(t *testing.T) {
+	api := newCacheServer(t, client.TorrentOutcomeFill, "", nil)
+	for canExport, want := range map[bool]bool{true: true, false: false} {
+		engine := &probedEngine{metadataEngine: &metadataEngine{recordingEngine: &recordingEngine{}}, canExport: canExport}
+		if got := slices.Contains(cacheRunner(api, engine).heartbeat().Capabilities, TorrentCacheCapability); got != want {
+			t.Errorf("export %v: reported torrent-cache = %v", canExport, got)
+		}
+	}
+}
+
 func TestDownloaderWithoutMetadataSupportDoesNotReportTheCapability(t *testing.T) {
 	w := cacheRunner(newCacheServer(t, client.TorrentOutcomeFill, "", nil), &recordingEngine{})
 	if slices.Contains(w.heartbeat().Capabilities, TorrentCacheCapability) {
@@ -293,17 +356,122 @@ func TestDownloaderWithoutMetadataSupportDoesNotReportTheCapability(t *testing.T
 	}
 }
 
-func TestUnreadableMetadataUploadsIntoTheDrive(t *testing.T) {
-	api := newCacheServer(t, client.TorrentOutcomeFill, "Show", nil)
-	api.createFolderErr = errors.New("drive upload")
-	engine := &metadataEngine{recordingEngine: &recordingEngine{}, metadata: []byte("not bencode")}
-	engine.downloadResult = download(t, t.TempDir(), "Show", map[string]string{"a.mkv": "video", "b.mkv": "video"})
+// A cache-mode task whose engine never hands over readable metadata (an old
+// qBittorrent without torrents/export, a .torrent that stays unreadable) gives
+// up on the cache after the retry budget and uploads into the drive, though the
+// server still has the task in cache mode.
+func TestMetadataThatNeverBecomesReadableUploadsIntoTheDrive(t *testing.T) {
+	fastRetries(t)
+	for name, engine := range map[string]*metadataEngine{
+		"unreadable":  {metadata: []byte("not bencode")},
+		"pending":     {pending: 1 << 30},
+		"no export":   {err: errors.New("export torrent metadata: not found")},
+		"cut forever": {metadata: torrentFile(infoDict("Show", map[string]int{"a.mkv": 5})), partial: 1 << 30},
+	} {
+		t.Run(name, func(t *testing.T) {
+			api := newCacheServer(t, client.TorrentOutcomeFill, "Show", nil)
+			api.createFolderErr = errors.New("drive upload")
+			engine.recordingEngine = &recordingEngine{}
+			engine.downloadResult = download(t, t.TempDir(), "Show", map[string]string{"a.mkv": "video", "b.mkv": "video"})
+			w := cacheRunner(api, engine)
+
+			w.process(context.Background(), cacheTask("task-1"))
+
+			if len(api.registered) != 0 {
+				t.Fatalf("registered = %q", api.registered)
+			}
+			if engine.calls != metadataAttempts {
+				t.Fatalf("metadata read %d times, want %d", engine.calls, metadataAttempts)
+			}
+			failed := lastPatchWithStatus(t, api.patches, "failed")
+			if failed.ErrorMessage == nil || !strings.Contains(*failed.ErrorMessage, "drive upload") {
+				t.Fatalf("did not upload into the drive: %#v", failed)
+			}
+		})
+	}
+}
+
+// A .torrent read while aria2 is still writing it is retried, not taken as
+// unreadable.
+func TestPartlyWrittenMetadataIsRetried(t *testing.T) {
+	fastRetries(t)
+	info := infoDict("Show", map[string]int{"a.mkv": 5})
+	files := []client.TorrentFile{{FileIdx: 0, Path: "a.mkv", Size: 5}}
+	api := newCacheServer(t, client.TorrentOutcomeFill, "Show", files)
+	engine := &metadataEngine{recordingEngine: &recordingEngine{}, metadata: torrentFile(info), partial: 2}
+	engine.downloadResult = download(t, t.TempDir(), "Show", map[string]string{"a.mkv": "video"})
 	w := cacheRunner(api, engine)
 
 	w.process(context.Background(), cacheTask("task-1"))
 
-	if len(api.registered) != 0 {
+	if len(api.registered) != 1 || string(api.registered[0]) != string(info) {
 		t.Fatalf("registered = %q", api.registered)
+	}
+	if api.bucket["file/0"] != "video" || len(api.completions) != 1 {
+		t.Fatalf("bucket = %v, completions = %v", api.bucket, api.completions)
+	}
+}
+
+// A 409 on registration means the server released, joined or completed the
+// task: it stops and leaves nothing behind, and nothing goes into the drive,
+// which would be a second copy.
+func TestConflictOnRegistrationStopsTheTask(t *testing.T) {
+	api := newCacheServer(t, client.TorrentOutcomeFill, "Show", nil)
+	api.registerErr = &client.StatusError{Status: http.StatusConflict, Message: "Task is not filling the torrent cache"}
+	api.createFolderErr = errors.New("drive upload")
+	engine := &metadataEngine{recordingEngine: &recordingEngine{}, metadata: infoDict("Show", map[string]int{"a.mkv": 5})}
+	engine.downloadResult = download(t, t.TempDir(), "Show", map[string]string{"a.mkv": "video"})
+	w := cacheRunner(api, engine)
+
+	w.process(context.Background(), cacheTask("task-1"))
+
+	if len(api.registered) != 1 {
+		t.Fatalf("registered = %q", api.registered)
+	}
+	for _, patch := range api.patches {
+		if state := patch.State(); state == "failed" || state == "completed" || state == "uploading" {
+			t.Fatalf("the downloader changed a released task: %#v", patch)
+		}
+	}
+	if len(api.createFolderDrafts) != 0 || len(api.completed) != 0 {
+		t.Fatalf("uploaded: drive %v, cache %v", api.createFolderDrafts, api.completed)
+	}
+	// The engine removes the local download.
+	if engine.resetCalls != 1 {
+		t.Fatalf("reset calls = %d", engine.resetCalls)
+	}
+}
+
+func TestFailedPartUploadsAreRetriedThenAborted(t *testing.T) {
+	fastRetries(t)
+	info := infoDict("Show", map[string]int{"a.mkv": 5})
+	files := []client.TorrentFile{{FileIdx: 0, Path: "a.mkv", Size: 5}}
+	uploadID := "mp-1"
+
+	api := newCacheServer(t, client.TorrentOutcomeFill, "Show", files)
+	api.uploadID = &uploadID
+	api.failPuts = partAttempts - 1
+	engine := &metadataEngine{recordingEngine: &recordingEngine{}, metadata: torrentFile(info)}
+	engine.downloadResult = download(t, t.TempDir(), "Show", map[string]string{"a.mkv": "video"})
+	cacheRunner(api, engine).process(context.Background(), cacheTask("task-1"))
+	if api.bucket["file/0"] != "video" || len(api.completions) != 1 || len(api.aborted) != 0 {
+		t.Fatalf("bucket = %v, completions = %v, aborted = %v", api.bucket, api.completions, api.aborted)
+	}
+
+	api = newCacheServer(t, client.TorrentOutcomeFill, "Show", files)
+	api.uploadID = &uploadID
+	api.failPuts = -1
+	engine = &metadataEngine{recordingEngine: &recordingEngine{}, metadata: torrentFile(info)}
+	engine.downloadResult = download(t, t.TempDir(), "Show", map[string]string{"a.mkv": "video"})
+	cacheRunner(api, engine).process(context.Background(), cacheTask("task-1"))
+	if api.puts != partAttempts {
+		t.Fatalf("puts = %d, want %d", api.puts, partAttempts)
+	}
+	if len(api.aborted) != 1 || api.aborted[0] != "file/0 mp-1" {
+		t.Fatalf("aborted = %v", api.aborted)
+	}
+	if len(api.completions) != 0 {
+		t.Fatalf("completed after a failed upload: %v", api.completions)
 	}
 	lastPatchWithStatus(t, api.patches, "failed")
 }
@@ -413,6 +581,23 @@ func TestTorrentLocalFilesFindsFilesWhateverTheRootIsNamed(t *testing.T) {
 	registration.Files[1].Size = 4
 	if _, err := torrentLocalFiles(Result{Path: dir, IsDir: true}, registration); err == nil {
 		t.Fatal("a file of the wrong size matched")
+	}
+	// A torrent `a` holding `x` and `a/x`: the root is stripped exactly once,
+	// and a .torrent file inside the torrent is one of its files.
+	nested := t.TempDir()
+	download(t, nested, "a", map[string]string{"x": "xx", "a/x": "axa", "inner.torrent": "torr"})
+	registration = client.TorrentRegistration{Name: "a", Files: []client.TorrentFile{
+		{FileIdx: 0, Path: "x", Size: 2}, {FileIdx: 1, Path: "a/x", Size: 3}, {FileIdx: 2, Path: "inner.torrent", Size: 4},
+	}}
+	for _, root := range []string{nested, filepath.Join(nested, "a")} {
+		locals, err = torrentLocalFiles(Result{Path: root, IsDir: true}, registration)
+		base := filepath.Join(nested, "a")
+		if err != nil || locals[0] != filepath.Join(base, "x") || locals[1] != filepath.Join(base, "a", "x") || locals[2] != filepath.Join(base, "inner.torrent") {
+			t.Fatalf("root %s: locals = %v, %v", root, locals, err)
+		}
+	}
+	if _, err := torrentLocalFiles(Result{Path: nested, IsDir: true}, client.TorrentRegistration{Name: "a", Files: []client.TorrentFile{{Path: "../x", Size: 2}}}); err == nil {
+		t.Fatal("a path outside the download matched")
 	}
 	single := client.TorrentRegistration{Name: "a.mkv", Files: []client.TorrentFile{{FileIdx: 0, Path: "a.mkv", Size: 5}}}
 	if locals, err := torrentLocalFiles(Result{Path: filepath.Join(dir, "Renamed")}, single); err == nil || locals != nil {

@@ -283,6 +283,12 @@ type TorrentMetadataSource interface {
 	TorrentMetadata(ctx context.Context, task DownloadTask) ([]byte, error)
 }
 
+// TorrentMetadataExportProbe is a TorrentMetadataSource whose engine may lack
+// the export, such as a qBittorrent older than 4.5; it says whether it has it.
+type TorrentMetadataExportProbe interface {
+	CanExportTorrentMetadata(ctx context.Context) bool
+}
+
 type TaskResetter interface {
 	ResetTask(ctx context.Context, task DownloadTask) error
 }

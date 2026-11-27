@@ -566,10 +566,18 @@ func addAria2Task(ctx context.Context, aria *arigo.Client, task downloader.Downl
 }
 
 // TorrentMetadata reads the task's .torrent file from its download folder:
-// aria2 saves a magnet's metadata there once it has it (bt-save-metadata), and
-// a torrent_url's file is kept there when the task is added.
+// aria2 saves a magnet's metadata there as <infoHash>.torrent once it has it
+// (bt-save-metadata), and a torrent_url's file is kept there when the task is
+// added. Other sources have no metadata to hand over.
 func (a Aria2) TorrentMetadata(_ context.Context, task downloader.DownloadTask) ([]byte, error) {
-	return core.ReadMetadata(filepath.Join(a.Dir, task.ID))
+	taskDir := filepath.Join(a.Dir, task.ID)
+	switch task.SourceType() {
+	case "magnet":
+		return core.ReadMetadata(taskDir, aria2TaskInfoHash(task))
+	case "torrent_url":
+		return core.ReadMetadata(taskDir, "")
+	}
+	return nil, fmt.Errorf("aria2 keeps no torrent metadata for %s tasks", task.SourceType())
 }
 
 func (a Aria2) waitResult(ctx context.Context, aria **arigo.Client, task downloader.DownloadTask, taskDir string, gid string, progress downloader.ProgressReporter) (downloader.Result, error) {

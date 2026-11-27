@@ -28,6 +28,8 @@ func TestTorrentCacheCallsUseTheCacheAPI(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case r.Method == http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
 		case strings.HasSuffix(r.URL.Path, "/uploads"):
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"uploadId":"up","partSize":4,"expiresAt":"x","parts":[{"partNumber":1,"url":"u","offset":0,"length":4}]}`))
@@ -56,6 +58,9 @@ func TestTorrentCacheCallsUseTheCacheAPI(t *testing.T) {
 	if err := c.CompleteTorrentFileUpload(ctx, "upload-token", "t1", 0, upload.UploadID, []CompletedObjectUploadPart{{PartNumber: 1, ETag: "e"}}); err != nil {
 		t.Fatal(err)
 	}
+	if err := c.AbortTorrentFileUpload(ctx, "upload-token", "t1", 0, "up/1"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := c.CreateTorrentSidecarUpload(ctx, "upload-token", "t1", 3, 4); err != nil {
 		t.Fatal(err)
 	}
@@ -74,6 +79,7 @@ func TestTorrentCacheCallsUseTheCacheAPI(t *testing.T) {
 		"PUT /api/downloads/tasks/t1/torrent",
 		"POST /api/downloads/tasks/t1/torrent/files/0/uploads",
 		"POST /api/downloads/tasks/t1/torrent/files/0/completions",
+		"DELETE /api/downloads/tasks/t1/torrent/files/0/uploads/up/1",
 		"POST /api/downloads/tasks/t1/torrent/sidecars/3/uploads",
 		"POST /api/downloads/tasks/t1/torrent/sidecars/3/completions",
 		"PUT /api/downloads/tasks/t1/torrent/layout",
@@ -88,11 +94,11 @@ func TestTorrentCacheCallsUseTheCacheAPI(t *testing.T) {
 	if parts := bodies[want[2]]["parts"].([]any); len(parts) != 1 {
 		t.Fatalf("completion body = %v", bodies[want[2]])
 	}
-	if bodies[want[3]]["size"] != float64(4) {
-		t.Fatalf("sidecar body = %v", bodies[want[3]])
+	if bodies[want[4]]["size"] != float64(4) {
+		t.Fatalf("sidecar body = %v", bodies[want[4]])
 	}
-	if files := bodies[want[6]]["files"].([]any); len(files) != 1 {
-		t.Fatalf("complete body = %v", bodies[want[6]])
+	if files := bodies[want[7]]["files"].([]any); len(files) != 1 {
+		t.Fatalf("complete body = %v", bodies[want[7]])
 	}
 }
 

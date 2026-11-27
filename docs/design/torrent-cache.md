@@ -199,11 +199,17 @@ yet uploaded. The requesting task finishes by instant transfer like
 every later one, so the first user's files are laid out exactly as everyone
 else's.
 
-qBittorrent exports the `.torrent` file through its Web API, and Aria2 saves it
-with `bt-save-metadata`, so both engines can supply the info dictionary. The
+qBittorrent exports the `.torrent` file through its Web API (`torrents/export`,
+Web API 2.8.14 and later), and Aria2 saves it as `<infoHash>.torrent` with
+`bt-save-metadata`, so both engines can supply the info dictionary. A
+downloader reports the capability only when its engine can export. The
 downloader registers it as soon as the engine has it, so a torrent that turns
-out to be cached or already downloading elsewhere stops downloading early, and
-a torrent the server refuses uploads into the drive. Only
+out to be cached or already downloading elsewhere stops downloading early.
+A torrent the server refuses (`400`) uploads into the drive, and so does one
+whose metadata is still unreadable a few retries after the download. A `409`
+means the server no longer has the task filling the cache, so the downloader
+stops it without uploading anywhere. A part upload is retried, and a multipart
+upload that still fails is aborted. Only
 v1 and hybrid torrents enter the cache. Padding files (BEP 47) count for piece
 boundaries but get no `torrent_files` row.
 

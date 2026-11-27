@@ -31,3 +31,28 @@ func TestInfoDictRefusesGarbage(t *testing.T) {
 		}
 	}
 }
+
+func TestInfoDictAcceptsTrailingWhitespace(t *testing.T) {
+	info := []byte("d4:name1:ae")
+	file := append(append([]byte("d4:info"), info...), []byte("e\r\n \t")...)
+	if got, err := InfoDict(file); err != nil || !bytes.Equal(got, info) {
+		t.Fatalf("info = %q, %v", got, err)
+	}
+	if _, err := InfoDict(append(file, 'x')); err == nil {
+		t.Fatal("trailing data accepted")
+	}
+}
+
+func TestInfoDictRefusesLengthsPastTheData(t *testing.T) {
+	for _, data := range [][]byte{
+		[]byte("d4:name99999999999999999999999999999:ae"),
+		[]byte("d4:name9223372036854775807:ae"),
+		[]byte("d4:name18446744073709551617:ae"),
+		[]byte("d4:name3:ae"),
+		[]byte("d4:name-1:ae"),
+	} {
+		if _, err := InfoDict(data); err == nil {
+			t.Errorf("InfoDict(%q) succeeded", data)
+		}
+	}
+}

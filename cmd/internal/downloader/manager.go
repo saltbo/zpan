@@ -139,14 +139,23 @@ func (m *Manager) Capabilities() []string {
 // fill the torrent cache.
 const TorrentCacheCapability = "torrent-cache"
 
-// SupportsTorrentCache reports whether an engine can hand over torrent metadata.
+// SupportsTorrentCache reports whether the engine that runs magnet tasks can
+// hand over their metadata.
 func (m *Manager) SupportsTorrentCache() bool {
-	for _, downloader := range m.currentDownloaders() {
-		if _, ok := downloader.(TorrentMetadataSource); ok {
-			return true
-		}
+	downloader, err := m.selectDownloader(DownloadTask{Source: Source{Type: "magnet"}})
+	if err != nil {
+		return false
 	}
-	return false
+	if _, ok := downloader.(TorrentMetadataSource); !ok {
+		return false
+	}
+	probe, ok := downloader.(TorrentMetadataExportProbe)
+	if !ok {
+		return true
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return probe.CanExportTorrentMetadata(ctx)
 }
 
 // TorrentMetadata returns the .torrent file of a torrent task from the engine
