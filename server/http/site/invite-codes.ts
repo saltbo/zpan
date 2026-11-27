@@ -1,7 +1,6 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema, opaqueTokenSchema } from '@shared/schemas'
-import type { Env } from '../../middleware/platform'
 import { type InviteCodeListItem, type InviteCodeRecord, unauthorized } from '../../usecases/ports'
 import {
   deleteInviteCode,
@@ -16,6 +15,7 @@ import {
   encodeNextPageToken,
   pageQueryFingerprint,
 } from '../page-token'
+import { createRouter } from '../router'
 
 const inviteCodeSchema = z
   .object({
@@ -141,7 +141,7 @@ const validateRoute = authRoute(
   },
 )
 
-export const adminInviteCodes = new OpenAPIHono<Env>()
+export const adminInviteCodes = createRouter()
   .openapi(listRoute, async (c) => {
     const { pageSize, pageToken } = c.req.valid('query')
     const page = {
@@ -172,7 +172,7 @@ export const adminInviteCodes = new OpenAPIHono<Env>()
     return c.body(null, 204)
   })
 
-export const publicInviteCodes = new OpenAPIHono<Env>().openapi(validateRoute, async (c) => {
+export const publicInviteCodes = createRouter().openapi(validateRoute, async (c) => {
   const { code } = c.req.valid('json')
   return c.json(await validateInviteCode(c.get('deps'), code), 200)
 })

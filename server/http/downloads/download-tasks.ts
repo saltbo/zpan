@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   createDownloadTaskSchema,
@@ -30,6 +30,7 @@ import {
   encodeNextPageToken,
   pageQueryFingerprint,
 } from '../page-token'
+import { createRouter } from '../router'
 
 const downloadTaskStatuses = new Set([
   'queued',
@@ -251,7 +252,7 @@ const deleteRoute = authRoute(
   },
 )
 
-const downloadTasksRoute = new OpenAPIHono<Env>()
+const downloadTasksRoute = createRouter()
   .openapi(listRoute, async (c) => {
     const query = c.req.valid('query')
     const statuses = parseStatuses(query.status)
@@ -337,7 +338,7 @@ const downloadTasksRoute = new OpenAPIHono<Env>()
     )
   })
 
-export const downloaderTasksRoute = new OpenAPIHono<Env>().openapi(downloaderTaskListRoute, async (c) => {
+export const downloaderTasksRoute = createRouter().openapi(downloaderTaskListRoute, async (c) => {
   const principal = c.get('principal')
   if (principal?.kind !== 'downloader') throw unauthorized()
   const query = c.req.valid('query')

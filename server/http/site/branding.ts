@@ -1,7 +1,6 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { type BrandingField, type BrandingThemeMode, isBrandingThemePresetId } from '../../../shared/types'
-import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import {
   AppError,
@@ -14,6 +13,7 @@ import {
 } from '../../usecases/ports'
 import { applyBrandingUpdate, resetBranding, type ThemeUpdate } from '../../usecases/site/branding'
 import { authRoute, errorResponse, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 
 const brandingThemeValuesSchema = z.object({
   primary_color: z.string(),
@@ -137,7 +137,7 @@ const resetRoute = authRoute(
 )
 
 // Admin — requires auth + admin role + white_label feature.
-export const brandingAdmin = new OpenAPIHono<Env>()
+export const brandingAdmin = createRouter()
   .openapi(updateRoute, async (c) => {
     if (!c.req.header('content-type')?.includes('multipart/form-data')) {
       throw unsupportedMediaType('Expected multipart/form-data')

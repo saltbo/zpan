@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   actorIdentitySchema,
@@ -42,6 +42,7 @@ import { describeCapacityRequirement } from '../usecases/store/store'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 import { decodeOptionalPageToken, directoryCursorCodec, encodeNextPageToken, pageQueryFingerprint } from './page-token'
+import { createRouter } from './router'
 
 // The wire shape of a file/folder — exactly what the API serializes. Timestamps
 // are strings here (the domain `Matter` carries them as `Date`); `toMatterDTO`
@@ -464,7 +465,7 @@ const transferObjectRoute = authRoute(
   },
 )
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 const objects = app
   .openapi(listRoute, async (c) => {

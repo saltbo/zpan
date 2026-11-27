@@ -34,6 +34,29 @@ export const ZH_ERROR_MESSAGES = {
   'file field (base64 string) is required': '缺少 file 字段（base64 字符串）',
   'file field is required': '缺少 file 字段',
   'Invalid field. Valid fields: {fields}': '字段无效。可用字段：{fields}',
+  'Invalid request': '请求无效',
+  'Invalid value for {field}': '{field} 的值无效',
+
+  // Request schema checks, shown when a request fails its route's schema
+  'Target folder cannot contain ..': '目标文件夹不能包含 ..',
+  'Magnet source must be a magnet: URI': '磁力链接须以 magnet: 开头',
+  'URL must be a public http(s) address': '链接须为公网 http(s) 地址',
+  'At least one field is required': '至少需要填写一个字段',
+  'Health status cannot be updated with connection settings': '健康状态不能与连接设置一起修改',
+  'Health reason requires a health status': '填写健康原因时须同时设置健康状态',
+  'Unhealthy status requires a reason': '不健康状态须填写原因',
+  'Only an unhealthy status can have a reason': '只有不健康状态才能填写原因',
+  'CNAME value must be a hostname': 'CNAME 记录值须为主机名',
+  'A value must be an IPv4 address': 'A 记录值须为 IPv4 地址',
+  'AAAA value must be an IPv6 address': 'AAAA 记录值须为 IPv6 地址',
+  'Zone ID must be 32 hexadecimal characters': 'Zone ID 须为 32 位十六进制字符',
+  'Invalid hostname format': '主机名格式无效',
+  'Each entry must be a valid origin (e.g. https://example.com)': '每一项须为有效的源地址（如 https://example.com）',
+  'Must contain only ASCII letters and digits': '只能包含 ASCII 字母和数字',
+  'Must contain only ASCII letters, digits, underscores, or hyphens': '只能包含 ASCII 字母、数字、下划线或连字符',
+  'Must be a current or historical share token': '须为有效的分享标识',
+  'Must be a current or historical image token': '须为有效的图片标识',
+  'Expected valid yyyy-MM-dd or ISO datetime with offset': '日期须为 yyyy-MM-dd 或带时区的 ISO 时间',
 
   // Workspaces and teams
   'No active organization': '没有当前空间',
@@ -275,6 +298,9 @@ function resolve(message: ErrorMessage): { template: string; params: Params } | 
   }
   return null
 }
+
+/** True when `text` is exactly a catalog key, so it has text in every language. */
+export const isCatalogMessage = (text: string) => Object.hasOwn(catalog, text)
 
 /** The message in the requested language, falling back to English. */
 export function localizeMessage(message: ErrorMessage, language: ErrorLanguage): string {

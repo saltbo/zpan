@@ -1,11 +1,10 @@
-import { OpenAPIHono } from '@hono/zod-openapi'
 import { siteConfigSchema } from '@shared/schemas'
 import { currentCacheEvents } from '../cache/context'
-import type { Env } from '../middleware/platform'
 import { backgroundJobsEnabled } from '../platform/interface'
 import { siteConfigCacheControl } from '../usecases/site/config-cache'
 import { getSiteConfig } from '../usecases/site/configz'
 import { authRoute, jsonContent } from './openapi'
+import { createRouter } from './router'
 
 const getRoute = authRoute(
   { public: true },
@@ -29,7 +28,7 @@ async function responseEtag(body: string): Promise<string> {
   return `"${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')}"`
 }
 
-export const configz = new OpenAPIHono<Env>().openapi(getRoute, async (c) => {
+export const configz = createRouter().openapi(getRoute, async (c) => {
   const storedConfig = await getSiteConfig(c.get('deps'), c.req.url)
   const previewOrigin = c.get('platform').getEnv('ZPAN_PREVIEW') === 'true' ? new URL(c.req.url).origin : undefined
   const config = {

@@ -1,5 +1,4 @@
 import { release as osRelease } from 'node:os'
-import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
 import { AuthorizationScope } from '@shared/authorization'
 import { OAUTH_RESOURCE_SCOPES, OAUTH_SCOPE_DESCRIPTIONS } from '@shared/oauth'
@@ -31,6 +30,7 @@ import objects from './http/objects'
 import { addRequestIdOpenApi } from './http/openapi'
 import { adminQuotas, userQuotas } from './http/quotas'
 import redirect from './http/redirect'
+import { createRouter } from './http/router'
 import { authedShares, publicShares } from './http/shares'
 import { announcements } from './http/site/announcements'
 import { adminAudit } from './http/site/audit'
@@ -56,7 +56,6 @@ import { authMiddleware } from './middleware/auth'
 import { isHandledError, jsonError } from './middleware/error-handler'
 import { imageHostingDomain } from './middleware/image-hosting-domain'
 import { accessLog } from './middleware/logger'
-import type { Env } from './middleware/platform'
 import { platformMiddleware } from './middleware/platform'
 import type { Platform } from './platform/interface'
 import { getDeployPlatform } from './runtime-platform'
@@ -66,7 +65,7 @@ import { ensureSitePublicOrigin } from './usecases/site/public-origin'
 import { getSiteRoutingConfig } from './usecases/site/routing-config'
 
 export function createApp(platform: Platform, auth: Auth, deps: Deps = createDeps(platform)) {
-  const app = new OpenAPIHono<Env>()
+  const app = createRouter()
   const corsOrigins = getCorsOrigins(platform)
 
   app.use('/*', platformMiddleware(platform, auth))

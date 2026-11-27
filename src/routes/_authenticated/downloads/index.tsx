@@ -95,6 +95,7 @@ import { useUrlText } from '@/hooks/use-url-text'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import {
+  ApiError,
   createDownloadTask,
   getDownloadTask,
   listDownloadTaskEvents,
@@ -2024,6 +2025,9 @@ function isHttpUrl(value: string) {
   }
 }
 
+// The server names the failing request field; the link's belongs under the link.
+const isLinkError = (err: unknown): err is ApiError => err instanceof ApiError && err.metadata?.field === 'source.uri'
+
 function CreateDownloadTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -2042,7 +2046,11 @@ function CreateDownloadTaskDialog({ open, onOpenChange }: { open: boolean; onOpe
       toast.success(t('downloads.createSuccess'))
       handleOpenChange(false)
     },
+    onError: (err) => {
+      if (isLinkError(err)) form.setError('uri', { type: 'server', message: err.message })
+    },
   })
+  const formError = createMutation.error && !isLinkError(createMutation.error) ? createMutation.error.message : null
 
   function handleOpenChange(nextOpen: boolean) {
     onOpenChange(nextOpen)
@@ -2154,9 +2162,9 @@ function CreateDownloadTaskDialog({ open, onOpenChange }: { open: boolean; onOpe
             </div>
           </div>
 
-          {createMutation.error && (
+          {formError && (
             <p role="alert" className="text-sm text-destructive">
-              {createMutation.error.message}
+              {formError}
             </p>
           )}
 

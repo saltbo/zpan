@@ -16,6 +16,14 @@ Feature: Error messages
     When it fails with a known error
     Then the error message is in English
 
+  @error-messages/invalid-request @api
+  Scenario: A request the API cannot accept gets a readable error
+    Given a request whose body or parameters do not fit what the API accepts
+    When the API rejects it
+    Then the error has the same shape and status as every other invalid argument
+    And its message is one short sentence in the request's language, not a list of checks
+    And the error names the field that is wrong, when one is
+
   @error-messages/ui-language @web
   Scenario: The UI asks for the language it shows
     Given a user who has switched the UI to 中文

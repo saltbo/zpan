@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   adminAnalyticsGrowthSchema,
@@ -9,7 +9,6 @@ import {
   adminAnalyticsTrafficSchema,
 } from '@shared/schemas'
 import { addCalendarDays, utcDateStart } from '../domain/admin-stats-time'
-import type { Env } from '../middleware/platform'
 import { requireFeature } from '../middleware/require-feature'
 import {
   getAdminDashboardGrowthStats,
@@ -20,6 +19,7 @@ import {
   getAdminDashboardTrafficStats,
 } from '../usecases/admin-stats'
 import { authRoute, jsonContent } from './openapi'
+import { createRouter } from './router'
 
 const dashboardDateSchema = z
   .string()
@@ -113,7 +113,7 @@ const sharingRoute = analyticsRoute(
   adminAnalyticsSharingSchema,
 )
 
-export const adminStats = new OpenAPIHono<Env>()
+export const adminStats = createRouter()
   .openapi(overviewRoute, async (c) =>
     c.json(await getAdminDashboardOverviewStats(c.get('deps'), parseRange(c.req.valid('query'))), 200),
   )

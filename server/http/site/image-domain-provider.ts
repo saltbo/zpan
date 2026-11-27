@@ -1,7 +1,6 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { imageDomainProviderResponseSchema, updateImageDomainSettingsSchema } from '@shared/schemas'
-import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import {
   getImageDomainProvider,
@@ -9,6 +8,7 @@ import {
   testImageDomainProvider,
 } from '../../usecases/site/image-domain-provider'
 import { authRoute, errorResponse, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 
 const successSchema = z.object({ success: z.literal(true) })
 
@@ -59,7 +59,7 @@ const testRoute = authRoute(
   },
 )
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 const imageDomainProvider = app
   .openapi(getRoute, async (c) => c.json(await getImageDomainProvider(c.get('deps')), 200))

@@ -1,9 +1,9 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { createTestEmailSchema, emailSettingsSchema, updateEmailSettingsSchema } from '@shared/schemas'
-import type { Env } from '../../middleware/platform'
 import { getEmailConfig, saveEmailConfig, sendTestEmail } from '../../usecases/site/email-config'
 import { authRoute, errorResponse, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 
 const successSchema = z.object({ success: z.boolean() })
 
@@ -51,7 +51,7 @@ const testRoute = authRoute(
   },
 )
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 const emailConfig = app
   .openapi(getRoute, async (c) => c.json(await getEmailConfig(c.get('deps'), c.get('platform')), 200))

@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { imageTokenSchema, opaqueIdSchema } from '@shared/schemas'
 import { generateToken } from '../../../shared/ids'
@@ -13,7 +13,6 @@ import { buildImageUrl, validatePath } from '../../domain/image-hosting'
 import { mapDomainError } from '../../lib/http-errors'
 import { mimeToExt } from '../../lib/mime-utils'
 import { authorize } from '../../middleware/authz'
-import type { Env } from '../../middleware/platform'
 import {
   confirmImageHosting,
   getImageHosting,
@@ -39,6 +38,7 @@ import {
   encodeNextPageToken,
   pageQueryFingerprint,
 } from '../page-token'
+import { createRouter } from '../router'
 
 // The stored image's wire shape — timestamps as ISO strings (the record carries
 // them as Date).
@@ -210,7 +210,7 @@ const deleteRoute = authRoute(
   },
 )
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 // POST /images — external-tool upload endpoint (PicGo/ShareX multipart, uPic JSON
 // base64). Tool-oriented and not RESTful, so it stays a plain route, excluded from

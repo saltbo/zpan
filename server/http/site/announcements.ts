@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   announcementInputSchema,
@@ -7,7 +7,6 @@ import {
   pageQuerySchema,
   pageSchema,
 } from '@shared/schemas'
-import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { type AnnouncementRecord, forbidden, notFound } from '../../usecases/ports'
 import {
@@ -19,6 +18,7 @@ import {
   updateAnnouncement,
 } from '../../usecases/site/announcement'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 
 const announcementSchema = z
   .object({
@@ -138,7 +138,7 @@ const deleteAnnouncementRoute = authRoute(
   },
 )
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 // One announcements resource. GET / is the caller's live feed by default;
 // `?scope=all` (or a `?status=` filter) returns the admin management list. Writes
