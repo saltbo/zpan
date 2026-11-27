@@ -32,6 +32,10 @@ who want a web UI over their own buckets.
 - External access: WebDAV, remote download through download engines the user runs,
   a self-describing API with delegated OAuth, and a sync protocol for clients that
   live in their own repositories.
+- A private Debrid service for a self-hosted circle: torrents downloaded through
+  those engines are cached once per instance, transferred instantly into any
+  member's drive, and streamed to Stremio through community addons that use
+  ZPan as their Debrid service.
 - Deployment without a server to look after: Cloudflare Workers first, Docker and
   the other runtimes in `docs/deploy/` too.
 - What a mature product of this kind is expected to have around these, such as
@@ -46,7 +50,8 @@ who want a web UI over their own buckets.
   of Nextcloud Office.
 - Browse a server's local directories, as File Browser does.
 - Ship native desktop or mobile clients from this repository.
-- Run remote downloads as a cloud execution service.
+- Run remote downloads as a cloud execution service, or offer the torrent cache
+  on Managed or any public multi-tenant instance.
 
 **Editions.** Community is free and open source. Pro and Business are paid
 licenses bound through ZPan Cloud. Which edition a feature belongs to is a pricing
