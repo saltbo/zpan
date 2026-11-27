@@ -6,7 +6,7 @@ import { authedHeaders, createTestApp } from '../../test/setup.js'
 import { buildTorrent, fileBytes, type TorrentFixture } from '../../test/torrent-fixture.js'
 import { serveTaskFromCache } from './fill.js'
 import { transferTorrent } from './instant-transfer.js'
-import { processTorrentVerify } from './verify.js'
+import { processTorrentVerify, verifyPieceRange } from './verify.js'
 
 // Four 16 KiB pieces per message, so full verification continues over messages.
 vi.mock('../../domain/torrent-cache', async (importOriginal) => ({
@@ -204,5 +204,68 @@ describe('torrent_verify', () => {
 
     expect(await deps.torrents.get(row.id)).toMatchObject({ status: 'ready', verified: 'sampled' })
     expect(ranges).toHaveLength(32)
+  })
+
+  it('skips a torrent that is no longer verifying and fails a job whose storage is gone', async () => {
+    const { app, db, deps } = await createTestApp()
+    await authedHeaders(app, 'skip-owner@example.com')
+    const owner = await personalWorkspace(db, 'skip-owner@example.com')
+    await seedStorage(db, 'gone-storage', 'https://s3.example.com')
+    const torrent = buildTorrent('Skip', [{ path: 'Skip', bytes: fileBytes(1000, 1) }])
+    const row = await uploadedTorrent(deps, 'gone-storage', torrent)
+    await deps.torrents.transition(row.id, ['verifying'], 'ready', { verified: 'full' })
+    const skipped = await runVerify(deps, owner, row.id)
+    expect(await deps.backgroundJobs.get(owner.orgId, skipped)).toMatchObject({
+      status: 'completed',
+      resultMetadata: { skipped: true, status: 'ready' },
+    })
+
+    await deps.torrents.transition(row.id, ['ready'], 'verifying')
+    objects.delete(`bt/${torrent.infoHash}/info`)
+    const failed = await runVerify(deps, owner, row.id)
+    expect(await deps.backgroundJobs.get(owner.orgId, failed)).toMatchObject({ status: 'failed', retryable: true })
+    expect(await deps.torrents.get(row.id)).toMatchObject({ status: 'verifying' })
+  })
+
+  it('reports the first piece a missing or short object cannot hold', async () => {
+    const { deps } = await createTestApp()
+    const torrent = buildTorrent('Short', [
+      { path: 'a', bytes: fileBytes(20_000, 1) },
+      { path: 'b', bytes: fileBytes(20_000, 2) },
+    ])
+    const { parseTorrentInfo } = await import('../../domain/torrent-info.js')
+    const info = parseTorrentInfo(torrent.info)
+    const storage = {
+      bucket: 'b',
+      endpoint: 'https://s3.example.com',
+      region: 'auto',
+      accessKey: 'k',
+      secretKey: 's',
+      forcePathStyle: false,
+    }
+    objects.set(`bt/${torrent.infoHash}/0`, torrent.files[0].bytes)
+    // b is missing: piece 1 spans a and b.
+    expect(await verifyPieceRange(deps, storage, torrent.infoHash, info, 0, info.pieceCount)).toBe(1)
+    // b is short.
+    objects.set(`bt/${torrent.infoHash}/1`, torrent.files[1].bytes.slice(0, 5000))
+    expect(await verifyPieceRange(deps, storage, torrent.infoHash, info, 0, info.pieceCount)).toBe(1)
+    objects.set(`bt/${torrent.infoHash}/1`, torrent.files[1].bytes)
+    expect(await verifyPieceRange(deps, storage, torrent.infoHash, info, 0, info.pieceCount)).toBeNull()
+  })
+
+  it('returns the first insert of an infoHash to a concurrent second one', async () => {
+    const { db, deps } = await createTestApp()
+    await seedStorage(db, 'race-storage', 'https://s3.example.com')
+    const input = {
+      infoHash: 'ab'.repeat(20),
+      storageId: 'race-storage',
+      name: 'Race',
+      private: false,
+      status: 'downloading' as const,
+      files: [{ fileIdx: 0, path: 'Race', size: 1, mime: '' }],
+    }
+    const results = await Promise.all([deps.torrents.createIfAbsent(input), deps.torrents.createIfAbsent(input)])
+    expect(results.map((result) => result.created).sort()).toEqual([false, true])
+    expect(results[0].torrent.id).toBe(results[1].torrent.id)
   })
 })

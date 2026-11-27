@@ -101,6 +101,9 @@ export type CompleteTaskTorrentInput = z.infer<typeof completeTaskTorrentSchema>
 export const torrentVerifyJobRequestSchema = z.object({
   type: z.literal('torrent_verify'),
   torrentId: z.string().min(1),
+  // Verify a sample of pieces whatever the storage: set when no queue runs and
+  // the job is processed within the completing request.
+  sample: z.boolean().optional(),
   // Carried by the messages that continue a full verification: the next piece.
   resume: z.object({ nextPiece: z.number().int().nonnegative() }).optional(),
 })

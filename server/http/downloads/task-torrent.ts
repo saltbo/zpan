@@ -15,10 +15,11 @@ import {
   torrentFileUploadSchema,
 } from '@shared/schemas'
 import type { AuthPrincipal } from '../../middleware/platform'
+import { backgroundJobsEnabled } from '../../platform/interface'
 import { getDownloadTask } from '../../usecases/downloads/downloads'
 import { forbidden } from '../../usecases/ports'
+import { completeTaskTorrent } from '../../usecases/torrent-cache/complete'
 import {
-  completeTaskTorrent,
   completeTorrentFileUpload,
   createTorrentFileUpload,
   registerTaskTorrent,
@@ -119,6 +120,10 @@ export const taskTorrentRoute = createRouter()
   .openapi(completeRoute, async (c) => {
     const { id } = c.req.valid('param')
     const deps = c.get('deps')
-    await completeTaskTorrent(deps, { ...uploader(c.get('principal'), id), input: c.req.valid('json') })
+    await completeTaskTorrent(deps, {
+      ...uploader(c.get('principal'), id),
+      input: c.req.valid('json'),
+      backgroundJobs: backgroundJobsEnabled(c.get('platform')),
+    })
     return c.json(await getDownloadTask(deps, c.get('orgId') as string, id), 200)
   })

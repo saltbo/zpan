@@ -2,6 +2,7 @@ import type { DownloadTask, DownloadTaskTimelineItem } from '@shared/types'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../../adapters/gateways/s3.js'
+import { encodeBencode } from '../../domain/bencode.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../../test/setup.js'
 import { buildTorrent, fileBytes, type TorrentFixture } from '../../test/torrent-fixture.js'
 import { createDownloader } from '../../usecases/downloads/downloads.js'
@@ -243,8 +244,8 @@ function sampleTorrent(name = 'Sample Show') {
   ])
 }
 
-async function setup() {
-  const ctx = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+async function setup(env: Record<string, string> = {}) {
+  const ctx = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret', ...env })
   await seedStorage(ctx.db)
   await seedProLicense(ctx.db)
   const a = await workspace(ctx.app, ctx.db, 'cache-a@example.com')
@@ -440,5 +441,219 @@ describe('torrent cache fill', () => {
     expect(row.object.startsWith('bt/')).toBe(false)
     expect(body).toBeTruthy()
     expect(await ctx.db.all(sql`SELECT id FROM torrents`)).toEqual([])
+  })
+})
+
+async function submitTorrentUrl(app: TestApp['app'], headers: Record<string, string>) {
+  const res = await app.request('/api/downloads/tasks', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      source: { type: 'torrent_url', uri: 'https://example.com/show.torrent' },
+      targetFolder: 'Downloads',
+    }),
+  })
+  expect(res.status).toBe(201)
+  return (await res.json()) as DownloadTask
+}
+
+async function register(app: TestApp['app'], task: DownloadTask, info: string) {
+  const res = await app.request(`/api/downloads/tasks/${task.id}/torrent`, {
+    method: 'PUT',
+    headers: bearer(task.status.assignment?.uploadToken as string),
+    body: JSON.stringify({ info }),
+  })
+  return { status: res.status, body: (await res.json()) as { outcome?: string; error?: { details?: unknown } } }
+}
+
+async function readyTorrent(ctx: TestApp, a: { headers: Record<string, string> }, poll: () => Promise<DownloadTask[]>) {
+  const torrent = sampleTorrent()
+  await submit(ctx.app, a.headers, torrent.magnet)
+  await fillCache(ctx.app, (await poll())[0], torrent)
+  await waitForTorrent(ctx.db, torrent.infoHash, 'ready')
+  return torrent
+}
+
+describe('torrent cache fill edge cases', () => {
+  it('verifies a sample within the completing request when no queue runs', async () => {
+    const { ctx, a } = await setup({ ZPAN_ARCHIVE_JOBS_ENABLED: 'false' })
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = sampleTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    const completed = await fillCache(ctx.app, (await poll())[0], torrent)
+
+    expect(completed.status.state).toBe('completed')
+    expect(await torrentStatus(ctx.db, torrent.infoHash)).toMatchObject({ status: 'ready', verified: 'sampled' })
+    const [job] = await ctx.db.all<{ status: string }>(
+      sql`SELECT status FROM background_jobs WHERE type = 'torrent_verify'`,
+    )
+    expect(job.status).toBe('completed')
+  })
+
+  it('completes, joins, or sends a torrent_url task to the drive when it registers', async () => {
+    const { ctx, a, b } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const ready = await readyTorrent(ctx, a, poll)
+
+    // Ready: the registering task completes from the cache.
+    await submitTorrentUrl(ctx.app, b.headers)
+    const [first] = await poll()
+    expect((await register(ctx.app, first, ready.infoBase64)).body.outcome).toBe('completed')
+    expect((await getTask(ctx.app, b.headers, first.id)).status.state).toBe('completed')
+
+    // Downloading by another task: it joins.
+    const other = sampleTorrent('Other')
+    await submit(ctx.app, a.headers, other.magnet)
+    const [filler] = await poll()
+    expect((await register(ctx.app, filler, other.infoBase64)).body.outcome).toBe('fill')
+    await submitTorrentUrl(ctx.app, b.headers)
+    const second = (await poll()).find((task) => task.id !== filler.id) as DownloadTask
+    expect((await register(ctx.app, second, other.infoBase64)).body.outcome).toBe('joined')
+    expect((await getTask(ctx.app, b.headers, second.id)).status.state).toBe('queued')
+
+    // Invalid: the task uploads into the drive instead.
+    const bad = sampleTorrent('Bad')
+    await submit(ctx.app, a.headers, bad.magnet)
+    const [badFiller] = (await poll()).filter((task) => task.id !== filler.id)
+    expect((await register(ctx.app, badFiller, bad.infoBase64)).body.outcome).toBe('fill')
+    await ctx.db.run(sql`UPDATE torrents SET status = 'invalid' WHERE info_hash = ${bad.infoHash}`)
+    await submitTorrentUrl(ctx.app, b.headers)
+    const third = (await poll()).find((task) => ![filler.id, badFiller.id].includes(task.id)) as DownloadTask
+    expect((await register(ctx.app, third, bad.infoBase64)).body.outcome).toBe('drive')
+  })
+
+  it('refuses bad registrations, uploads, and completions', async () => {
+    const { ctx, a } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = sampleTorrent()
+    await submitTorrentUrl(ctx.app, a.headers)
+    const [task] = await poll()
+    const headers = bearer(task.status.assignment?.uploadToken as string)
+    const garbage = Buffer.from('not bencode').toString('base64')
+    expect(await register(ctx.app, task, garbage)).toMatchObject({ status: 400 })
+    expect(await register(ctx.app, task, 'AAAA')).toMatchObject({ status: 400 })
+    const otherTask = await ctx.app.request('/api/downloads/tasks/someOtherTaskId0000000/torrent', {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ info: torrent.infoBase64 }),
+    })
+    expect(otherTask.status).toBe(403)
+    expect((await register(ctx.app, task, torrent.infoBase64)).body.outcome).toBe('fill')
+    // Registering again continues the same fill.
+    expect((await register(ctx.app, task, torrent.infoBase64)).body.outcome).toBe('fill')
+
+    const missing = await ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/files/1/uploads`, {
+      method: 'POST',
+      headers,
+    })
+    expect(missing.status).toBe(404) // fileIdx 1 is a padding file
+    const plan = (await (
+      await ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/files/0/uploads`, { method: 'POST', headers })
+    ).json()) as { parts: Array<{ url: string }> }
+    upload(plan.parts[0].url, new Uint8Array(10))
+    const wrongSize = await ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/files/0/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({}),
+    })
+    expect(wrongSize.status).toBe(400)
+
+    const complete = (files: Array<{ path: string; size: number }>) =>
+      ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ files }),
+      })
+    expect((await complete([{ path: 'Season 01/E01.mkv', size: 70_000 }])).status).toBe(400)
+    const notUploaded = await complete([
+      { path: 'Season 01/E01.mkv', size: 70_000 },
+      { path: 'Season 01/E02.mkv', size: 33_000 },
+    ])
+    expect(notUploaded.status).toBe(400)
+    expect(await notUploaded.json()).toMatchObject({ error: { details: [{ reason: 'TORRENT_FILES_MISSING' }] } })
+  })
+
+  it('uploads large files through multipart uploads', async () => {
+    const { ctx, a } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    // A 100 MiB file described by its dictionary alone; the bytes are never hashed here.
+    const size = 100 * 1024 * 1024
+    const pieceLength = 4 * 1024 * 1024
+    const info = encodeBencode({
+      name: 'Big.mkv',
+      'piece length': pieceLength,
+      pieces: new Uint8Array((size / pieceLength) * 20),
+      length: size,
+    })
+    await submitTorrentUrl(ctx.app, a.headers)
+    const [task] = await poll()
+    expect((await register(ctx.app, task, Buffer.from(info).toString('base64'))).body.outcome).toBe('fill')
+    const headers = bearer(task.status.assignment?.uploadToken as string)
+    const plan = (await (
+      await ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/files/0/uploads`, { method: 'POST', headers })
+    ).json()) as {
+      uploadId: string
+      partSize: number
+      parts: Array<{ partNumber: number; url: string; length: number }>
+    }
+    expect(plan.uploadId).toBeTruthy()
+    expect(plan.parts.map((part) => part.length)).toEqual([64 * 1024 * 1024, 36 * 1024 * 1024])
+    for (const part of plan.parts) upload(part.url, new Uint8Array(part.length))
+    const complete = (body: unknown) =>
+      ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/files/0/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      })
+    expect((await complete({ uploadId: plan.uploadId })).status).toBe(400)
+    const done = await complete({
+      uploadId: plan.uploadId,
+      parts: plan.parts.map((part) => ({ partNumber: part.partNumber, etag: 'e' })),
+    })
+    expect(done.status).toBe(200)
+  })
+
+  it('fails a submit that the cached torrent does not fit into', async () => {
+    const { ctx, a, b } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = await readyTorrent(ctx, a, poll)
+    await ctx.db.run(sql`UPDATE org_quota_entitlements SET bytes = 1000 WHERE org_id = ${b.orgId}`)
+    await ctx.db.run(sql`UPDATE org_quotas SET quota = 1000 WHERE org_id = ${b.orgId}`)
+
+    const task = await submit(ctx.app, b.headers, torrent.magnet)
+    expect(task.status.state).toBe('failed')
+    expect(task.status.error?.code).toBe('QUOTA_EXCEEDED')
+  })
+
+  it('settles joined tasks on the next heartbeat when the torrent turned ready or invalid elsewhere', async () => {
+    const { ctx, a, b } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const good = sampleTorrent('Good')
+    const bad = sampleTorrent('Bad')
+    for (const torrent of [good, bad]) {
+      await submit(ctx.app, a.headers, torrent.magnet)
+    }
+    const assigned = await poll()
+    const fillers = [good, bad].map(
+      (torrent) => assigned.find((task) => task.spec.source.uri === torrent.magnet) as DownloadTask,
+    )
+    for (const [index, torrent] of [good, bad].entries()) {
+      expect((await register(ctx.app, fillers[index], torrent.infoBase64)).body.outcome).toBe('fill')
+    }
+    const joinedGood = await submit(ctx.app, b.headers, good.magnet)
+    const joinedBad = await submit(ctx.app, b.headers, bad.magnet)
+    // Verification finished without the usual hand-off (as after a crash).
+    await ctx.db.run(sql`UPDATE torrents SET status = 'ready', verified = 'full' WHERE info_hash = ${good.infoHash}`)
+    await ctx.db.run(sql`UPDATE torrents SET status = 'invalid' WHERE info_hash = ${bad.infoHash}`)
+    await ctx.db.run(
+      sql`UPDATE download_tasks SET status = 'completed' WHERE id IN (${fillers[0].id}, ${fillers[1].id})`,
+    )
+
+    await poll()
+    expect((await getTask(ctx.app, b.headers, joinedGood.id)).status.state).toBe('completed')
+    expect((await getTask(ctx.app, b.headers, joinedBad.id)).status).toMatchObject({
+      state: 'failed',
+      error: { message: 'The cached download failed verification' },
+    })
   })
 })

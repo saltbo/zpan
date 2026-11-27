@@ -118,7 +118,7 @@ export async function processTorrentVerify(deps: TorrentVerifyDeps, message: Ver
     const storage = await deps.storages.get(torrent.storageId)
     if (!storage) throw new Error('Torrent storage not found')
     const info = parseTorrentInfo(await deps.s3.getObjectBytes(storage, torrentInfoObjectKey(torrent.infoHash)))
-    const full = isR2Storage(storage)
+    const full = !request.sample && isR2Storage(storage)
 
     let mismatch: number | null = null
     if (full) {
