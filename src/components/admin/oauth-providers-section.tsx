@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useClipboard } from '@/hooks/use-clipboard'
 import { deleteAuthProvider, listAuthProviders, upsertAuthProvider } from '@/lib/api'
+import { formLevelError, type ServerFieldMap, serverFieldError } from '@/lib/form-errors'
 
 const providersQueryKey = ['admin', 'auth-providers'] as const
 
@@ -36,6 +37,17 @@ interface FormState {
   enabled: boolean
   discoveryUrl: string
   scopes: string
+}
+
+// The provider id travels in the path; each other request field sits under the form field of
+// the same name. The provider type has no field error slot, so its errors stay above save.
+const SERVER_FIELDS: ServerFieldMap<keyof FormState> = {
+  providerId: 'providerId',
+  clientId: 'clientId',
+  clientSecret: 'clientSecret',
+  enabled: 'enabled',
+  discoveryUrl: 'discoveryUrl',
+  scopes: 'scopes',
 }
 
 const emptyForm: FormState = {
@@ -112,8 +124,15 @@ export function OAuthProvidersSection() {
       toast.success(t('admin.auth.providerSaved'))
       setDrawerOpen(false)
     },
-    onError: (err) => toast.error(err.message),
   })
+  const fieldError = serverFieldError(upsertMutation.error, SERVER_FIELDS)
+  const errorFor = (field: keyof FormState) => (fieldError?.field === field ? fieldError.message : undefined)
+  const formError = formLevelError(upsertMutation.error, SERVER_FIELDS)
+
+  function handleDrawerOpenChange(open: boolean) {
+    setDrawerOpen(open)
+    if (!open) upsertMutation.reset()
+  }
 
   const deleteMutation = useMutation({
     mutationFn: deleteAuthProvider,
@@ -231,7 +250,7 @@ export function OAuthProvidersSection() {
 
       <AdminFormDrawer
         open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+        onOpenChange={handleDrawerOpenChange}
         title={editingId ? t('admin.auth.editProviderTitle') : t('admin.auth.addProviderTitle')}
         description={t('admin.auth.providerDrawerDescription')}
         width="wide"
@@ -242,9 +261,10 @@ export function OAuthProvidersSection() {
             upsertMutation.mutate()
           },
         }}
+        error={formError}
         footer={
           <>
-            <Button type="button" variant="outline" onClick={() => setDrawerOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => handleDrawerOpenChange(false)}>
               {t('common.cancel')}
             </Button>
             <Button
@@ -279,7 +299,12 @@ export function OAuthProvidersSection() {
         </div>
 
         {form.type === 'builtin' ? (
-          <AdminFormField id="oauth-provider-id" label={t('admin.auth.provider')} required>
+          <AdminFormField
+            id="oauth-provider-id"
+            error={errorFor('providerId')}
+            label={t('admin.auth.provider')}
+            required
+          >
             {(controlProps) => (
               <Select value={form.providerId} onValueChange={(v) => update({ providerId: v })} disabled={!!editingId}>
                 <SelectTrigger {...controlProps}>
@@ -298,6 +323,7 @@ export function OAuthProvidersSection() {
         ) : (
           <AdminFormField
             id="oauth-provider-id"
+            error={errorFor('providerId')}
             label={t('admin.auth.providerId')}
             help={t('admin.auth.providerIdHint')}
             required
@@ -311,7 +337,7 @@ export function OAuthProvidersSection() {
           </AdminFormField>
         )}
 
-        <AdminFormField id="oauth-client-id" label={t('admin.auth.clientId')} required>
+        <AdminFormField id="oauth-client-id" error={errorFor('clientId')} label={t('admin.auth.clientId')} required>
           <Input
             value={form.clientId}
             onChange={(e) => update({ clientId: e.target.value })}
@@ -319,7 +345,12 @@ export function OAuthProvidersSection() {
           />
         </AdminFormField>
 
-        <AdminFormField id="oauth-client-secret" label={t('admin.auth.clientSecret')} required>
+        <AdminFormField
+          id="oauth-client-secret"
+          error={errorFor('clientSecret')}
+          label={t('admin.auth.clientSecret')}
+          required
+        >
           <Input
             type="password"
             value={form.clientSecret}
@@ -353,14 +384,23 @@ export function OAuthProvidersSection() {
 
         {form.type === 'oidc' && (
           <>
-            <AdminFormField id="oauth-discovery-url" label={t('admin.auth.discoveryUrl')}>
+            <AdminFormField
+              id="oauth-discovery-url"
+              error={errorFor('discoveryUrl')}
+              label={t('admin.auth.discoveryUrl')}
+            >
               <Input
                 value={form.discoveryUrl}
                 onChange={(e) => update({ discoveryUrl: e.target.value })}
                 placeholder={t('admin.auth.discoveryUrlPlaceholder')}
               />
             </AdminFormField>
-            <AdminFormField id="oauth-scopes" label={t('admin.auth.scopes')} help={t('admin.auth.scopesHint')}>
+            <AdminFormField
+              id="oauth-scopes"
+              error={errorFor('scopes')}
+              label={t('admin.auth.scopes')}
+              help={t('admin.auth.scopesHint')}
+            >
               <Input
                 value={form.scopes}
                 onChange={(e) => update({ scopes: e.target.value })}
@@ -372,6 +412,7 @@ export function OAuthProvidersSection() {
 
         <AdminSwitchField
           id="oauth-provider-enabled"
+          error={errorFor('enabled')}
           label={t('admin.auth.enabled')}
           checked={form.enabled}
           onCheckedChange={(checked) => update({ enabled: checked })}

@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { deleteDownloader, listDownloaders, updateDownloader, updateDownloaderCreditBilling } from '@/lib/api'
+import { formLevelError, type ServerFieldMap, serverFieldError } from '@/lib/form-errors'
 
 export const Route = createFileRoute('/_authenticated/admin/downloaders')({
   component: AdminDownloadersPage,
@@ -41,6 +42,14 @@ type CreditBillingForm = {
 type DownloaderSettingsForm = CreditBillingForm & {
   name: string
   downloaderEnabled: boolean
+}
+
+// Saving sends the downloader update and then its credit billing. Both requests carry an
+// `enabled` field, so a rejected `enabled` cannot be placed and stays above save.
+const SERVER_FIELDS: ServerFieldMap<keyof DownloaderSettingsForm> = {
+  name: 'name',
+  unitBytes: 'unitValue',
+  creditsPerUnit: 'credits',
 }
 
 export function AdminDownloadersPage() {
@@ -80,7 +89,6 @@ export function AdminDownloadersPage() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
       toast.success(t('admin.downloaders.settingsSaveSuccess'))
     },
-    onError: (err) => toast.error(err.message),
   })
 
   const downloaders = query.data?.items ?? []
@@ -138,9 +146,14 @@ export function AdminDownloadersPage() {
         form={settingsForm}
         open={settingsTarget !== null}
         pending={settingsMutation.isPending}
+        error={settingsMutation.error}
         hasTrafficBilling={hasTrafficBilling}
         onFormChange={setSettingsForm}
-        onOpenChange={(open) => !open && setSettingsTarget(null)}
+        onOpenChange={(open) => {
+          if (open) return
+          setSettingsTarget(null)
+          settingsMutation.reset()
+        }}
         onConfirm={() => settingsTarget && settingsMutation.mutate({ downloader: settingsTarget, form: settingsForm })}
       />
     </div>
@@ -225,6 +238,7 @@ function DownloaderSettingsDrawer({
   form,
   open,
   pending,
+  error,
   hasTrafficBilling,
   onFormChange,
   onOpenChange,
@@ -234,6 +248,7 @@ function DownloaderSettingsDrawer({
   form: DownloaderSettingsForm
   open: boolean
   pending: boolean
+  error: Error | null
   hasTrafficBilling: boolean
   onFormChange: (form: DownloaderSettingsForm) => void
   onOpenChange: (open: boolean) => void
@@ -244,6 +259,9 @@ function DownloaderSettingsDrawer({
   const validBilling = Number(form.unitValue) >= 1 && Number(form.credits) >= 1
   const canSave = validName && (!hasTrafficBilling || !form.enabled || validBilling)
   const billingFieldsDisabled = !hasTrafficBilling || !form.enabled
+  const fieldError = serverFieldError(error, SERVER_FIELDS)
+  const errorFor = (field: keyof DownloaderSettingsForm) =>
+    fieldError?.field === field ? fieldError.message : undefined
 
   return (
     <AdminFormDrawer
@@ -258,6 +276,7 @@ function DownloaderSettingsDrawer({
           if (canSave) onConfirm()
         },
       }}
+      error={formLevelError(error, SERVER_FIELDS)}
       footer={
         <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
@@ -279,6 +298,7 @@ function DownloaderSettingsDrawer({
 
       <AdminFormField
         id="downloaderDisplayName"
+        error={errorFor('name')}
         label={t('admin.downloaders.displayName')}
         required
         help={t('admin.downloaders.displayNameHint')}
@@ -308,6 +328,7 @@ function DownloaderSettingsDrawer({
 
       <AdminFormField
         id="remoteDownloadCreditUnitValue"
+        error={errorFor('unitValue')}
         label={t('admin.downloaders.billingUnit')}
         required={hasTrafficBilling && form.enabled}
       >
@@ -328,6 +349,7 @@ function DownloaderSettingsDrawer({
 
       <AdminFormField
         id="remoteDownloadCreditPerUnit"
+        error={errorFor('credits')}
         label={t('admin.downloaders.billingCredits')}
         required={hasTrafficBilling && form.enabled}
       >

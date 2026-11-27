@@ -19,14 +19,15 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/api', async (importOriginal) => ({
+  ApiError: (await importOriginal<typeof import('@/lib/api')>()).ApiError,
   listInviteCodes: vi.fn(),
   generateInviteCodes: vi.fn(),
   deleteInviteCode: vi.fn(),
 }))
 
 import { toast } from 'sonner'
-import { deleteInviteCode, generateInviteCodes, listInviteCodes } from '@/lib/api'
+import { ApiError, deleteInviteCode, generateInviteCodes, listInviteCodes } from '@/lib/api'
 
 const code = {
   id: 'code-1',
@@ -211,5 +212,40 @@ describe('InviteCodesSection list', () => {
       expect((screen.getByRole('button', { name: 'common.previousPage' }) as HTMLButtonElement).disabled).toBe(true)
       expect((screen.getByRole('button', { name: 'common.nextPage' }) as HTMLButtonElement).disabled).toBe(true)
     })
+  })
+
+  it('shows a value the server rejects under its field [spec: form-errors/admin-drawer]', async () => {
+    vi.mocked(generateInviteCodes).mockRejectedValue(
+      new ApiError(400, {
+        error: {
+          code: 400,
+          message: 'Invalid value for count',
+          status: 'INVALID_ARGUMENT',
+          details: [{ reason: 'INVALID_ARGUMENT', domain: 'zpan.dev', metadata: { field: 'count' } }],
+        },
+      }),
+    )
+    renderSection()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'admin.auth.generateCodes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.create' }))
+
+    const error = await screen.findByText('Invalid value for count')
+    const count = screen.getByLabelText('admin.auth.codeCount')
+    expect(count.getAttribute('aria-invalid')).toBe('true')
+    expect(count.getAttribute('aria-describedby')).toContain(error.id)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('shows a rejected generate that names no field above the create button', async () => {
+    vi.mocked(generateInviteCodes).mockRejectedValue(new Error('Invite codes are disabled'))
+    renderSection()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'admin.auth.generateCodes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.create' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Invite codes are disabled')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

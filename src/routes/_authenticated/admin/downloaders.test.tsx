@@ -1,8 +1,9 @@
 import type { Downloader } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { listDownloaders, updateDownloader, updateDownloaderCreditBilling } from '@/lib/api'
+import { ApiError, listDownloaders, updateDownloader, updateDownloaderCreditBilling } from '@/lib/api'
 import { AdminDownloadersPage } from './downloaders'
 
 const mockHasFeature = vi.hoisted(() => vi.fn((_feature: string) => true))
@@ -35,7 +36,8 @@ vi.mock('@/hooks/useEntitlement', () => ({
   }),
 }))
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/api', async (importOriginal) => ({
+  ApiError: (await importOriginal<typeof import('@/lib/api')>()).ApiError,
   deleteDownloader: vi.fn(),
   listDownloaders: vi.fn(),
   updateDownloader: vi.fn(),
@@ -145,5 +147,46 @@ describe('AdminDownloadersPage settings drawer', () => {
       }),
     )
     expect(updateDownloaderCreditBilling).not.toHaveBeenCalled()
+  })
+
+  it('shows a value the server rejects under its field [spec: form-errors/admin-drawer]', async () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    vi.mocked(listDownloaders).mockResolvedValue({ items: [downloader], total: 1, page: 1, pageSize: 1 })
+    vi.mocked(updateDownloader).mockResolvedValue(downloader)
+    vi.mocked(updateDownloaderCreditBilling).mockRejectedValue(
+      new ApiError(400, {
+        error: {
+          code: 400,
+          message: 'Invalid value for creditsPerUnit',
+          status: 'INVALID_ARGUMENT',
+          details: [{ reason: 'INVALID_ARGUMENT', domain: 'zpan.dev', metadata: { field: 'creditsPerUnit' } }],
+        },
+      }),
+    )
+    renderDownloadersPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'admin.downloaders.settingsAction' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'common.save' }))
+
+    const error = await screen.findByText('Invalid value for creditsPerUnit')
+    const credits = screen.getByLabelText('admin.downloaders.billingCredits')
+    expect(credits.getAttribute('aria-invalid')).toBe('true')
+    expect(credits.getAttribute('aria-describedby')).toContain(error.id)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText('admin.downloaders.settingsTitle')).toBeTruthy()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('shows a rejected save that names no field above the save button', async () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    vi.mocked(listDownloaders).mockResolvedValue({ items: [downloader], total: 1, page: 1, pageSize: 1 })
+    vi.mocked(updateDownloader).mockRejectedValue(new Error('Downloader not found'))
+    renderDownloadersPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'admin.downloaders.settingsAction' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'common.save' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Downloader not found')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

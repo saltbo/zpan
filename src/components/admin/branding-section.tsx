@@ -285,6 +285,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
   function closeBrandingDrawer() {
     resetDraftFromInitial()
     setDrawerOpen(false)
+    saveMutation.reset()
   }
 
   const saveMutation = useMutation({
@@ -306,7 +307,6 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
       setDrawerOpen(false)
       toast.success(t('admin.settings.branding.saved'))
     },
-    onError: (err) => toast.error(err.message),
   })
 
   const resetMutation = useMutation({
@@ -381,6 +381,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
         title={t('admin.settings.branding.assetsTitle')}
         description={t('admin.settings.branding.assetsDescription')}
         bodyClassName="grid auto-rows-min content-start gap-4"
+        error={saveMutation.error?.message}
         footer={
           <>
             <Button

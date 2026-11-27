@@ -29,13 +29,15 @@ vi.mock('@/hooks/use-clipboard', () => ({
   useClipboard: () => ({ copy }),
 }))
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/api', async (importOriginal) => ({
+  ApiError: (await importOriginal<typeof import('@/lib/api')>()).ApiError,
   listAuthProviders: vi.fn(),
   upsertAuthProvider: vi.fn(),
   deleteAuthProvider: vi.fn(),
 }))
 
-import { listAuthProviders } from '@/lib/api'
+import { toast } from 'sonner'
+import { ApiError, listAuthProviders, upsertAuthProvider } from '@/lib/api'
 
 function makeProvider(overrides: Partial<AuthProvider>): AuthProvider {
   return {
@@ -143,5 +145,49 @@ describe('OAuthProvidersSection', () => {
         'https://auth.configured.example/api/auth/oauth2/callback/new-sso',
       )
     })
+  })
+
+  it('shows a value the server rejects under its field [spec: form-errors/admin-drawer]', async () => {
+    vi.mocked(listAuthProviders).mockResolvedValue({
+      items: [makeProvider({})],
+      callbackBaseUri: 'https://auth.example',
+    })
+    vi.mocked(upsertAuthProvider).mockRejectedValue(
+      new ApiError(400, {
+        error: {
+          code: 400,
+          message: 'Invalid value for clientId',
+          status: 'INVALID_ARGUMENT',
+          details: [{ reason: 'INVALID_ARGUMENT', domain: 'zpan.dev', metadata: { field: 'clientId' } }],
+        },
+      }),
+    )
+    renderSection()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'common.edit' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'common.save' }))
+
+    const error = await screen.findByText('Invalid value for clientId')
+    const clientId = screen.getByLabelText('admin.auth.clientId')
+    expect(clientId.getAttribute('aria-invalid')).toBe('true')
+    expect(clientId.getAttribute('aria-describedby')).toContain(error.id)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText('admin.auth.editProviderTitle')).toBeTruthy()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('shows a rejected save that names no field above the save button', async () => {
+    vi.mocked(listAuthProviders).mockResolvedValue({
+      items: [makeProvider({})],
+      callbackBaseUri: 'https://auth.example',
+    })
+    vi.mocked(upsertAuthProvider).mockRejectedValue(new Error('Provider is managed by the environment'))
+    renderSection()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'common.edit' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'common.save' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Provider is managed by the environment')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })
