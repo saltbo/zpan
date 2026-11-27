@@ -59,7 +59,7 @@ traffic metering. This proposal adds what is missing:
 | `source_task_id`, `source_downloader_id` | The download that filled it, kept for blame when verification fails |
 | `last_accessed_at` | Updated by instant transfer and link generation; drives eviction |
 
-`torrent_files` (one row per file in the torrent, the torrent's own view):
+`torrent_files` (one row per file in the torrent):
 
 | Column | Notes |
 | --- | --- |
@@ -67,22 +67,19 @@ traffic metering. This proposal adds what is missing:
 | `path`, `size`, `mime` | Path inside the torrent |
 | `object_key` | `bt/<infoHash>/<fileIdx>`, unique together with `storage_id` |
 
-`torrent_layout` (one row per entry a transfer creates, the drive's view):
+Two objects sit beside the files, because they are read whole and never
+queried:
 
-| Column | Notes |
-| --- | --- |
-| `torrent_id`, `path` | Path relative to the target folder, such as `Show (2019)/Season 01/Show.S01E02.1080p.mkv` |
-| `kind` | `folder`, `torrent_file` (points at `file_idx`), or `extra` (a sidecar the scraper wrote, stored as `bt/<infoHash>/x/<n>`) |
-| `file_idx`, `object_key`, `size`, `mime` | Set by kind |
-| `metadata` | The `media` namespace the downloader set on that entry, with sidecar references stored as layout paths |
-
-The layout is what the first download uploaded: the scraped
-[upload layout](media-library.md#upload-layout) when its downloader scrapes,
-otherwise the torrent's own tree under its name.
-
-The bencoded info dictionary is stored as the object `bt/<infoHash>/info`.
-Verification needs its piece hashes (20 bytes per piece, about 256 KB for a
-50 GB torrent in 4 MB pieces), which do not belong in D1.
+- `bt/<infoHash>/info`, the bencoded info dictionary. Verification needs its
+  piece hashes (20 bytes per piece, about 256 KB for a 50 GB torrent in 4 MB
+  pieces), which do not belong in D1.
+- `bt/<infoHash>/layout.json`, present when the first download was scraped.
+  It is the downloader's [upload layout](media-library.md#upload-layout) plan:
+  for each entry, its path relative to the target folder (such as
+  `Show (2019)/Season 01/Show.S01E02.1080p.mkv`), whether it is a folder, a
+  torrent file (by `fileIdx`), or a sidecar the scraper wrote (stored as
+  `bt/<infoHash>/x/<n>`), and the `media` metadata set on it, with sidecar
+  references written as layout paths.
 
 `bt/` cannot collide with other keys: drive objects are
 `<orgId>/<uid>/<date>/<token>` and image-hosting objects are `ih/…`
@@ -98,7 +95,11 @@ a whole torrent through the same index.
 ## 4. Instant transfer
 
 Instant transfer gives a workspace a cached torrent. It replays the torrent's
-`torrent_layout` under a target folder, following the scraper's
+`layout.json` under a target folder, or the torrent's own tree under its name
+when there is none. Without the replay, a transfer would bring a torrent's raw
+folder names and none of the sidecars or metadata, so the Movies and TV views
+would miss it, and nothing could scrape it afterwards because scraping runs
+only in the downloader. The replay follows the scraper's
 [upload layout](media-library.md#upload-layout) rules: movie, show, and season
 folders are reused by name, a sidecar already present wins, and a video whose
 name is taken is renamed (`X (1).mkv`). Each file row's `object` is the cached
@@ -172,8 +173,8 @@ upload plan as it does today. Instead of uploading the plan into the drive
 through the object API, the downloader uploads each downloaded file to
 `bt/<infoHash>/<fileIdx>`, each overlay sidecar to `bt/<infoHash>/x/<n>`, and
 the info dictionary, through presigned multipart uploads the server issues for
-those keys. It then submits the plan, with the metadata it would have set, as
-the torrent's layout. The requesting task finishes by instant transfer like
+those keys. When scraping produced a plan, it uploads the plan, with the
+metadata it would have set, as `layout.json`. The requesting task finishes by instant transfer like
 every later one, so the first user's files are laid out exactly as everyone
 else's.
 
@@ -191,8 +192,7 @@ poison every later hit. Three checks close this:
 1. **Info dictionary.** SHA-1 of the uploaded info dictionary must equal the
    infoHash. Without this, a forged dictionary could carry forged piece hashes.
 2. **Structure.** The uploaded files' count, paths, and sizes must match the
-   dictionary, and every `torrent_file` entry of the layout must name a file
-   that exists.
+   dictionary, and every torrent file `layout.json` names must exist in it.
 3. **Pieces.** The bytes are read back from S3 and every piece's SHA-1 is
    compared with the dictionary. Files are concatenated in order, because
    pieces span file boundaries.
