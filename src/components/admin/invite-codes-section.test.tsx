@@ -1,8 +1,8 @@
+import type { InviteCodeListItem } from '@shared/schemas'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import type { InviteCode } from '@/lib/api'
 import { InviteCodesSection } from './invite-codes-section'
 
 class TestResizeObserver {
@@ -35,7 +35,7 @@ const code = {
   usedAt: null,
   expiresAt: null,
   createdAt: '2026-11-01T00:00:00.000Z',
-} as unknown as InviteCode
+} as unknown as InviteCodeListItem
 
 function renderSection() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -158,7 +158,7 @@ describe('InviteCodesSection list', () => {
   })
 
   it('pages through every code with the previous response token [spec: list-pagination/invite-codes-beyond-first-page]', async () => {
-    const second = { ...code, id: 'code-2', code: 'PAGE-0002' } as InviteCode
+    const second = { ...code, id: 'code-2', code: 'PAGE-0002' } as InviteCodeListItem
     vi.mocked(listInviteCodes).mockImplementation(async (opts) =>
       opts?.pageToken === 'tok-2'
         ? { items: [second], nextPageToken: null }
