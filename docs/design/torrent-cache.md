@@ -215,7 +215,7 @@ ZPan implements this subset, under both `torz` and `magnets` paths:
 | `GET /v0/store/user` | The key's user, `subscription_status: premium` |
 | `GET …/check?hash=` (up to 500) | Looks up each infoHash; a `ready` torrent returns `cached` with its files, anything else `unknown` |
 | `POST …` with a magnet or torrent link | A download task: instant transfer if `ready`, otherwise queued ([section 6](#6-filling-the-cache)); its id is the task id |
-| `GET …`, `GET …/{id}`, `DELETE …/{id}` | The user's download tasks for torrents. Delete moves the task's files to trash, because clients remove items automatically after playback and a permanent delete would surprise the user |
+| `GET …`, `GET …/{id}`, `DELETE …/{id}` | The user's download tasks for torrents. Delete moves the task's files to trash rather than purging them, so a removal the user did not make by hand (AIOStreams' opt-in *Auto Remove Downloads* removes an item as soon as its link is generated) stays recoverable. Links already issued keep playing either way, because only eviction deletes cached bytes |
 | `POST …/link/generate` | A playback link ([section 9](#9-playback-and-metering)) valid for 12 hours, which StremThru clients expect |
 
 `files[].link` is an opaque ZPan reference to a held file, resolved only by
