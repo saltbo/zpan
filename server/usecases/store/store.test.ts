@@ -1048,6 +1048,33 @@ describe('cloud-store usecase', () => {
       })
     })
 
+    it('answers a Cloud conflict on the payment with a product message and keeps its code as the reason', async () => {
+      const quoted = attempt()
+      const { deps } = makeDeps({
+        responses: [
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(order()),
+          ok({ ...quoted, reused: false }),
+          ok(publication()),
+          ok(pkg()),
+          ok(receiver),
+          ok(quoted),
+          fail(409, { error: 'x402_payment_already_settled' }),
+        ],
+      })
+      await purchaseCapacity(deps, CLOUD, params)
+
+      const out = await purchaseCapacity(deps, CLOUD, { ...params, paymentSignature: 'signature' })
+
+      expectError(out, {
+        httpStatus: 409,
+        reason: 'X402_PAYMENT_ALREADY_SETTLED',
+        message: 'Purchase request conflict',
+      })
+    })
+
     it('replaces an expired quote with a fresh challenge for the same purchase intent', async () => {
       const quoted = attempt()
       const expired = { ...attempt(), expiresAt: '2026-07-30T00:00:00.000Z' }
