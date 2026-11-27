@@ -47,4 +47,18 @@ describe('useDocumentDirection', () => {
     // Canon ships no RTL locale, so the language attribute stays on the supported code.
     expect(document.documentElement.lang).toBe('en')
   })
+
+  it('re-applies the direction when the language changes, not only on mount', () => {
+    const { rerender } = renderHook(() => useDocumentDirection())
+    expect(document.documentElement.dir).toBe('ltr')
+
+    // useTranslation re-renders on languageChanged; the hook must follow.
+    mocks.resolvedLanguage = 'ar'
+    rerender()
+    expect(document.documentElement.dir).toBe('rtl')
+
+    mocks.resolvedLanguage = 'en'
+    rerender()
+    expect(document.documentElement.dir).toBe('ltr')
+  })
 })
