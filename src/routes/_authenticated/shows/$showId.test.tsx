@@ -69,6 +69,19 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+describe('Show page [spec: media-catalog/broken-poster]', () => {
+  it('shows the placeholder when the poster fails to load', async () => {
+    vi.mocked(getShow).mockResolvedValue({ ...show, media: { ...show.media, fanart: undefined } })
+    vi.mocked(listShowEpisodes).mockResolvedValue({ items: [], nextPageToken: null })
+    renderPage()
+
+    fireEvent.error(await screen.findByRole('img', { name: '绝命毒师' }))
+
+    expect(screen.queryByRole('img', { name: '绝命毒师' })).toBeNull()
+    expect(screen.getAllByText('绝命毒师')).toHaveLength(2)
+  })
+})
+
 describe('Show page [spec: media-catalog/shows]', () => {
   it('lists the seasons and their episodes with still, number, title and overview, and plays an episode', async () => {
     vi.mocked(getShow).mockResolvedValue(show)

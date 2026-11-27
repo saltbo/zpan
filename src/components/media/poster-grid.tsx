@@ -1,4 +1,5 @@
 import { Film } from 'lucide-react'
+import { useState } from 'react'
 
 // A poster card's data: the movie or show title, its year, and the poster URL
 // when the poster resolves.
@@ -34,17 +35,29 @@ function PosterCard({ item, onOpen }: { item: PosterItem; onOpen: () => void }) 
       className="group flex w-full flex-col gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="aspect-[2/3] w-full overflow-hidden rounded-lg border bg-muted transition-shadow group-hover:shadow-md">
-        {item.posterUrl ? (
-          <img src={item.posterUrl} alt={title} loading="lazy" className="h-full w-full object-cover" />
-        ) : (
-          <PosterPlaceholder title={title} />
-        )}
+        <Poster url={item.posterUrl} title={title} loading="lazy" />
       </div>
       <div className="min-w-0 px-0.5">
         <p className="truncate text-sm font-medium">{title}</p>
         {year !== undefined && <p className="text-xs text-muted-foreground">{year}</p>}
       </div>
     </button>
+  )
+}
+
+// The poster image, or the title placeholder when there is no poster or its
+// file does not load as an image.
+export function Poster({ url, title, loading }: { url?: string; title: string; loading?: 'lazy' }) {
+  const [failedUrl, setFailedUrl] = useState<string>()
+  if (!url || url === failedUrl) return <PosterPlaceholder title={title} />
+  return (
+    <img
+      src={url}
+      alt={title}
+      loading={loading}
+      onError={() => setFailedUrl(url)}
+      className="h-full w-full object-cover"
+    />
   )
 }
 
