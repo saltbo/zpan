@@ -64,7 +64,7 @@ export function UsersPage() {
     queryKey: ['admin', 'users', pageSize, search, pager.pageToken],
     queryFn: () => listUsers({ pageToken: pager.pageToken, pageSize, search }),
   })
-  useStepBackFromEmptyPage(pager, usersQuery)
+  useStepBackFromEmptyPage({ ...pager, previous: () => movePage(pager.previous) }, usersQuery)
 
   const baseUsers = useMemo(() => usersQuery.data?.items ?? [], [usersQuery.data])
   const pageUserIds = useMemo(() => baseUsers.map((user) => user.id), [baseUsers])

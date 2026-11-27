@@ -178,6 +178,40 @@ describe('UsersPage cursor pagination', () => {
     expect(screen.queryByText('Riley Two')).toBeNull()
   })
 
+  it('drops the selection when a later page empties and the table steps back', async () => {
+    vi.mocked(getUserQuotaById).mockResolvedValue({ used: 0, total: 1024, hasPersonalOrg: true })
+    let secondPageEmptied = false
+    vi.mocked(listUsers).mockImplementation(async ({ pageToken } = {}) => {
+      if (pageToken !== 'tok-2') {
+        return {
+          items: [user({ id: 'user-1', name: 'Morgan One' })],
+          nextPageToken: secondPageEmptied ? null : 'tok-2',
+        }
+      }
+      return {
+        items: secondPageEmptied ? [] : [user({ id: 'user-2', name: 'Riley Two', email: 'riley@example.com' })],
+        nextPageToken: null,
+      }
+    })
+    const clickingUser = userEvent.setup()
+
+    renderUsersPage()
+
+    expect(await screen.findByText('Morgan One')).toBeTruthy()
+    await clickingUser.click(screen.getByRole('button', { name: 'Next' }))
+    await clickingUser.click(await screen.findByRole('checkbox', { name: 'Select Riley Two' }))
+    expect(screen.getByText('1 selected')).toBeTruthy()
+
+    // The row is gone by the time the list is refetched after an action on it.
+    secondPageEmptied = true
+    await clickingUser.click(screen.getByTitle('admin.users.disable'))
+
+    expect(await screen.findByText('Morgan One')).toBeTruthy()
+    expect(screen.queryByText('Riley Two')).toBeNull()
+    expect(screen.queryByText('1 selected')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Previous' }).hasAttribute('disabled')).toBe(true)
+  })
+
   it('returns to the first page when the search changes [spec: list-pagination/page-size]', async () => {
     vi.mocked(getUserQuotaById).mockResolvedValue({ used: 0, total: 1024, hasPersonalOrg: true })
     vi.mocked(listUsers).mockImplementation(async ({ pageToken, search } = {}) =>

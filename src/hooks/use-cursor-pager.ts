@@ -27,7 +27,7 @@ export function useCursorPager(resetKey: string) {
   }
 }
 
-interface PageQuery {
+interface PageLoadState {
   data: { items: readonly unknown[] } | undefined
   isFetching: boolean
   isPlaceholderData: boolean
@@ -39,7 +39,7 @@ interface PageQuery {
 // counts; kept-previous rows and a refetch in flight say nothing about it.
 export function useStepBackFromEmptyPage(
   pager: Pick<ReturnType<typeof useCursorPager>, 'hasPrevious' | 'previous'>,
-  query: PageQuery,
+  query: PageLoadState,
 ) {
   const settled = !query.isFetching && !query.isPlaceholderData
   if (pager.hasPrevious && settled && query.data?.items.length === 0) pager.previous()

@@ -88,7 +88,7 @@ export function StorageCleanupDialog({
     queryFn: () => listStorageUsageItems(category!, { pageToken: pager.pageToken, pageSize, sortBy, sortDir }),
     enabled: category !== null,
   })
-  useStepBackFromEmptyPage(pager, itemsQuery)
+  useStepBackFromEmptyPage({ ...pager, previous: () => changePage(pager.previous) }, itemsQuery)
   const items = itemsQuery.data?.items ?? []
   const activeBreakdown = breakdowns.find((row) => row.category === category)
   const selectedItems = useMemo(() => items.filter((item) => selectedIds.has(item.id)), [items, selectedIds])
