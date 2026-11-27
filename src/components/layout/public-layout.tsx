@@ -1,10 +1,10 @@
 import { DEFAULT_SITE_DESCRIPTION, DEFAULT_SITE_NAME } from '@shared/constants'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronsUpDown, LogOut, Moon, Settings, ShieldCheck, Sun, UserRound } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { ChevronsUpDown, LogOut, Settings, ShieldCheck, UserRound } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { useBranding } from '@/components/branding/BrandingProvider'
+import { PreferenceControls } from '@/components/layout/preference-controls'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,7 +32,6 @@ type PublicUser = {
 export function PublicLayout({ children }: PublicLayoutProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { resolvedTheme, setTheme } = useTheme()
   const { data: siteConfig } = useSiteConfig()
   const { branding } = useBranding()
   const { data: session } = useSession()
@@ -47,10 +46,6 @@ export function PublicLayout({ children }: PublicLayoutProps) {
   async function handleSignOut() {
     await signOut()
     navigate({ to: '/sign-in' })
-  }
-
-  function toggleTheme() {
-    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')
   }
 
   return (
@@ -72,16 +67,7 @@ export function PublicLayout({ children }: PublicLayoutProps) {
           </Link>
 
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-11"
-              onClick={toggleTheme}
-              aria-label={t('public.toggleTheme')}
-            >
-              {resolvedTheme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
-            </Button>
+            <PreferenceControls />
 
             {user ? (
               <DropdownMenu>

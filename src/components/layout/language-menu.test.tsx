@@ -60,6 +60,17 @@ describe('LanguageMenuButton', () => {
   })
 })
 
+describe('LanguageMenuButton compact', () => {
+  it('shows only the language name and keeps the full accessible name', () => {
+    mocks.resolvedLanguage = 'zh'
+    const view = render(<LanguageMenuButton compact />)
+    const trigger = view.getByRole('button', { name: TRIGGER_NAME })
+
+    expect(trigger.textContent).toBe('中文')
+    expect(trigger.getAttribute('aria-label')).toBe('settings.appearance.language: 中文')
+  })
+})
+
 describe('LanguageMenuSub', () => {
   it('switches the language from inside an existing dropdown menu', async () => {
     const view = render(
