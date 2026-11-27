@@ -32,20 +32,25 @@ describe('AuthCard', () => {
     expect(screen.getByText('body')).toBeTruthy()
   })
 
-  it('puts the language and theme controls in the card corner, anchored logically', () => {
+  it('puts the language and theme controls in the card corner, language first, anchored logically', () => {
     const { container } = render(
       <AuthCard subtitle="auth.signInSubtitle">
         <p>body</p>
       </AuthCard>,
     )
 
-    const cluster = container.querySelector('.absolute.end-3')
-    expect(cluster).toBeTruthy()
+    const cluster = container.querySelector('.absolute.start-3')
+    if (!cluster) {
+      throw new Error('the auth card corner cluster is missing')
+    }
     // Physical right/left anchors would not flip when the document direction is RTL.
-    expect(cluster?.className).not.toContain('right-')
-    expect(screen.getByRole('button', { name: /^settings\.appearance\.theme/ })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /^settings\.appearance\.language/ })).toBeTruthy()
-    expect(cluster?.contains(screen.getByRole('button', { name: /^settings\.appearance\.theme/ }))).toBe(true)
+    expect(cluster.className).not.toContain('right-')
+    const language = screen.getByRole('button', { name: /^settings\.appearance\.language/ })
+    const theme = screen.getByRole('button', { name: /^settings\.appearance\.theme/ })
+    expect(cluster.contains(theme)).toBe(true)
+    // Reading order: the language control comes first in the pair.
+    expect(cluster.compareDocumentPosition(language) & Node.DOCUMENT_POSITION_CONTAINED_BY).toBeTruthy()
+    expect(language.compareDocumentPosition(theme) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('falls back to the default site name when a page has no branding', () => {

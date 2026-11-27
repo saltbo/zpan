@@ -12,6 +12,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
 
 type ThemeValue = 'system' | 'light' | 'dark'
 
@@ -56,8 +57,9 @@ export function ThemeMenuSub() {
 }
 
 /** Standalone button for pages with no surrounding menu, e.g. the sign-in page.
- *  Same icon as ThemeMenuSub and the same setting label as the checked choice, so
- *  the login control is the same object the signed-in menu shows. */
+ *  The trigger is icon-only glass (h-7, size-3.5): compact and quiet in the card
+ *  corner. The word "Theme" and the current setting ride in the accessible name,
+ *  so screen readers, tests, and the e2e gate still get the full statement. */
 export function ThemeMenuButton({ className }: { className?: string }) {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -70,11 +72,10 @@ export function ThemeMenuButton({ className }: { className?: string }) {
           variant="outline"
           size="sm"
           aria-label={`${t('settings.appearance.theme')}: ${t(THEME_LABEL_KEY[value])}`}
-          className={className}
+          className={cn('h-7', className)}
         >
-          <Palette className="size-4" />
-          {t(THEME_LABEL_KEY[value])}
-          <ChevronDown className="size-4 opacity-50" />
+          <Palette className="size-3.5" />
+          <ChevronDown className="size-3.5 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="center">

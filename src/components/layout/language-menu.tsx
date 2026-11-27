@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { LANGUAGE_OPTIONS, languageCode, languageLabel } from '@/i18n/languages'
+import { cn } from '@/lib/utils'
 
 /** The shared language choices. Switching caches to localStorage, so it survives reloads. */
 function LanguageRadioGroup() {
@@ -47,9 +48,9 @@ export function LanguageMenuSub() {
 }
 
 /** Standalone button for pages with no surrounding menu, e.g. the sign-in page.
- *  The trigger shows the icon and the language's own name (endonym), which reads
- *  correctly in every locale and needs no translation. The word "Language" lives
- *  in the accessible name only, so screen readers and the e2e gate still get it. */
+ *  The trigger is icon-only glass (h-7, size-3.5): quiet in the card corner. The
+ *  word "Language" and the language's own name (endonym) ride in the accessible
+ *  name, so screen readers, tests, and the e2e gate still get the full statement. */
 export function LanguageMenuButton({ className }: { className?: string }) {
   const { t, i18n } = useTranslation()
   const label = languageLabel(i18n.resolvedLanguage)
@@ -61,11 +62,10 @@ export function LanguageMenuButton({ className }: { className?: string }) {
           variant="outline"
           size="sm"
           aria-label={`${t('settings.appearance.language')}: ${label}`}
-          className={className}
+          className={cn('h-7', className)}
         >
-          <Languages className="size-4" />
-          {label}
-          <ChevronDown className="size-4 opacity-50" />
+          <Languages className="size-3.5" />
+          <ChevronDown className="size-3.5 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="center">

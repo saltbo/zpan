@@ -139,7 +139,8 @@ components:
     shadow: "{shadows.overlay-light}"
   auth-corner-control:
     rounded: "{rounded.pill}"
-    height: 32px
+    height: 28px
+    icon: 14px
 ---
 
 # ZPan design
@@ -194,10 +195,12 @@ except in a dense, table-like editor.
 
 The signed-out pages (sign-in, sign-up, forgot-password, reset-password) share one
 card: ambient canvas, the display wordmark, one quiet subtitle, and the language
-and theme controls anchored in the top corner with the logical `end-3` offset, so
-the pair moves to the top-left when the document direction is RTL. The pair is
-`size="sm"` outline buttons, 32 px tall, with the icon first and the current
-setting as the label.
+and theme controls anchored in the top corner with the logical `start-3` offset, so
+the pair moves to the top-right when the document direction is RTL. The pair is
+icon-only outline glass pills, 28 px tall with 14 px icons, language first in the
+reading order; the card keeps clearance (`pt-15`) so the controls sit apart from
+the wordmark. The word, the endonym, and the current setting ride in the accessible
+name ("Language: English", "Theme: Dark"), not on the trigger.
 
 ## Direction & Writing Mode
 
@@ -263,8 +266,9 @@ The language and theme controls are one pair of shapes used in two places:
 `LanguageMenuButton`/`ThemeMenuButton` standalone on the auth card. Both forms
 share one radio group, the same `Palette` and `Languages` icons, and the same
 setting label, so the login page shows the same object the signed-in menu shows.
-The word "Language" and "Theme" live in the accessible name; the visible label is
-the language's own name (endonym) and the current theme setting.
+The word "Language" and "Theme" live in the accessible name; the standalone
+trigger is icon-only, and the word, the endonym, and the current setting ride in
+the accessible name ("Language: English", "Theme: Dark").
 
 ## Do's and Don'ts
 

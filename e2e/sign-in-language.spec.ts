@@ -15,15 +15,16 @@ test.describe('Sign-in language menu', () => {
 
     const trigger = page.getByRole('button', { name: /language|语言/i })
     await expect(trigger).toBeVisible()
-    await expect(trigger).toContainText('English')
+    // The corner trigger is icon-only; the name carries the word and the endonym.
+    await expect(trigger).toHaveAccessibleName(/language.*English/i)
 
     await trigger.click()
     await page.getByRole('menuitemradio', { name: '中文' }).click()
 
-    // The page re-renders in Chinese immediately, and the button shows the choice.
+    // The page re-renders in Chinese immediately, and the name shows the choice.
     await expandSignInForm(page)
     await expect(page.getByLabel('邮箱或用户名')).toBeVisible()
-    await expect(trigger).toContainText('中文')
+    await expect(trigger).toHaveAccessibleName(/中文/)
 
     // The choice survives the sign-in redirect.
     await page.locator('#identity').fill(ADMIN_EMAIL)

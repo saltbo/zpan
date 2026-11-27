@@ -29,18 +29,22 @@ afterEach(() => {
 })
 
 describe('ThemeMenuButton', () => {
-  it('shows the active setting, so a visitor sees what is selected', () => {
+  it('announces the active setting in the accessible name, with an icon-only trigger', () => {
     const view = render(<ThemeMenuButton />)
 
-    expect(view.getByRole('button', { name: TRIGGER_NAME }).textContent).toContain('settings.appearance.themeSystem')
+    expect(view.getByRole('button', { name: TRIGGER_NAME }).getAttribute('aria-label')).toBe(
+      'settings.appearance.theme: settings.appearance.themeSystem',
+    )
   })
 
-  it('shows the setting label of a chosen theme', () => {
+  it('announces the setting label of a chosen theme', () => {
     mocks.theme = 'dark'
 
     const view = render(<ThemeMenuButton />)
 
-    expect(view.getByRole('button', { name: TRIGGER_NAME }).textContent).toContain('settings.appearance.themeDark')
+    expect(view.getByRole('button', { name: TRIGGER_NAME }).getAttribute('aria-label')).toContain(
+      'settings.appearance.themeDark',
+    )
   })
 
   it('marks the active setting as the checked choice', async () => {

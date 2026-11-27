@@ -28,21 +28,23 @@ afterEach(() => {
 })
 
 describe('LanguageMenuButton', () => {
-  it('shows the endonym as the visible label, with the word "language" in the accessible name', () => {
+  it('is icon-only, with the word "language" and the endonym in the accessible name', () => {
     const view = render(<LanguageMenuButton />)
     const trigger = view.getByRole('button', { name: TRIGGER_NAME })
 
-    // The clutter-free trigger shows only the language's own name.
-    expect(trigger.textContent).toBe('English')
+    // The quiet corner trigger shows no text; the language's own name rides in the name.
+    expect(trigger.textContent).toBe('')
     expect(trigger.getAttribute('aria-label')).toBe('settings.appearance.language: English')
   })
 
-  it('shows the endonym of a detected locale variant', () => {
+  it('announces the endonym of a detected locale variant', () => {
     mocks.resolvedLanguage = 'zh-CN'
 
     const view = render(<LanguageMenuButton />)
 
-    expect(view.getByRole('button', { name: TRIGGER_NAME }).textContent).toBe('中文')
+    expect(view.getByRole('button', { name: TRIGGER_NAME }).getAttribute('aria-label')).toBe(
+      'settings.appearance.language: 中文',
+    )
   })
 
   it('marks the active language as the checked choice', async () => {
