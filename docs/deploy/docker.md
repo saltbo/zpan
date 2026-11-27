@@ -73,7 +73,7 @@ completions cannot overwrite each other's cleanup records.
 
 ### Remote downloader BitTorrent port
 
-The bundled downloader can auto-start aria2 or qBittorrent for magnet and torrent tasks. The provided compose files publish the configured BitTorrent listen port for both TCP and UDP:
+The bundled downloader auto-starts aria2 for magnet and torrent tasks. The provided compose files publish the configured BitTorrent listen port for both TCP and UDP:
 
 ```yaml
 ports:
@@ -83,13 +83,7 @@ ports:
 
 Keep that port reachable from the internet if you want effective seeding and better peer connectivity. `ZPAN_BT_PORT` controls the host port. `ZPAN_DOWNLOADER_BT_LISTEN_PORT` controls the engine listen port inside the container. If multiple downloader containers run on the same host, give each one a different host port, for example `ZPAN_BT_PORT=6882`.
 
-The Docker images include both aria2 and qBittorrent. `ZPAN_DOWNLOADER_ENGINE=auto` keeps the default auto-selection behavior, which tries aria2 before qBittorrent. To run the managed qBittorrent engine instead:
-
-```sh
-ZPAN_DOWNLOADER_ENGINE=qbittorrent docker compose -f deploy/docker-compose.yml up -d
-```
-
-Managed qBittorrent uses the same `ZPAN_DOWNLOADER_BT_LISTEN_PORT` setting for BitTorrent peers; the WebUI stays bound to container-local `127.0.0.1`.
+The Docker images include aria2 only; `ZPAN_DOWNLOADER_ENGINE=auto` (the default) starts it inside the container. qBittorrent is not bundled. To use it, run qBittorrent yourself and point the downloader at its Web UI with `ZPAN_DOWNLOADER_ENGINE=qbittorrent` and `ZPAN_DOWNLOADER_QBITTORRENT_URL` (plus `ZPAN_DOWNLOADER_QBITTORRENT_USERNAME`/`ZPAN_DOWNLOADER_QBITTORRENT_PASSWORD`), or the matching `downloader.qbittorrent.*` keys in the downloader config. Setting `ZPAN_DOWNLOADER_ENGINE=qbittorrent` without an external URL fails to start, because there is no `qbittorrent-nox` binary in the image.
 
 ### Remote downloader hostname
 
