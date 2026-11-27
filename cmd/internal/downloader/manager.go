@@ -468,6 +468,9 @@ func waitForDownloader(ctx context.Context, downloader Downloader) error {
 		if err == nil {
 			return nil
 		}
+		if errors.Is(err, ErrEngineRejectedCredentials) {
+			return err
+		}
 		lastErr = err
 		select {
 		case <-ctx.Done():

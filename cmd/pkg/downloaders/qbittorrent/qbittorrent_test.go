@@ -164,8 +164,14 @@ func authQBittorrent(t *testing.T) *httptest.Server {
 			if err := r.ParseForm(); err != nil {
 				t.Fatal(err)
 			}
-			if r.PostForm.Get("username") != "admin" || r.PostForm.Get("password") != "secret" {
+			if r.PostForm.Get("username") == "legacy" {
+				// qBittorrent 4 answers bad credentials with 200 "Fails.".
 				_, _ = w.Write([]byte("Fails."))
+				return
+			}
+			if r.PostForm.Get("username") != "admin" || r.PostForm.Get("password") != "secret" {
+				// qBittorrent 5 answers bad credentials with 401.
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
 			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "session", Path: "/"})
@@ -200,8 +206,11 @@ func TestQBittorrentCheckSignsInWithUsernameAndPassword(t *testing.T) {
 	if err := (QBittorrent{URL: server.URL, Username: "admin", Password: "secret"}).Check(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if err := (QBittorrent{URL: server.URL, Username: "admin", Password: "wrong"}).Check(context.Background()); err == nil {
-		t.Fatal("expected bad credentials error")
+	for _, username := range []string{"admin", "legacy"} {
+		err := (QBittorrent{URL: server.URL, Username: username, Password: "wrong"}).Check(context.Background())
+		if !errors.Is(err, downloader.ErrEngineRejectedCredentials) || !strings.Contains(err.Error(), "downloader.qbittorrent.username") {
+			t.Fatalf("%s: expected rejected credentials error naming the settings, got %v", username, err)
+		}
 	}
 }
 

@@ -182,6 +182,13 @@ func (q QBittorrent) Check(ctx context.Context) error {
 	defer cancel()
 	// One attempt: a health check must fail fast, not retry a 403.
 	qbt, err := q.connect(ctx, 1)
+	// Only auth/login can fail here. qBittorrent 5 answers a wrong password with
+	// 401, which the library reports as an unexpected status.
+	if errors.Is(err, qbittorrent.ErrBadCredentials) || errors.Is(err, qbittorrent.ErrIPBanned) ||
+		errors.Is(err, qbittorrent.ErrUnexpectedStatus) {
+		return fmt.Errorf("%w: qbittorrent refused the login; check downloader.qbittorrent.username and password: %v",
+			downloader.ErrEngineRejectedCredentials, err)
+	}
 	if err != nil {
 		return err
 	}

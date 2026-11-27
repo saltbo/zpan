@@ -275,6 +275,11 @@ type Downloader interface {
 
 // ErrTorrentMetadataPending means the engine has not resolved the torrent's
 // metadata yet, as for a magnet still fetching it from peers.
+// ErrEngineRejectedCredentials is returned by Check when the engine refuses the
+// configured credentials. Retrying cannot help, and repeated failed logins can
+// get the downloader banned, so the startup wait stops at once.
+var ErrEngineRejectedCredentials = errors.New("engine rejected the configured credentials")
+
 var ErrTorrentMetadataPending = errors.New("torrent metadata is not resolved yet")
 
 // TorrentMetadataSource is an engine that can hand over a torrent task's
