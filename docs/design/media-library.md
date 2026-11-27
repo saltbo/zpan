@@ -1,10 +1,12 @@
 # Media Libraries
 
-> Status: Phase 1 implemented (filename index). Phase 2 proposed: scraping in
-> the downloader, file metadata, and the Movies and TV views. It replaces the
-> server-side TMDB scraper the code still carries (the `media_scrapes` table,
-> the `media_library_scrape` job, the TMDB gateway and its settings, and
-> `POST /api/media-libraries/{id}/scrapes`), which the implementation removes.
+> Status: Phase 1 implemented (filename index). Phase 2 in progress: scraping
+> in the downloader, file metadata, and the Movies and TV views; the index
+> already takes `_media.tmdb` from file metadata. The server-side TMDB
+> scraper (the `media_scrapes` table, the `media_library_scrape` job, the TMDB
+> gateway and its settings, and `POST /api/media-libraries/{id}/scrapes`) is
+> removed; migrations 0101 and 0102 drop its table, its system options, and
+> its jobs.
 > Editions: media libraries are Pro and Business (`media_library` feature
 > gate). Scraping and the Movies and TV views are in every edition.
 
@@ -553,7 +555,10 @@ metadata is not rewritten.
   [file metadata](#6-file-metadata), `{ "id", "type" }` where `type` is
   `movie` or `tv` and an episode's id is its series. It is absent for a video
   without one. Nothing else from the metadata goes into the index; players
-  read titles and artwork from the sidecars.
+  read titles and artwork from the sidecars. The listing page reads it with
+  `json_extract(metadata, '$.media.tmdb')` and leaves the rest of the column
+  in the database, so a page still binds 26 parameters (27 with the cursor)
+  and walks one range of `matters_webdav_path_idx`.
 
 ## 8. API and UI
 

@@ -36,7 +36,6 @@ export type {
   CreateBackgroundJobRequest,
   ListBackgroundJobsQuery,
   MediaLibraryScanJobRequest,
-  MediaLibraryScrapeJobRequest,
 } from './background-jobs'
 export {
   archiveCompressJobRequestSchema,
@@ -47,7 +46,6 @@ export {
   createBackgroundJobRequestSchema,
   listBackgroundJobsQuerySchema,
   mediaLibraryScanJobRequestSchema,
-  mediaLibraryScrapeJobRequestSchema,
 } from './background-jobs'
 export type {
   CapacityPurchaseResult,
@@ -243,7 +241,6 @@ export type {
   SiteCaptchaSettings,
   SiteConfig,
   SiteIdentitySettings,
-  SiteMediaScrapingSettings,
   SiteQuotaSettings,
   SiteRegistrationSettings,
   SiteSettings,
@@ -252,7 +249,6 @@ export type {
   UpdateImageDomainSettingsInput,
   UpdateSiteCaptchaInput,
   UpdateSiteIdentityInput,
-  UpdateSiteMediaScrapingInput,
   UpdateSiteQuotasInput,
   UpdateSiteRegistrationInput,
   UpdateSiteWebDavInput,
@@ -271,7 +267,6 @@ export {
   imageDomainProviderStatusSchema,
   imageDomainSettingsSchema,
   manualImageDomainSettingsSchema,
-  mediaScraperLanguageSchema,
   publicAuthProviderSchema,
   publicCaptchaSchema,
   signupModeSchema,
@@ -279,7 +274,6 @@ export {
   siteCaptchaSettingsSchema,
   siteConfigSchema,
   siteIdentitySettingsSchema,
-  siteMediaScrapingSettingsSchema,
   siteQuotaSettingsSchema,
   siteRegistrationSettingsSchema,
   siteSettingsSchema,
@@ -289,7 +283,6 @@ export {
   updateImageDomainSettingsSchema,
   updateSiteCaptchaSchema,
   updateSiteIdentitySchema,
-  updateSiteMediaScrapingSchema,
   updateSiteQuotasSchema,
   updateSiteRegistrationSchema,
   updateSiteWebDavSchema,

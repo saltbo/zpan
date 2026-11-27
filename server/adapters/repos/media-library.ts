@@ -1,17 +1,17 @@
 import { DirType, ObjectStatus } from '@shared/constants'
-import type { ActorType } from '@shared/schemas'
+import { type ActorType, type TmdbRef, tmdbRefSchema } from '@shared/schemas'
 import {
   and,
   desc,
   eq,
   exists,
+  getTableColumns,
   gte,
   inArray,
   isNotNull,
   isNull,
   like,
   lt,
-  ne,
   not,
   or,
   type SQL,
@@ -19,7 +19,7 @@ import {
 } from 'drizzle-orm'
 import { type AnySQLiteColumn, alias } from 'drizzle-orm/sqlite-core'
 import { generateId } from '../../../shared/ids'
-import { backgroundJobs, matters, mediaLibraries, mediaScrapes } from '../../db/schema'
+import { backgroundJobs, matters, mediaLibraries } from '../../db/schema'
 import { D1_MAX_BOUND_PARAMS, executeWriteTransaction } from '../../db/transaction'
 import {
   joinMatterPath,
@@ -27,12 +27,9 @@ import {
   MEDIA_LIBRARY_INDEX_MIME,
   MEDIA_LIBRARY_SCAN_LEASE_MS,
 } from '../../domain/media-library'
-import type { MediaScrapeResult, MediaScrapeSource } from '../../domain/media-scrape'
-import type { TmdbMediaType } from '../../domain/tmdb'
 import { chunk } from '../../lib/chunk'
 import type { Database } from '../../platform/interface'
 import type {
-  MediaLibraryFileCursor,
   MediaLibraryRecord,
   MediaLibraryRepo,
   MediaLibraryState,
@@ -41,9 +38,8 @@ import type {
 } from '../../usecases/ports'
 
 type MediaLibraryRow = typeof mediaLibraries.$inferSelect
-type MediaScrapeRow = typeof mediaScrapes.$inferSelect
 
-type LeasedJobType = 'media_library_scan' | 'media_library_scrape'
+const MEDIA_LIBRARY_SCAN = 'media_library_scan'
 
 function toRecord(row: MediaLibraryRow): MediaLibraryRecord {
   return {
@@ -69,7 +65,6 @@ type StateRow = {
   folderName: string | null
   folderTrashedAt: number | null
   scanning: number
-  scraping: number
 }
 
 function toState(row: StateRow): MediaLibraryState {
@@ -84,20 +79,7 @@ function toState(row: StateRow): MediaLibraryState {
             trashed: row.folderTrashedAt !== null,
           },
     scanning: Boolean(row.scanning),
-    scraping: Boolean(row.scraping),
   }
-}
-
-function toScrapeResult(row: MediaScrapeRow): MediaScrapeResult {
-  const source = row.source as MediaScrapeSource
-  if (row.status !== 'matched' || row.tmdbId === null) return { status: 'unmatched', source }
-  return row.tmdbType === 'tv'
-    ? {
-        status: 'matched',
-        source,
-        match: { type: 'tv', id: row.tmdbId, season: row.season as number, episode: row.episode as number },
-      }
-    : { status: 'matched', source, match: { type: 'movie', id: row.tmdbId } }
 }
 
 // `parent` = path or starts with `path/`, as one range over the (org_id,
@@ -128,38 +110,6 @@ function liveMatter(table: LiveColumns = matters): SQL {
 
 type LiveColumns = { status: AnySQLiteColumn; trashedAt: AnySQLiteColumn; purgedAt: AnySQLiteColumn }
 
-// The live files of the subtree with a video MIME type or extension, starting
-// after `after` in (parent, name) order.
-function videoFiles(
-  orgId: string,
-  folderPath: string,
-  extensions: readonly string[],
-  after: MediaLibraryFileCursor | null,
-): SQL {
-  const keyset = after ? sql`(${matters.parent}, ${matters.name}) > (${after.parent}, ${after.name})` : undefined
-  return and(
-    eq(matters.orgId, orgId),
-    liveMatter(),
-    eq(matters.dirtype, DirType.FILE),
-    subtree(sql`${folderPath}`, keyset),
-    notIndexFile(sql`${folderPath}`),
-    or(like(matters.type, 'video/%'), ...extensions.map((extension) => like(matters.name, `%.${extension}`))),
-  ) as SQL
-}
-
-// With media_scrapes left-joined on the video: never scraped, changed since
-// (updated_at moves on rename, move, and overwrite), or scraped in another
-// language. An unmatched video stays out until one of these changes. The row
-// keeps the exact updated_at it saw, so any other value means a change, even
-// one stamped by a clock behind the scrape's, and recording it ends the match.
-function needsScrape(language: string): SQL {
-  return or(
-    isNull(mediaScrapes.matterId),
-    ne(matters.updatedAt, mediaScrapes.fileUpdatedAt),
-    ne(mediaScrapes.language, language),
-  ) as SQL
-}
-
 // The live subtree a fingerprint covers: everything under the library except its index.
 function fingerprintedMatters(orgId: SQL | AnySQLiteColumn, path: SQL): SQL {
   return and(eq(matters.orgId, orgId), liveMatter(), subtree(path), notIndexFile(path)) as SQL
@@ -170,23 +120,15 @@ function fingerprintedMatters(orgId: SQL | AnySQLiteColumn, path: SQL): SQL {
 // move, and overwrite bump updated_at (cascadeParentPath bumps every
 // descendant of a moved folder). SUM(updated_at) also catches a change that
 // lands in the same second as the previous maximum. COUNT(id) rather than
-// COUNT(*) so a library joined to no rows counts zero. The scan publishes the
-// matched TMDB ids too, so the library's matched media_scrapes count, and
-// their latest scraped_at (millisecond precision, written on every record),
-// cover a match a scrape records, changes, or loses, and a purged video's row.
-// The aggregate is grouped over the subtree's matters; the scrape terms are a
-// subquery over the covering media_scrapes_library_idx.
-function fingerprint(libraryId: SQL | AnySQLiteColumn): SQL<string> {
-  return sql<string>`COUNT(${matters.id}) || ':' || COALESCE(SUM(${matters.size}), 0) || ':' || COALESCE(MAX(${matters.updatedAt}), 0) || ':' || COALESCE(SUM(${matters.updatedAt}), 0) || ':' || (SELECT COUNT(*) || ':' || COALESCE(MAX(${mediaScrapes.scrapedAt}), 0) FROM ${mediaScrapes} WHERE ${mediaScrapes.libraryId} = ${libraryId} AND ${mediaScrapes.status} = 'matched')`
-}
+// COUNT(*) so a library joined to no rows counts zero.
+const FINGERPRINT = sql<string>`COUNT(${matters.id}) || ':' || COALESCE(SUM(${matters.size}), 0) || ':' || COALESCE(MAX(${matters.updatedAt}), 0) || ':' || COALESCE(SUM(${matters.updatedAt}), 0)`
 
 const folder = alias(matters, 'library_folder')
 const indexFile = alias(matters, 'library_index')
 const folderPath = sql`CASE WHEN ${folder.parent} = '' THEN ${folder.name} ELSE ${folder.parent} || '/' || ${folder.name} END`
 
 export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
-  // A job of this type for the library is queued or running and was updated within the lease.
-  function leaseHeld(type: LeasedJobType): SQL {
+  function scanLeaseHeld(): SQL {
     return exists(
       db
         .select({ id: backgroundJobs.id })
@@ -194,7 +136,7 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
         .where(
           and(
             eq(backgroundJobs.orgId, mediaLibraries.orgId),
-            eq(backgroundJobs.type, type),
+            eq(backgroundJobs.type, MEDIA_LIBRARY_SCAN),
             inArray(backgroundJobs.status, ['queued', 'running']),
             gte(backgroundJobs.updatedAt, new Date(Date.now() - MEDIA_LIBRARY_SCAN_LEASE_MS)),
             sql`json_extract(${backgroundJobs.metadata}, '$.libraryId') = ${mediaLibraries.id}`,
@@ -209,8 +151,7 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
       folderParent: folder.parent,
       folderName: folder.name,
       folderTrashedAt: folder.trashedAt,
-      scanning: sql<number>`${leaseHeld('media_library_scan')}`,
-      scraping: sql<number>`${leaseHeld('media_library_scrape')}`,
+      scanning: sql<number>`${scanLeaseHeld()}`,
     }
   }
 
@@ -307,11 +248,7 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
           ),
       )
       const rows = await db
-        .select({
-          ...stateColumns(),
-          indexed: sql<number>`${indexed}`,
-          subtreeFingerprint: fingerprint(mediaLibraries.id),
-        })
+        .select({ ...stateColumns(), indexed: sql<number>`${indexed}`, subtreeFingerprint: FINGERPRINT })
         .from(mediaLibraries)
         .leftJoin(folder, folderJoin)
         .leftJoin(matters, fingerprintedMatters(mediaLibraries.orgId, folderPath))
@@ -354,9 +291,9 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
         .where(and(eq(mediaLibraries.orgId, orgId), eq(mediaLibraries.id, id)))
     },
 
-    async fingerprint(orgId, libraryId, path) {
+    async fingerprint(orgId, path) {
       const [row] = await db
-        .select({ fingerprint: fingerprint(sql`${libraryId}`) })
+        .select({ fingerprint: FINGERPRINT })
         .from(matters)
         .where(fingerprintedMatters(sql`${orgId}`, sql`${path}`))
       return row.fingerprint
@@ -366,66 +303,37 @@ export function createMediaLibraryRepo(db: Database): MediaLibraryRepo {
     // every page costs the same and binds the same parameters however large
     // the library is. (parent, name) is unique among live rows because
     // matters_active_name_uniq is unique on (org_id, parent, LOWER(name)).
-    // media_scrapes joins on its primary key and binds nothing, so a page
-    // still binds the same parameters and walks the same index.
+    // The TMDB match comes from the video's file metadata (media.tmdb); the
+    // rest of the metadata stays in the database, so a page holds only what
+    // the index publishes. The extraction binds nothing.
     async listVideoFilesPage(orgId, folderPath, extensions, page) {
+      const { after } = page
+      const keyset = after ? sql`(${matters.parent}, ${matters.name}) > (${after.parent}, ${after.name})` : undefined
+      const { metadata: _metadata, ...columns } = getTableColumns(matters)
       const rows = await db
-        .select({ file: matters, status: mediaScrapes.status, type: mediaScrapes.tmdbType, id: mediaScrapes.tmdbId })
+        .select({ ...columns, tmdb: sql<string | null>`json_extract(${matters.metadata}, '$.media.tmdb')` })
         .from(matters)
-        .leftJoin(mediaScrapes, eq(mediaScrapes.matterId, matters.id))
-        .where(videoFiles(orgId, folderPath, extensions, page.after))
+        .where(
+          and(
+            eq(matters.orgId, orgId),
+            liveMatter(),
+            eq(matters.dirtype, DirType.FILE),
+            subtree(sql`${folderPath}`, keyset),
+            notIndexFile(sql`${folderPath}`),
+            or(like(matters.type, 'video/%'), ...extensions.map((extension) => like(matters.name, `%.${extension}`))),
+          ),
+        )
         .orderBy(matters.parent, matters.name)
         .limit(page.limit)
-      return rows.map(({ file, status, type, id }) => ({
-        ...file,
-        tmdb: status === 'matched' && id !== null ? { id, type: type as TmdbMediaType } : null,
-      }))
-    },
-
-    async hasVideosToScrape(orgId, folderPath, extensions, language) {
-      const rows = await db
-        .select({ id: matters.id })
-        .from(matters)
-        .leftJoin(mediaScrapes, eq(mediaScrapes.matterId, matters.id))
-        .where(and(videoFiles(orgId, folderPath, extensions, null), needsScrape(language)))
-        .limit(1)
-      return rows.length > 0
-    },
-
-    async listVideosToScrape(orgId, folderPath, extensions, language, page) {
-      const rows = await db
-        .select({ file: matters, scrape: mediaScrapes })
-        .from(matters)
-        .leftJoin(mediaScrapes, eq(mediaScrapes.matterId, matters.id))
-        .where(and(videoFiles(orgId, folderPath, extensions, page.after), needsScrape(language)))
-        .orderBy(matters.parent, matters.name)
-        .limit(page.limit)
-      return rows.map(({ file, scrape }) => ({
-        file,
-        previous: scrape && { result: toScrapeResult(scrape), matchKey: scrape.matchKey, language: scrape.language },
-      }))
-    },
-
-    async recordScrape(input) {
-      const { result } = input
-      const match = result.status === 'matched' ? result.match : null
-      const row: MediaScrapeRow = {
-        matterId: input.matterId,
-        orgId: input.orgId,
-        libraryId: input.libraryId,
-        status: result.status,
-        tmdbType: match?.type ?? null,
-        tmdbId: match?.id ?? null,
-        season: match?.type === 'tv' ? match.season : null,
-        episode: match?.type === 'tv' ? match.episode : null,
-        language: input.language,
-        source: result.source,
-        matchKey: input.matchKey,
-        fileUpdatedAt: input.fileUpdatedAt,
-        scrapedAt: new Date(),
-      }
-      const { matterId: _matterId, ...update } = row
-      await db.insert(mediaScrapes).values(row).onConflictDoUpdate({ target: mediaScrapes.matterId, set: update })
+      return rows.map((row) => ({ ...row, tmdb: toTmdbRef(row.tmdb) }))
     },
   }
+}
+
+// media.tmdb as json_extract returns it: JSON text, validated by the metadata
+// schema on write. Anything that does not parse as a ref is left out.
+function toTmdbRef(value: string | null): TmdbRef | null {
+  if (value === null) return null
+  const parsed = tmdbRefSchema.safeParse(JSON.parse(value))
+  return parsed.success ? parsed.data : null
 }

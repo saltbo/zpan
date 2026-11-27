@@ -8,6 +8,7 @@ import { createMatterRepo } from '../server/adapters/repos/matter'
 import { createMediaLibraryRepo } from '../server/adapters/repos/media-library'
 import { createDeps } from '../server/composition'
 import { getTrustedLicenseKeys } from '../server/domain/license-keys'
+import { VIDEO_EXTENSIONS } from '../server/domain/media-library'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { trustTestLicenseKey, untrustTestLicenseKey } from '../server/test/license-keys'
 import { sweepMediaLibraries } from '../server/usecases/media-library-scan'
@@ -169,7 +170,7 @@ describe('[CF] media library sweep on D1', () => {
     const [state] = await repo.listForSweep()
 
     expect(state).toMatchObject({ id: library.id, indexed: true, folder: { path, trashed: false } })
-    expect(state.subtreeFingerprint).toBe(await repo.fingerprint(orgId, library.id, path))
+    expect(state.subtreeFingerprint).toBe(await repo.fingerprint(orgId, path))
     // The two videos of 100 bytes: library.json is excluded, and the siblings
     // that share the prefix or match it as a LIKE pattern stay outside.
     expect(state.subtreeFingerprint).toMatch(/^2:200:/)
@@ -202,4 +203,54 @@ describe('[CF] media library sweep on D1', () => {
     const remaining = await db.all<{ id: string }>(sql`SELECT id FROM media_libraries`)
     expect(new Set(remaining.map((row) => row.id))).toEqual(new Set(changed.map((library) => library.id)))
   }, 120_000)
+
+  it('pages the index over one path-index range, reading the tmdb id from metadata without binding more [spec: media-library/index-tmdb-from-metadata]', async () => {
+    await clearLibraries()
+    const { orgId, add } = await seedOrg()
+    await add('', 'Movies', DirType.USER_FOLDER)
+    const sintel = await add('Movies', 'Sintel (2010).mkv', DirType.FILE)
+    await add('Movies', 'Dune (2021).mkv', DirType.FILE)
+    await createMatterRepo(db).setMediaMetadata(
+      orgId,
+      sintel.id,
+      { kind: 'movie', tmdb: { id: 45745, type: 'movie' }, title: 'Sintel', overview: 'Dragons.' },
+      { onlyIfAbsent: false },
+    )
+    const statements: Array<{ query: string; values: unknown[] }> = []
+    const recording = {
+      prepare(query: string) {
+        const statement = env.DB.prepare(query)
+        return {
+          bind(...values: unknown[]) {
+            statements.push({ query, values })
+            return statement.bind(...values)
+          },
+        }
+      },
+    }
+    const repo = createMediaLibraryRepo(
+      createCloudflarePlatform({ ...licensedEnv, DB: recording as unknown as D1Database }).db,
+    )
+
+    const first = await repo.listVideoFilesPage(orgId, 'Movies', VIDEO_EXTENSIONS, { after: null, limit: 1000 })
+    await repo.listVideoFilesPage(orgId, 'Movies', VIDEO_EXTENSIONS, { after: first[0], limit: 1000 })
+
+    expect(first.map((file) => [file.name, file.tmdb])).toEqual([
+      ['Dune (2021).mkv', null],
+      ['Sintel (2010).mkv', { id: 45745, type: 'movie' }],
+    ])
+    expect(first[1]).not.toHaveProperty('metadata')
+    expect(statements.map((statement) => statement.values.length)).toEqual([26, 27])
+    const plans = []
+    for (const { query, values } of statements) {
+      const plan = await env.DB.prepare(`EXPLAIN QUERY PLAN ${query}`)
+        .bind(...values)
+        .all<{ detail: string }>()
+      plans.push(plan.results.map((row) => row.detail))
+    }
+    expect(plans).toEqual([
+      ['SEARCH matters USING INDEX matters_webdav_path_idx (org_id=? AND parent>? AND parent<?)'],
+      ['SEARCH matters USING INDEX matters_webdav_path_idx (org_id=? AND (parent,name)>(?,?) AND parent<?)'],
+    ])
+  })
 })

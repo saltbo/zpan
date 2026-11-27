@@ -6,7 +6,6 @@ import {
   CAPTCHA_SITE_KEY_KEY,
 } from '@shared/captcha'
 import { SITE_PUBLIC_ORIGIN_KEY } from '../../domain/site-public-origin'
-import { MEDIA_SCRAPER_OPTION_KEYS } from '../ports'
 
 export const SITE_SETTING_KEYS = {
   name: 'site_name',
@@ -26,6 +25,4 @@ export const SITE_SETTING_KEYS = {
   webdavVerificationError: 'webdav_verification_error',
   webdavEnabled: 'webdav_enabled',
   webdavDomain: 'webdav_domain',
-  mediaScraperLanguage: MEDIA_SCRAPER_OPTION_KEYS.language,
-  mediaScraperTmdbAccessToken: MEDIA_SCRAPER_OPTION_KEYS.tmdbAccessToken,
 } as const

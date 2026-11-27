@@ -1,0 +1,1 @@
+DROP TABLE `media_scrapes`;

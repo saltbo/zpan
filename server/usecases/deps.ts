@@ -50,7 +50,6 @@ import type {
   SystemOptionsRepo,
   TeamInviteRepo,
   TeamRepo,
-  TmdbGateway,
   TorrentCacheConfigRepo,
   TorrentRepo,
   UserAdminRepo,
@@ -110,7 +109,6 @@ export interface Deps {
   systemOptions: SystemOptionsRepo
   teams: TeamRepo
   teamInvites: TeamInviteRepo
-  tmdb: TmdbGateway
   torrents: TorrentRepo
   torrentCacheConfigs: TorrentCacheConfigRepo
   userAdmin: UserAdminRepo

@@ -7,15 +7,10 @@ import {
   DEFAULT_SITE_NAME,
   SignupMode,
 } from '@shared/constants'
-import {
-  DEFAULT_MEDIA_SCRAPER_LANGUAGE,
-  MEDIA_SCRAPER_LANGUAGES,
-  type MediaScraperLanguage,
-} from '@shared/media-scraper'
 import type { SiteSettings } from '@shared/schemas'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { Clapperboard, Database, Globe2, Network, ShieldCheck, UserPlus } from 'lucide-react'
+import { Database, Globe2, Network, ShieldCheck, UserPlus } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -42,7 +37,6 @@ import { useEntitlement } from '@/hooks/useEntitlement'
 import {
   updateSiteCaptcha,
   updateSiteIdentity,
-  updateSiteMediaScraping,
   updateSiteQuotas,
   updateSiteRegistration,
   updateSiteWebDav,
@@ -88,12 +82,10 @@ const settingsSchema = z.object({
   captchaMinScore: z.string(),
   webdavEnabled: z.boolean(),
   webdavDomain: z.string(),
-  scrapingLanguage: z.enum(MEDIA_SCRAPER_LANGUAGES),
-  tmdbAccessToken: z.string(),
 })
 
 type SettingsFormValues = z.infer<typeof settingsSchema>
-type SettingsDrawer = 'identity' | 'registration' | 'captcha' | 'webdav' | 'storage' | 'scraping' | null
+type SettingsDrawer = 'identity' | 'registration' | 'captcha' | 'webdav' | 'storage' | null
 type FieldControlProps = {
   id?: string
   'aria-invalid'?: boolean
@@ -160,11 +152,6 @@ function SettingsSection({ title, children }: { title: ReactNode; children: Reac
   )
 }
 
-// A language tag in its own language, such as "日本語 (日本) · ja-JP".
-function scraperLanguageLabel(tag: MediaScraperLanguage): string {
-  return `${new Intl.DisplayNames([tag], { type: 'language' }).of(tag) ?? tag} · ${tag}`
-}
-
 function CaptchaProviderLabel({ provider }: { provider: CaptchaProvider }) {
   switch (provider) {
     case 'google-recaptcha':
@@ -199,12 +186,9 @@ export function SettingsPage() {
   const webdav = settings?.webdav
   const webdavEnabled = webdav?.enabled ?? true
   const webdavDomain = webdav?.domain ?? ''
-  const scrapingLanguage = settings?.mediaScraping.language ?? DEFAULT_MEDIA_SCRAPER_LANGUAGE
-  const tmdbTokenConfigured = settings?.mediaScraping.tmdbTokenConfigured ?? false
   const { hasFeature } = useEntitlement()
   const hasWhiteLabel = hasFeature('white_label')
   const hasOpenRegistration = hasFeature('open_registration')
-  const hasMediaLibrary = hasFeature('media_library')
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
@@ -224,8 +208,6 @@ export function SettingsPage() {
       captchaMinScore: '',
       webdavEnabled: true,
       webdavDomain: '',
-      scrapingLanguage: DEFAULT_MEDIA_SCRAPER_LANGUAGE,
-      tmdbAccessToken: '',
     },
   })
 
@@ -248,8 +230,6 @@ export function SettingsPage() {
       captchaMinScore,
       webdavEnabled,
       webdavDomain,
-      scrapingLanguage,
-      tmdbAccessToken: '',
     }
   }, [
     siteName,
@@ -264,7 +244,6 @@ export function SettingsPage() {
     captchaMinScore,
     webdavEnabled,
     webdavDomain,
-    scrapingLanguage,
   ])
 
   const closeSettingsDrawer = useCallback(
@@ -425,36 +404,12 @@ export function SettingsPage() {
     },
   })
 
-  // A blank token field keeps the saved token; removing it sends an empty one.
-  const scrapingMutation = useMutation({
-    mutationFn: (action: 'save' | 'removeToken') => {
-      const values = form.getValues()
-      const tmdbAccessToken = action === 'removeToken' ? '' : values.tmdbAccessToken.trim()
-      return updateSiteMediaScraping({
-        language: values.scrapingLanguage,
-        ...(tmdbAccessToken || action === 'removeToken' ? { tmdbAccessToken } : {}),
-      })
-    },
-    onSuccess: (result) => {
-      queryClient.setQueryData<SiteSettings>(siteSettingsQueryKey, (current) =>
-        current ? { ...current, mediaScraping: result } : current,
-      )
-      queryClient.invalidateQueries({ queryKey: siteSettingsQueryKey })
-      closeSettingsDrawer({ reset: false })
-      toast.success(t('admin.settings.saved'))
-    },
-    onError: (err) => {
-      toast.error(err.message)
-    },
-  })
-
   const quotaUnit = form.watch('quotaUnit')
   const teamQuotaUnit = form.watch('teamQuotaUnit')
   const registrationsEnabled = form.watch('registrationsEnabled')
   const captchaProtectionEnabled = form.watch('captchaEnabled')
   const selectedCaptchaProvider = form.watch('captchaProvider')
   const configuredWebdavEnabled = form.watch('webdavEnabled')
-  const selectedScrapingLanguage = form.watch('scrapingLanguage')
   const savedQuota = bytesToDisplay(quotaBytes)
   const savedTeamQuota = bytesToDisplay(teamQuotaBytes)
   const savedRegistrationsEnabled = effectiveSignupMode === SignupMode.OPEN
@@ -558,26 +513,6 @@ export function SettingsPage() {
             }
             editLabel={t('admin.settings.webdavDetails')}
             onEdit={() => setSettingsDrawer('webdav')}
-          />
-        </SettingsSection>
-
-        <SettingsSection title={t('admin.settings.scrapingSection')}>
-          <SettingsItemCard
-            icon={<Clapperboard className="size-4" />}
-            title={t('admin.settings.scrapingTitle')}
-            description={t('admin.settings.scrapingDescription')}
-            details={`${scraperLanguageLabel(scrapingLanguage)} · ${
-              tmdbTokenConfigured ? t('admin.settings.tmdbTokenConfigured') : t('admin.settings.tmdbTokenMissing')
-            }`}
-            status={
-              <SettingsStatusBadge
-                enabled={hasMediaLibrary && tmdbTokenConfigured}
-                label={hasMediaLibrary && tmdbTokenConfigured ? t('admin.auth.enabled') : t('common.disabled')}
-              />
-            }
-            proTooltip={t('admin.settings.scrapingProTooltip')}
-            editLabel={t('common.edit')}
-            onEdit={() => setSettingsDrawer('scraping')}
           />
         </SettingsSection>
 
@@ -885,74 +820,6 @@ export function SettingsPage() {
             />
           </AdminFormField>
         )}
-      </AdminFormDrawer>
-
-      <AdminFormDrawer
-        open={settingsDrawer === 'scraping'}
-        onOpenChange={(open) => !open && closeSettingsDrawer()}
-        title={t('admin.settings.scrapingTitle')}
-        description={t('admin.settings.scrapingDescription')}
-        bodyClassName="grid auto-rows-min content-start gap-4"
-        footer={
-          <>
-            {tmdbTokenConfigured && (
-              <Button
-                type="button"
-                variant="outline"
-                className="mr-auto"
-                disabled={scrapingMutation.isPending}
-                onClick={() => scrapingMutation.mutate('removeToken')}
-              >
-                {t('admin.settings.tmdbAccessTokenRemove')}
-              </Button>
-            )}
-            <Button type="button" variant="outline" onClick={() => closeSettingsDrawer()}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="button" disabled={scrapingMutation.isPending} onClick={() => scrapingMutation.mutate('save')}>
-              {scrapingMutation.isPending ? t('common.loading') : t('common.save')}
-            </Button>
-          </>
-        }
-      >
-        <AdminFormField
-          id="tmdbAccessToken"
-          label={t('admin.settings.tmdbAccessToken')}
-          help={t('admin.settings.tmdbAccessTokenHint')}
-          required={!tmdbTokenConfigured}
-        >
-          <Input
-            type="password"
-            autoComplete="off"
-            placeholder={tmdbTokenConfigured ? '••••••••' : t('admin.settings.tmdbAccessTokenPlaceholder')}
-            {...form.register('tmdbAccessToken')}
-          />
-        </AdminFormField>
-        <AdminFormField
-          id="scrapingLanguage"
-          label={t('admin.settings.scrapingLanguage')}
-          help={t('admin.settings.scrapingLanguageHint')}
-          required
-        >
-          <Select
-            value={selectedScrapingLanguage}
-            onValueChange={(language: MediaScraperLanguage) =>
-              form.setValue('scrapingLanguage', language, { shouldDirty: true })
-            }
-          >
-            <SelectTrigger id="scrapingLanguage">
-              <SelectValue placeholder={t('admin.settings.scrapingLanguagePlaceholder')} />
-            </SelectTrigger>
-            <SelectContent>
-              {MEDIA_SCRAPER_LANGUAGES.map((language) => (
-                <SelectItem key={language} value={language}>
-                  {scraperLanguageLabel(language)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </AdminFormField>
-        {!hasMediaLibrary && <p className="text-xs text-muted-foreground">{t('admin.settings.scrapingUpgradeHint')}</p>}
       </AdminFormDrawer>
 
       <AdminFormDrawer

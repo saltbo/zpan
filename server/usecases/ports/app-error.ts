@@ -60,9 +60,6 @@ export const rateLimited = (message: ErrorMessage, retryAfterSeconds?: number) =
 export const unsupportedMediaType = (message: ErrorMessage = 'Unsupported media type') =>
   new AppError(415, message, { reason: ErrorReason.UNSUPPORTED_MEDIA_TYPE })
 
-export const failedPrecondition = (message: ErrorMessage, reason: string) =>
-  new AppError(412, message, { reason, canonicalStatus: 'FAILED_PRECONDITION' })
-
 export const backgroundJobsUnavailable = () => new AppError(503, 'Background jobs are unavailable in this environment')
 
 export const noStorage = (message: ErrorMessage = 'No storage configured') =>

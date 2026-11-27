@@ -38,7 +38,6 @@ import {
   listMediaLibraries,
   listObjectsByPath,
   scanMediaLibrary,
-  scrapeMediaLibrary,
   updateObject,
 } from '@/lib/api'
 import { runSequentialOperation } from '@/lib/sequential-operation'
@@ -61,10 +60,9 @@ import type { BreadcrumbItem, FileActionHandlers, MediaLibraryActions } from './
 
 const FILES_PAGE_SIZE = 100
 
-const MEDIA_LIBRARY_REQUESTS: Record<'set' | 'rescan' | 'scrape' | 'remove', (id: string) => Promise<unknown>> = {
+const MEDIA_LIBRARY_REQUESTS: Record<'set' | 'rescan' | 'remove', (id: string) => Promise<unknown>> = {
   set: createMediaLibrary,
   rescan: scanMediaLibrary,
-  scrape: scrapeMediaLibrary,
   remove: deleteMediaLibrary,
 }
 
@@ -331,7 +329,6 @@ export function FileManager({
       libraryFor: (folder) => libraries.get(folder.id),
       onSet: (folder) => request({ type: 'set', id: folder.id }),
       onRescan: (library) => request({ type: 'rescan', id: library.id }),
-      onScrape: (library) => request({ type: 'scrape', id: library.id }),
       onRemove: setMediaLibraryRemoveTarget,
     }
   }, [

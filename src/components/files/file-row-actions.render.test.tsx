@@ -33,7 +33,6 @@ vi.mock('lucide-react', () => ({
   ArrowRightLeft: () => null,
   RefreshCw: () => null,
   Share2: () => null,
-  Sparkles: () => null,
   Trash2: () => null,
   X: () => null,
 }))
@@ -295,7 +294,7 @@ describe('FileRowActions — component rendering', () => {
     expect(onCompress).toHaveBeenCalledWith(item)
   })
 
-  it('offers media library actions on folders only, following the folder state [spec: media-scraping/folder-menu]', () => {
+  it('offers media library actions on folders only, following the folder state, with no metadata scraping [spec: media-library/no-server-scraping]', () => {
     const folder = makeObject(DirType.USER_FOLDER)
     const library = { id: 'lib-1', folderId: folder.id } as ReturnType<MediaLibraryActions['libraryFor']>
     const actions = (overrides: Partial<MediaLibraryActions>): MediaLibraryActions => ({
@@ -304,7 +303,6 @@ describe('FileRowActions — component rendering', () => {
       onSet: vi.fn(),
       onRemove: vi.fn(),
       onRescan: vi.fn(),
-      onScrape: vi.fn(),
       ...overrides,
     })
     const labels = (item: StorageObject, mediaLibrary: MediaLibraryActions) => {
@@ -324,10 +322,9 @@ describe('FileRowActions — component rendering', () => {
     const markedView = labels(folder, marked)
     expect(markedView.text).not.toContain('mediaLibrary.set')
     fireEvent.click(markedView.items.find((el) => el.textContent === 'mediaLibrary.rescan')!)
-    fireEvent.click(markedView.items.find((el) => el.textContent === 'mediaLibrary.scrape')!)
+    expect(markedView.text).not.toContain('mediaLibrary.scrape')
     fireEvent.click(markedView.items.find((el) => el.textContent === 'mediaLibrary.remove')!)
     expect(marked.onRescan).toHaveBeenCalledWith(library)
-    expect(marked.onScrape).toHaveBeenCalledWith(library)
     expect(marked.onRemove).toHaveBeenCalledWith(library)
     cleanup()
 

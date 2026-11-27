@@ -113,7 +113,7 @@ describe('serializeMediaLibraryFeed', () => {
     generatedAt: new Date('2026-02-01T00:00:00.000Z'),
   }
 
-  it('streams a JSON Feed 1.1 snapshot of the videos in listing order, with their TMDB ids [spec: media-library/build-feed] [spec: media-scraping/publish-ids]', async () => {
+  it('streams a JSON Feed 1.1 snapshot of the videos in listing order, with their TMDB ids [spec: media-library/build-feed]', async () => {
     const page = (...files: MediaLibraryFile[]) => mediaLibraryFeedItems(movies, files)
     const text = await feedText(movies, [
       page(file('Media/Movies', 'Inception (2010).mp4', { type: 'video/mp4' }), file('Media/Movies', 'poster.jpg')),

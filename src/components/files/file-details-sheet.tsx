@@ -60,11 +60,9 @@ function MediaLibraryDetails({ folder, actions }: { folder: StorageObject; actio
     ? t('mediaLibrary.none')
     : library.scanning
       ? t('mediaLibrary.scanning')
-      : library.scraping
-        ? t('mediaLibrary.scraping')
-        : library.lastScannedAt
-          ? t('mediaLibrary.lastScanned', { date: formatDate(library.lastScannedAt) })
-          : t('mediaLibrary.notScanned')
+      : library.lastScannedAt
+        ? t('mediaLibrary.lastScanned', { date: formatDate(library.lastScannedAt) })
+        : t('mediaLibrary.notScanned')
 
   return (
     <>
