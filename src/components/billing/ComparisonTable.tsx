@@ -57,9 +57,7 @@ export function ComparisonTable() {
             <TableRow>
               <TableHead className="pl-6">{t('settings.billing.comparison.feature')}</TableHead>
               <TableHead className="w-28 text-center">{t('settings.billing.comparison.community')}</TableHead>
-              <TableHead className="w-28 text-center" style={{ color: '#1A73E8' }}>
-                {t('settings.billing.comparison.pro')}
-              </TableHead>
+              <TableHead className="w-28 text-center text-primary">{t('settings.billing.comparison.pro')}</TableHead>
               <TableHead className="w-28 text-center">{t('settings.billing.comparison.business')}</TableHead>
             </TableRow>
           </TableHeader>
