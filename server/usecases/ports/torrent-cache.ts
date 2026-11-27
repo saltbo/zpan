@@ -1,4 +1,5 @@
 import type { TorrentStatus } from '../../domain/torrent-cache'
+import type { KeysetPage, KeysetPageOpts } from './pagination'
 
 export interface TorrentRecord {
   id: string
@@ -50,6 +51,13 @@ export interface EvictionCandidate {
   lastAccessedAt: Date
 }
 
+// A cached torrent as the admin Torrents page lists it.
+export interface AdminTorrentRecord extends TorrentRecord {
+  // Drive files, live or in trash, that reference the torrent.
+  holders: number
+  sourceDownloaderName: string | null
+}
+
 export interface TorrentRepo {
   create(input: CreateTorrentInput): Promise<TorrentRecord>
   get(id: string): Promise<TorrentRecord | null>
@@ -80,6 +88,10 @@ export interface TorrentRepo {
   claimForEviction(candidate: EvictionCandidate): Promise<boolean>
   // Deletes the torrent row and its file rows.
   delete(id: string): Promise<void>
+  // Every cached torrent, newest first, with its holder count.
+  listForAdmin(opts: KeysetPageOpts): Promise<KeysetPage<AdminTorrentRecord>>
+  // Drive files, live or in trash, that reference the torrent.
+  countHolders(id: string): Promise<number>
 }
 
 export interface TorrentCacheConfigRepo {

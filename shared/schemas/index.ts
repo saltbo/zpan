@@ -14,6 +14,17 @@ export {
   adminOverviewSchema,
 } from './admin-analytics'
 export type {
+  AdminTorrent,
+  ReplaceTorrentCacheSettingsInput,
+  TorrentCacheSettings,
+} from './admin-torrents'
+export {
+  ADMIN_TORRENT_STATUSES,
+  adminTorrentSchema,
+  replaceTorrentCacheSettingsSchema,
+  torrentCacheSettingsSchema,
+} from './admin-torrents'
+export type {
   AnnouncementInput,
   AnnouncementStatus,
   ListAdminAnnouncementsQuery,

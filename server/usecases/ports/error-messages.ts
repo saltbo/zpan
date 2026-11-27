@@ -88,6 +88,11 @@ export const ZH_ERROR_MESSAGES = {
   'Some torrent files are not uploaded yet': '部分种子文件尚未上传',
   'Task is not filling the torrent cache': '该任务未在填充种子缓存',
   'Torrent is not being downloaded': '种子不在下载中',
+  '{count} drive files still hold this torrent; it can be evicted once they are deleted, including from trash':
+    '仍有 {count} 个网盘文件持有该种子；需先删除这些文件（包括回收站中的）才能清除',
+  'Torrent is still being downloaded or verified': '种子仍在下载或校验中',
+  'Torrent is already being evicted': '种子正在被清除',
+  'Torrent changed while it was being evicted; try again': '清除期间种子发生了变化，请重试',
   'Target folder is outside task authorization': '目标文件夹超出任务的授权范围',
   'Target folder path contains a file': '目标文件夹路径中包含文件',
   'Object is outside task authorization': '对象超出任务的授权范围',

@@ -40,6 +40,7 @@ import {
   deleteTeamLogo,
   disconnectCloud,
   enableIhostFeature,
+  evictCachedTorrent,
   generateInviteCodes,
   getActiveBackgroundJobCount,
   getAdminDashboardGrowthStats,
@@ -75,6 +76,7 @@ import {
   getStorageUsage,
   getTeam,
   getTorrentCacheConfig,
+  getTorrentCacheSettings,
   getTrashObject,
   getUnreadCount,
   getUserQuota,
@@ -89,6 +91,7 @@ import {
   listApiKeys,
   listAuthProviders,
   listBackgroundJobs,
+  listCachedTorrents,
   listCloudCreditLedgerEntries,
   listCloudCreditProducts,
   listCloudOrders,
@@ -129,6 +132,7 @@ import {
   refreshLicense,
   replaceStorage,
   replaceTorrentCacheConfig,
+  replaceTorrentCacheSettings,
   resendSiteInvitation,
   resetBrandingField,
   restoreObject,
@@ -3306,6 +3310,104 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
 
       await expect(replaceTorrentCacheConfig({ folder: 'Media' })).rejects.toBeInstanceOf(ApiError)
+    })
+  })
+
+  describe('listCachedTorrents', () => {
+    const torrent = {
+      id: 't-1',
+      infoHash: 'a1'.repeat(20),
+      name: 'Movie',
+      totalSize: 300,
+      fileCount: 2,
+      status: 'ready',
+      verified: 'full',
+      holders: 1,
+      lastAccessedAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      sourceDownloader: { id: 'd-1', name: 'NAS' },
+    }
+
+    it('calls GET /api/site/torrents with the cursor and returns the page', async () => {
+      const payload = { items: [torrent], nextPageToken: 'next' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      const result = await listCachedTorrents({ pageToken: 'tok-2', pageSize: 10 })
+
+      expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/torrents')
+      expect(url).toContain('pageSize=10')
+      expect(url).toContain('pageToken=tok-2')
+      expect(init.method ?? 'GET').toBe('GET')
+    })
+
+    it('throws ApiError with status 402 when the feature is unavailable', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'feature_not_available' }, false, 402))
+
+      await expect(listCachedTorrents()).rejects.toMatchObject({ status: 402 })
+    })
+  })
+
+  describe('evictCachedTorrent', () => {
+    it('calls DELETE /api/site/torrents/:id', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
+
+      await expect(evictCachedTorrent('t-1')).resolves.toBeUndefined()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/torrents/t-1')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('throws ApiError on 409 when the torrent is held', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ error: { code: 409, message: 'held', status: 'ABORTED' } }, false, 409),
+      )
+
+      await expect(evictCachedTorrent('t-1')).rejects.toBeInstanceOf(ApiError)
+    })
+  })
+
+  describe('getTorrentCacheSettings', () => {
+    it('calls GET /api/site/settings/torrent-cache and returns the settings', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ retentionDays: 30, capacityBytes: null }))
+
+      const result = await getTorrentCacheSettings()
+
+      expect(result).toEqual({ retentionDays: 30, capacityBytes: null })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/torrent-cache')
+      expect(init.method ?? 'GET').toBe('GET')
+    })
+
+    it('throws ApiError on 403', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(getTorrentCacheSettings()).rejects.toBeInstanceOf(ApiError)
+    })
+  })
+
+  describe('replaceTorrentCacheSettings', () => {
+    it('calls PUT /api/site/settings/torrent-cache with the settings', async () => {
+      const settings = { retentionDays: 7, capacityBytes: 1024 ** 4 }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(settings))
+
+      const result = await replaceTorrentCacheSettings(settings)
+
+      expect(result).toEqual(settings)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/site/settings/torrent-cache')
+      expect(init.method).toBe('PUT')
+      expect(JSON.parse(init.body as string)).toEqual(settings)
+    })
+
+    it('throws ApiError on 400', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Invalid' }, false, 400))
+
+      await expect(replaceTorrentCacheSettings({ retentionDays: 0, capacityBytes: null })).rejects.toBeInstanceOf(
+        ApiError,
+      )
     })
   })
 
