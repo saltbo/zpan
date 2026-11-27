@@ -28,10 +28,13 @@ afterEach(() => {
 })
 
 describe('LanguageMenuButton', () => {
-  it('shows the active language, so a visitor sees what is selected', () => {
+  it('shows the endonym as the visible label, with the word "language" in the accessible name', () => {
     const view = render(<LanguageMenuButton />)
+    const trigger = view.getByRole('button', { name: TRIGGER_NAME })
 
-    expect(view.getByRole('button', { name: TRIGGER_NAME }).textContent).toBe('settings.appearance.language: English')
+    // The clutter-free trigger shows only the language's own name.
+    expect(trigger.textContent).toBe('English')
+    expect(trigger.getAttribute('aria-label')).toBe('settings.appearance.language: English')
   })
 
   it('shows the endonym of a detected locale variant', () => {
@@ -39,7 +42,7 @@ describe('LanguageMenuButton', () => {
 
     const view = render(<LanguageMenuButton />)
 
-    expect(view.getByRole('button', { name: TRIGGER_NAME }).textContent).toContain('中文')
+    expect(view.getByRole('button', { name: TRIGGER_NAME }).textContent).toBe('中文')
   })
 
   it('marks the active language as the checked choice', async () => {

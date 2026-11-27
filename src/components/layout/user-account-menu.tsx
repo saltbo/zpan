@@ -1,19 +1,14 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronsUpDown, LogOut, Palette, Settings, ShieldCheck, UserRound } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { ChevronsUpDown, LogOut, Settings, ShieldCheck, UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { LanguageMenuSub } from '@/components/layout/language-menu'
+import { ThemeMenuSub } from '@/components/layout/theme-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenuButton } from '@/components/ui/sidebar'
@@ -28,7 +23,6 @@ export function UserAccountMenu({
   showFrontendLinks?: boolean
 }) {
   const { t } = useTranslation()
-  const { theme, setTheme } = useTheme()
   const navigate = useNavigate()
   const { data: session } = useSession()
   const user = session?.user as { name: string; username?: string; role?: string; image?: string | null } | undefined
@@ -70,19 +64,7 @@ export function UserAccountMenu({
             </Link>
           </DropdownMenuItem>
         )}
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Palette className="mr-2 h-4 w-4" />
-            <span>{t('settings.appearance.theme')}</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuRadioGroup value={theme ?? 'system'} onValueChange={setTheme}>
-              <DropdownMenuRadioItem value="system">{t('settings.appearance.themeSystem')}</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="light">{t('settings.appearance.themeLight')}</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="dark">{t('settings.appearance.themeDark')}</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
+        <ThemeMenuSub />
         <LanguageMenuSub />
         {showAdminLink && isAdmin && (
           <DropdownMenuItem asChild>

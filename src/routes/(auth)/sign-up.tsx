@@ -5,7 +5,7 @@ import { ChevronDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ProviderCaptcha } from '@/components/captcha/provider-captcha'
-import { AmbientCanvas } from '@/components/layout/ambient-canvas'
+import { AuthCard } from '@/components/layout/auth-card'
 import { OAuthButtons, useOAuthProviders } from '@/components/oauth-buttons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -68,89 +68,50 @@ function SignUp() {
 
   if (showClosedView) {
     return (
-      <div className="relative flex min-h-screen items-center justify-center">
-        <AmbientCanvas />
-        <div className="relative w-full max-w-sm space-y-6 rounded-2xl border bg-card/90 p-6 shadow-lg backdrop-blur-md">
-          <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-bold bg-[image:var(--zpan-display-gradient)] bg-clip-text text-transparent">
-              {siteName || DEFAULT_SITE_NAME}
-            </h1>
-            <p className="text-muted-foreground">{t('auth.registrationClosed')}</p>
-          </div>
-          <p className="text-center text-sm text-muted-foreground">
-            {t('auth.hasAccount')}{' '}
-            <Link to="/sign-in" className="underline hover:text-foreground">
-              {t('auth.signIn')}
-            </Link>
-          </p>
-        </div>
-      </div>
+      <AuthCard title={siteName || DEFAULT_SITE_NAME} subtitle={t('auth.registrationClosed')}>
+        <p className="text-center text-sm text-muted-foreground">
+          {t('auth.hasAccount')}{' '}
+          <Link to="/sign-in" className="underline hover:text-foreground">
+            {t('auth.signIn')}
+          </Link>
+        </p>
+      </AuthCard>
     )
   }
 
   if (mustUseInvitation && hasInvite && siteInvitationQuery.isLoading) {
-    return (
-      <div className="relative flex min-h-screen items-center justify-center">
-        <AmbientCanvas />
-        <div className="relative w-full max-w-sm space-y-6 rounded-2xl border bg-card/90 p-6 shadow-lg backdrop-blur-md">
-          <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-bold bg-[image:var(--zpan-display-gradient)] bg-clip-text text-transparent">
-              {siteName || DEFAULT_SITE_NAME}
-            </h1>
-            <p className="text-muted-foreground">{t('common.loading')}</p>
-          </div>
-        </div>
-      </div>
-    )
+    return <AuthCard title={siteName || DEFAULT_SITE_NAME} subtitle={t('common.loading')} />
   }
 
   if (showInvalidInviteView) {
     return (
-      <div className="relative flex min-h-screen items-center justify-center">
-        <AmbientCanvas />
-        <div className="relative w-full max-w-sm space-y-6 rounded-2xl border bg-card/90 p-6 shadow-lg backdrop-blur-md">
-          <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-bold bg-[image:var(--zpan-display-gradient)] bg-clip-text text-transparent">
-              {siteName || DEFAULT_SITE_NAME}
-            </h1>
-            <p className="text-muted-foreground">{t('auth.invalidInvitation')}</p>
-            <p className="text-sm text-muted-foreground">
-              {siteInvitation?.status === 'expired'
-                ? t('auth.invitationExpired')
-                : siteInvitation?.status === 'accepted'
-                  ? t('auth.invitationUsed')
-                  : siteInvitation?.status === 'revoked'
-                    ? t('auth.invitationRevoked')
-                    : inviteError || t('auth.invitationMissing')}
-            </p>
-          </div>
-          <p className="text-center text-sm text-muted-foreground">
-            {t('auth.hasAccount')}{' '}
-            <Link to="/sign-in" className="underline hover:text-foreground">
-              {t('auth.signIn')}
-            </Link>
-          </p>
-        </div>
-      </div>
+      <AuthCard title={siteName || DEFAULT_SITE_NAME} subtitle={t('auth.invalidInvitation')}>
+        <p className="text-center text-sm text-muted-foreground">
+          {siteInvitation?.status === 'expired'
+            ? t('auth.invitationExpired')
+            : siteInvitation?.status === 'accepted'
+              ? t('auth.invitationUsed')
+              : siteInvitation?.status === 'revoked'
+                ? t('auth.invitationRevoked')
+                : inviteError || t('auth.invitationMissing')}
+        </p>
+        <p className="text-center text-sm text-muted-foreground">
+          {t('auth.hasAccount')}{' '}
+          <Link to="/sign-in" className="underline hover:text-foreground">
+            {t('auth.signIn')}
+          </Link>
+        </p>
+      </AuthCard>
     )
   }
 
   if (verificationSentTo) {
     return (
-      <div className="relative flex min-h-screen items-center justify-center">
-        <AmbientCanvas />
-        <div className="relative flex w-full max-w-sm flex-col gap-6 rounded-2xl border bg-card/90 p-6 text-center shadow-lg backdrop-blur-md">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-bold bg-[image:var(--zpan-display-gradient)] bg-clip-text text-transparent">
-              {t('auth.verifyEmailTitle')}
-            </h1>
-            <p className="text-muted-foreground">{t('auth.verifyEmailSent', { email: verificationSentTo })}</p>
-          </div>
-          <Button asChild variant="outline">
-            <Link to="/sign-in">{t('auth.backToSignIn')}</Link>
-          </Button>
-        </div>
-      </div>
+      <AuthCard title={t('auth.verifyEmailTitle')} subtitle={t('auth.verifyEmailSent', { email: verificationSentTo })}>
+        <Button asChild variant="outline" className="w-full">
+          <Link to="/sign-in">{t('auth.backToSignIn')}</Link>
+        </Button>
+      </AuthCard>
     )
   }
 
@@ -186,102 +147,90 @@ function SignUp() {
   const showDivider = authProviders.length > 0
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center">
-      <AmbientCanvas />
-      <div className="relative w-full max-w-sm space-y-6 rounded-2xl border bg-card/90 p-6 shadow-lg backdrop-blur-md">
-        <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-bold bg-[image:var(--zpan-display-gradient)] bg-clip-text text-transparent">
-            {siteName || DEFAULT_SITE_NAME}
-          </h1>
-          <p className="text-muted-foreground">{t('auth.signUpSubtitle')}</p>
+    <AuthCard title={siteName || DEFAULT_SITE_NAME} subtitle={t('auth.signUpSubtitle')}>
+      <OAuthButtons />
+      {showDivider && (
+        <div className="flex items-center gap-3">
+          <Separator className="flex-1" />
+          <span className="text-xs text-muted-foreground">{t('auth.orDivider')}</span>
+          <Separator className="flex-1" />
         </div>
-        <OAuthButtons />
-        {showDivider && (
-          <div className="flex items-center gap-3">
-            <Separator className="flex-1" />
-            <span className="text-xs text-muted-foreground">{t('auth.orDivider')}</span>
-            <Separator className="flex-1" />
+      )}
+      {authProviders.length > 3 && !formExpanded ? (
+        <button
+          type="button"
+          onClick={() => setFormExpanded(true)}
+          className="flex w-full items-center justify-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          {t('auth.signUpWithEmail')}
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">{t('auth.email')}</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              readOnly={hasValidInvite}
+              required
+            />
           </div>
-        )}
-        {authProviders.length > 3 && !formExpanded ? (
-          <button
-            type="button"
-            onClick={() => setFormExpanded(true)}
-            className="flex w-full items-center justify-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          {hasValidInvite && siteInvitation && (
+            <p className="text-sm text-muted-foreground">
+              {t('auth.invitationEmailLocked', { email: siteInvitation.email })}
+            </p>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="username">{t('auth.username')}</Label>
+            <Input
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              pattern="^[a-zA-Z0-9_]{3,30}$"
+              title={t('auth.usernameHint')}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">{t('auth.password')}</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          {authSignupMode === SignupMode.INVITE_ONLY && (
+            <div className="space-y-2">
+              <Label htmlFor="inviteCode">{t('auth.inviteCode')}</Label>
+              <Input id="inviteCode" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} required />
+            </div>
+          )}
+          {captcha?.enabled && (
+            <ProviderCaptcha provider={captcha.provider} siteKey={captcha.siteKey} onToken={setCaptchaToken} />
+          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={
+              loading || configLoading || (mustUseInvitation && !hasValidInvite) || (captcha?.enabled && !captchaToken)
+            }
           >
-            {t('auth.signUpWithEmail')}
-            <ChevronDown className="h-4 w-4" />
-          </button>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">{t('auth.email')}</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                readOnly={hasValidInvite}
-                required
-              />
-            </div>
-            {hasValidInvite && siteInvitation && (
-              <p className="text-sm text-muted-foreground">
-                {t('auth.invitationEmailLocked', { email: siteInvitation.email })}
-              </p>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="username">{t('auth.username')}</Label>
-              <Input
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                pattern="^[a-zA-Z0-9_]{3,30}$"
-                title={t('auth.usernameHint')}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">{t('auth.password')}</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            {authSignupMode === SignupMode.INVITE_ONLY && (
-              <div className="space-y-2">
-                <Label htmlFor="inviteCode">{t('auth.inviteCode')}</Label>
-                <Input id="inviteCode" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} required />
-              </div>
-            )}
-            {captcha?.enabled && (
-              <ProviderCaptcha provider={captcha.provider} siteKey={captcha.siteKey} onToken={setCaptchaToken} />
-            )}
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={
-                loading ||
-                configLoading ||
-                (mustUseInvitation && !hasValidInvite) ||
-                (captcha?.enabled && !captchaToken)
-              }
-            >
-              {loading ? t('auth.creatingAccount') : t('auth.signUp')}
-            </Button>
-          </form>
-        )}
-        <p className="text-center text-sm text-muted-foreground">
-          {t('auth.hasAccount')}{' '}
-          <Link to="/sign-in" className="underline hover:text-foreground">
-            {t('auth.signIn')}
-          </Link>
-        </p>
-      </div>
-    </div>
+            {loading ? t('auth.creatingAccount') : t('auth.signUp')}
+          </Button>
+        </form>
+      )}
+      <p className="text-center text-sm text-muted-foreground">
+        {t('auth.hasAccount')}{' '}
+        <Link to="/sign-in" className="underline hover:text-foreground">
+          {t('auth.signIn')}
+        </Link>
+      </p>
+    </AuthCard>
   )
 }
