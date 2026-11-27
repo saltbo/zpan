@@ -15,3 +15,10 @@ Feature: Media catalog
     When the user opens TV Shows in the sidebar
     Then the shows show as a poster grid, newest first, paged
     And a show lists its seasons and episodes with still, number, title and overview, and an episode plays
+
+  @media-catalog/broken-poster @web
+  Scenario: A poster that fails to load shows the placeholder
+    Given a movie or show whose poster file is not a valid image
+    When the user opens Movies or TV Shows, or opens that show
+    Then its card and the show page show the title placeholder, as for one with no poster
+    And a movie sheet whose backdrop fails to load shows the plain backdrop instead of a broken image

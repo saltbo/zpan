@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { LoadErrorAlert } from '@/components/errors/load-error-alert'
 import { PageHeader } from '@/components/layout/page-header'
 import { EpisodeList } from '@/components/media/episode-list'
-import { PosterPlaceholder } from '@/components/media/poster-grid'
+import { Poster } from '@/components/media/poster-grid'
 import { useVideoPreview } from '@/components/media/use-video-preview'
 import { Badge } from '@/components/ui/badge'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
@@ -123,11 +123,7 @@ function ShowHero({ show }: { show: Show }) {
       )}
       <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:gap-6 sm:p-6">
         <div className="aspect-[2/3] w-32 shrink-0 overflow-hidden rounded-lg border bg-background sm:w-40">
-          {show.posterUrl ? (
-            <img src={show.posterUrl} alt={media.title} className="h-full w-full object-cover" />
-          ) : (
-            <PosterPlaceholder title={media.title} />
-          )}
+          <Poster url={show.posterUrl} title={media.title} />
         </div>
         <div className="flex min-w-0 flex-col gap-2">
           <h1 className="text-xl font-semibold sm:text-2xl">{media.title}</h1>

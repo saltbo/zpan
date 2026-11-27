@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Play } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,6 +37,7 @@ function MovieDetails({ movie }: { movie: Movie }) {
     retry: false,
   })
   const fanartUrl = fanart.data?.downloadUrl ?? movie.posterUrl
+  const [failedUrl, setFailedUrl] = useState<string>()
 
   const facts = [
     media.year !== undefined ? String(media.year) : null,
@@ -45,7 +47,9 @@ function MovieDetails({ movie }: { movie: Movie }) {
   return (
     <>
       <div className="aspect-video w-full bg-muted">
-        {fanartUrl && <img src={fanartUrl} alt="" className="h-full w-full object-cover" />}
+        {fanartUrl && fanartUrl !== failedUrl && (
+          <img src={fanartUrl} alt="" onError={() => setFailedUrl(fanartUrl)} className="h-full w-full object-cover" />
+        )}
       </div>
       <SheetHeader className="gap-1.5 px-6 pt-5 pb-2">
         <SheetTitle className="text-xl">{media.title}</SheetTitle>

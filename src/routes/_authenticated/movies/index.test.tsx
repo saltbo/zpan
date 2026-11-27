@@ -74,6 +74,33 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+describe('Movies page [spec: media-catalog/broken-poster]', () => {
+  it('shows the placeholder when a poster fails to load', async () => {
+    vi.mocked(listMovies).mockResolvedValueOnce({ items: [bunny], nextPageToken: null })
+    renderPage()
+
+    fireEvent.error(await screen.findByRole('img', { name: 'Big Buck Bunny' }))
+
+    const card = screen.getByRole('button', { name: /Big Buck Bunny/ })
+    expect(within(card).queryByRole('img')).toBeNull()
+    expect(within(card).getAllByText('Big Buck Bunny')).toHaveLength(2)
+  })
+
+  it('shows the plain backdrop when the sheet backdrop fails to load', async () => {
+    search.movie = 'video-1'
+    vi.mocked(listMovies).mockResolvedValue({
+      items: [{ ...bunny, media: { ...bunny.media, fanart: undefined } }],
+      nextPageToken: null,
+    })
+    renderPage()
+
+    const sheet = await screen.findByRole('dialog')
+    await vi.waitFor(() => expect(sheet.querySelector('img')).not.toBeNull())
+    fireEvent.error(sheet.querySelector('img') as HTMLImageElement)
+    expect(sheet.querySelector('img')).toBeNull()
+  })
+})
+
 describe('Movies page [spec: media-catalog/movies]', () => {
   it('shows scraped movies as posters, with the title on a placeholder when the poster is missing', async () => {
     vi.mocked(listMovies).mockResolvedValueOnce({ items: [bunny, sintel], nextPageToken: null })

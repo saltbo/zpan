@@ -51,6 +51,19 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+describe('TV Shows page [spec: media-catalog/broken-poster]', () => {
+  it('shows the placeholder when a poster fails to load', async () => {
+    vi.mocked(listShows).mockResolvedValueOnce({ items: [breakingBad], nextPageToken: null })
+    renderPage()
+
+    fireEvent.error(await screen.findByRole('img', { name: 'Breaking Bad' }))
+
+    const card = screen.getByRole('button', { name: /Breaking Bad/ })
+    expect(within(card).queryByRole('img')).toBeNull()
+    expect(within(card).getAllByText('Breaking Bad')).toHaveLength(2)
+  })
+})
+
 describe('TV Shows page [spec: media-catalog/shows]', () => {
   it('shows scraped shows as posters and opens a show', async () => {
     vi.mocked(listShows).mockResolvedValueOnce({ items: [breakingBad, thrones], nextPageToken: null })
