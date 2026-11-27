@@ -2,7 +2,7 @@ name: Docker Nightly
 
 # A genuine daily rebuild of main's HEAD. Unlike `:dev` (which only rebuilds when
 # code lands), this runs on a schedule with no cache so it picks up base-image and
-# OS security updates (node/debian, aria2, qbittorrent-nox) even on quiet days.
+# OS security updates (node/debian, aria2) even on quiet days.
 # Scheduled runs only fire on the default branch, so this always tracks main.
 on:
   schedule:

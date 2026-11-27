@@ -54,28 +54,32 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /out \
  && month="${GEOIP_DB_MONTH:-$(date -u +%Y-%m)}" \
- && url="${GEOIP_DB_URL:-https://download.db-ip.com/free/dbip-city-lite-${month}.mmdb.gz}" \
+ && url="${GEOIP_DB_URL:-https://download.db-ip.com/free/dbip-country-lite-${month}.mmdb.gz}" \
  && if ! curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused "$url" -o /tmp/geoip.mmdb.gz; then \
       if [ -n "$GEOIP_DB_MONTH" ] || [ -n "$GEOIP_DB_URL" ]; then exit 1; fi; \
       previous_month="$(date -u -d '1 month ago' +%Y-%m)"; \
       curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused \
-        "https://download.db-ip.com/free/dbip-city-lite-${previous_month}.mmdb.gz" \
+        "https://download.db-ip.com/free/dbip-country-lite-${previous_month}.mmdb.gz" \
         -o /tmp/geoip.mmdb.gz; \
     fi \
  && gzip -dc /tmp/geoip.mmdb.gz > /out/geoip.mmdb \
  && rm -f /tmp/geoip.mmdb.gz
 
+# The images bundle aria2 as the only managed BitTorrent engine; qBittorrent
+# stays supported as an external runtime (downloader.qbittorrent.url) but is
+# not installed, since its Qt/ICU dependencies add ~90 MB unpacked.
+# Create and chown every directory before copying large files in: a later
+# `chown -R` over a copied file duplicates it into a new layer.
 FROM debian:bookworm-slim AS cli
 RUN apt-get update \
- && apt-get install -y --no-install-recommends aria2 ca-certificates qbittorrent-nox \
+ && apt-get install -y --no-install-recommends aria2 ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
  && addgroup --system zpan \
  && adduser --system --ingroup zpan --home /home/zpan zpan \
- && mkdir -p /home/zpan/.local/share/zpan
-COPY --from=cli-builder /out/zpan /usr/local/bin/zpan
-COPY --from=geoip-db /out/geoip.mmdb /home/zpan/.local/share/zpan/geoip.mmdb
-RUN mkdir -p /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader /data /downloads \
+ && mkdir -p /home/zpan/.local/share/zpan /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader /data /downloads \
  && chown -R zpan:zpan /data /home/zpan /downloads
+COPY --from=geoip-db --chown=zpan:zpan /out/geoip.mmdb /home/zpan/.local/share/zpan/geoip.mmdb
+COPY --from=cli-builder /out/zpan /usr/local/bin/zpan
 USER zpan
 ENV HOME=/home/zpan
 WORKDIR /downloads
@@ -86,12 +90,14 @@ FROM node:24-slim
 WORKDIR /app
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends aria2 ca-certificates qbittorrent-nox \
+ && apt-get install -y --no-install-recommends aria2 ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
  && addgroup --system zpan \
  && adduser --system --ingroup zpan --home /home/zpan zpan \
- && mkdir -p /home/zpan/.local/share/zpan
+ && mkdir -p /data /home/zpan/.local/share/zpan /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader \
+ && chown -R zpan:zpan /data /home/zpan
 
+COPY --from=geoip-db --chown=zpan:zpan /out/geoip.mmdb /home/zpan/.local/share/zpan/geoip.mmdb
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/dist-server ./dist-server
 COPY --from=builder /app/node_modules ./node_modules
@@ -99,10 +105,6 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/scripts/docker-entrypoint.sh /app/scripts/docker-entrypoint.sh
 COPY --from=cli-builder /out/zpan /usr/local/bin/zpan
-COPY --from=geoip-db /out/geoip.mmdb /home/zpan/.local/share/zpan/geoip.mmdb
-
-RUN mkdir -p /data /home/zpan/.config/zpan /home/zpan/.local/state/zpan/downloader \
- && chown -R zpan:zpan /data /home/zpan
 
 USER zpan
 
