@@ -171,6 +171,34 @@ func TestDownloaderReportsTheTorrentAndUploadsItThroughTheObjectAPI(t *testing.T
 	lastPatchWithStatus(t, drive.patches, "completed")
 }
 
+// Every file of the torrent goes up, dot-files and .torrent files included,
+// while the engine's own control files beside them do not.
+func TestTorrentUploadHoldsEveryFileOfTheTorrent(t *testing.T) {
+	info := infoDict("Show", map[string]int{"a.mkv": 5, ".nfo-hidden": 3, "extras/foo.torrent": 4, ".meta/notes.txt": 2})
+	drive := newFakeDrive(t)
+	engine := &metadataEngine{recordingEngine: &recordingEngine{}, metadata: torrentFile(info)}
+	engine.downloadResult = download(t, t.TempDir(), "Show", map[string]string{
+		"a.mkv":                    "video",
+		".nfo-hidden":              "nfo",
+		"extras/foo.torrent":       "tors",
+		".meta/notes.txt":          "no",
+		"0123456789abcdef.torrent": "engine metadata",
+		"a.mkv.aria2":              "control",
+		".DS_Store":                "junk",
+	})
+
+	reportRunner(drive, engine).process(context.Background(), torrentTask("task-1"))
+
+	if got := uploadedTorrentPaths(drive); !maps.Equal(got, map[string]string{
+		"Downloads/Show/a.mkv":              "a.mkv",
+		"Downloads/Show/.nfo-hidden":        ".nfo-hidden",
+		"Downloads/Show/extras/foo.torrent": "extras/foo.torrent",
+		"Downloads/Show/.meta/notes.txt":    ".meta/notes.txt",
+	}) {
+		t.Fatalf("uploaded = %v", got)
+	}
+}
+
 // A scraped torrent keeps the scraper's layout: each file of the torrent is
 // uploaded at its scraped name with its path inside the torrent, and the
 // sidecars the scraper wrote go up as ordinary files.
@@ -200,9 +228,6 @@ func TestTaskSettledByTheServerDropsItsDownload(t *testing.T) {
 	for name, configure := range map[string]func(*fakeDrive){
 		"completed by instant transfer": func(d *fakeDrive) { d.reportState = "completed" },
 		"joined another download":       func(d *fakeDrive) { d.reportState = "queued" },
-		"no longer assigned": func(d *fakeDrive) {
-			d.reportErr = &client.StatusError{Status: http.StatusForbidden, Message: "Forbidden"}
-		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			drive := newFakeDrive(t)
@@ -230,6 +255,60 @@ func TestTaskSettledByTheServerDropsItsDownload(t *testing.T) {
 			}
 			if paths := drive.paths(); len(paths) != 0 {
 				t.Fatalf("uploaded = %v", paths)
+			}
+		})
+	}
+}
+
+// A report the server answers with anything but a settled task stops
+// reporting and leaves the download alone: pausing, canceling and suspension
+// are the control poll's to handle, so the partial download is never deleted.
+func TestReportAnswersThatDoNotSettleTheTaskKeepItsDownload(t *testing.T) {
+	for name, configure := range map[string]func(*fakeDrive){
+		"forbidden": func(d *fakeDrive) {
+			d.reportErr = &client.StatusError{Status: http.StatusForbidden, Message: "Forbidden"}
+		},
+		"conflict": func(d *fakeDrive) {
+			d.reportErr = &client.StatusError{Status: http.StatusConflict, Message: "Task is pausing"}
+		},
+		"pausing":   func(d *fakeDrive) { d.reportState = "pausing" },
+		"canceling": func(d *fakeDrive) { d.reportState = "canceling" },
+		"suspended": func(d *fakeDrive) { d.reportState = "suspended" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			drive := newFakeDrive(t)
+			configure(drive)
+			engine := &metadataEngine{recordingEngine: &recordingEngine{}, metadata: infoDict("Show", map[string]int{"a.mkv": 5})}
+			result := download(t, t.TempDir(), "Show", map[string]string{"a.mkv": "video"})
+			var reportedOnce bool
+			engine.downloadFunc = func(_ context.Context, _ DownloadTask, progress ProgressReporter) (Result, error) {
+				// Progress until the report has been answered.
+				for i := 0; i < 50 && !reportedOnce; i++ {
+					_ = progress(ProgressUpdate{Downloaded: int64(i + 1)})
+					drive.mu.Lock()
+					reportedOnce = drive.reportCalls > 0
+					drive.mu.Unlock()
+					time.Sleep(time.Millisecond)
+				}
+				return result, nil
+			}
+			w := reportRunner(drive, engine)
+
+			w.process(context.Background(), torrentTask("task-1"))
+
+			if engine.resetCalls != 0 {
+				t.Fatalf("reset calls = %d: the local download was dropped", engine.resetCalls)
+			}
+			drive.mu.Lock()
+			calls := drive.reportCalls
+			drive.mu.Unlock()
+			if calls != 1 {
+				t.Fatalf("report calls = %d, want reporting to stop after one answer", calls)
+			}
+			for drivePath, torrentPath := range uploadedTorrentPaths(drive) {
+				if torrentPath != "" {
+					t.Fatalf("%s uploaded with torrentPath %q", drivePath, torrentPath)
+				}
 			}
 		})
 	}
@@ -391,6 +470,29 @@ func TestFailedPartUploadsAreRetriedThenAborted(t *testing.T) {
 		t.Fatalf("aborted = %v", drive.aborted)
 	}
 	lastPatchWithStatus(t, drive.patches, "failed")
+}
+
+// Only transport failures, 5xx and 429 are worth another attempt; any other
+// answer, such as an expired presigned URL, fails the part at once.
+func TestPartUploadsRetryOnlyRetryableFailures(t *testing.T) {
+	fastRetries(t)
+	for status, want := range map[int]int{
+		http.StatusForbidden:       1,
+		http.StatusBadRequest:      1,
+		http.StatusTooManyRequests: partAttempts,
+		http.StatusBadGateway:      partAttempts,
+	} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			drive := newFakeDrive(t)
+			drive.failPuts, drive.failStatus = -1, status
+			engine := &recordingEngine{downloadResult: download(t, t.TempDir(), "Show", map[string]string{"a.mkv": "video"})}
+			reportRunner(drive, engine).process(context.Background(), torrentTask("task-1"))
+			if drive.puts != want {
+				t.Fatalf("puts = %d, want %d", drive.puts, want)
+			}
+			lastPatchWithStatus(t, drive.patches, "failed")
+		})
+	}
 }
 
 func TestTorrentLocalFilesFindsFilesWhateverTheRootIsNamed(t *testing.T) {

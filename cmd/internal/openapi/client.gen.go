@@ -7975,8 +7975,8 @@ type UpdateStorageEgressBillingJSONBody struct {
 	UnitBytes      int  `json:"unitBytes"`
 }
 
-// ListCachedTorrentsParams defines parameters for ListCachedTorrents.
-type ListCachedTorrentsParams struct {
+// ListTorrentsParams defines parameters for ListTorrents.
+type ListTorrentsParams struct {
 	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 }
@@ -12090,11 +12090,11 @@ type ClientInterface interface {
 
 	UpdateStorageEgressBilling(ctx context.Context, id string, body UpdateStorageEgressBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListCachedTorrents request
-	ListCachedTorrents(ctx context.Context, params *ListCachedTorrentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListTorrents request
+	ListTorrents(ctx context.Context, params *ListTorrentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// EvictCachedTorrent request
-	EvictCachedTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// EvictTorrent request
+	EvictTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetStorageUsage request
 	GetStorageUsage(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -14440,8 +14440,8 @@ func (c *Client) UpdateStorageEgressBilling(ctx context.Context, id string, body
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListCachedTorrents(ctx context.Context, params *ListCachedTorrentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListCachedTorrentsRequest(c.Server, params)
+func (c *Client) ListTorrents(ctx context.Context, params *ListTorrentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListTorrentsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -14452,8 +14452,8 @@ func (c *Client) ListCachedTorrents(ctx context.Context, params *ListCachedTorre
 	return c.Client.Do(req)
 }
 
-func (c *Client) EvictCachedTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEvictCachedTorrentRequest(c.Server, id)
+func (c *Client) EvictTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEvictTorrentRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -21145,8 +21145,8 @@ func NewUpdateStorageEgressBillingRequestWithBody(server string, id string, cont
 	return req, nil
 }
 
-// NewListCachedTorrentsRequest generates requests for ListCachedTorrents
-func NewListCachedTorrentsRequest(server string, params *ListCachedTorrentsParams) (*http.Request, error) {
+// NewListTorrentsRequest generates requests for ListTorrents
+func NewListTorrentsRequest(server string, params *ListTorrentsParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -21211,8 +21211,8 @@ func NewListCachedTorrentsRequest(server string, params *ListCachedTorrentsParam
 	return req, nil
 }
 
-// NewEvictCachedTorrentRequest generates requests for EvictCachedTorrent
-func NewEvictCachedTorrentRequest(server string, id string) (*http.Request, error) {
+// NewEvictTorrentRequest generates requests for EvictTorrent
+func NewEvictTorrentRequest(server string, id string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -23540,11 +23540,11 @@ type ClientWithResponsesInterface interface {
 
 	UpdateStorageEgressBillingWithResponse(ctx context.Context, id string, body UpdateStorageEgressBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateStorageEgressBillingResponse, error)
 
-	// ListCachedTorrentsWithResponse request
-	ListCachedTorrentsWithResponse(ctx context.Context, params *ListCachedTorrentsParams, reqEditors ...RequestEditorFn) (*ListCachedTorrentsResponse, error)
+	// ListTorrentsWithResponse request
+	ListTorrentsWithResponse(ctx context.Context, params *ListTorrentsParams, reqEditors ...RequestEditorFn) (*ListTorrentsResponse, error)
 
-	// EvictCachedTorrentWithResponse request
-	EvictCachedTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*EvictCachedTorrentResponse, error)
+	// EvictTorrentWithResponse request
+	EvictTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*EvictTorrentResponse, error)
 
 	// GetStorageUsageWithResponse request
 	GetStorageUsageWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStorageUsageResponse, error)
@@ -28136,7 +28136,7 @@ func (r UpdateStorageEgressBillingResponse) ContentType() string {
 	return ""
 }
 
-type ListCachedTorrentsResponse struct {
+type ListTorrentsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AdminTorrentPage
@@ -28144,7 +28144,7 @@ type ListCachedTorrentsResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r ListCachedTorrentsResponse) Status() string {
+func (r ListTorrentsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -28152,7 +28152,7 @@ func (r ListCachedTorrentsResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListCachedTorrentsResponse) StatusCode() int {
+func (r ListTorrentsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -28160,14 +28160,14 @@ func (r ListCachedTorrentsResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListCachedTorrentsResponse) ContentType() string {
+func (r ListTorrentsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
 }
 
-type EvictCachedTorrentResponse struct {
+type EvictTorrentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON404      *Error
@@ -28175,7 +28175,7 @@ type EvictCachedTorrentResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r EvictCachedTorrentResponse) Status() string {
+func (r EvictTorrentResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -28183,7 +28183,7 @@ func (r EvictCachedTorrentResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r EvictCachedTorrentResponse) StatusCode() int {
+func (r EvictTorrentResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -28191,7 +28191,7 @@ func (r EvictCachedTorrentResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r EvictCachedTorrentResponse) ContentType() string {
+func (r EvictTorrentResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -31149,22 +31149,22 @@ func (c *ClientWithResponses) UpdateStorageEgressBillingWithResponse(ctx context
 	return ParseUpdateStorageEgressBillingResponse(rsp)
 }
 
-// ListCachedTorrentsWithResponse request returning *ListCachedTorrentsResponse
-func (c *ClientWithResponses) ListCachedTorrentsWithResponse(ctx context.Context, params *ListCachedTorrentsParams, reqEditors ...RequestEditorFn) (*ListCachedTorrentsResponse, error) {
-	rsp, err := c.ListCachedTorrents(ctx, params, reqEditors...)
+// ListTorrentsWithResponse request returning *ListTorrentsResponse
+func (c *ClientWithResponses) ListTorrentsWithResponse(ctx context.Context, params *ListTorrentsParams, reqEditors ...RequestEditorFn) (*ListTorrentsResponse, error) {
+	rsp, err := c.ListTorrents(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListCachedTorrentsResponse(rsp)
+	return ParseListTorrentsResponse(rsp)
 }
 
-// EvictCachedTorrentWithResponse request returning *EvictCachedTorrentResponse
-func (c *ClientWithResponses) EvictCachedTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*EvictCachedTorrentResponse, error) {
-	rsp, err := c.EvictCachedTorrent(ctx, id, reqEditors...)
+// EvictTorrentWithResponse request returning *EvictTorrentResponse
+func (c *ClientWithResponses) EvictTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*EvictTorrentResponse, error) {
+	rsp, err := c.EvictTorrent(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseEvictCachedTorrentResponse(rsp)
+	return ParseEvictTorrentResponse(rsp)
 }
 
 // GetStorageUsageWithResponse request returning *GetStorageUsageResponse
@@ -36801,15 +36801,15 @@ func ParseUpdateStorageEgressBillingResponse(rsp *http.Response) (*UpdateStorage
 	return response, nil
 }
 
-// ParseListCachedTorrentsResponse parses an HTTP response from a ListCachedTorrentsWithResponse call
-func ParseListCachedTorrentsResponse(rsp *http.Response) (*ListCachedTorrentsResponse, error) {
+// ParseListTorrentsResponse parses an HTTP response from a ListTorrentsWithResponse call
+func ParseListTorrentsResponse(rsp *http.Response) (*ListTorrentsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListCachedTorrentsResponse{
+	response := &ListTorrentsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -36834,15 +36834,15 @@ func ParseListCachedTorrentsResponse(rsp *http.Response) (*ListCachedTorrentsRes
 	return response, nil
 }
 
-// ParseEvictCachedTorrentResponse parses an HTTP response from a EvictCachedTorrentWithResponse call
-func ParseEvictCachedTorrentResponse(rsp *http.Response) (*EvictCachedTorrentResponse, error) {
+// ParseEvictTorrentResponse parses an HTTP response from a EvictTorrentWithResponse call
+func ParseEvictTorrentResponse(rsp *http.Response) (*EvictTorrentResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &EvictCachedTorrentResponse{
+	response := &EvictTorrentResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

@@ -10,12 +10,7 @@ import {
 } from '@shared/schemas'
 import { requireFeature } from '../../middleware/require-feature'
 import type { AdminTorrentRecord } from '../../usecases/ports'
-import {
-  evictCachedTorrent,
-  getTorrentSettings,
-  listCachedTorrents,
-  replaceTorrentSettings,
-} from '../../usecases/torrents/admin'
+import { evictTorrent, getTorrentSettings, listTorrents, replaceTorrentSettings } from '../../usecases/torrents/admin'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 import {
   createdAtIdCursorCodec,
@@ -48,15 +43,15 @@ const torrentPageSchema = cursorPageSchema(adminTorrentSchema, 'AdminTorrentPage
 const listRoute = authRoute(
   { scopes: [AuthorizationScope.TORRENTS_READ], siteRole: 'admin' },
   {
-    operationId: 'listCachedTorrents',
-    summary: 'List cached torrents',
+    operationId: 'listTorrents',
+    summary: 'List torrents',
     tags: ['Torrents'],
     method: 'get',
     path: '/',
     middleware: [requireFeature('torrents')] as const,
     request: { query: cursorPageQuerySchema },
     responses: {
-      200: jsonContent(torrentPageSchema, 'Cached torrents, newest first'),
+      200: jsonContent(torrentPageSchema, 'Torrents on the instance, newest first'),
       400: errorResponse('Invalid page token'),
     },
   },
@@ -65,10 +60,10 @@ const listRoute = authRoute(
 const evictRoute = authRoute(
   { scopes: [AuthorizationScope.TORRENTS_DELETE], siteRole: 'admin' },
   {
-    operationId: 'evictCachedTorrent',
-    summary: 'Evict a cached torrent nobody holds',
+    operationId: 'evictTorrent',
+    summary: 'Evict a torrent nobody holds',
     description:
-      "Deletes the torrent's cached objects and rows. Refused with 409 while any drive file, live or in trash, holds it, or while it is downloading or verifying.",
+      "Deletes the torrent's objects and rows. Refused with 409 while any drive file, live or in trash, holds it, or while it is downloading or verifying.",
     tags: ['Torrents'],
     method: 'delete',
     path: '/{id}',
@@ -120,7 +115,7 @@ export const adminTorrents = createRouter()
       codec: createdAtIdCursorCodec,
     }
     const after = await decodeOptionalPageToken(c.get('platform'), pageToken, page)
-    const result = await listCachedTorrents(c.get('deps'), { pageSize, after })
+    const result = await listTorrents(c.get('deps'), { pageSize, after })
     return c.json(
       {
         items: result.items.map(toAdminTorrentDTO),
@@ -130,7 +125,7 @@ export const adminTorrents = createRouter()
     )
   })
   .openapi(evictRoute, async (c) => {
-    await evictCachedTorrent(c.get('deps'), c.req.valid('param').id)
+    await evictTorrent(c.get('deps'), c.req.valid('param').id)
     return c.body(null, 204)
   })
 

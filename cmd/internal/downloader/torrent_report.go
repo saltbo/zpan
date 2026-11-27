@@ -64,11 +64,23 @@ func (r *torrentReport) giveUp() {
 	r.done = true
 }
 
-// taskWorkStates are the states in which the task is still this downloader's
-// to run; any other state after a report means the server settled it.
+// taskStillRunning is whether the task is still this downloader's to run.
 func taskStillRunning(task client.DownloadTask) bool {
 	switch task.State() {
 	case "assigned", "downloading", "uploading":
+		return true
+	}
+	return false
+}
+
+// settledByServer is whether a report's answer settled the task from a torrent
+// on the instance: completed by instant transfer, or queued to join another
+// download of the same torrent. Only then is the local download dropped; any
+// other state (pausing, canceling, suspended, failed) is left to the task's
+// usual controls.
+func settledByServer(task client.DownloadTask) bool {
+	switch task.State() {
+	case "completed", "queued":
 		return true
 	}
 	return false
@@ -84,8 +96,9 @@ func (w *TaskRunner) canReportTorrent(task client.DownloadTask) bool {
 // Metadata that is pending, unreadable (a .torrent still being written), or
 // that the engine cannot hand over is a *metadataError and leaves the report
 // pending for a later attempt. A report the server refuses (400), such as a
-// v2-only torrent, ends reporting so the task uploads into the drive; a 403 or
-// 409 means the task is no longer this downloader's, which settles it.
+// v2-only torrent, ends reporting so the task uploads into the drive. A 403 or
+// 409 (the task is paused, canceled, or no longer this downloader's) also ends
+// reporting, but leaves the download alone: the control poll handles those.
 func (w *TaskRunner) reportTorrent(ctx context.Context, log *slog.Logger, task client.DownloadTask, state *torrentReport) error {
 	if !state.pending() {
 		return nil
@@ -110,20 +123,23 @@ func (w *TaskRunner) reportTorrent(ctx context.Context, log *slog.Logger, task c
 		state.giveUp()
 		return nil
 	case client.IsStatus(err, http.StatusForbidden) || client.IsConflict(err):
-		log.Warn("the task is no longer this downloader's; stopping it", "error", err)
-		state.done, state.settled = true, true
+		log.Warn("the server no longer takes the torrent's metadata for this task; leaving it to its controls", "error", err)
+		state.giveUp()
 		return nil
 	case err != nil:
 		return err
 	}
 	state.done = true
-	if !taskStillRunning(updated) {
+	switch {
+	case settledByServer(updated):
 		log.Info("task settled by a torrent on the server", "info_hash", torrentmeta.InfoHash(infoDict), "state", updated.State())
 		state.settled = true
-		return nil
+	case taskStillRunning(updated):
+		log.Info("reported torrent metadata", "info_hash", torrentmeta.InfoHash(infoDict))
+		state.info = &info
+	default:
+		log.Info("reported torrent metadata of a task that stopped running; leaving it to its controls", "state", updated.State())
 	}
-	log.Info("reported torrent metadata", "info_hash", torrentmeta.InfoHash(infoDict))
-	state.info = &info
 	return nil
 }
 

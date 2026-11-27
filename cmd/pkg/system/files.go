@@ -49,3 +49,45 @@ func IsDownloadSidecarPath(path string) bool {
 func IsAria2MetadataPath(path string) bool {
 	return strings.HasPrefix(path, "[MEMORY]") || strings.HasPrefix(path, "[METADATA]")
 }
+
+// Keeps is a set of local files a walk of a download lists whatever their
+// names: the files of a torrent, which may be dot-files or .torrent files.
+// Every other file is filtered as a download's (dot-files and the engine's
+// control files are left out).
+type Keeps map[string]bool
+
+// NewKeeps is the set of the given local paths.
+func NewKeeps(paths []string) Keeps {
+	if len(paths) == 0 {
+		return nil
+	}
+	keeps := make(Keeps, len(paths))
+	for _, p := range paths {
+		keeps[filepath.Clean(p)] = true
+	}
+	return keeps
+}
+
+// File is whether a walk lists the file at path, rel being its path relative
+// to the walk's root.
+func (k Keeps) File(path, rel string) bool {
+	if k[filepath.Clean(path)] {
+		return true
+	}
+	return !strings.HasPrefix(filepath.Base(path), ".") && !IsDownloadSidecarPath(filepath.ToSlash(rel))
+}
+
+// Dir is whether a walk enters the folder at path: any folder but a dot-folder,
+// and a dot-folder holding a kept file.
+func (k Keeps) Dir(path string) bool {
+	if !strings.HasPrefix(filepath.Base(path), ".") {
+		return true
+	}
+	prefix := filepath.Clean(path) + string(filepath.Separator)
+	for kept := range k {
+		if strings.HasPrefix(kept, prefix) {
+			return true
+		}
+	}
+	return false
+}

@@ -144,6 +144,8 @@ export interface MatterRepo {
   listActiveDescendants(orgId: string, parentPath: string): Promise<Matter[]>
   // Live files a download task created, by `createdByTaskId`.
   listActiveFilesCreatedByTask(orgId: string, taskId: string): Promise<Matter[]>
+  // Drafts (uploads not yet completed) whose bytes go to an object of the storage.
+  listDraftsByObject(orgId: string, storageId: string, object: string): Promise<Matter[]>
   // Raw bulk status flips for WebDAV COPY rollback/overwrite (no conflict handling).
   trashByIds(orgId: string, ids: string[]): Promise<void>
   restoreActiveByIds(orgId: string, ids: string[]): Promise<void>

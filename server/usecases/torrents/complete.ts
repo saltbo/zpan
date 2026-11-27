@@ -35,11 +35,18 @@ export async function completeFillTask(
     return
   }
   if (!(await deps.torrents.transition(torrent.id, ['downloading'], 'verifying', { now }))) return
-  // The torrent's objects landed in the storage: count them once.
-  await deps.storageUsage.reconcileStorages([torrent.storageId])
-  const message = await createVerifyJob(deps, torrent, task, !params.backgroundJobs)
-  if (params.backgroundJobs) await deps.jobQueue.dispatch(message)
-  else await processTorrentVerify(deps, message)
+  try {
+    // The torrent's objects landed in the storage: count them once.
+    await deps.storageUsage.reconcileStorages([torrent.storageId])
+    const message = await createVerifyJob(deps, torrent, task, !params.backgroundJobs)
+    if (params.backgroundJobs) await deps.jobQueue.dispatch(message)
+    else await processTorrentVerify(deps, message)
+  } catch (error) {
+    // Verification never started: back to downloading, so the retried
+    // completion starts it again instead of leaving joiners waiting.
+    await deps.torrents.transition(torrent.id, ['verifying'], 'downloading', { now })
+    throw error
+  }
 }
 
 async function createVerifyJob(

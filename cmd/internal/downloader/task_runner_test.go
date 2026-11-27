@@ -672,7 +672,7 @@ func TestCollectDirectoryEntriesSkipsDownloadSidecars(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries, err := collectDirectoryEntries(root)
+	entries, err := collectDirectoryEntries(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

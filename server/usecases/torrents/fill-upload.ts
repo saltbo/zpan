@@ -17,6 +17,7 @@ import { isTorrentKey, normalizeTorrentFolder, torrentEntryObjectKey } from '../
 import type { Deps } from '../deps'
 import {
   badRequest,
+  conflict,
   type DownloadTaskRecord,
   type Matter,
   notFound,
@@ -50,11 +51,15 @@ export interface FillPlacement {
 
 // The bt/ object a file created under the task's upload token is stored at, or
 // null when the task fills no torrent (it then uploads an ordinary drive file).
-// A `torrentPath` must name a file of the torrent at the size being uploaded.
+// A `torrentPath` must name a file of the torrent at the size being uploaded,
+// whose upload has not landed yet. Each file of the torrent has one upload at a
+// time: a create that repeats the open one (same folder and name, as a retried
+// request does) replaces its draft, and any other is refused, so a file never
+// moves to a second layout path or ends up under two drive files.
 export async function placeFillFile(
-  deps: FillUploadDeps,
+  deps: FillUploadDeps & Pick<Deps, 'matter'>,
   task: DownloadTaskRecord,
-  input: { torrentPath?: string; size: number },
+  input: { torrentPath?: string; size: number; parent: string; name: string },
 ): Promise<FillPlacement | null> {
   const torrent = await fillingTorrent(deps, task)
   if (!torrent) return null
@@ -69,6 +74,14 @@ export async function placeFillFile(
   if (file.size !== input.size) {
     throw badRequest('Uploaded file size does not match the torrent', 'TORRENT_FILE_SIZE_MISMATCH')
   }
+  if (file.uploadedAt !== null) throw conflict('Torrent file is already uploaded', 'TORRENT_FILE_UPLOADED')
+  const drafts = await deps.matter.listDraftsByObject(task.orgId, storage.id, file.objectKey)
+  const retried = (draft: Matter) =>
+    draft.createdByTaskId === task.id && draft.parent === input.parent && draft.name === input.name
+  if (drafts.some((draft) => !retried(draft))) {
+    throw conflict('Torrent file is already being uploaded', 'TORRENT_FILE_UPLOADING')
+  }
+  for (const draft of drafts) await deps.matter.cancelDraft(draft.id, task.orgId)
   return { torrent, storage, kind: 'file', entryId: file.id, objectKey: file.objectKey }
 }
 

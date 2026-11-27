@@ -69,6 +69,8 @@ type Download struct {
 	// A TMDB or IMDb id the source carries, when it carries one.
 	TMDBID int
 	IMDbID string
+	// Keeps are local files listed whatever their names: a torrent's files.
+	Keeps system.Keeps
 }
 
 // Plan is where a scraped download goes: every file of the download plus the
@@ -245,20 +247,17 @@ func listFiles(download Download) ([]localFile, error) {
 		if p == download.Path {
 			return nil
 		}
-		if strings.HasPrefix(entry.Name(), ".") {
-			if entry.IsDir() {
+		if entry.IsDir() {
+			if !download.Keeps.Dir(p) {
 				return filepath.SkipDir
 			}
-			return nil
-		}
-		if entry.IsDir() {
 			return nil
 		}
 		rel, err := filepath.Rel(download.Path, p)
 		if err != nil {
 			return err
 		}
-		if system.IsDownloadSidecarPath(rel) {
+		if !download.Keeps.File(p, rel) {
 			return nil
 		}
 		info, err := entry.Info()

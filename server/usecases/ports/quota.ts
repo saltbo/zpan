@@ -50,5 +50,7 @@ export interface QuotaRepo {
     bytes: number,
     teamQuotaEnabled?: boolean,
     now?: Date,
+    // Bytes added to the storage, when they differ from `bytes`.
+    storageBytes?: number,
   ): Promise<boolean>
 }

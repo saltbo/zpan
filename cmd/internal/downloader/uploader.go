@@ -81,7 +81,7 @@ func (u *Uploader) Upload(
 		}
 	}()
 	rootPath := joinObjectPath(task.TargetFolder(), root.Name)
-	entries, err := collectDirectoryEntries(result.Path)
+	entries, err := collectDirectoryEntries(result.Path, keepsOf(result.TorrentPaths))
 	if err != nil {
 		return "", err
 	}
@@ -194,8 +194,10 @@ const partAttempts = 3
 
 var partRetryDelay = time.Second
 
-// putPart PUTs one part, retrying a failed attempt with backoff. The bytes of a
-// failed attempt are taken back out of the upload progress.
+// putPart PUTs one part, retrying a failed attempt with backoff: a transport
+// failure, or a 5xx or 429 answer. Any other answer (an expired or refused
+// presigned URL) fails at once. The bytes of a failed attempt are taken back
+// out of the upload progress.
 func (u *Uploader) putPart(
 	ctx context.Context,
 	log *slog.Logger,
@@ -217,7 +219,7 @@ func (u *Uploader) putPart(
 			return etag, nil
 		}
 		progress.uploaded -= written
-		if attempt >= partAttempts || ctx.Err() != nil {
+		if attempt >= partAttempts || ctx.Err() != nil || !retryablePartError(err) {
 			return "", err
 		}
 		log.Warn("retrying part upload", "part", part.PartNumber, "attempt", attempt, "error", err)
@@ -359,7 +361,10 @@ type directoryEntry struct {
 	isDir        bool
 }
 
-func collectDirectoryEntries(root string) ([]directoryEntry, error) {
+// collectDirectoryEntries lists a download's folders and files to upload. A
+// torrent's own files (keeps) are always listed, so the upload holds every file
+// of the torrent; otherwise dot-files and the engine's control files are left out.
+func collectDirectoryEntries(root string, keeps system.Keeps) ([]directoryEntry, error) {
 	var entries []directoryEntry
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -368,17 +373,14 @@ func collectDirectoryEntries(root string) ([]directoryEntry, error) {
 		if path == root {
 			return nil
 		}
-		if strings.HasPrefix(entry.Name(), ".") {
-			if entry.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
+		if entry.IsDir() && !keeps.Dir(path) {
+			return filepath.SkipDir
 		}
 		relativePath, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
-		if !entry.IsDir() && system.IsDownloadSidecarPath(relativePath) {
+		if !entry.IsDir() && !keeps.File(path, relativePath) {
 			return nil
 		}
 		item := directoryEntry{
@@ -406,6 +408,15 @@ func collectDirectoryEntries(root string) ([]directoryEntry, error) {
 	return entries, err
 }
 
+// keepsOf is the set of local files of the reported torrent.
+func keepsOf(paths map[string]string) system.Keeps {
+	locals := make([]string, 0, len(paths))
+	for local := range paths {
+		locals = append(locals, local)
+	}
+	return system.NewKeeps(locals)
+}
+
 // torrentPathOf is the path inside the reported torrent of a local file, or
 // empty for a file that is not one of the torrent's.
 func torrentPathOf(paths map[string]string, localPath string) string {
@@ -425,6 +436,22 @@ func joinObjectPath(parent string, name string) string {
 		return name
 	}
 	return parent + "/" + name
+}
+
+// partStatusError is a part PUT the storage answered with a non-2xx status.
+type partStatusError struct {
+	status  int
+	message string
+}
+
+func (e *partStatusError) Error() string { return e.message }
+
+func retryablePartError(err error) bool {
+	var status *partStatusError
+	if !errors.As(err, &status) {
+		return true
+	}
+	return status.status >= 500 || status.status == http.StatusTooManyRequests
 }
 
 func uploadFilePart(
@@ -456,10 +483,11 @@ func uploadFilePart(
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		message := fmt.Sprintf("upload failed: %s", res.Status)
 		if len(body) > 0 {
-			return "", fmt.Errorf("upload failed: %s: %s", res.Status, strings.TrimSpace(string(body)))
+			message = fmt.Sprintf("%s: %s", message, strings.TrimSpace(string(body)))
 		}
-		return "", fmt.Errorf("upload failed: %s", res.Status)
+		return "", &partStatusError{status: res.StatusCode, message: message}
 	}
 	return res.Header.Get("ETag"), nil
 }

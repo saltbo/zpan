@@ -579,9 +579,12 @@ func (w *TaskRunner) uploadAndComplete(
 	task.Status.Progress.Download = *transferProgress(result.Size, &result.Size, zero)
 	task.Status.Progress.Upload = *transferProgress(0, &result.Size, zero)
 	task.Status.Runtime = currentDetail
+	// The torrent's files are known before scraping, so the scraper lists every
+	// one of them.
+	result.TorrentPaths = torrentPaths(log, result, report)
 	upload, cleanupOverlay := w.postProcess(ctx, log, task, result)
 	defer cleanupOverlay()
-	upload.TorrentPaths = torrentPaths(log, result, report)
+	upload.TorrentPaths = result.TorrentPaths
 	resultObjectID, err := "", reportErr
 	if err == nil {
 		resultObjectID, err = w.uploader.Upload(ctx, log, task, upload)

@@ -47,12 +47,15 @@ type fakeDrive struct {
 	// reported holds the info dictionaries reported on the task; a report
 	// answers reportErr, or the task in reportState ("assigned" when empty).
 	reported    [][]byte
+	reportCalls int
 	reportState string
 	reportErr   error
-	// failPuts presigned PUTs answer 500 before they succeed; -1 fails all.
-	failPuts int
-	puts     int
-	aborted  []string
+	// failPuts presigned PUTs answer failStatus (500 when unset) before they
+	// succeed; -1 fails all.
+	failPuts   int
+	failStatus int
+	puts       int
+	aborted    []string
 }
 
 type driveEntry struct {
@@ -72,8 +75,12 @@ func newFakeDrive(t *testing.T) *fakeDrive {
 			if d.failPuts > 0 {
 				d.failPuts--
 			}
+			status := d.failStatus
 			d.mu.Unlock()
-			w.WriteHeader(http.StatusInternalServerError)
+			if status == 0 {
+				status = http.StatusInternalServerError
+			}
+			w.WriteHeader(status)
 			return
 		}
 		if draft := d.drafts[strings.TrimPrefix(r.URL.Path, "/")]; draft != nil {
@@ -224,6 +231,7 @@ func (d *fakeDrive) UpdateTask(_ context.Context, id string, patch client.TaskPa
 	defer d.mu.Unlock()
 	d.patches = append(d.patches, patch)
 	if patch.TorrentInfo != "" {
+		d.reportCalls++
 		if d.reportErr != nil {
 			return client.DownloadTask{}, d.reportErr
 		}

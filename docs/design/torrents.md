@@ -164,7 +164,18 @@ server what it is uploading:
   API (`torrents/export`, Web API 2.8.14 and later), and Aria2 saves it as
   `<infoHash>.torrent` with `bt-save-metadata`.
 - Each file of the torrent is created with `torrentPath`, its path inside the
-  torrent, because scraping may give it a different name.
+  torrent, because scraping may give it a different name. Every file of the
+  torrent goes up, dot-files and `.torrent` files included. Only the engine's
+  own control files beside them are left out.
+
+The report is taken only before the upload starts (the task `assigned` or
+`downloading`). The downloader drops its download only when the answer settled
+the task, either completed by instant transfer or queued to join. Any other
+answer, a 403 or 409 included, just ends reporting and leaves pausing and
+canceling to the task's controls. A file of the torrent has one upload at a
+time. A repeated create in the same folder under the same name, as a retried
+request sends, replaces its draft. Any other create of the same file is
+refused, and so is one after the file landed.
 
 The server stores the uploads of a `fill` task under `bt/<infoHash>/`, records
 each one in `torrent_files` with the `layout_path` it was created at, and

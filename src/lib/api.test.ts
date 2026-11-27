@@ -42,7 +42,7 @@ import {
   deleteTeamLogo,
   disconnectCloud,
   enableIhostFeature,
-  evictCachedTorrent,
+  evictTorrent,
   generateInviteCodes,
   getActiveBackgroundJobCount,
   getAdminDashboardGrowthStats,
@@ -92,7 +92,6 @@ import {
   listApiKeys,
   listAuthProviders,
   listBackgroundJobs,
-  listCachedTorrents,
   listCloudCreditLedgerEntries,
   listCloudCreditProducts,
   listCloudOrders,
@@ -120,6 +119,7 @@ import {
   listStorageUsageItems,
   listTeamActivities,
   listTeams,
+  listTorrents,
   listTrash,
   listUserEntitlements,
   listUsers,
@@ -3335,7 +3335,7 @@ describe('api', () => {
     })
   })
 
-  describe('listCachedTorrents', () => {
+  describe('listTorrents', () => {
     const torrent = {
       id: 't-1',
       infoHash: 'a1'.repeat(20),
@@ -3354,7 +3354,7 @@ describe('api', () => {
       const payload = { items: [torrent], nextPageToken: 'next' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
-      const result = await listCachedTorrents({ pageToken: 'tok-2', pageSize: 10 })
+      const result = await listTorrents({ pageToken: 'tok-2', pageSize: 10 })
 
       expect(result).toEqual(payload)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
@@ -3367,15 +3367,15 @@ describe('api', () => {
     it('throws ApiError with status 402 when the feature is unavailable', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'feature_not_available' }, false, 402))
 
-      await expect(listCachedTorrents()).rejects.toMatchObject({ status: 402 })
+      await expect(listTorrents()).rejects.toMatchObject({ status: 402 })
     })
   })
 
-  describe('evictCachedTorrent', () => {
+  describe('evictTorrent', () => {
     it('calls DELETE /api/site/torrents/:id', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
 
-      await expect(evictCachedTorrent('t-1')).resolves.toBeUndefined()
+      await expect(evictTorrent('t-1')).resolves.toBeUndefined()
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/site/torrents/t-1')
@@ -3387,7 +3387,7 @@ describe('api', () => {
         makeResponse({ error: { code: 409, message: 'held', status: 'ABORTED' } }, false, 409),
       )
 
-      await expect(evictCachedTorrent('t-1')).rejects.toBeInstanceOf(ApiError)
+      await expect(evictTorrent('t-1')).rejects.toBeInstanceOf(ApiError)
     })
   })
 

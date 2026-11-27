@@ -48,14 +48,14 @@ export function createStorageUsageRepo(db: Database): StorageUsageRepo {
       const bytesByOrg = new Map<string, number>()
 
       for (const reservation of reservations) {
-        if (!reservation || reservation.bytes <= 0) continue
-        if (reservation.storageId !== null) {
-          bytesByStorage.set(
-            reservation.storageId,
-            (bytesByStorage.get(reservation.storageId) ?? 0) + reservation.bytes,
-          )
+        if (!reservation) continue
+        const storageBytes = reservation.storageBytes ?? reservation.bytes
+        if (reservation.storageId !== null && storageBytes > 0) {
+          bytesByStorage.set(reservation.storageId, (bytesByStorage.get(reservation.storageId) ?? 0) + storageBytes)
         }
-        bytesByOrg.set(reservation.orgId, (bytesByOrg.get(reservation.orgId) ?? 0) + reservation.bytes)
+        if (reservation.bytes > 0) {
+          bytesByOrg.set(reservation.orgId, (bytesByOrg.get(reservation.orgId) ?? 0) + reservation.bytes)
+        }
       }
 
       for (const [storageId, bytes] of bytesByStorage) {

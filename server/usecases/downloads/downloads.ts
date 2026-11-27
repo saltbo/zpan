@@ -473,7 +473,9 @@ export async function updateDownloadTask(
 
   const now = new Date()
   if (input.torrentInfo !== undefined) {
-    if (!['assigned', 'downloading', 'uploading'].includes(task.status)) {
+    // Only before the upload starts: files uploaded earlier are ordinary drive
+    // files, so a fill that starts during the upload could never be complete.
+    if (!['assigned', 'downloading'].includes(task.status)) {
       throw new DownloadError('invalid_state', `Task is ${task.status}`)
     }
     await reportTaskTorrentInfo(deps, { task, downloaderId: actor.downloaderId, info: input.torrentInfo }, now)

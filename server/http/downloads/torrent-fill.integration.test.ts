@@ -113,7 +113,7 @@ async function workspace(app: TestApp['app'], db: TestApp['db'], email: string) 
 
 const heartbeat = {
   version: 'test-1.0.0',
-  hostname: 'cache-downloader',
+  hostname: 'torrent-downloader',
   platform: 'linux',
   arch: 'amd64',
   engine: 'qbittorrent' as const,
@@ -194,8 +194,13 @@ async function createFolder(app: TestApp['app'], task: DownloadTask, parent: str
   return ((await res.json()) as { id: string }).id
 }
 
-// Uploads one file through the object API under the task's upload token.
-async function uploadFile(
+interface Draft {
+  id: string
+  upload: { sessionId: string; parts: Array<{ partNumber: number; url: string; offset: number; length: number }> }
+}
+
+// Creates one file's draft through the object API under the task's upload token.
+async function createDraft(
   app: TestApp['app'],
   task: DownloadTask,
   file: { parent: string; name: string; bytes: Uint8Array; torrentPath?: string },
@@ -214,18 +219,30 @@ async function uploadFile(
     }),
   })
   if (res.status !== 201) return { status: res.status, body: await res.json() }
-  const draft = (await res.json()) as {
-    id: string
-    upload: { sessionId: string; parts: Array<{ partNumber: number; url: string; offset: number; length: number }> }
-  }
-  for (const part of draft.upload.parts) upload(part.url, file.bytes.subarray(part.offset, part.offset + part.length))
+  return { status: 201, draft: (await res.json()) as Draft }
+}
+
+// Uploads a draft's bytes and completes it.
+async function finishDraft(app: TestApp['app'], task: DownloadTask, draft: Draft, bytes: Uint8Array) {
+  for (const part of draft.upload.parts) upload(part.url, bytes.subarray(part.offset, part.offset + part.length))
   const done = await app.request(`/api/objects/${draft.id}/uploads/${draft.upload.sessionId}/completions`, {
     method: 'POST',
     headers: token(task),
     body: JSON.stringify({ parts: draft.upload.parts.map((part) => ({ partNumber: part.partNumber, etag: 'etag' })) }),
   })
   expect(done.status).toBe(200)
-  return { status: 201, id: draft.id }
+}
+
+// Uploads one file through the object API under the task's upload token.
+async function uploadFile(
+  app: TestApp['app'],
+  task: DownloadTask,
+  file: { parent: string; name: string; bytes: Uint8Array; torrentPath?: string },
+) {
+  const created = await createDraft(app, task, file)
+  if (!created.draft) return { status: created.status, body: created.body }
+  await finishDraft(app, task, created.draft, file.bytes)
+  return { status: 201, id: created.draft.id }
 }
 
 async function putMedia(app: TestApp['app'], task: DownloadTask, id: string, media: unknown) {
@@ -251,6 +268,12 @@ async function completeTask(app: TestApp['app'], dl: Downloader, task: DownloadT
 // uploads the torrent's own tree through the object API, each file with its
 // torrentPath, and completes the task.
 async function fillTorrent(app: TestApp['app'], dl: Downloader, task: DownloadTask, torrent: TorrentFixture) {
+  return completeTask(app, dl, task, await uploadTorrentTree(app, dl, task, torrent))
+}
+
+// Reports the info dictionary and uploads the torrent's own tree; returns the
+// root folder's id.
+async function uploadTorrentTree(app: TestApp['app'], dl: Downloader, task: DownloadTask, torrent: TorrentFixture) {
   const reported = await reportInfo(app, dl, task, torrent.infoBase64)
   expect(reported.status).toBe(200)
   const folder = task.spec.destination.folder
@@ -274,7 +297,7 @@ async function fillTorrent(app: TestApp['app'], dl: Downloader, task: DownloadTa
     })
     expect(uploaded.status).toBe(201)
   }
-  return completeTask(app, dl, task, root)
+  return root
 }
 
 async function entries(db: TestApp['db'], infoHash: string) {
@@ -606,8 +629,8 @@ describe('torrent fill through the object API', () => {
 
   it('keeps downloaders that report no info dictionary uploading ordinary drive files [spec: torrents/legacy-downloader-unchanged]', async () => {
     const { ctx, a } = await setup()
-    // A downloader built before Torrents still reports the old capability.
-    const dl = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    // A downloader built before Torrents uploads without reporting the info dictionary.
+    const dl = await downloader(ctx, a.userId)
     const torrent = sampleTorrent()
     const submitted = await submit(ctx.app, a.headers, torrent.magnet)
 
@@ -853,5 +876,133 @@ describe('torrent fill edge cases', () => {
       state: 'failed',
       error: { message: 'The torrent failed verification' },
     })
+  })
+
+  it('makes the first of two concurrent reports the fill and joins the other to it', async () => {
+    const { ctx, a, b } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const torrent = sampleTorrent()
+    await submitTorrentUrl(ctx.app, a.headers)
+    await submitTorrentUrl(ctx.app, b.headers)
+    const [first, second] = await dl.poll()
+    expect(second).toBeDefined()
+
+    // The first report stalls writing the info dictionary to storage.
+    let release = () => {}
+    const stalled = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let reached = () => {}
+    const writing = new Promise<void>((resolve) => {
+      reached = resolve
+    })
+    vi.spyOn(S3Service.prototype, 'putObject').mockImplementationOnce(async (_s, key, body) => {
+      reached()
+      await stalled
+      objects.set(key, body as Uint8Array)
+      return (body as Uint8Array).length
+    })
+    const firstReport = reportInfo(ctx.app, dl, first, torrent.infoBase64)
+    await writing
+    const secondReport = await reportInfo(ctx.app, dl, second, torrent.infoBase64)
+    release()
+    expect((await firstReport).status).toBe(200)
+
+    expect(secondReport.status).toBe(200)
+    expect(secondReport.body.status.state).toBe('queued')
+    const roles = await ctx.db.all<{ id: string; role: string | null }>(
+      sql`SELECT id, torrent_role AS role FROM download_tasks ORDER BY id`,
+    )
+    expect(Object.fromEntries(roles.map((row) => [row.id, row.role]))).toEqual({
+      [first.id]: 'fill',
+      [second.id]: 'join',
+    })
+    const [row] = await ctx.db.all<{ sourceTaskId: string }>(
+      sql`SELECT source_task_id AS sourceTaskId FROM torrents WHERE info_hash = ${torrent.infoHash}`,
+    )
+    expect(row.sourceTaskId).toBe(first.id)
+  })
+
+  it('returns the torrent to downloading when verification cannot start, so a retried completion starts it', async () => {
+    const { ctx, a, b } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const torrent = sampleTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    const [task] = await dl.poll()
+    const root = await uploadTorrentTree(ctx.app, dl, task, torrent)
+    const joined = await submit(ctx.app, b.headers, torrent.magnet)
+    expect(joined.status.state).toBe('queued')
+
+    vi.spyOn(ctx.deps.backgroundJobs, 'create').mockRejectedValueOnce(new Error('queue down'))
+    const failed = await ctx.app.request(`/api/downloads/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: dl.headers,
+      body: JSON.stringify({ status: 'completed', resultObjectId: root }),
+    })
+    expect(failed.status).toBe(500)
+    expect(await torrentStatus(ctx.db, torrent.infoHash)).toMatchObject({ status: 'downloading' })
+    expect((await getTask(ctx.app, a.headers, task.id)).status.state).not.toBe('completed')
+
+    expect((await completeTask(ctx.app, dl, task, root)).status.state).toBe('completed')
+    await waitForTorrent(ctx.db, torrent.infoHash, 'ready')
+    await dl.poll()
+    expect((await getTask(ctx.app, b.headers, joined.id)).status.state).toBe('completed')
+  })
+
+  it('gives each file of the torrent one upload: a retried create replaces its draft, and any other is refused', async () => {
+    const { ctx, a } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const torrent = sampleTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    const [task] = await dl.poll()
+    expect((await reportInfo(ctx.app, dl, task, torrent.infoBase64)).status).toBe(200)
+    const e01 = {
+      parent: 'Downloads',
+      name: 'E01.mkv',
+      bytes: torrent.files[0].bytes,
+      torrentPath: 'Season 01/E01.mkv',
+    }
+
+    const original = await createDraft(ctx.app, task, e01)
+    // The same create again, as a request retried after a lost response.
+    const retried = await createDraft(ctx.app, task, e01)
+    expect(retried.status).toBe(201)
+    const drafts = await ctx.db.all<{ id: string; name: string }>(
+      sql`SELECT id, name FROM matters WHERE org_id = ${a.orgId} AND status = 'draft' AND purged_at IS NULL`,
+    )
+    expect(drafts).toEqual([{ id: retried.draft?.id, name: 'E01.mkv' }])
+    expect(original.draft?.id).not.toBe(retried.draft?.id)
+
+    // The same torrent file anywhere else while its upload is open.
+    const elsewhere = await createDraft(ctx.app, task, { ...e01, name: 'Copy.mkv' })
+    expect(elsewhere).toMatchObject({
+      status: 409,
+      body: { error: { details: [{ reason: 'TORRENT_FILE_UPLOADING' }] } },
+    })
+
+    await finishDraft(ctx.app, task, retried.draft as Draft, e01.bytes)
+    const again = await createDraft(ctx.app, task, e01)
+    expect(again).toMatchObject({ status: 409, body: { error: { details: [{ reason: 'TORRENT_FILE_UPLOADED' }] } } })
+    const file = (await entries(ctx.db, torrent.infoHash)).find((entry) => entry.path === 'Season 01/E01.mkv')
+    expect(file).toMatchObject({ layoutPath: 'E01.mkv', uploaded: 1 })
+    expect((await driveFiles(ctx.db, a.orgId)).filter((row) => row.object === file?.objectKey)).toHaveLength(1)
+  })
+
+  it('refuses the info dictionary once the task is uploading', async () => {
+    const { ctx, a } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const torrent = sampleTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    const [task] = await dl.poll()
+    const uploading = await ctx.app.request(`/api/downloads/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: dl.headers,
+      body: JSON.stringify({ status: 'uploading' }),
+    })
+    expect(uploading.status).toBe(200)
+
+    expect((await reportInfo(ctx.app, dl, task, torrent.infoBase64)).status).toBe(409)
+    expect(await ctx.db.all(sql`SELECT torrent_role AS role FROM download_tasks`)).toEqual([{ role: null }])
+    expect(await torrentStatus(ctx.db, torrent.infoHash)).toBeUndefined()
   })
 })

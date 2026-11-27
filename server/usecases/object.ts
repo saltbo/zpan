@@ -21,6 +21,7 @@ import type {
   TransferMatterInput,
 } from '@shared/schemas'
 import type { ObjectUploadInstructions } from '@shared/types'
+import { isTorrentKey } from '../domain/torrents'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import { resolveActorProfiles } from './audit-actors'
 import type { Deps } from './deps'
@@ -216,9 +217,6 @@ export async function createObject(
       folderPath: parent,
       createdBy,
     })
-    if (!isFolder && size <= MAX_OBJECT_BYTES) {
-      fill = await placeFillFile(deps, task, { torrentPath: input.torrentPath, size })
-    }
   }
 
   // Reject oversize before creating anything, so no orphan draft is left behind.
@@ -229,6 +227,15 @@ export async function createObject(
   const conflictPlan = isFolder
     ? null
     : await deps.matter.planConflictResolution(orgId, parent, name, onConflict ?? 'fail', { isFolder: false })
+
+  if (task && conflictPlan) {
+    fill = await placeFillFile(deps, task, {
+      torrentPath: input.torrentPath,
+      size,
+      parent,
+      name: conflictPlan.finalName,
+    })
+  }
 
   let storage: StorageRecord
   try {
@@ -1135,10 +1142,19 @@ export async function confirmUpload(
     // headroom; a final reconcile then sets usage to the exact active+trashed sum.
     const overwrites = plan.toTrash != null && opts.purgeReplaced != null
     const reserveBytes = overwrites ? Math.max(0, bytes - (plan.toTrash?.size ?? 0)) : bytes
+    // An incumbent that references a torrent was never counted in its storage,
+    // so the storage gains every byte of the new object.
+    const referencesTorrent = overwrites && !!plan.toTrash && isTorrentKey(plan.toTrash.object)
 
     return await withStorageUsageReservation(
       { quota: deps.quota, storageUsage: deps.storageUsage },
-      { orgId, storageId: existing.storageId, bytes: reserveBytes, teamQuotaEnabled: opts.teamQuotaEnabled ?? true },
+      {
+        orgId,
+        storageId: existing.storageId,
+        bytes: reserveBytes,
+        teamQuotaEnabled: opts.teamQuotaEnabled ?? true,
+        ...(referencesTorrent ? { storageBytes: bytes } : {}),
+      },
       async () => {
         // Quota reserved — now safe to execute the overwrite (if any).
         if (plan.toTrash && opts.purgeReplaced) {

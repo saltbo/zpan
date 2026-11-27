@@ -5,7 +5,7 @@ import { transferTorrent } from './instant-transfer'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>
 
-const STORAGE_ID = 'cache-storage'
+const STORAGE_ID = 'torrent-storage'
 const USER_ID = 'user-1'
 
 async function seedStorage(db: TestApp['db']) {
@@ -124,7 +124,7 @@ describe('transferTorrent', () => {
 
     // A second holder is charged the full size too, and a transfer into a taken
     // name renames the file the way uploads do; reconciling still counts the
-    // cached bytes once.
+    // torrent bytes once.
     expect(
       (await transferTorrent(deps, { torrentId: torrent.id, orgId: 'org-b', userId: USER_ID, targetFolder: '' })).ok,
     ).toBe(true)

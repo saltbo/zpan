@@ -62,15 +62,17 @@ export async function torrentsEnabled(deps: Pick<Deps, 'licenseBinding' | 'licen
 export type TorrentServeOutcome = 'completed' | 'failed' | 'joined' | 'miss'
 
 // A downloading torrent whose filling task stopped filling it is abandoned: the
-// next download of the same infoHash takes it over instead of waiting.
+// next download of the same infoHash takes it over instead of waiting. A source
+// task that has not finished still fills it, even before its fill role is
+// recorded (the report that created the torrent is still running) or while it
+// runs again after losing its downloader.
 async function fillerActive(deps: TorrentFillDeps, torrent: TorrentRecord): Promise<boolean> {
   if (!torrent.sourceTaskId) return false
   const source = await deps.downloadTasks.findRecord(torrent.sourceTaskId)
   return (
     !!source &&
-    source.torrentId === torrent.id &&
-    source.torrentRole === 'fill' &&
-    !TERMINAL_STATUSES.includes(source.status)
+    !TERMINAL_STATUSES.includes(source.status) &&
+    (source.torrentId == null || source.torrentId === torrent.id)
   )
 }
 
@@ -285,6 +287,14 @@ async function startFill(
 ): Promise<void> {
   const storage = await deps.storages.get(torrent.storageId)
   if (!storage) throw notFound('Torrent not found')
+  // The role is recorded before the slower storage write, so the task is the
+  // torrent's active filler for every report that arrives meanwhile.
+  await deps.downloadTasks.setFields(task.id, {
+    infoHash: torrent.infoHash,
+    torrentId: torrent.id,
+    torrentRole: 'fill',
+    updatedAt: now,
+  })
   await deps.s3.putObject(
     storage,
     torrentInfoObjectKey(torrent.infoHash),
@@ -292,12 +302,6 @@ async function startFill(
     'application/x-bittorrent',
     bytes.length,
   )
-  await deps.downloadTasks.setFields(task.id, {
-    infoHash: torrent.infoHash,
-    torrentId: torrent.id,
-    torrentRole: 'fill',
-    updatedAt: now,
-  })
 }
 
 // ─── After verification ──────────────────────────────────────────────────────
