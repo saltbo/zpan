@@ -40,6 +40,9 @@ type fakeDrive struct {
 	raceFolder string
 	// hasMedia holds the folders whose media the server keeps: a write answers 409.
 	hasMedia map[string]bool
+	// raceComplete makes the completion of an upload of this name fail with a
+	// 500 after another task's upload of the same name went live.
+	raceComplete string
 }
 
 type driveEntry struct {
@@ -137,6 +140,11 @@ func (d *fakeDrive) CompleteObjectUpload(_ context.Context, _ string, id string,
 	defer d.mu.Unlock()
 	draft := d.drafts[id]
 	delete(d.drafts, id)
+	if d.raceComplete == draft.name {
+		d.raceComplete = ""
+		d.add(draft.parent, draft.name, false, "another task")
+		return client.ObjectDraft{}, &client.StatusError{Method: "POST", Path: "/api/objects", Status: http.StatusInternalServerError, Message: "Internal Server Error"}
+	}
 	d.entries[d.key(draft.parent, draft.name)] = draft
 	return client.ObjectDraft{ID: draft.id, Name: draft.name}, nil
 }
@@ -440,7 +448,10 @@ func TestUploadPlanDeletesWhatItCreatedOnFailure(t *testing.T) {
 	if err == nil || errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v", err)
 	}
-	if folder := drive.entry("Movies/Big Buck Bunny (2008)"); len(drive.deleted) != 1 || drive.deleted[0] != folder.id {
+	// The video went up before the sidecar failed; the folder stays, since
+	// another task may have joined it.
+	video := drive.entry("Movies/Big Buck Bunny (2008)/bbb.mkv")
+	if len(drive.deleted) != 1 || drive.deleted[0] != video.id {
 		t.Fatalf("deleted = %v", drive.deleted)
 	}
 }

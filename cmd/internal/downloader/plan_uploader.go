@@ -83,12 +83,13 @@ type tmdbReference struct {
 func (u *Uploader) uploadPlan(ctx context.Context, log *slog.Logger, task client.DownloadTask, plan UploadPlan) (string, []string, error) {
 	token := task.UploadToken()
 	target := task.TargetFolder()
-	folder, created, err := u.ensureFolder(ctx, token, target, plan.Folder)
+	folder, err := u.ensureFolder(ctx, token, target, plan.Folder)
 	if err != nil {
 		return "", nil, err
 	}
 	folderPath := joinObjectPath(target, folder.Name)
-	// What this upload created inside a folder it reused, in creation order.
+	// The files this upload created. A failed upload deletes them and leaves
+	// the folders: another task may have joined a folder this one created.
 	var made []string
 	completed := false
 	defer func() {
@@ -97,13 +98,9 @@ func (u *Uploader) uploadPlan(ctx context.Context, log *slog.Logger, task client
 		}
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
-		discard := made
-		if created {
-			discard = []string{folder.ID}
-		}
-		for i := len(discard) - 1; i >= 0; i-- {
-			if err := u.deleteObject(cleanupCtx, token, discard[i]); err != nil {
-				log.Warn("failed to delete remote object after plan upload failure", "object_id", discard[i], "error", err)
+		for _, id := range made {
+			if err := u.deleteObject(cleanupCtx, token, id); err != nil {
+				log.Warn("failed to delete remote object after plan upload failure", "object_id", id, "error", err)
 			}
 		}
 	}()
@@ -112,7 +109,7 @@ func (u *Uploader) uploadPlan(ctx context.Context, log *slog.Logger, task client
 	progress := &uploadProgress{lastAt: time.Now()}
 	for _, file := range plan.Files {
 		progress.totalBytes += file.Size
-		if _, err := u.ensureFolderPath(ctx, token, folders, planDir(file.Path), &made); err != nil {
+		if _, err := u.ensureFolderPath(ctx, token, folders, planDir(file.Path)); err != nil {
 			return "", nil, err
 		}
 	}
@@ -169,21 +166,24 @@ func (u *Uploader) uploadUnlessPresent(
 	progress *uploadProgress,
 ) (string, bool, error) {
 	live, err := u.uploadSingleFile(ctx, log, task, file.LocalPath, name, file.Size, parent, client.OnConflictFail, progress)
-	if client.IsConflict(err) {
-		existing, found, findErr := u.findObject(ctx, task.UploadToken(), parent, name)
-		if findErr != nil {
-			return "", false, findErr
-		}
-		if !found || existing.IsFolder {
-			return "", false, fmt.Errorf("%s: %w", name, err)
-		}
-		log.Info("kept existing entry", "name", name, "object_id", existing.ID)
-		return existing.ID, false, nil
+	if err == nil {
+		return live.ID, true, nil
 	}
-	if err != nil {
+	if ctx.Err() != nil {
 		return "", false, err
 	}
-	return live.ID, true, nil
+	// A create answers 409 when the name is taken; a completion that loses a
+	// race with another task's upload of the same name fails without saying
+	// so. Either way the live entry now at the name wins.
+	existing, found, findErr := u.findObject(ctx, task.UploadToken(), parent, name)
+	if findErr != nil {
+		return "", false, findErr
+	}
+	if !found || existing.IsFolder {
+		return "", false, fmt.Errorf("%s: %w", name, err)
+	}
+	log.Info("kept existing entry", "name", name, "object_id", existing.ID)
+	return existing.ID, false, nil
 }
 
 func planDir(planPath string) string {
@@ -350,49 +350,45 @@ func readShowMedia(nfoPath string) (tvShowMedia, error) {
 
 // ensureFolder returns the live folder named name in parent, creating it when
 // there is none. A create that loses a race to another task answers 409, and
-// the folder that task made is used. created reports whether this call made it.
-func (u *Uploader) ensureFolder(ctx context.Context, token string, parent string, name string) (client.ObjectEntry, bool, error) {
+// the folder that task made is used.
+func (u *Uploader) ensureFolder(ctx context.Context, token string, parent string, name string) (client.ObjectEntry, error) {
 	for attempt := 0; attempt < 2; attempt++ {
 		existing, found, err := u.findObject(ctx, token, parent, name)
 		if err != nil {
-			return client.ObjectEntry{}, false, err
+			return client.ObjectEntry{}, err
 		}
 		if found {
 			if !existing.IsFolder {
-				return client.ObjectEntry{}, false, &planUnusableError{reason: fmt.Sprintf("%q is a file, not a folder", joinObjectPath(parent, name))}
+				return client.ObjectEntry{}, &planUnusableError{reason: fmt.Sprintf("%q is a file, not a folder", joinObjectPath(parent, name))}
 			}
-			return existing, false, nil
+			return existing, nil
 		}
 		draft, err := u.createFolder(ctx, token, name, parent, client.OnConflictFail)
 		if client.IsConflict(err) {
 			continue
 		}
 		if err != nil {
-			return client.ObjectEntry{}, false, err
+			return client.ObjectEntry{}, err
 		}
-		return client.ObjectEntry{ID: draft.ID, Name: draft.Name, IsFolder: true}, true, nil
+		return client.ObjectEntry{ID: draft.ID, Name: draft.Name, IsFolder: true}, nil
 	}
-	return client.ObjectEntry{}, false, fmt.Errorf("folder %q keeps conflicting", joinObjectPath(parent, name))
+	return client.ObjectEntry{}, fmt.Errorf("folder %q keeps conflicting", joinObjectPath(parent, name))
 }
 
 // ensureFolderPath makes sure every folder of dir exists under the plan's
-// folder and returns dir's object path. folders caches the paths made so far,
-// and the id of each folder it creates is appended to made. A name taken by a
-// file makes the plan unusable.
-func (u *Uploader) ensureFolderPath(ctx context.Context, token string, folders map[string]string, dir string, made *[]string) (string, error) {
+// folder and returns dir's object path. folders caches the paths made so far.
+// A name taken by a file makes the plan unusable.
+func (u *Uploader) ensureFolderPath(ctx context.Context, token string, folders map[string]string, dir string) (string, error) {
 	if objectPath, ok := folders[dir]; ok {
 		return objectPath, nil
 	}
-	parent, err := u.ensureFolderPath(ctx, token, folders, planDir(dir), made)
+	parent, err := u.ensureFolderPath(ctx, token, folders, planDir(dir))
 	if err != nil {
 		return "", err
 	}
-	folder, created, err := u.ensureFolder(ctx, token, parent, path.Base(dir))
+	folder, err := u.ensureFolder(ctx, token, parent, path.Base(dir))
 	if err != nil {
 		return "", err
-	}
-	if created {
-		*made = append(*made, folder.ID)
 	}
 	folders[dir] = joinObjectPath(parent, folder.Name)
 	return folders[dir], nil

@@ -185,6 +185,25 @@ func TestUploadPlanFallsBackWhenTheSeasonNameIsAFile(t *testing.T) {
 	}
 }
 
+// [spec: download-scraping/show-folder-reused] [spec: download-scraping/show-sidecars]
+func TestUploadPlanKeepsAShowFileAnotherTaskUploadedAtOnce(t *testing.T) {
+	drive := newFakeDrive(t)
+	drive.add("", "Movies", true, "")
+	drive.add("Movies", "Breaking Bad (2008)", true, "")
+	drive.raceComplete = mediascrape.SeasonPosterName(1)
+	uploader := NewUploader(drive, nil)
+
+	if _, err := uploader.Upload(context.Background(), discardLogger(), planTask(), Result{Plan: ptr(showPlan(t, t.TempDir(), "e.mkv"))}); err != nil {
+		t.Fatal(err)
+	}
+	if got := drive.entry("Movies/Breaking Bad (2008)/season01-poster.jpg"); got == nil || got.content != "another task" {
+		t.Fatalf("season poster = %+v", got)
+	}
+	if drive.entry("Movies/Breaking Bad (2008)/Season 01/e.mkv") == nil || len(drive.deleted) != 0 {
+		t.Fatalf("drive = %v, deleted %v", drive.paths(), drive.deleted)
+	}
+}
+
 func TestUploadPlanReportsAnEpisodeWithoutASeries(t *testing.T) {
 	drive := newFakeDrive(t)
 	drive.add("", "Movies", true, "")

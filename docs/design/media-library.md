@@ -435,7 +435,9 @@ and runs of spaces collapsed; `(Year)` is left out when TMDB has no date.
   between, and the uploader looks it up again and uses it. Every folder of
   the layout is settled before any file goes up, so an existing entry of one
   of those names that is a file, not a folder, makes the download upload
-  unscraped with nothing left behind.
+  unscraped before any of its files is uploaded. An upload that fails later
+  deletes the files it created and keeps the folders, which another task may
+  have joined in the meantime.
 - **Video names still never collide.** A video whose name is taken in the
   reused folder is renamed by the server (`X (1).mkv`), as today, and its
   sidecars take the name it was given.
@@ -463,7 +465,9 @@ under the target folder.
 - **Existing files win.** Sidecars are created with `onConflict: fail`. A
   live entry already at a sidecar path, such as the `tvshow.nfo` of a show
   folder an earlier task filled, is kept, and the uploader uses that entry
-  wherever the metadata references the sidecar. A `.nfo` or image the
+  wherever the metadata references the sidecar. That holds when two tasks
+  upload the same sidecar at once: an upload that fails while a live entry
+  holds its name keeps that entry. A `.nfo` or image the
   download itself contained is uploaded as an ordinary file, and the scraper
   writes none in its place.
 - **Language.** Details and seasons are fetched in the configured language.
