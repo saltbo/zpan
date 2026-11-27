@@ -1,5 +1,7 @@
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { createInviteRepo } from '../../adapters/repos/invite.js'
+import * as authSchema from '../../db/auth-schema.js'
 import { adminHeaders, authedHeaders, createTestApp } from '../../test/setup.js'
 
 // ─── Admin routes ─────────────────────────────────────────────────────────────
@@ -328,5 +330,33 @@ describe('Public Invite Codes API — POST /validate', () => {
       body: JSON.stringify({ code: row.code }),
     })
     expect(res.status).toBe(200)
+  })
+})
+
+describe('Admin Invite Codes API — redeeming user', () => {
+  it('names the redeeming user and omits them once deleted [spec: invite-codes/list-redeemer]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await authedHeaders(app, 'redeemer@example.com')
+    const [redeemer] = await db.select().from(authSchema.user).where(eq(authSchema.user.email, 'redeemer@example.com'))
+
+    const repo = createInviteRepo(db)
+    const [kept, orphaned, unused] = await repo.generate('admin-1', 3)
+    await repo.redeem(kept.code, redeemer.id)
+    await repo.redeem(orphaned.code, 'deleted-user-id')
+
+    const res = await app.request('/api/site/invite-codes', { headers })
+    expect(res.status).toBe(200)
+    const { items } = (await res.json()) as { items: Array<Record<string, unknown>> }
+    const byId = new Map(items.map((item) => [item.id, item]))
+
+    expect(byId.get(kept.id)).toMatchObject({
+      usedBy: redeemer.id,
+      usedByUser: { name: 'Test User', email: 'redeemer@example.com' },
+    })
+    expect(byId.get(orphaned.id)).toMatchObject({ usedBy: 'deleted-user-id' })
+    expect(byId.get(orphaned.id)).not.toHaveProperty('usedByUser')
+    expect(byId.get(unused.id)).toMatchObject({ usedBy: null })
+    expect(byId.get(unused.id)).not.toHaveProperty('usedByUser')
   })
 })

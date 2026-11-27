@@ -864,6 +864,7 @@ export interface InviteCode {
   code: string
   createdBy: string
   usedBy: string | null
+  usedByUser?: { name: string; email: string }
   usedAt: string | null
   expiresAt: string | null
   createdAt: string

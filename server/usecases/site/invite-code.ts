@@ -7,6 +7,7 @@
 import {
   type AppError,
   conflict,
+  type InviteCodeListItem,
   type InviteCodeRecord,
   type InviteRepo,
   type KeysetPage,
@@ -23,7 +24,7 @@ export type DeleteInviteCodeOutcome = { ok: true } | { ok: false; error: AppErro
 export function listInviteCodes(
   deps: Pick<InviteCodeDeps, 'invites'>,
   params: KeysetPageOpts,
-): Promise<KeysetPage<InviteCodeRecord>> {
+): Promise<KeysetPage<InviteCodeListItem>> {
   return deps.invites.list(params)
 }
 
