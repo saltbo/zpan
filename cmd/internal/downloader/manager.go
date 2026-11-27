@@ -418,6 +418,7 @@ func (m *Manager) downloaderConfig() Config {
 			URL:        m.cfg.QBittorrentURL,
 			Username:   m.cfg.QBittorrentUser,
 			Password:   m.cfg.QBittorrentPass,
+			APIKey:     m.cfg.QBittorrentAPIKey,
 			Configured: m.cfg.QBittorrentConfigured,
 		},
 		GeoIP: m.geoIP,
@@ -466,6 +467,9 @@ func waitForDownloader(ctx context.Context, downloader Downloader) error {
 		cancel()
 		if err == nil {
 			return nil
+		}
+		if errors.Is(err, ErrEngineRejectedCredentials) {
+			return err
 		}
 		lastErr = err
 		select {

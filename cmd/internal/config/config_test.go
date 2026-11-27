@@ -340,3 +340,95 @@ func TestLoadScrapeConfig(t *testing.T) {
 		}
 	}
 }
+
+// [spec: download-tasks/qbittorrent-api-key-auth]
+func TestLoadReadsQBittorrentAPIKeyFromYAML(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("server_url: http://localhost:5173\ndownloader:\n  qbittorrent:\n    url: http://qbit:8080\n    api_key: yaml-key\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	v := viper.New()
+	v.SetConfigFile(path)
+
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.QBittorrentAPIKey != "yaml-key" || cfg.QBittorrentURL != "http://qbit:8080" {
+		t.Fatalf("unexpected qbittorrent config: url=%q key=%q", cfg.QBittorrentURL, cfg.QBittorrentAPIKey)
+	}
+	if !cfg.QBittorrentConfigured {
+		t.Fatal("expected api key config to configure external qbittorrent")
+	}
+}
+
+// [spec: download-tasks/qbittorrent-api-key-auth]
+func TestLoadReadsQBittorrentAPIKeyFromEnv(t *testing.T) {
+	t.Setenv("ZPAN_DOWNLOADER_QBITTORRENT_URL", "http://qbit:8080")
+	t.Setenv("ZPAN_DOWNLOADER_QBITTORRENT_API_KEY", "env-key")
+	v := viper.New()
+	v.Set("server_url", "http://localhost:5173")
+
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.QBittorrentAPIKey != "env-key" || cfg.QBittorrentURL != "http://qbit:8080" {
+		t.Fatalf("unexpected qbittorrent config: url=%q key=%q", cfg.QBittorrentURL, cfg.QBittorrentAPIKey)
+	}
+	if !cfg.QBittorrentConfigured {
+		t.Fatal("expected env api key to configure external qbittorrent")
+	}
+}
+
+func TestLoadTreatsQBittorrentAPIKeyAloneAsConfigured(t *testing.T) {
+	t.Setenv("ZPAN_DOWNLOADER_QBITTORRENT_API_KEY", "env-key")
+	v := viper.New()
+	v.Set("server_url", "http://localhost:5173")
+
+	cfg, err := Load(v)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.QBittorrentConfigured || cfg.QBittorrentURL != DefaultQBittorrentURL {
+		t.Fatalf("expected api key on the default url to configure external qbittorrent, got %#v", cfg)
+	}
+}
+
+// [spec: download-tasks/qbittorrent-api-key-saved]
+func TestWriteConfigStoresQBittorrentAPIKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	cfg := Config{
+		ServerURL:             "https://zpan.space",
+		Engine:                "qbittorrent",
+		DownloadDir:           "/downloads",
+		StateDir:              "/state",
+		PollInterval:          time.Second,
+		MaxConcurrentTasks:    1,
+		SeedDuration:          time.Minute,
+		SeedMaxConcurrent:     1,
+		QBittorrentConfigured: true,
+		QBittorrentURL:        "http://qbit:8080",
+		QBittorrentAPIKey:     "api-key",
+	}
+	if err := WriteConfig(path, cfg, "token"); err != nil {
+		t.Fatal(err)
+	}
+	text := readConfigFile(t, path)
+	if !hasConfigLine(text, `    api_key: "api-key"`) {
+		t.Fatalf("expected qbittorrent api key, got:\n%s", text)
+	}
+	if strings.Contains(text, "    username:") || strings.Contains(text, "    password:") {
+		t.Fatalf("expected no empty credentials, got:\n%s", text)
+	}
+
+	v := viper.New()
+	v.SetConfigFile(path)
+	loaded, err := Load(v)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if loaded.QBittorrentAPIKey != "api-key" || !loaded.QBittorrentConfigured {
+		t.Fatalf("expected written api key to round-trip, got %#v", loaded)
+	}
+}
