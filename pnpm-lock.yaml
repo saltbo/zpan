@@ -286,6 +286,9 @@ importers:
       lint-staged:
         specifier: ^16.4.0
         version: 16.4.0
+      nanostores:
+        specifier: 1.5.5
+        version: 1.5.5
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
