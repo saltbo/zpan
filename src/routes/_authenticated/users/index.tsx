@@ -1,5 +1,5 @@
 import type { AdminUserListItem } from '@shared/types'
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { Search, ShieldCheck, UserX } from 'lucide-react'
 import { useMemo } from 'react'
@@ -37,10 +37,11 @@ export function UsersPage() {
   const pageSize = 20
 
   const usersQuery = useInfiniteQuery({
-    queryKey: ['admin', 'users', 'directory', pageSize],
-    queryFn: ({ pageParam }) => listUsers({ pageToken: pageParam, pageSize }),
+    queryKey: ['admin', 'users', 'directory', pageSize, search.trim()],
+    queryFn: ({ pageParam }) => listUsers({ pageToken: pageParam, pageSize, search }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
+    placeholderData: keepPreviousData,
   })
   const loadMoreRef = useInfiniteScroll<HTMLDivElement>({
     hasNextPage: usersQuery.hasNextPage,
@@ -78,12 +79,6 @@ export function UsersPage() {
       quotaTotal: quota?.get(user.id)?.total ?? 0,
     }))
   }, [baseUsers, quotaQuery.data])
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return users
-    const term = search.toLowerCase()
-    return users.filter((u) => u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term))
-  }, [users, search])
 
   const isLoading = usersQuery.isLoading
 
@@ -124,7 +119,7 @@ export function UsersPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((user) => (
+            {users.map((user) => (
               <UserTableRow
                 key={user.id}
                 user={user}
@@ -133,7 +128,7 @@ export function UsersPage() {
                 onToggleStatus={() => toggleStatusMutation.mutate({ userId: user.id, banned: !user.banned })}
               />
             ))}
-            {filtered.length === 0 && (
+            {users.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                   {t('admin.users.noUsers')}

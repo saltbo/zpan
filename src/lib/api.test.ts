@@ -67,6 +67,7 @@ import {
   getSession,
   getShare,
   getShareReadme,
+  getShow,
   getSiteConfig,
   getSiteInvitation,
   getSiteSettings,
@@ -108,6 +109,8 @@ import {
   listReceivedShares,
   listShareObjects,
   listShares,
+  listShowEpisodes,
+  listShows,
   listSiteInvitations,
   listStorages,
   listStorageUsageItems,
@@ -1629,6 +1632,76 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: { message: 'Forbidden' } }, false, 403))
 
       await expect(listMovies()).rejects.toBeInstanceOf(ApiError)
+    })
+  })
+
+  describe('tv shows', () => {
+    const show = {
+      id: 'show-1',
+      path: 'TV/Breaking Bad (2008)',
+      media: { kind: 'tvshow', tmdb: { id: 1396, type: 'tv' }, title: 'Breaking Bad', year: 2008 },
+      posterUrl: 'https://images.example.com/poster.jpg',
+    }
+    const episode = {
+      id: 'video-1',
+      path: 'TV/Breaking Bad (2008)/Season 01/e.mkv',
+      media: { kind: 'episode', tmdb: { id: 1396, type: 'tv' }, season: 1, episode: 2, title: 'Two' },
+      stillUrl: 'https://images.example.com/still.jpg',
+    }
+
+    it('lists a page of shows, 24 by default', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [show], nextPageToken: 'next' }))
+      await expect(listShows({ pageToken: 'page-2', pageSize: 12 })).resolves.toEqual({
+        items: [show],
+        nextPageToken: 'next',
+      })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/media/shows?')
+      expect(url).toContain('pageSize=12')
+      expect(url).toContain('pageToken=page-2')
+      expect(init.method).toBe('GET')
+
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
+      await listShows()
+      const [defaultUrl] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
+      expect(defaultUrl).toContain('pageSize=24')
+      expect(defaultUrl).not.toContain('pageToken')
+    })
+
+    it('gets one show', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(show))
+      await expect(getShow('show-1')).resolves.toEqual(show)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/media/shows/show-1')
+      expect(init.method).toBe('GET')
+    })
+
+    it("lists a page of a show's episodes, 50 by default", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [episode], nextPageToken: null }))
+      await expect(listShowEpisodes('show-1', { pageToken: 'p2', pageSize: 10 })).resolves.toEqual({
+        items: [episode],
+        nextPageToken: null,
+      })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/media/shows/show-1/episodes?')
+      expect(url).toContain('pageSize=10')
+      expect(url).toContain('pageToken=p2')
+      expect(init.method).toBe('GET')
+
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
+      await listShowEpisodes('show-1')
+      const [defaultUrl] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
+      expect(defaultUrl).toContain('pageSize=50')
+      expect(defaultUrl).not.toContain('pageToken')
+    })
+
+    it('throws ApiError when a show request fails', async () => {
+      for (let i = 0; i < 3; i++) {
+        vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: { message: 'Not found' } }, false, 404))
+      }
+      await expect(listShows()).rejects.toBeInstanceOf(ApiError)
+      await expect(getShow('x')).rejects.toBeInstanceOf(ApiError)
+      await expect(listShowEpisodes('x')).rejects.toBeInstanceOf(ApiError)
     })
   })
 

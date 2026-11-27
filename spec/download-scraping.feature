@@ -1,8 +1,9 @@
 Feature: Download scraping
   A downloader with media scraping turned on matches each finished download to
-  TMDB on the machine that holds the files, and uploads a matched movie under a
-  media-server layout with Kodi and Jellyfin sidecars next to the video. A
-  download it cannot scrape uploads exactly as it would without scraping.
+  TMDB on the machine that holds the files, and uploads a matched movie or the
+  episodes of a matched show under a media-server layout with Kodi and Jellyfin
+  sidecars next to the videos. A download it cannot scrape uploads exactly as
+  it would without scraping.
 
   @download-scraping/movie-layout @usecase
   Scenario: A matched movie is uploaded into its Title (Year) folder with sidecars
@@ -24,6 +25,35 @@ Feature: Download scraping
     When the movie is uploaded
     Then that entry is kept unchanged
     And the video's media metadata references it
+
+  @download-scraping/show-layout @usecase
+  Scenario: Matched episodes are uploaded into their show and season folders
+    Given a downloader with scraping on
+    When a season pack or a single episode that matches a TMDB show finishes
+    Then each episode is uploaded as <target>/Show (Year)/Season NN/ with its original video file name
+    And specials go to Season 00
+
+  @download-scraping/show-folder-reused @usecase
+  Scenario: A later season or episode joins the existing show
+    Given a Show (Year)/ folder with a Season NN/ folder from an earlier download
+    When another season or episode of the same show is downloaded, even if another task created the folder a moment earlier
+    Then it lands in the existing show and season folders instead of a renamed copy
+    And a folder name already taken by a file uploads the download unscraped
+
+  @download-scraping/show-sidecars @usecase
+  Scenario: Episodes and the show folder get their sidecars
+    Given matched episodes
+    When they are uploaded
+    Then each episode X gets X.nfo and X-thumb.jpg next to it
+    And the show folder gets tvshow.nfo, poster.jpg, fanart.jpg and seasonNN-poster.jpg, keeping any already there
+
+  @download-scraping/show-metadata @usecase
+  Scenario: Episodes and their show carry media metadata
+    Given matched episodes of one show
+    When they are uploaded
+    Then each episode carries its series id, season and episode number
+    And the show folder carries the show's metadata only when it has none yet
+    And a download with episodes of more than one show uploads unscraped
 
   @download-scraping/fallback @usecase
   Scenario: A download that cannot be scraped uploads as today
