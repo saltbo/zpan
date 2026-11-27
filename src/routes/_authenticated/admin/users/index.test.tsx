@@ -42,8 +42,19 @@ vi.mock('@/components/admin/delete-user-dialog', () => ({
   DeleteUserDialog: () => null,
 }))
 
-vi.mock('@/components/admin/site-invitations-drawer', () => ({
-  SiteInvitationsDrawer: () => null,
+vi.mock('@/components/admin/site-invitations-list', () => ({
+  SiteInvitationsList: () => <div>invitations list</div>,
+}))
+
+vi.mock('@/components/admin/invite-user-drawer', () => ({
+  InviteUserDrawer: ({ open, onInvited }: { open: boolean; onInvited?: () => void }) =>
+    open ? (
+      <div role="dialog">
+        <button type="button" onClick={onInvited}>
+          invite sent
+        </button>
+      </div>
+    ) : null,
 }))
 
 vi.mock('@/lib/api', () => ({
@@ -288,5 +299,43 @@ describe('UsersPage search refresh', () => {
     expect(await screen.findByText('Alice Filtered')).toBeTruthy()
     expect(screen.queryByText('Riley Two')).toBeNull()
     expect(document.activeElement).toBe(searchInput)
+  })
+})
+
+describe('UsersPage invitations tab', () => {
+  it('lists invitations on their own tab, kept in the link, apart from the invite form [spec: site-invitations/list-apart-from-form]', async () => {
+    vi.mocked(getUserQuotaById).mockResolvedValue({ used: 0, total: 1024, hasPersonalOrg: true })
+    vi.mocked(listUsers).mockResolvedValue({ items: [user({})], nextPageToken: null })
+    const clicking = userEvent.setup()
+
+    renderUsersPage()
+    expect(await screen.findByText('Primary User')).toBeTruthy()
+    expect(screen.queryByText('invitations list')).toBeNull()
+
+    await clicking.click(screen.getByRole('tab', { name: 'admin.users.tabInvitations' }))
+    expect(routerSearch.search).toEqual({ tab: 'invitations' })
+    expect(await screen.findByText('invitations list')).toBeTruthy()
+    expect(screen.queryByPlaceholderText('admin.users.searchPlaceholder')).toBeNull()
+
+    await clicking.click(screen.getByRole('tab', { name: 'admin.users.tabUsers' }))
+    expect(routerSearch.search).toEqual({})
+    expect(await screen.findByText('Primary User')).toBeTruthy()
+  })
+
+  it('opens the invitations tab from a link and shows it after an invite is sent', async () => {
+    vi.mocked(getUserQuotaById).mockResolvedValue({ used: 0, total: 1024, hasPersonalOrg: true })
+    vi.mocked(listUsers).mockResolvedValue({ items: [user({})], nextPageToken: null })
+    routerSearch.reset(adminUsersSearchSchema.parse({ tab: 'invitations' }))
+    expect(adminUsersSearchSchema.parse({ tab: 'bogus' }).tab).toBeUndefined()
+    const clicking = userEvent.setup()
+
+    renderUsersPage()
+    expect(await screen.findByText('invitations list')).toBeTruthy()
+
+    await clicking.click(screen.getByRole('tab', { name: 'admin.users.tabUsers' }))
+    await clicking.click(screen.getByRole('button', { name: 'admin.users.inviteUser' }))
+    await clicking.click(screen.getByRole('button', { name: 'invite sent' }))
+    expect(routerSearch.search).toEqual({ tab: 'invitations' })
+    expect(await screen.findByText('invitations list')).toBeTruthy()
   })
 })

@@ -8,7 +8,8 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
-import { SiteInvitationsDrawer } from '@/components/admin/site-invitations-drawer'
+import { InviteUserDrawer } from '@/components/admin/invite-user-drawer'
+import { SiteInvitationsList } from '@/components/admin/site-invitations-list'
 import { CursorPagination } from '@/components/list/cursor-pagination'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -22,20 +23,24 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
 import { useUrlText } from '@/hooks/use-url-text'
 import { getUserQuotaById, listUsers } from '@/lib/api'
 import { adminRemoveUser, adminSetUserBanned } from '@/lib/auth-client'
 import { formatDate, formatStorageUsage, getInitials } from '@/lib/format'
-import { numberOptionParam, textParam } from '@/lib/list-search'
+import { enumParam, numberOptionParam, textParam } from '@/lib/list-search'
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
 
 export const adminUsersSearchSchema = z.object({
+  tab: enumParam(['invitations']),
   q: textParam,
   size: numberOptionParam(PAGE_SIZE_OPTIONS),
 })
+
+type UsersTab = 'users' | 'invitations'
 
 export const Route = createFileRoute('/_authenticated/admin/users/')({
   validateSearch: adminUsersSearchSchema,
@@ -51,11 +56,12 @@ export function UsersPage() {
   const listSearch = useSearch({ from: '/_authenticated/admin/users/' })
   const search = listSearch.q ?? ''
   const pageSize = listSearch.size ?? DEFAULT_PAGE_SIZE
+  const tab: UsersTab = listSearch.tab ?? 'users'
   const [searchText, setSearchText] = useUrlText(search, (q) => updateListSearch({ q, size: pageSize }, true))
+  const [inviteDrawerOpen, setInviteDrawerOpen] = useState(false)
 
   const [deleteDialogUser, setDeleteDialogUser] = useState<{ id: string; name: string } | null>(null)
   const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false)
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const pager = useCursorPager(`${pageSize}:${search}`)
@@ -135,12 +141,20 @@ export function UsersPage() {
     navigate({
       to: '/admin/users',
       search: {
+        tab: listSearch.tab,
         q: next.q || undefined,
         size: next.size === DEFAULT_PAGE_SIZE ? undefined : next.size,
       },
       replace,
     })
     setSelectedIds([])
+  }
+
+  function selectTab(next: UsersTab) {
+    navigate({
+      to: '/admin/users',
+      search: { ...listSearch, tab: next === 'users' ? undefined : next },
+    })
   }
 
   function movePage(move: () => void) {
@@ -169,16 +183,18 @@ export function UsersPage() {
         title={t('admin.users.title')}
         actions={
           <>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={t('admin.users.searchPlaceholder')}
-                value={searchText}
-                onChange={(event) => setSearchText(event.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Button onClick={() => setInviteDialogOpen(true)}>
+            {tab === 'users' && (
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={t('admin.users.searchPlaceholder')}
+                  value={searchText}
+                  onChange={(event) => setSearchText(event.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            )}
+            <Button onClick={() => setInviteDrawerOpen(true)}>
               <UserPlus />
               {t('admin.users.inviteUser')}
             </Button>
@@ -186,105 +202,120 @@ export function UsersPage() {
         }
       />
 
-      {selectedCount > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2">
-          <span className="text-sm font-medium">{t('admin.users.selectedCount', { count: selectedCount })}</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={batchPending}
-              onClick={() => batchStatusMutation.mutate({ ids: selectedIds, banned: true })}
-            >
-              <UserX />
-              {t('admin.users.batchDisable')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={batchPending}
-              onClick={() => batchStatusMutation.mutate({ ids: selectedIds, banned: false })}
-            >
-              <UserCheck />
-              {t('admin.users.batchEnable')}
-            </Button>
-            <Button variant="destructive" size="sm" disabled={batchPending} onClick={handleBatchDelete}>
-              <Trash2 />
-              {t('admin.users.batchDelete')}
-            </Button>
+      <Tabs value={tab} onValueChange={(value) => selectTab(value as UsersTab)} className="gap-4">
+        <TabsList>
+          <TabsTrigger value="users">{t('admin.users.tabUsers')}</TabsTrigger>
+          <TabsTrigger value="invitations">{t('admin.users.tabInvitations')}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="space-y-4">
+          {selectedCount > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2">
+              <span className="text-sm font-medium">{t('admin.users.selectedCount', { count: selectedCount })}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={batchPending}
+                  onClick={() => batchStatusMutation.mutate({ ids: selectedIds, banned: true })}
+                >
+                  <UserX />
+                  {t('admin.users.batchDisable')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={batchPending}
+                  onClick={() => batchStatusMutation.mutate({ ids: selectedIds, banned: false })}
+                >
+                  <UserCheck />
+                  {t('admin.users.batchEnable')}
+                </Button>
+                <Button variant="destructive" size="sm" disabled={batchPending} onClick={handleBatchDelete}>
+                  <Trash2 />
+                  {t('admin.users.batchDelete')}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-hidden rounded-md border">
+            <table className="w-full table-fixed text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="w-[10%] px-4 py-3 text-left font-medium sm:w-[4%]">
+                    <Checkbox
+                      aria-label={t('admin.users.selectPage')}
+                      checked={allPageSelected}
+                      onCheckedChange={(checked) => togglePageSelection(checked === true)}
+                    />
+                  </th>
+                  <th className="w-[38%] px-4 py-3 text-left font-medium sm:w-[21%]">{t('admin.users.colName')}</th>
+                  <th className="hidden w-[23%] px-4 py-3 text-left font-medium sm:table-cell">
+                    {t('admin.users.colEmail')}
+                  </th>
+                  <th className="w-[18%] px-4 py-3 text-left font-medium sm:w-[9%]">{t('admin.users.colRole')}</th>
+                  <th className="w-[18%] px-4 py-3 text-left font-medium sm:w-[10%]">{t('admin.users.colStatus')}</th>
+                  <th className="hidden w-[14%] px-4 py-3 text-left font-medium md:table-cell">
+                    {t('admin.users.colQuota')}
+                  </th>
+                  <th className="hidden w-[11%] truncate px-4 py-3 text-left font-medium lg:table-cell">
+                    {t('admin.users.colCreatedAt')}
+                  </th>
+                  <th className="w-[16%] px-4 py-3 text-right font-medium sm:w-[8%]">{t('admin.users.colActions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((user) => (
+                  <UserTableRow
+                    key={user.id}
+                    user={user}
+                    selected={selectedIds.includes(user.id)}
+                    isToggling={toggleStatusMutation.isPending}
+                    showQuota
+                    onSelect={(checked) => toggleUserSelection(user.id, checked)}
+                    onOpenUser={() => navigate({ to: '/admin/users/$userId', params: { userId: user.id } })}
+                    onToggleStatus={() => toggleStatusMutation.mutate({ userId: user.id, banned: !user.banned })}
+                    onDelete={() =>
+                      setDeleteDialogUser({ id: user.id, name: user.name || user.username || user.email })
+                    }
+                  />
+                ))}
+                {isUsersLoading ? (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                      <div role="status" aria-live="polite">
+                        {t('common.loading')}
+                      </div>
+                    </td>
+                  </tr>
+                ) : users.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                      {t('admin.users.noUsers')}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </div>
-        </div>
-      )}
 
-      <div className="overflow-hidden rounded-md border">
-        <table className="w-full table-fixed text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="w-[10%] px-4 py-3 text-left font-medium sm:w-[4%]">
-                <Checkbox
-                  aria-label={t('admin.users.selectPage')}
-                  checked={allPageSelected}
-                  onCheckedChange={(checked) => togglePageSelection(checked === true)}
-                />
-              </th>
-              <th className="w-[38%] px-4 py-3 text-left font-medium sm:w-[21%]">{t('admin.users.colName')}</th>
-              <th className="hidden w-[23%] px-4 py-3 text-left font-medium sm:table-cell">
-                {t('admin.users.colEmail')}
-              </th>
-              <th className="w-[18%] px-4 py-3 text-left font-medium sm:w-[9%]">{t('admin.users.colRole')}</th>
-              <th className="w-[18%] px-4 py-3 text-left font-medium sm:w-[10%]">{t('admin.users.colStatus')}</th>
-              <th className="hidden w-[14%] px-4 py-3 text-left font-medium md:table-cell">
-                {t('admin.users.colQuota')}
-              </th>
-              <th className="hidden w-[11%] truncate px-4 py-3 text-left font-medium lg:table-cell">
-                {t('admin.users.colCreatedAt')}
-              </th>
-              <th className="w-[16%] px-4 py-3 text-right font-medium sm:w-[8%]">{t('admin.users.colActions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <UserTableRow
-                key={user.id}
-                user={user}
-                selected={selectedIds.includes(user.id)}
-                isToggling={toggleStatusMutation.isPending}
-                showQuota
-                onSelect={(checked) => toggleUserSelection(user.id, checked)}
-                onOpenUser={() => navigate({ to: '/admin/users/$userId', params: { userId: user.id } })}
-                onToggleStatus={() => toggleStatusMutation.mutate({ userId: user.id, banned: !user.banned })}
-                onDelete={() => setDeleteDialogUser({ id: user.id, name: user.name || user.username || user.email })}
-              />
-            ))}
-            {isUsersLoading ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                  <div role="status" aria-live="polite">
-                    {t('common.loading')}
-                  </div>
-                </td>
-              </tr>
-            ) : users.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                  {t('admin.users.noUsers')}
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+          <CursorPagination
+            pageSize={pageSize}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            hasPrevious={pager.hasPrevious}
+            nextPageToken={usersQuery.data?.nextPageToken}
+            disabled={usersQuery.isFetching}
+            onPageSizeChange={(size) => updateListSearch({ q: search, size })}
+            onPrevious={() => movePage(pager.previous)}
+            onNext={(token) => movePage(() => pager.next(token))}
+          />
+        </TabsContent>
 
-      <CursorPagination
-        pageSize={pageSize}
-        pageSizeOptions={PAGE_SIZE_OPTIONS}
-        hasPrevious={pager.hasPrevious}
-        nextPageToken={usersQuery.data?.nextPageToken}
-        disabled={usersQuery.isFetching}
-        onPageSizeChange={(size) => updateListSearch({ q: search, size })}
-        onPrevious={() => movePage(pager.previous)}
-        onNext={(token) => movePage(() => pager.next(token))}
-      />
+        <TabsContent value="invitations">
+          <SiteInvitationsList />
+        </TabsContent>
+      </Tabs>
 
       <DeleteUserDialog
         open={deleteDialogUser !== null}
@@ -317,7 +348,11 @@ export function UsersPage() {
         </DialogContent>
       </Dialog>
 
-      <SiteInvitationsDrawer open={inviteDialogOpen} onOpenChange={setInviteDialogOpen} />
+      <InviteUserDrawer
+        open={inviteDrawerOpen}
+        onOpenChange={setInviteDrawerOpen}
+        onInvited={() => selectTab('invitations')}
+      />
     </div>
   )
 }
