@@ -1,3 +1,4 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 import { DirType } from '@shared/constants'
 import type {
   DownloadTask,
@@ -48,7 +49,6 @@ import {
   XCircle,
 } from 'lucide-react'
 import {
-  type FormEvent,
   type KeyboardEvent,
   type DragEvent as ReactDragEvent,
   type ReactNode,
@@ -58,6 +58,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -180,12 +181,6 @@ const DETAIL_TABS: Array<{ id: DetailTab; labelKey: string; icon: ReactNode }> =
 export function DownloadsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [sourceType, setSourceType] = useState<'http' | 'magnet' | 'torrent_url'>('http')
-  const [uri, setUri] = useState('')
-  const [targetFolder, setTargetFolder] = useState('')
-  const [name, setName] = useState('')
-  const [category, setCategory] = useState('')
-  const [tagsInput, setTagsInput] = useState('')
   const navigate = useNavigate()
   const filters = useSearch({ from: '/_authenticated/downloads/' })
   const [createOpen, setCreateOpen] = useState(false)
@@ -298,21 +293,6 @@ export function DownloadsPage() {
     }
   }, [panelDrag])
 
-  const createMutation = useMutation({
-    mutationFn: createDownloadTask,
-    onSuccess: () => {
-      setUri('')
-      setName('')
-      setTargetFolder('')
-      setCategory('')
-      setTagsInput('')
-      setCreateOpen(false)
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-      toast.success(t('downloads.createSuccess'))
-    },
-    onError: (err) => toast.error(err.message),
-  })
-
   const actionMutation = useMutation({
     mutationFn: async ({ tasks, action }: { tasks: DownloadTaskListItem[]; action: DownloadTaskAction }) => {
       const actionable = tasks.filter((task) => taskActions(task).includes(action))
@@ -326,17 +306,6 @@ export function DownloadsPage() {
     },
     onError: (err) => toast.error(err.message),
   })
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    createMutation.mutate({
-      source: { type: sourceType, uri: uri.trim() },
-      targetFolder: targetFolder.trim(),
-      name: name.trim() || undefined,
-      category: category.trim() || undefined,
-      tags: parseTagsInput(tagsInput),
-    })
-  }
 
   function handleTaskAction(task: DownloadTaskListItem, action: DownloadTaskAction) {
     requestTaskAction({ tasks: [task], action })
@@ -464,107 +433,7 @@ export function DownloadsPage() {
         }
       />
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{t('downloads.createTitle')}</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="download-source-type">{t('downloads.sourceType')}</Label>
-              <ToggleGroup
-                id="download-source-type"
-                type="single"
-                variant="outline"
-                value={sourceType}
-                onValueChange={(value) => value && setSourceType(value as typeof sourceType)}
-                className="grid w-full grid-cols-3"
-              >
-                <ToggleGroupItem value="http" className="h-14 flex-col gap-1 px-2">
-                  <LinkIcon className="size-4" />
-                  <span className="text-xs">{t('downloads.sourceTypes.http')}</span>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="magnet" className="h-14 flex-col gap-1 px-2">
-                  <Magnet className="size-4" />
-                  <span className="text-xs">{t('downloads.sourceTypes.magnet')}</span>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="torrent_url" className="h-14 flex-col gap-1 px-2">
-                  <FileDown className="size-4" />
-                  <span className="text-xs">{t('downloads.sourceTypes.torrentUrl')}</span>
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="download-uri">{t('downloads.uri')}</Label>
-              <Textarea
-                id="download-uri"
-                value={uri}
-                onChange={(event) => setUri(event.target.value)}
-                placeholder={t('downloads.uriPlaceholder')}
-                className="min-h-28 resize-y font-mono text-sm"
-                required
-              />
-            </div>
-
-            <div className="grid gap-4 rounded-md border bg-muted/30 p-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="download-target" className="flex items-center gap-2">
-                  <FolderInput className="size-4 text-muted-foreground" />
-                  {t('downloads.targetFolder')}
-                </Label>
-                <FolderPicker value={targetFolder} onChange={setTargetFolder} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="download-name" className="flex items-center gap-2">
-                  <FileDown className="size-4 text-muted-foreground" />
-                  {t('downloads.name')}
-                </Label>
-                <Input
-                  id="download-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder={t('downloads.namePlaceholder')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="download-category" className="flex items-center gap-2">
-                  <Tag className="size-4 text-muted-foreground" />
-                  {t('downloads.category')}
-                </Label>
-                <Input
-                  id="download-category"
-                  value={category}
-                  onChange={(event) => setCategory(event.target.value)}
-                  placeholder={t('downloads.categoryPlaceholder')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="download-tags" className="flex items-center gap-2">
-                  <Tag className="size-4 text-muted-foreground" />
-                  {t('downloads.tags')}
-                </Label>
-                <Input
-                  id="download-tags"
-                  value={tagsInput}
-                  onChange={(event) => setTagsInput(event.target.value)}
-                  placeholder={t('downloads.tagsPlaceholder')}
-                />
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                {t('common.cancel')}
-              </Button>
-              <Button type="submit" disabled={createMutation.isPending || !uri.trim()}>
-                <Plus className="size-4" />
-                {t('downloads.start')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <CreateDownloadTaskDialog open={createOpen} onOpenChange={setCreateOpen} />
 
       <Dialog open={!!pendingTaskAction} onOpenChange={(open) => !open && setPendingTaskAction(null)}>
         <DialogContent className="sm:max-w-md">
@@ -2107,4 +1976,201 @@ function formatDuration(seconds: number | null | undefined) {
   if (minutes < 60) return `${minutes}m ${seconds % 60}s`
   const hours = Math.floor(minutes / 60)
   return `${hours}h ${minutes % 60}m`
+}
+
+type DownloadSourceType = 'http' | 'magnet' | 'torrent_url'
+
+function createDownloadTaskFormSchema(t: (key: string) => string) {
+  return z
+    .object({
+      sourceType: z.enum(['http', 'magnet', 'torrent_url']),
+      uri: z.string().trim().min(1, t('downloads.uriRequired')),
+      targetFolder: z.string(),
+      name: z.string(),
+      category: z.string(),
+      tags: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      if (!values.uri) return
+      if (values.sourceType === 'magnet') {
+        if (!/^magnet:\?/i.test(values.uri)) {
+          ctx.addIssue({ code: 'custom', path: ['uri'], message: t('downloads.uriMagnetInvalid') })
+        }
+        return
+      }
+      if (!isHttpUrl(values.uri)) {
+        ctx.addIssue({ code: 'custom', path: ['uri'], message: t('downloads.uriUrlInvalid') })
+      }
+    })
+}
+
+type CreateDownloadTaskFormValues = z.infer<ReturnType<typeof createDownloadTaskFormSchema>>
+
+const EMPTY_CREATE_DOWNLOAD_TASK_FORM: CreateDownloadTaskFormValues = {
+  sourceType: 'http',
+  uri: '',
+  targetFolder: '',
+  name: '',
+  category: '',
+  tags: '',
+}
+
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function CreateDownloadTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const form = useForm<CreateDownloadTaskFormValues>({
+    resolver: zodResolver(createDownloadTaskFormSchema(t)),
+    defaultValues: EMPTY_CREATE_DOWNLOAD_TASK_FORM,
+  })
+  const sourceType = form.watch('sourceType')
+  const targetFolder = form.watch('targetFolder')
+  const uriError = form.formState.errors.uri?.message
+
+  const createMutation = useMutation({
+    mutationFn: createDownloadTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      toast.success(t('downloads.createSuccess'))
+      handleOpenChange(false)
+    },
+  })
+
+  function handleOpenChange(nextOpen: boolean) {
+    onOpenChange(nextOpen)
+    if (!nextOpen) {
+      form.reset(EMPTY_CREATE_DOWNLOAD_TASK_FORM)
+      createMutation.reset()
+    }
+  }
+
+  const handleSubmit = form.handleSubmit((values) => {
+    createMutation.mutate({
+      source: { type: values.sourceType, uri: values.uri },
+      targetFolder: values.targetFolder.trim(),
+      name: values.name.trim() || undefined,
+      category: values.category.trim() || undefined,
+      tags: parseTagsInput(values.tags),
+    })
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{t('downloads.createTitle')}</DialogTitle>
+        </DialogHeader>
+        <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+          <div className="space-y-2">
+            <Label htmlFor="download-source-type">{t('downloads.sourceType')}</Label>
+            <ToggleGroup
+              id="download-source-type"
+              type="single"
+              variant="outline"
+              value={sourceType}
+              onValueChange={(value) => {
+                if (!value) return
+                form.setValue('sourceType', value as DownloadSourceType, { shouldDirty: true })
+                if (form.formState.isSubmitted) void form.trigger('uri')
+              }}
+              className="grid w-full grid-cols-3"
+            >
+              <ToggleGroupItem value="http" className="h-14 flex-col gap-1 px-2">
+                <LinkIcon className="size-4" />
+                <span className="text-xs">{t('downloads.sourceTypes.http')}</span>
+              </ToggleGroupItem>
+              <ToggleGroupItem value="magnet" className="h-14 flex-col gap-1 px-2">
+                <Magnet className="size-4" />
+                <span className="text-xs">{t('downloads.sourceTypes.magnet')}</span>
+              </ToggleGroupItem>
+              <ToggleGroupItem value="torrent_url" className="h-14 flex-col gap-1 px-2">
+                <FileDown className="size-4" />
+                <span className="text-xs">{t('downloads.sourceTypes.torrentUrl')}</span>
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="download-uri">{t('downloads.uri')}</Label>
+            <Textarea
+              id="download-uri"
+              {...form.register('uri')}
+              placeholder={t('downloads.uriPlaceholder')}
+              className="min-h-28 resize-y font-mono text-sm"
+              aria-invalid={uriError ? true : undefined}
+              aria-describedby={uriError ? 'download-uri-error' : undefined}
+              aria-required
+            />
+            {uriError && (
+              <p id="download-uri-error" className="text-xs text-destructive">
+                {uriError}
+              </p>
+            )}
+          </div>
+
+          <div className="grid gap-4 rounded-md border bg-muted/30 p-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="download-target" className="flex items-center gap-2">
+                <FolderInput className="size-4 text-muted-foreground" />
+                {t('downloads.targetFolder')}
+              </Label>
+              <FolderPicker
+                value={targetFolder}
+                onChange={(path) => form.setValue('targetFolder', path, { shouldDirty: true })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="download-name" className="flex items-center gap-2">
+                <FileDown className="size-4 text-muted-foreground" />
+                {t('downloads.name')}
+              </Label>
+              <Input id="download-name" {...form.register('name')} placeholder={t('downloads.namePlaceholder')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="download-category" className="flex items-center gap-2">
+                <Tag className="size-4 text-muted-foreground" />
+                {t('downloads.category')}
+              </Label>
+              <Input
+                id="download-category"
+                {...form.register('category')}
+                placeholder={t('downloads.categoryPlaceholder')}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="download-tags" className="flex items-center gap-2">
+                <Tag className="size-4 text-muted-foreground" />
+                {t('downloads.tags')}
+              </Label>
+              <Input id="download-tags" {...form.register('tags')} placeholder={t('downloads.tagsPlaceholder')} />
+            </div>
+          </div>
+
+          {createMutation.error && (
+            <p role="alert" className="text-sm text-destructive">
+              {createMutation.error.message}
+            </p>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" disabled={createMutation.isPending || !form.formState.isDirty}>
+              <Plus className="size-4" />
+              {createMutation.isPending ? t('common.loading') : t('downloads.start')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
 }

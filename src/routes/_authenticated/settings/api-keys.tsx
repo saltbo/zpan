@@ -1,9 +1,12 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Copy, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { z } from 'zod'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -74,7 +77,25 @@ function CopyButton({ value }: { value: string }) {
   )
 }
 
-function CreateApiKeyDialog({
+function createApiKeyFormSchema(t: (key: string) => string) {
+  return z
+    .object({
+      kind: z.enum(['ihost', 'webdav', 'remote-download']),
+      name: z.string().trim().min(1, t('settings.apiKeys.nameRequired')),
+      orgId: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      if (values.kind !== 'webdav' && !values.orgId) {
+        ctx.addIssue({ code: 'custom', path: ['orgId'], message: t('settings.apiKeys.orgRequired') })
+      }
+    })
+}
+
+type CreateApiKeyFormValues = z.infer<ReturnType<typeof createApiKeyFormSchema>>
+
+const EMPTY_CREATE_API_KEY_FORM: CreateApiKeyFormValues = { kind: 'ihost', name: '', orgId: '' }
+
+export function CreateApiKeyDialog({
   open,
   organizations,
   onOpenChange,
@@ -87,49 +108,60 @@ function CreateApiKeyDialog({
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [kind, setKind] = useState<ApiKeyKind>('ihost')
-  const [name, setName] = useState('')
-  const [orgId, setOrgId] = useState('')
+  const form = useForm<CreateApiKeyFormValues>({
+    resolver: zodResolver(createApiKeyFormSchema(t)),
+    defaultValues: EMPTY_CREATE_API_KEY_FORM,
+  })
+  const kind = form.watch('kind')
+  const orgId = form.watch('orgId')
+  const nameError = form.formState.errors.name?.message
+  const orgError = form.formState.errors.orgId?.message
 
   const createMutation = useMutation({
-    mutationFn: async () => {
-      const trimmedName = name.trim()
-      if (kind === 'webdav') {
-        return createWebDavAppPassword(trimmedName)
+    mutationFn: async (values: CreateApiKeyFormValues) => {
+      if (values.kind === 'webdav') {
+        return createWebDavAppPassword(values.name)
       }
-      if (!orgId) {
-        throw new Error(t('settings.apiKeys.orgRequired'))
+      if (values.kind === 'ihost') {
+        return createIhostApiKey(values.orgId, values.name)
       }
-      if (kind === 'ihost') {
-        return createIhostApiKey(orgId, trimmedName)
-      }
-      return createRemoteDownloadApiKey(orgId, trimmedName)
+      return createRemoteDownloadApiKey(values.orgId, values.name)
     },
-    onSuccess: (result) => {
+    onSuccess: (result, values) => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] })
-      onCreated({ name: result.name ?? name.trim(), key: result.key })
-      setName('')
-      setKind('ihost')
-      setOrgId('')
-      onOpenChange(false)
+      onCreated({ name: result.name ?? values.name, key: result.key })
+      handleOpenChange(false)
       toast.success(t('settings.apiKeys.createSuccess'))
     },
-    onError: (err) => toast.error(err.message),
   })
+
+  function handleOpenChange(nextOpen: boolean) {
+    onOpenChange(nextOpen)
+    if (!nextOpen) {
+      form.reset(EMPTY_CREATE_API_KEY_FORM)
+      createMutation.reset()
+    }
+  }
 
   const needsOrg = kind !== 'webdav'
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('settings.apiKeys.createTitle')}</DialogTitle>
           <DialogDescription>{t('settings.apiKeys.createDescription')}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <form className="space-y-4" onSubmit={form.handleSubmit((values) => createMutation.mutate(values))} noValidate>
           <div className="space-y-2">
             <Label htmlFor="api-key-kind">{t('settings.apiKeys.typeLabel')}</Label>
-            <Select value={kind} onValueChange={(value) => setKind(value as ApiKeyKind)}>
+            <Select
+              value={kind}
+              onValueChange={(value) => {
+                form.setValue('kind', value as ApiKeyKind, { shouldDirty: true })
+                if (form.formState.isSubmitted) void form.trigger('orgId')
+              }}
+            >
               <SelectTrigger id="api-key-kind" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -144,16 +176,32 @@ function CreateApiKeyDialog({
             <Label htmlFor="api-key-name">{t('settings.apiKeys.nameLabel')}</Label>
             <Input
               id="api-key-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
+              {...form.register('name')}
               placeholder={t('settings.apiKeys.namePlaceholder')}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError ? 'api-key-name-error' : undefined}
+              aria-required
             />
+            {nameError && (
+              <p id="api-key-name-error" className="text-xs text-destructive">
+                {nameError}
+              </p>
+            )}
           </div>
           {needsOrg ? (
             <div className="space-y-2">
               <Label htmlFor="api-key-workspace">{t('settings.apiKeys.scopeLabel')}</Label>
-              <Select value={orgId} onValueChange={setOrgId}>
-                <SelectTrigger id="api-key-workspace" className="w-full">
+              <Select
+                value={orgId}
+                onValueChange={(value) => form.setValue('orgId', value, { shouldDirty: true, shouldValidate: true })}
+              >
+                <SelectTrigger
+                  id="api-key-workspace"
+                  className="w-full"
+                  aria-invalid={orgError ? true : undefined}
+                  aria-describedby={orgError ? 'api-key-workspace-error' : undefined}
+                  aria-required
+                >
                   <SelectValue placeholder={t('settings.apiKeys.scopePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -164,22 +212,28 @@ function CreateApiKeyDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {orgError && (
+                <p id="api-key-workspace-error" className="text-xs text-destructive">
+                  {orgError}
+                </p>
+              )}
             </div>
           ) : null}
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            type="button"
-            disabled={!name.trim() || createMutation.isPending || (needsOrg && !orgId)}
-            onClick={() => createMutation.mutate()}
-          >
-            <Plus className="size-4" />
-            {createMutation.isPending ? t('common.loading') : t('settings.apiKeys.create')}
-          </Button>
-        </DialogFooter>
+          {createMutation.error && (
+            <p role="alert" className="text-sm text-destructive">
+              {createMutation.error.message}
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" disabled={createMutation.isPending || !form.formState.isDirty}>
+              <Plus className="size-4" />
+              {createMutation.isPending ? t('common.loading') : t('settings.apiKeys.create')}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

@@ -19,7 +19,7 @@ import { Alert, AlertDescription } from '../ui/alert'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 
-interface SiteInvitationsDialogProps {
+interface SiteInvitationsDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -48,7 +48,7 @@ function StatusBadge({ status }: { status: 'pending' | 'accepted' | 'expired' | 
   )
 }
 
-export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDialogProps) {
+export function SiteInvitationsDrawer({ open, onOpenChange }: SiteInvitationsDrawerProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { copy } = useClipboard()
@@ -133,7 +133,7 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
         width="extra-wide"
         title={t('admin.users.inviteDialogTitle')}
         description={t('admin.users.inviteDialogDescription', { count: pendingCount })}
-        bodyClassName="space-y-6"
+        bodyClassName="grid auto-rows-min content-start gap-4"
         footer={
           <div className="w-full">
             <CursorPagination

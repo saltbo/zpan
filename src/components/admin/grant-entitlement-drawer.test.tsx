@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { grantUserEntitlement, updateOrgEntitlement } from '@/lib/api'
-import { GrantEntitlementDialog } from './grant-entitlement-dialog'
+import { GrantEntitlementDrawer } from './grant-entitlement-drawer'
 
 class TestResizeObserver {
   observe() {}
@@ -33,7 +33,7 @@ vi.mock('@/lib/api', () => ({
   updateUserEntitlement: vi.fn(),
 }))
 
-function renderGrantEntitlementDialog(props: Partial<Parameters<typeof GrantEntitlementDialog>[0]> = {}) {
+function renderGrantEntitlementDrawer(props: Partial<Parameters<typeof GrantEntitlementDrawer>[0]> = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -45,7 +45,7 @@ function renderGrantEntitlementDialog(props: Partial<Parameters<typeof GrantEnti
 
   render(
     <QueryClientProvider client={queryClient}>
-      <GrantEntitlementDialog
+      <GrantEntitlementDrawer
         open
         onOpenChange={onOpenChange}
         target={{ kind: 'user', id: 'user-1', name: 'Ava' }}
@@ -67,10 +67,10 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('GrantEntitlementDialog', () => {
+describe('GrantEntitlementDrawer', () => {
   it('grants user storage quota and invalidates user admin queries', async () => {
     vi.mocked(grantUserEntitlement).mockResolvedValue({} as Awaited<ReturnType<typeof grantUserEntitlement>>)
-    const { invalidateQueries, onOpenChange } = renderGrantEntitlementDialog()
+    const { invalidateQueries, onOpenChange } = renderGrantEntitlementDrawer()
 
     fireEvent.change(screen.getByLabelText('admin.entitlement.amount'), { target: { value: '5' } })
     fireEvent.click(screen.getByRole('button', { name: 'admin.entitlement.grant' }))
@@ -91,7 +91,7 @@ describe('GrantEntitlementDialog', () => {
 
   it('prefills and updates a team entitlement from editable metadata', async () => {
     vi.mocked(updateOrgEntitlement).mockResolvedValue({} as Awaited<ReturnType<typeof updateOrgEntitlement>>)
-    const { invalidateQueries } = renderGrantEntitlementDialog({
+    const { invalidateQueries } = renderGrantEntitlementDrawer({
       target: { kind: 'team', orgId: 'team-1', name: 'Core Team' },
       entitlement: {
         id: 'entitlement-1',

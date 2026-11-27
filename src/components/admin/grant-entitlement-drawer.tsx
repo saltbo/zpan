@@ -22,7 +22,7 @@ export type EntitlementTarget =
   | { kind: 'user'; id: string; name: string }
   | { kind: 'team'; orgId: string; name: string }
 
-interface GrantEntitlementDialogProps {
+interface GrantEntitlementDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   target: EntitlementTarget | null
@@ -88,7 +88,7 @@ function readNote(metadata: string | null): string {
   }
 }
 
-export function GrantEntitlementDialog({ open, onOpenChange, target, entitlement }: GrantEntitlementDialogProps) {
+export function GrantEntitlementDrawer({ open, onOpenChange, target, entitlement }: GrantEntitlementDrawerProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isEdit = !!entitlement
@@ -152,7 +152,7 @@ export function GrantEntitlementDialog({ open, onOpenChange, target, entitlement
           : t('admin.entitlement.grantFor', { name: target.name })
       }
       description={isEdit ? t('admin.entitlement.editDescription') : t('admin.entitlement.grantDescription')}
-      bodyClassName="grid gap-4"
+      bodyClassName="grid auto-rows-min content-start gap-4"
       formProps={{
         onSubmit: (event) => {
           event.preventDefault()
