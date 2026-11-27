@@ -28,3 +28,11 @@ Feature: Form errors
     Then the email field shows its error under it and no invite is sent
     When the server rejects the invite
     Then its reason appears above the send button
+
+  @form-errors/admin-drawer @web
+  Scenario: An admin form shows a value the server rejects under that value's field
+    Given an admin opens a settings drawer, such as the image custom-domain provider
+    When they save a value the server rejects, such as a CNAME record whose value is not a hostname
+    Then the server's message appears under that field and the drawer stays open
+    When the server rejects the save for a reason that names no field in the form
+    Then its reason appears above the save button
