@@ -77,7 +77,7 @@ Operator-grade features for running ZPan as a service (internally at a company, 
 - White-label (logo / favicon / wordmark / custom branding)
 - Audit logs
 - Higher included limits for team workspaces, storage backends, social / OIDC providers, and downloaders
-- Torrent cache with instant transfer, and a StremThru-compatible Debrid API for Stremio addons, for self-hosted instances only ([design](docs/design/torrent-cache.md))
+- Torrents with instant transfer, and a StremThru-compatible Debrid API for Stremio addons, for self-hosted instances only ([design](docs/design/torrents.md))
 
 ### ZPan Business (paid license)
 
