@@ -35,10 +35,7 @@ export async function duplicateMatterObject(
   },
 ): Promise<{ key: string; chargedStorageId: string | null }> {
   const { sourceStorage, sourceKey, targetStorage } = params
-  if (isTorrentCacheKey(sourceKey)) {
-    if (sourceStorage.id !== targetStorage.id) {
-      throw conflict('Cached torrent files cannot leave their storage', 'TORRENT_CACHE_STORAGE_FIXED')
-    }
+  if (isTorrentCacheReference(sourceKey, sourceStorage.id, targetStorage.id)) {
     return { key: sourceKey, chargedStorageId: null }
   }
   const key = buildObjectKey({ uid: params.uid, orgId: params.orgId, rawExt: fileExt(params.name) })
@@ -48,6 +45,12 @@ export async function duplicateMatterObject(
     await s3.streamCopy(sourceStorage, sourceKey, targetStorage, key)
   }
   return { key, chargedStorageId: targetStorage.id }
+}
+
+// A copy of a cached file stays a reference only inside the torrent's storage;
+// a copy into another storage gets its own bytes like any other file.
+export function isTorrentCacheReference(sourceKey: string, sourceStorageId: string, targetStorageId: string): boolean {
+  return isTorrentCacheKey(sourceKey) && sourceStorageId === targetStorageId
 }
 
 // The storage a file's bytes are charged to when another row holds its object.

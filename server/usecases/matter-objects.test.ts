@@ -49,12 +49,17 @@ describe('duplicateMatterObject', () => {
     expect(s3.copyObject).not.toHaveBeenCalled()
   })
 
-  it('refuses to move a cached object to another storage', async () => {
+  it('gives a copy of a cached object into another storage its own bytes', async () => {
     const s3 = fakeS3()
-    await expect(
-      duplicateMatterObject(s3, { ...params, sourceStorage: storageA, sourceKey: 'bt/ab/0', targetStorage: storageB }),
-    ).rejects.toMatchObject({ httpStatus: 409 })
-    expect(s3.streamCopy).not.toHaveBeenCalled()
+    const result = await duplicateMatterObject(s3, {
+      ...params,
+      sourceStorage: storageA,
+      sourceKey: 'bt/ab/0',
+      targetStorage: storageB,
+    })
+    expect(s3.streamCopy).toHaveBeenCalledWith(storageA, 'bt/ab/0', storageB, result.key)
+    expect(result.key.startsWith('bt/')).toBe(false)
+    expect(result.chargedStorageId).toBe('b')
   })
 
   it('copies owned objects within a storage and streams them across storages', async () => {

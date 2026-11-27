@@ -26,7 +26,13 @@ import { resolveActorProfiles } from './audit-actors'
 import type { Deps } from './deps'
 import { assertFolderNotUsedByDownload, ensureDownloadFolderPath } from './downloads/download-folders'
 import { assertTaskUploadAllowed } from './downloads/downloads'
-import { chargedStorageId, duplicateMatterObject, releaseMatterObject, releaseMatterObjects } from './matter-objects'
+import {
+  chargedStorageId,
+  duplicateMatterObject,
+  isTorrentCacheReference,
+  releaseMatterObject,
+  releaseMatterObjects,
+} from './matter-objects'
 import {
   type ActorIdentity,
   type AppError,
@@ -1233,7 +1239,9 @@ async function saveFile(
     { quota: deps.quota, storageUsage: deps.storageUsage },
     {
       orgId: targetOrgId,
-      storageId: chargedStorageId({ object: sourceMatter.object, storageId: targetStorage.id }),
+      storageId: isTorrentCacheReference(sourceMatter.object, sourceStorage.id, targetStorage.id)
+        ? null
+        : targetStorage.id,
       bytes,
       teamQuotaEnabled,
     },
