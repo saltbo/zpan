@@ -2,7 +2,6 @@ package mediascrape
 
 import "testing"
 
-// The cases of server/domain/tmdb.test.ts, so both matchers agree.
 // [spec: download-scraping/match-rules]
 
 func TestNormalizeTitle(t *testing.T) {
@@ -99,6 +98,55 @@ func TestChooseMatchSequelNumbers(t *testing.T) {
 		if _, ok := ChooseMatch(tc.title, 0, []SearchHit{hit(1, tc.candidate, 0)}); ok != tc.matches {
 			t.Errorf("ChooseMatch(%q, %q) matched = %v, want %v", tc.title, tc.candidate, ok, tc.matches)
 		}
+	}
+}
+
+func ranked(h SearchHit, popularity float64, votes int) SearchHit {
+	h.Popularity, h.VoteCount = popularity, votes
+	return h
+}
+
+// Popularity and votes are TMDB's for these titles on 2026-11-27.
+// [spec: download-scraping/yearless-match]
+func TestChooseYearlessMatch(t *testing.T) {
+	cases := []struct {
+		label string
+		title string
+		hits  []SearchHit
+		want  int
+	}{
+		{"the only well-known result", "Sintel", []SearchHit{ranked(hit(45745, "寻龙记", 2010, "Sintel"), 2.05, 183)}, 45745},
+		{"a clear lead over a namesake", "Avatar", []SearchHit{
+			ranked(hit(1544429, "Avatar", 1964), 0.40, 0),
+			ranked(hit(19995, "Avatar", 2009), 31.77, 35097),
+			ranked(hit(216527, "Avatar 4", 2029), 3.52, 0),
+		}, 19995},
+		{"dissimilar results do not compete", "Inception", []SearchHit{
+			ranked(hit(27205, "Inception", 2010), 50.12, 40847),
+			ranked(hit(64956, "Inception: The Cobol Job", 2010), 1.71, 322),
+		}, 27205},
+		{"nothing for a remake and its original", "Dune", []SearchHit{
+			ranked(hit(438631, "Dune", 2021), 45.50, 16051),
+			ranked(hit(841, "Dune", 1984), 12.88, 3639),
+		}, 0},
+		{"nothing for an obscure film", "Birthday", []SearchHit{ranked(hit(574297, "Birthday", 2019), 1.29, 27)}, 0},
+		{"nothing when the most popular title is not exact", "Inception", []SearchHit{
+			ranked(hit(1, "Inceptions", 2001), 40, 5000),
+			ranked(hit(2, "Inception", 2005), 1, 200),
+		}, 0},
+		{"nothing for no results", "Sintel", nil, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.label, func(t *testing.T) {
+			got, ok := ChooseYearlessMatch(tc.title, tc.hits)
+			id := 0
+			if ok {
+				id = got.ID
+			}
+			if id != tc.want {
+				t.Fatalf("ChooseYearlessMatch = %d, want %d", id, tc.want)
+			}
+		})
 	}
 }
 
