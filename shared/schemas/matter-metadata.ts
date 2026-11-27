@@ -42,8 +42,8 @@ export const tvShowMediaMetadataSchema = z
     year: yearSchema.optional(),
     overview: textSchema.optional(),
     genres: genresSchema.optional(),
-    poster: opaqueIdSchema.optional(),
-    fanart: opaqueIdSchema.optional(),
+    poster: opaqueIdSchema.optional().describe('Matter id of the poster image.'),
+    fanart: opaqueIdSchema.optional().describe('Matter id of the fanart image.'),
   })
   .strict()
   .openapi('TvShowMediaMetadata')
@@ -73,6 +73,8 @@ export const mediaMetadataSchema = z
 
 export type MediaMetadata = z.infer<typeof mediaMetadataSchema>
 export type MovieMediaMetadata = z.infer<typeof movieMediaMetadataSchema>
+export type TvShowMediaMetadata = z.infer<typeof tvShowMediaMetadataSchema>
+export type EpisodeMediaMetadata = z.infer<typeof episodeMediaMetadataSchema>
 
 // What the `metadata` column holds.
 export const matterMetadataSchema = z.object({ media: mediaMetadataSchema.optional() })

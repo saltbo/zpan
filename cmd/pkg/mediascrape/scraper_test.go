@@ -22,8 +22,13 @@ type fakeTMDB struct {
 	searches []string
 	movies   map[int]map[string]any
 	search   func(query, year, language string) []map[string]any
-	status   int
-	limited  int
+	// shows by id; seasons by "<show id>/<season>/<language>", falling back to "<show id>/<season>".
+	shows      map[int]map[string]any
+	seasons    map[string]map[string]any
+	showSearch func(query, year, language string) []map[string]any
+	requests   []string
+	status     int
+	limited    int
 }
 
 func newFakeTMDB(t *testing.T) *fakeTMDB {
@@ -65,7 +70,34 @@ func (f *fakeTMDB) server() *httptest.Server {
 			return
 		}
 		q := r.URL.Query()
+		f.requests = append(f.requests, r.URL.Path+"?language="+q.Get("language"))
 		switch {
+		case r.URL.Path == "/3/search/tv":
+			f.searches = append(f.searches, "tv:"+q.Get("query")+"|"+q.Get("first_air_date_year")+"|"+q.Get("language"))
+			results := []map[string]any{}
+			if f.showSearch != nil {
+				results = f.showSearch(q.Get("query"), q.Get("first_air_date_year"), q.Get("language"))
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"results": results})
+		case r.URL.Path == "/3/find/tt0903747":
+			_ = json.NewEncoder(w).Encode(map[string]any{"tv_results": []map[string]any{{"id": 1396}}})
+		case strings.HasPrefix(r.URL.Path, "/3/tv/"):
+			parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/3/tv/"), "/")
+			id, _ := strconv.Atoi(parts[0])
+			var body map[string]any
+			if len(parts) == 1 {
+				body = f.shows[id]
+			} else if len(parts) == 3 && parts[1] == "season" {
+				body = f.seasons[parts[0]+"/"+parts[2]+"/"+q.Get("language")]
+				if body == nil {
+					body = f.seasons[parts[0]+"/"+parts[2]]
+				}
+			}
+			if body == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(body)
 		case r.URL.Path == "/3/search/movie":
 			f.searches = append(f.searches, q.Get("query")+"|"+q.Get("year")+"|"+q.Get("language"))
 			results := []map[string]any{}
@@ -319,7 +351,8 @@ func TestScrapeSkips(t *testing.T) {
 		{"a rejected token", map[string]string{"d/Big.Buck.Bunny.2008.mkv": "v"}, func(f *fakeTMDB) { f.status = http.StatusUnauthorized }, "TMDB rejected the access token"},
 		{"TMDB failing", map[string]string{"d/Big.Buck.Bunny.2008.mkv": "v"}, func(f *fakeTMDB) { f.status = http.StatusBadGateway }, "502"},
 		{"repeated 429s", map[string]string{"d/Big.Buck.Bunny.2008.mkv": "v"}, func(f *fakeTMDB) { f.limited = 11 }, "rate limiting"},
-		{"an episode", map[string]string{"d/Show.S01E01.mkv": "v"}, nil, "TV episodes"},
+		{"an unmatched show", map[string]string{"d/Show.S01E01.mkv": "v"}, nil, "no TMDB show matches"},
+		{"a movie and an episode", map[string]string{"d/Big.Buck.Bunny.2008.mkv": "v", "d/Show.S01E01.mkv": "v"}, nil, "both a movie and TV episodes"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.label, func(t *testing.T) {

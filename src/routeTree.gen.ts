@@ -46,6 +46,8 @@ import { Route as AuthenticatedSettingsPasswordRouteImport } from './routes/_aut
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
 import { Route as AuthenticatedSettingsWebdavRouteImport } from './routes/_authenticated/settings/webdav'
 import { Route as AuthenticatedSharesIndexRouteImport } from './routes/_authenticated/shares/index'
+import { Route as AuthenticatedShowsIndexRouteImport } from './routes/_authenticated/shows/index'
+import { Route as AuthenticatedShowsShowIdRouteImport } from './routes/_authenticated/shows/$showId'
 import { Route as AuthenticatedStoragesIndexRouteImport } from './routes/_authenticated/storages/index'
 import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
 import { Route as AuthenticatedTeamsTeamIdRouteRouteImport } from './routes/_authenticated/teams/$teamId/route'
@@ -266,6 +268,17 @@ const AuthenticatedSharesIndexRoute =
     path: '/shares/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedShowsIndexRoute = AuthenticatedShowsIndexRouteImport.update({
+  id: '/shows/',
+  path: '/shows/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedShowsShowIdRoute =
+  AuthenticatedShowsShowIdRouteImport.update({
+    id: '/shows/$showId',
+    path: '/shows/$showId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedStoragesIndexRoute =
   AuthenticatedStoragesIndexRouteImport.update({
     id: '/storages/',
@@ -414,6 +427,7 @@ export interface FileRoutesByFullPath {
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
+  '/shows/$showId': typeof AuthenticatedShowsShowIdRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/downloads/': typeof AuthenticatedDownloadsIndexRoute
@@ -422,6 +436,7 @@ export interface FileRoutesByFullPath {
   '/movies/': typeof AuthenticatedMoviesIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/shares/': typeof AuthenticatedSharesIndexRoute
+  '/shows/': typeof AuthenticatedShowsIndexRoute
   '/storages/': typeof AuthenticatedStoragesIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
   '/trash/': typeof AuthenticatedTrashIndexRoute
@@ -468,6 +483,7 @@ export interface FileRoutesByTo {
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
+  '/shows/$showId': typeof AuthenticatedShowsShowIdRoute
   '/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/downloads': typeof AuthenticatedDownloadsIndexRoute
@@ -476,6 +492,7 @@ export interface FileRoutesByTo {
   '/movies': typeof AuthenticatedMoviesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/shares': typeof AuthenticatedSharesIndexRoute
+  '/shows': typeof AuthenticatedShowsIndexRoute
   '/storages': typeof AuthenticatedStoragesIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/trash': typeof AuthenticatedTrashIndexRoute
@@ -528,6 +545,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
   '/_authenticated/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/_authenticated/settings/webdav': typeof AuthenticatedSettingsWebdavRoute
+  '/_authenticated/shows/$showId': typeof AuthenticatedShowsShowIdRoute
   '/_authenticated/teams/invite': typeof AuthenticatedTeamsInviteRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/downloads/': typeof AuthenticatedDownloadsIndexRoute
@@ -536,6 +554,7 @@ export interface FileRoutesById {
   '/_authenticated/movies/': typeof AuthenticatedMoviesIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/shares/': typeof AuthenticatedSharesIndexRoute
+  '/_authenticated/shows/': typeof AuthenticatedShowsIndexRoute
   '/_authenticated/storages/': typeof AuthenticatedStoragesIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/trash/': typeof AuthenticatedTrashIndexRoute
@@ -587,6 +606,7 @@ export interface FileRouteTypes {
     | '/settings/password'
     | '/settings/profile'
     | '/settings/webdav'
+    | '/shows/$showId'
     | '/teams/invite'
     | '/admin/'
     | '/downloads/'
@@ -595,6 +615,7 @@ export interface FileRouteTypes {
     | '/movies/'
     | '/settings/'
     | '/shares/'
+    | '/shows/'
     | '/storages/'
     | '/tasks/'
     | '/trash/'
@@ -641,6 +662,7 @@ export interface FileRouteTypes {
     | '/settings/password'
     | '/settings/profile'
     | '/settings/webdav'
+    | '/shows/$showId'
     | '/teams/invite'
     | '/admin'
     | '/downloads'
@@ -649,6 +671,7 @@ export interface FileRouteTypes {
     | '/movies'
     | '/settings'
     | '/shares'
+    | '/shows'
     | '/storages'
     | '/tasks'
     | '/trash'
@@ -700,6 +723,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/password'
     | '/_authenticated/settings/profile'
     | '/_authenticated/settings/webdav'
+    | '/_authenticated/shows/$showId'
     | '/_authenticated/teams/invite'
     | '/_authenticated/admin/'
     | '/_authenticated/downloads/'
@@ -708,6 +732,7 @@ export interface FileRouteTypes {
     | '/_authenticated/movies/'
     | '/_authenticated/settings/'
     | '/_authenticated/shares/'
+    | '/_authenticated/shows/'
     | '/_authenticated/storages/'
     | '/_authenticated/tasks/'
     | '/_authenticated/trash/'
@@ -999,6 +1024,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSharesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/shows/': {
+      id: '/_authenticated/shows/'
+      path: '/shows'
+      fullPath: '/shows/'
+      preLoaderRoute: typeof AuthenticatedShowsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/shows/$showId': {
+      id: '/_authenticated/shows/$showId'
+      path: '/shows/$showId'
+      fullPath: '/shows/$showId'
+      preLoaderRoute: typeof AuthenticatedShowsShowIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/storages/': {
       id: '/_authenticated/storages/'
       path: '/storages'
@@ -1260,12 +1299,14 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedStorageRoute: typeof AuthenticatedStorageRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedTeamsTeamIdRouteRoute: typeof AuthenticatedTeamsTeamIdRouteRouteWithChildren
+  AuthenticatedShowsShowIdRoute: typeof AuthenticatedShowsShowIdRoute
   AuthenticatedTeamsInviteRoute: typeof AuthenticatedTeamsInviteRoute
   AuthenticatedDownloadsIndexRoute: typeof AuthenticatedDownloadsIndexRoute
   AuthenticatedFilesIndexRoute: typeof AuthenticatedFilesIndexRoute
   AuthenticatedImageHostIndexRoute: typeof AuthenticatedImageHostIndexRoute
   AuthenticatedMoviesIndexRoute: typeof AuthenticatedMoviesIndexRoute
   AuthenticatedSharesIndexRoute: typeof AuthenticatedSharesIndexRoute
+  AuthenticatedShowsIndexRoute: typeof AuthenticatedShowsIndexRoute
   AuthenticatedStoragesIndexRoute: typeof AuthenticatedStoragesIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedTrashIndexRoute: typeof AuthenticatedTrashIndexRoute
@@ -1279,12 +1320,14 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedTeamsTeamIdRouteRoute:
     AuthenticatedTeamsTeamIdRouteRouteWithChildren,
+  AuthenticatedShowsShowIdRoute: AuthenticatedShowsShowIdRoute,
   AuthenticatedTeamsInviteRoute: AuthenticatedTeamsInviteRoute,
   AuthenticatedDownloadsIndexRoute: AuthenticatedDownloadsIndexRoute,
   AuthenticatedFilesIndexRoute: AuthenticatedFilesIndexRoute,
   AuthenticatedImageHostIndexRoute: AuthenticatedImageHostIndexRoute,
   AuthenticatedMoviesIndexRoute: AuthenticatedMoviesIndexRoute,
   AuthenticatedSharesIndexRoute: AuthenticatedSharesIndexRoute,
+  AuthenticatedShowsIndexRoute: AuthenticatedShowsIndexRoute,
   AuthenticatedStoragesIndexRoute: AuthenticatedStoragesIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedTrashIndexRoute: AuthenticatedTrashIndexRoute,

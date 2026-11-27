@@ -1,14 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { Play } from 'lucide-react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-import type { PreviewFile } from '@/components/preview/file-preview-content'
-import { FilePreviewDialog } from '@/components/preview/file-preview-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { getObject, type Movie } from '@/lib/api'
+import { useVideoPreview } from './use-video-preview'
 
 interface MovieSheetProps {
   movie: Movie | null
@@ -28,8 +25,7 @@ export function MovieSheet({ movie, onOpenChange }: MovieSheetProps) {
 function MovieDetails({ movie }: { movie: Movie }) {
   const { t } = useTranslation()
   const { media } = movie
-  const [preview, setPreview] = useState<PreviewFile | null>(null)
-  const [opening, setOpening] = useState(false)
+  const video = useVideoPreview()
   // Fanart is fetched when the sheet opens, through the ordinary object
   // download path, so a list page does not meter every backdrop.
   const fanart = useQuery({
@@ -40,25 +36,6 @@ function MovieDetails({ movie }: { movie: Movie }) {
     retry: false,
   })
   const fanartUrl = fanart.data?.downloadUrl ?? movie.posterUrl
-
-  async function play() {
-    setOpening(true)
-    try {
-      const video = await getObject(movie.id)
-      if (!video.downloadUrl) throw new Error(t('common.error'))
-      setPreview({
-        id: video.id,
-        name: video.name,
-        type: video.type,
-        size: video.size ?? 0,
-        downloadUrl: video.downloadUrl,
-      })
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('common.error'))
-    } finally {
-      setOpening(false)
-    }
-  }
 
   const facts = [
     media.year !== undefined ? String(media.year) : null,
@@ -90,21 +67,15 @@ function MovieDetails({ movie }: { movie: Movie }) {
           </ul>
         )}
         <div>
-          <Button onClick={play} disabled={opening}>
+          <Button onClick={() => video.play(movie.id)} disabled={video.opening !== null}>
             <Play />
-            {opening ? t('common.loading') : t('movies.play')}
+            {video.opening ? t('common.loading') : t('movies.play')}
           </Button>
         </div>
         {media.overview && <p className="text-sm leading-relaxed">{media.overview}</p>}
         <p className="break-all text-xs text-muted-foreground">{movie.path}</p>
       </div>
-      <FilePreviewDialog
-        file={preview}
-        open={preview !== null}
-        onOpenChange={(open) => {
-          if (!open) setPreview(null)
-        }}
-      />
+      {video.dialog}
     </>
   )
 }

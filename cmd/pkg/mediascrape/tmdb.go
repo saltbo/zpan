@@ -156,13 +156,8 @@ type movieResponse struct {
 // Movie fetches a movie's details in language, with its images when images
 // is set. found is false for a movie TMDB does not have.
 func (t *TMDB) Movie(ctx context.Context, id int, language string, images bool) (Movie, bool, error) {
-	params := url.Values{"language": {language}}
-	if images {
-		params.Set("append_to_response", "images")
-		params.Set("include_image_language", imageLanguage(language)+",null,en")
-	}
 	var body movieResponse
-	found, err := t.getJSON(ctx, "/movie/"+strconv.Itoa(id), params, &body)
+	found, err := t.getJSON(ctx, "/movie/"+strconv.Itoa(id), detailParams(language, images), &body)
 	if err != nil || !found {
 		return Movie{}, found, err
 	}
@@ -192,20 +187,173 @@ func (t *TMDB) Movie(ctx context.Context, id int, language string, images bool) 
 	return movie, true, nil
 }
 
+type findResult []struct {
+	ID int `json:"id"`
+}
+
 type findResponse struct {
-	MovieResults []struct {
-		ID int `json:"id"`
-	} `json:"movie_results"`
+	MovieResults findResult `json:"movie_results"`
+	TVResults    findResult `json:"tv_results"`
+}
+
+func (t *TMDB) findByIMDb(ctx context.Context, imdbID string) (findResponse, error) {
+	var body findResponse
+	_, err := t.getJSON(ctx, "/find/"+url.PathEscape(imdbID), url.Values{"external_source": {"imdb_id"}}, &body)
+	return body, err
 }
 
 // FindMovieByIMDb resolves an IMDb id to a TMDB movie id, 0 when TMDB has none.
 func (t *TMDB) FindMovieByIMDb(ctx context.Context, imdbID string) (int, error) {
-	var body findResponse
-	found, err := t.getJSON(ctx, "/find/"+url.PathEscape(imdbID), url.Values{"external_source": {"imdb_id"}}, &body)
-	if err != nil || !found || len(body.MovieResults) == 0 {
+	body, err := t.findByIMDb(ctx, imdbID)
+	if err != nil || len(body.MovieResults) == 0 {
 		return 0, err
 	}
 	return body.MovieResults[0].ID, nil
+}
+
+// FindShowByIMDb resolves an IMDb id to a TMDB TV show id, 0 when TMDB has none.
+func (t *TMDB) FindShowByIMDb(ctx context.Context, imdbID string) (int, error) {
+	body, err := t.findByIMDb(ctx, imdbID)
+	if err != nil || len(body.TVResults) == 0 {
+		return 0, err
+	}
+	return body.TVResults[0].ID, nil
+}
+
+type showSearchResponse struct {
+	Results []struct {
+		ID           int    `json:"id"`
+		Name         string `json:"name"`
+		OriginalName string `json:"original_name"`
+		FirstAirDate string `json:"first_air_date"`
+	} `json:"results"`
+}
+
+// SearchShows searches TV shows by title, with the first air year when year
+// is not 0.
+func (t *TMDB) SearchShows(ctx context.Context, title string, year int, language string) ([]SearchHit, error) {
+	params := url.Values{"query": {title}, "language": {language}, "include_adult": {"false"}}
+	if year != 0 {
+		params.Set("first_air_date_year", strconv.Itoa(year))
+	}
+	var body showSearchResponse
+	if _, err := t.getJSON(ctx, "/search/tv", params, &body); err != nil {
+		return nil, err
+	}
+	hits := make([]SearchHit, 0, len(body.Results))
+	for _, result := range body.Results {
+		hits = append(hits, SearchHit{
+			ID:            result.ID,
+			Title:         result.Name,
+			OriginalTitle: result.OriginalName,
+			Year:          yearOf(result.FirstAirDate),
+		})
+	}
+	return hits, nil
+}
+
+type showResponse struct {
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	OriginalName string `json:"original_name"`
+	Overview     string `json:"overview"`
+	FirstAirDate string `json:"first_air_date"`
+	Genres       []struct {
+		Name string `json:"name"`
+	} `json:"genres"`
+	PosterPath   *string `json:"poster_path"`
+	BackdropPath *string `json:"backdrop_path"`
+	Images       *struct {
+		Posters   imageList `json:"posters"`
+		Backdrops imageList `json:"backdrops"`
+	} `json:"images"`
+}
+
+// Show fetches a TV show's details in language, with its images when images
+// is set. found is false for a show TMDB does not have.
+func (t *TMDB) Show(ctx context.Context, id int, language string, images bool) (Show, bool, error) {
+	var body showResponse
+	found, err := t.getJSON(ctx, "/tv/"+strconv.Itoa(id), detailParams(language, images), &body)
+	if err != nil || !found {
+		return Show{}, found, err
+	}
+	show := Show{
+		ID:            body.ID,
+		Title:         body.Name,
+		OriginalTitle: body.OriginalName,
+		Overview:      body.Overview,
+		Date:          body.FirstAirDate,
+		PosterPath:    deref(body.PosterPath),
+		BackdropPath:  deref(body.BackdropPath),
+	}
+	for _, genre := range body.Genres {
+		show.Genres = append(show.Genres, genre.Name)
+	}
+	if body.Images != nil {
+		show.Posters = body.Images.Posters.images()
+		show.Backdrops = body.Images.Backdrops.images()
+	}
+	return show, true, nil
+}
+
+type seasonResponse struct {
+	SeasonNumber int     `json:"season_number"`
+	PosterPath   *string `json:"poster_path"`
+	Episodes     []struct {
+		ID            int     `json:"id"`
+		SeasonNumber  int     `json:"season_number"`
+		EpisodeNumber int     `json:"episode_number"`
+		Name          string  `json:"name"`
+		Overview      string  `json:"overview"`
+		AirDate       *string `json:"air_date"`
+		StillPath     *string `json:"still_path"`
+	} `json:"episodes"`
+	Images *struct {
+		Posters imageList `json:"posters"`
+	} `json:"images"`
+}
+
+// Season fetches one season of a TV show with its episodes, in language, with
+// its posters when images is set. found is false for a season TMDB does not
+// have.
+func (t *TMDB) Season(ctx context.Context, showID int, number int, language string, images bool) (Season, bool, error) {
+	var body seasonResponse
+	found, err := t.getJSON(ctx, "/tv/"+strconv.Itoa(showID)+"/season/"+strconv.Itoa(number), detailParams(language, images), &body)
+	if err != nil || !found {
+		return Season{}, found, err
+	}
+	season := Season{Number: body.SeasonNumber, PosterPath: deref(body.PosterPath)}
+	for _, episode := range body.Episodes {
+		season.Episodes = append(season.Episodes, Episode{
+			ID:        episode.ID,
+			Season:    episode.SeasonNumber,
+			Number:    episode.EpisodeNumber,
+			Title:     episode.Name,
+			Overview:  episode.Overview,
+			Aired:     deref(episode.AirDate),
+			StillPath: deref(episode.StillPath),
+		})
+	}
+	if body.Images != nil {
+		season.Posters = body.Images.Posters.images()
+	}
+	return season, true, nil
+}
+
+func detailParams(language string, images bool) url.Values {
+	params := url.Values{"language": {language}}
+	if images {
+		params.Set("append_to_response", "images")
+		params.Set("include_image_language", imageLanguage(language)+",null,en")
+	}
+	return params
+}
+
+func deref(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 // Image downloads an image at a TMDB size such as w780. found is false for an
