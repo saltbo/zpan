@@ -54,12 +54,12 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /out \
  && month="${GEOIP_DB_MONTH:-$(date -u +%Y-%m)}" \
- && url="${GEOIP_DB_URL:-https://download.db-ip.com/free/dbip-city-lite-${month}.mmdb.gz}" \
+ && url="${GEOIP_DB_URL:-https://download.db-ip.com/free/dbip-country-lite-${month}.mmdb.gz}" \
  && if ! curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused "$url" -o /tmp/geoip.mmdb.gz; then \
       if [ -n "$GEOIP_DB_MONTH" ] || [ -n "$GEOIP_DB_URL" ]; then exit 1; fi; \
       previous_month="$(date -u -d '1 month ago' +%Y-%m)"; \
       curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused \
-        "https://download.db-ip.com/free/dbip-city-lite-${previous_month}.mmdb.gz" \
+        "https://download.db-ip.com/free/dbip-country-lite-${previous_month}.mmdb.gz" \
         -o /tmp/geoip.mmdb.gz; \
     fi \
  && gzip -dc /tmp/geoip.mmdb.gz > /out/geoip.mmdb \
