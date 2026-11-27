@@ -26,6 +26,7 @@ import { getDownloadTask } from '../../usecases/downloads/downloads'
 import { forbidden, payloadTooLarge } from '../../usecases/ports'
 import { completeTaskTorrent } from '../../usecases/torrent-cache/complete'
 import {
+  abortTorrentFileUpload,
   completeTorrentFileUpload,
   createTorrentFileUpload,
   registerTaskTorrent,
@@ -84,6 +85,17 @@ const createFileUploadRoute = authRoute(policy, {
   path: '/{id}/torrent/files/{fileIdx}/uploads',
   request: { params: fileParams },
   responses: { 201: jsonContent(torrentFileUploadSchema, 'Presigned upload'), ...errors },
+})
+
+const abortFileUploadRoute = authRoute(policy, {
+  operationId: 'abortTorrentFileUpload',
+  summary: 'Abort a torrent file multipart upload',
+  description: 'Abandons a multipart upload whose parts could not be uploaded, deleting the parts already stored.',
+  tags: ['Download Tasks'],
+  method: 'delete',
+  path: '/{id}/torrent/files/{fileIdx}/uploads/{uploadId}',
+  request: { params: fileParams.extend({ uploadId: z.string().min(1).max(1024) }) },
+  responses: { 204: { description: 'Upload aborted' }, ...errors },
 })
 
 const completeFileUploadRoute = authRoute(policy, {
@@ -183,6 +195,11 @@ export const taskTorrentRoute = createRouter()
       await completeTorrentFileUpload(c.get('deps'), { ...uploader(c.get('principal'), id), fileIdx, input }),
       200,
     )
+  })
+  .openapi(abortFileUploadRoute, async (c) => {
+    const { id, fileIdx, uploadId } = c.req.valid('param')
+    await abortTorrentFileUpload(c.get('deps'), { ...uploader(c.get('principal'), id), fileIdx, uploadId })
+    return c.body(null, 204)
   })
   .openapi(createSidecarUploadRoute, async (c) => {
     const { id, n } = c.req.valid('param')

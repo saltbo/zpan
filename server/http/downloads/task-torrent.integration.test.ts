@@ -618,6 +618,25 @@ describe('torrent cache fill edge cases', () => {
       parts: plan.parts.map((part) => ({ partNumber: part.partNumber, etag: 'e' })),
     })
     expect(done.status).toBe(200)
+
+    // A multipart upload whose parts failed is aborted, deleting its parts.
+    const aborted: string[] = []
+    vi.spyOn(S3Service.prototype, 'abortMultipartUpload').mockImplementation(async (_s, key, uploadId) => {
+      aborted.push(`${key} ${uploadId}`)
+      multipart.delete(uploadId)
+    })
+    const retry = (await (
+      await ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/files/0/uploads`, { method: 'POST', headers })
+    ).json()) as { uploadId: string }
+    const abort = await ctx.app.request(
+      `/api/downloads/tasks/${task.id}/torrent/files/0/uploads/${encodeURIComponent(retry.uploadId)}`,
+      { method: 'DELETE', headers },
+    )
+    expect(abort.status).toBe(204)
+    // The memory bucket names an upload after its key, so the id holds a slash.
+    const key = retry.uploadId.replace(/^mp:/, '')
+    expect(key).toMatch(/^bt\/[0-9a-f]{40}\/0$/)
+    expect(aborted).toEqual([`${key} ${retry.uploadId}`])
   })
 
   it('fails a submit that the cached torrent does not fit into', async () => {

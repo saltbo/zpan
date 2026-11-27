@@ -12445,6 +12445,9 @@ type ClientInterface interface {
 	// CreateTorrentFileUpload request
 	CreateTorrentFileUpload(ctx context.Context, id string, fileIdx int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// AbortTorrentFileUpload request
+	AbortTorrentFileUpload(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PutTaskTorrentLayoutWithBody request with any body
 	PutTaskTorrentLayoutWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -13598,6 +13601,18 @@ func (c *Client) CompleteTorrentFileUpload(ctx context.Context, id string, fileI
 
 func (c *Client) CreateTorrentFileUpload(ctx context.Context, id string, fileIdx int, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateTorrentFileUploadRequest(c.Server, id, fileIdx)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AbortTorrentFileUpload(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAbortTorrentFileUploadRequest(c.Server, id, fileIdx, uploadId)
 	if err != nil {
 		return nil, err
 	}
@@ -17560,6 +17575,54 @@ func NewCreateTorrentFileUploadRequest(server string, id string, fileIdx int) (*
 	}
 
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAbortTorrentFileUploadRequest generates requests for AbortTorrentFileUpload
+func NewAbortTorrentFileUploadRequest(server string, id string, fileIdx int, uploadId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "fileIdx", fileIdx, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "uploadId", uploadId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/files/%s/uploads/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -24561,6 +24624,9 @@ type ClientWithResponsesInterface interface {
 	// CreateTorrentFileUploadWithResponse request
 	CreateTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, reqEditors ...RequestEditorFn) (*CreateTorrentFileUploadResponse, error)
 
+	// AbortTorrentFileUploadWithResponse request
+	AbortTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*AbortTorrentFileUploadResponse, error)
+
 	// PutTaskTorrentLayoutWithBodyWithResponse request with any body
 	PutTaskTorrentLayoutWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutTaskTorrentLayoutResponse, error)
 
@@ -26249,6 +26315,40 @@ func (r CreateTorrentFileUploadResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateTorrentFileUploadResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AbortTorrentFileUploadResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r AbortTorrentFileUploadResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AbortTorrentFileUploadResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AbortTorrentFileUploadResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -31764,6 +31864,15 @@ func (c *ClientWithResponses) CreateTorrentFileUploadWithResponse(ctx context.Co
 	return ParseCreateTorrentFileUploadResponse(rsp)
 }
 
+// AbortTorrentFileUploadWithResponse request returning *AbortTorrentFileUploadResponse
+func (c *ClientWithResponses) AbortTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*AbortTorrentFileUploadResponse, error) {
+	rsp, err := c.AbortTorrentFileUpload(ctx, id, fileIdx, uploadId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAbortTorrentFileUploadResponse(rsp)
+}
+
 // PutTaskTorrentLayoutWithBodyWithResponse request with arbitrary body returning *PutTaskTorrentLayoutResponse
 func (c *ClientWithResponses) PutTaskTorrentLayoutWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutTaskTorrentLayoutResponse, error) {
 	rsp, err := c.PutTaskTorrentLayoutWithBody(ctx, id, contentType, body, reqEditors...)
@@ -35004,6 +35113,60 @@ func ParseCreateTorrentFileUploadResponse(rsp *http.Response) (*CreateTorrentFil
 		}
 		response.JSON201 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAbortTorrentFileUploadResponse parses an HTTP response from a AbortTorrentFileUploadWithResponse call
+func ParseAbortTorrentFileUploadResponse(rsp *http.Response) (*AbortTorrentFileUploadResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AbortTorrentFileUploadResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest Error
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

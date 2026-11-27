@@ -385,6 +385,16 @@ export async function completeTorrentFileUpload(
   return { fileIdx: file.fileIdx, size: file.size }
 }
 
+// Abandons a multipart upload whose parts failed, so the bucket does not keep
+// its parts until a lifecycle rule (if any) removes them.
+export async function abortTorrentFileUpload(
+  deps: TorrentFillDeps,
+  params: { taskId: string; downloaderId: string; fileIdx: number; uploadId: string },
+): Promise<void> {
+  const { file, storage } = await fillTarget(deps, params)
+  await deps.s3.abortMultipartUpload(storage, file.objectKey, params.uploadId)
+}
+
 // ─── After verification ──────────────────────────────────────────────────────
 
 // Verification passed: the torrent is shared, and the tasks waiting for it
