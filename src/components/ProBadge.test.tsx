@@ -17,10 +17,12 @@ describe('ProBadge', () => {
     expect(getByText('Pro')).toBeTruthy()
   })
 
-  it('renders with brand color #1A73E8', () => {
+  it('uses the primary theme token for its colors', () => {
     const { getByText } = render(<ProBadge />)
     const el = getByText('Pro')
-    expect(el.style.backgroundColor).toBe('rgb(26, 115, 232)')
+    expect(el.className).toContain('bg-primary')
+    expect(el.className).toContain('text-primary-foreground')
+    expect(el.style.backgroundColor).toBe('')
   })
 
   it('has pro-badge slot attribute', () => {

@@ -12,8 +12,10 @@ function ProBadgePill({ className }: { className?: string }) {
   return (
     <span
       data-slot="pro-badge"
-      className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white', className)}
-      style={{ backgroundColor: '#1A73E8' }}
+      className={cn(
+        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-primary text-primary-foreground',
+        className,
+      )}
     >
       {t('common.proBadge')}
     </span>

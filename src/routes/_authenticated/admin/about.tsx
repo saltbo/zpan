@@ -137,7 +137,7 @@ function AboutPage() {
                   <Badge
                     onClick={() => setChangelogOpen(true)}
                     title={t('admin.about.latestVersion')}
-                    className="cursor-pointer border-transparent bg-[#1A73E8] text-white"
+                    className="cursor-pointer border-transparent bg-primary text-primary-foreground"
                   >
                     <ArrowUpCircle />
                     {changelog.latestVersion ? `v${changelog.latestVersion}` : t('admin.about.updateAvailable')}
