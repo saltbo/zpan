@@ -949,6 +949,12 @@ describe('api', () => {
       await expect(promise).rejects.toThrow('Upload failed')
     })
 
+    it('rejects on a network error', async () => {
+      const promise = uploadToS3('https://s3/presigned', new File(['x'], 'x.bin'))
+      MockXMLHttpRequest.instances[0].onerror?.()
+      await expect(promise).rejects.toThrow('Upload failed')
+    })
+
     it('reports a failed S3 upload in the chosen language [spec: language/error-fallbacks]', async () => {
       await i18n.changeLanguage('zh')
       try {
