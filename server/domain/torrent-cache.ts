@@ -38,6 +38,15 @@ export function torrentSidecarName(n: number): string {
   return `x/${n}`
 }
 
+// Every object of one torrent lives under this prefix; its sidecars under x/.
+export function torrentObjectPrefix(infoHash: string): string {
+  return `${TORRENT_CACHE_PREFIX}${infoHash}/`
+}
+
+export function torrentSidecarPrefix(infoHash: string): string {
+  return `${torrentObjectPrefix(infoHash)}x/`
+}
+
 export function torrentExtraObjectKey(infoHash: string, name: string): string {
   return `${TORRENT_CACHE_PREFIX}${infoHash}/${name}`
 }

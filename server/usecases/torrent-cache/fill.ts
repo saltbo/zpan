@@ -293,9 +293,11 @@ export async function registerTaskTorrent(
   }
   if (torrent.status === 'downloading') {
     // The download that started this torrent stopped; this one takes it over
-    // and lays it out itself.
-    await deps.torrents.setSource(torrent.id, { taskId: task.id, downloaderId: params.downloaderId }, now)
+    // and lays it out itself. The clear comes first: if it fails, the torrent
+    // still names the stopped download, so the retry takes over and clears again
+    // instead of continuing as this task's own fill over the old layout.
     await clearTorrentExtras(deps, torrent)
+    await deps.torrents.setSource(torrent.id, { taskId: task.id, downloaderId: params.downloaderId }, now)
     return startFill(deps, task, torrent, bytes, info, now)
   }
   // Invalid or being evicted: the cache cannot take it, so the task uploads into

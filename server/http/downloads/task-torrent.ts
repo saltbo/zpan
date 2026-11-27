@@ -12,15 +12,18 @@ import {
   downloadTaskSchema,
   opaqueIdSchema,
   registerTaskTorrentSchema,
+  TORRENT_LAYOUT_MAX_BYTES,
   TORRENT_SIDECAR_MAX_COUNT,
   taskTorrentRegistrationSchema,
   torrentFileUploadSchema,
   torrentLayoutSchema,
 } from '@shared/schemas'
+import { bodyLimit } from 'hono/body-limit'
+import { jsonError } from '../../middleware/error-handler'
 import type { AuthPrincipal } from '../../middleware/platform'
 import { backgroundJobsEnabled } from '../../platform/interface'
 import { getDownloadTask } from '../../usecases/downloads/downloads'
-import { forbidden } from '../../usecases/ports'
+import { forbidden, payloadTooLarge } from '../../usecases/ports'
 import { completeTaskTorrent } from '../../usecases/torrent-cache/complete'
 import {
   completeTorrentFileUpload,
@@ -129,8 +132,18 @@ const putLayoutRoute = authRoute(policy, {
   tags: ['Download Tasks'],
   method: 'put',
   path: '/{id}/torrent/layout',
+  middleware: [
+    bodyLimit({
+      maxSize: TORRENT_LAYOUT_MAX_BYTES,
+      onError: (c) => jsonError(c, payloadTooLarge('Layout is too large')),
+    }),
+  ] as const,
   request: { params: taskParams, ...jsonBody(torrentLayoutSchema) },
-  responses: { 200: jsonContent(z.object({ entries: z.number().int() }), 'Stored layout'), ...errors },
+  responses: {
+    200: jsonContent(z.object({ entries: z.number().int() }), 'Stored layout'),
+    ...errors,
+    413: errorResponse('Layout is larger than 8 MiB'),
+  },
 })
 
 const completeRoute = authRoute(policy, {

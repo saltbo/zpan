@@ -3,27 +3,43 @@
 // sidecar the scraper wrote as bt/<infoHash>/x/<n> and the plan itself as
 // bt/<infoHash>/layout.json, so every instant transfer replays the same layout.
 
-import { type TorrentLayout, type TorrentLayoutEntry, torrentLayoutSchema } from '@shared/schemas'
-import { TORRENT_LAYOUT_NAME } from '../../domain/torrent-cache'
+import {
+  TORRENT_LAYOUT_MAX_BYTES,
+  type TorrentLayout,
+  type TorrentLayoutEntry,
+  torrentLayoutSchema,
+} from '@shared/schemas'
+import { TORRENT_LAYOUT_NAME, torrentLayoutObjectKey, torrentSidecarPrefix } from '../../domain/torrent-cache'
 import type { Deps } from '../deps'
-import type { TorrentExtraObjectRecord, TorrentFileRecord, TorrentRecord } from '../ports'
+import {
+  S3ObjectNotFoundError,
+  type TorrentExtraObjectRecord,
+  type TorrentFileRecord,
+  type TorrentRecord,
+} from '../ports'
 
 // Removes what an earlier download of the torrent stored beside its files, so a
-// download that takes it over starts from no sidecars and no layout.
+// download that takes it over starts from no sidecars and no layout. Objects no
+// row records (an upload that arrived after its download stopped) go too, and
+// the storage's usage is recounted without the removed rows.
 export async function clearTorrentExtras(
-  deps: Pick<Deps, 'torrents' | 'storages' | 's3'>,
-  torrent: Pick<TorrentRecord, 'id' | 'storageId'>,
+  deps: Pick<Deps, 'torrents' | 'storages' | 's3' | 'storageUsage'>,
+  torrent: Pick<TorrentRecord, 'id' | 'infoHash' | 'storageId'>,
 ): Promise<void> {
   const extras = await deps.torrents.listExtraObjects(torrent.id)
-  if (extras.length === 0) return
   const storage = await deps.storages.get(torrent.storageId)
   if (storage) {
-    await deps.s3.evictTorrentCacheObjects(
-      storage,
-      extras.map((extra) => extra.objectKey),
-    )
+    const stray = await deps.s3.listTorrentCacheKeys(storage, torrentSidecarPrefix(torrent.infoHash))
+    const keys = new Set([
+      ...extras.map((extra) => extra.objectKey),
+      ...stray,
+      torrentLayoutObjectKey(torrent.infoHash),
+    ])
+    await deps.s3.evictTorrentCacheObjects(storage, [...keys])
   }
+  if (extras.length === 0) return
   await deps.torrents.deleteExtraObjects(torrent.id)
+  await deps.storageUsage.reconcileStorages(new Set(extras.map((extra) => extra.storageId)))
 }
 
 // The uploaded sidecars by number.
@@ -37,7 +53,10 @@ export function sidecarsOf(extras: readonly TorrentExtraObjectRecord[]): Map<num
 }
 
 // The torrent's layout, or null when it has none or what is stored cannot be
-// replayed, in which case a transfer lays out the torrent's own tree.
+// replayed (gone, oversized, unparseable, or not matching the torrent), in which
+// case a transfer lays out the torrent's own tree. A failed read is no such
+// verdict: it throws, so the transfer fails and is retried rather than giving a
+// scraped torrent the raw tree for good.
 export async function loadTorrentLayout(
   deps: Pick<Deps, 'torrents' | 'storages' | 's3'>,
   torrent: Pick<TorrentRecord, 'id' | 'storageId'>,
@@ -46,11 +65,20 @@ export async function loadTorrentLayout(
   const extras = await deps.torrents.listExtraObjects(torrent.id)
   const stored = extras.find((extra) => extra.name === TORRENT_LAYOUT_NAME)
   if (!stored) return null
-  const storage = await deps.storages.get(torrent.storageId)
-  if (!storage) return null
+  if (stored.size > TORRENT_LAYOUT_MAX_BYTES) return null
+  const storage = await deps.storages.get(stored.storageId)
+  if (!storage) throw new Error(`Storage ${stored.storageId} of the torrent layout does not exist`)
+  let bytes: Uint8Array
+  try {
+    bytes = await deps.s3.getObjectBytes(storage, stored.objectKey)
+  } catch (error) {
+    if (error instanceof S3ObjectNotFoundError) return null
+    throw error
+  }
+  if (bytes.length > TORRENT_LAYOUT_MAX_BYTES) return null
   let parsed: unknown
   try {
-    parsed = JSON.parse(new TextDecoder().decode(await deps.s3.getObjectBytes(storage, stored.objectKey)))
+    parsed = JSON.parse(new TextDecoder().decode(bytes))
   } catch {
     return null
   }

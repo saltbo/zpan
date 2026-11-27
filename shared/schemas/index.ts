@@ -340,6 +340,7 @@ export {
   objectTorrentSchema,
   registerTaskTorrentSchema,
   replaceTorrentCacheConfigSchema,
+  TORRENT_LAYOUT_MAX_BYTES,
   TORRENT_SIDECAR_MAX_BYTES,
   TORRENT_SIDECAR_MAX_COUNT,
   taskTorrentRegistrationSchema,

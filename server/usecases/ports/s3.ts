@@ -37,6 +37,7 @@ export interface S3Gateway {
   // `etag` is the S3 ETag with surrounding quotes stripped (= content MD5 for a
   // single PutObject); used to verify a finalized single-PUT upload.
   headObject(storage: S3StorageCredentials, key: string): Promise<{ size: number; contentType?: string; etag: string }>
+  // The three reads throw S3ObjectNotFoundError when the key does not exist.
   getObjectBytes(storage: S3StorageCredentials, key: string, range?: string): Promise<Uint8Array>
   getObjectBody(storage: S3StorageCredentials, key: string, range?: string): Promise<BodyInit>
   getObjectStream(storage: S3StorageCredentials, key: string, range?: string): Promise<ReadableStream<Uint8Array>>
@@ -64,6 +65,16 @@ export interface S3Gateway {
   deleteObjects(storage: S3StorageCredentials, keys: string[]): Promise<void>
   // The only deletion of torrent cache keys, called by cache eviction alone.
   evictTorrentCacheObjects(storage: S3StorageCredentials, keys: string[]): Promise<void>
+  // Every key under a torrent cache prefix (`bt/…`), so eviction also finds
+  // objects no row records, such as an upload that arrived late.
+  listTorrentCacheKeys(storage: S3StorageCredentials, prefix: string): Promise<string[]>
+}
+
+export class S3ObjectNotFoundError extends Error {
+  constructor(readonly key: string) {
+    super(`S3 object ${key} does not exist`)
+    this.name = 'S3ObjectNotFoundError'
+  }
 }
 
 export class TorrentCacheDeletionRefusedError extends Error {

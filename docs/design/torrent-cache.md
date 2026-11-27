@@ -85,8 +85,13 @@ queried:
 
 `torrent_extra_objects` holds one row per sidecar and per layout, with its size,
 because the storage's used bytes count them and eviction deletes them with the
-torrent. A download that takes over an abandoned torrent deletes them first and
-lays the torrent out itself.
+torrent. Eviction also lists `bt/<infoHash>/`, so an object no row records (a
+sidecar refused as too large, or a presigned upload that landed after its
+download stopped) goes too. A download that takes over an abandoned torrent
+deletes them, and anything under `x/`, before it becomes the torrent's source,
+and lays the torrent out itself. A layout is at most 8 MiB. A transfer lays out
+the torrent's own tree when the layout is gone or cannot be replayed; a failed
+read fails the transfer so it is retried.
 
 `bt/` cannot collide with other keys: drive objects are
 `<orgId>/<uid>/<date>/<token>` and image-hosting objects are `ih/…`

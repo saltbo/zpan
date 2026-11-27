@@ -26266,6 +26266,7 @@ type PutTaskTorrentLayoutResponse struct {
 	JSON403 *Error
 	JSON404 *Error
 	JSON409 *Error
+	JSON413 *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -35100,6 +35101,13 @@ func ParsePutTaskTorrentLayoutResponse(rsp *http.Response) (*PutTaskTorrentLayou
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
 
 	}
 

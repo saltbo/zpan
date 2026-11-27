@@ -9,6 +9,7 @@ import {
   selectTorrentsToEvict,
   torrentInfoObjectKey,
   torrentLayoutObjectKey,
+  torrentObjectPrefix,
 } from '../../domain/torrent-cache'
 import type { Deps } from '../deps'
 import type { EvictionCandidate } from '../ports'
@@ -73,9 +74,13 @@ export async function deleteClaimedTorrent(
   if (storage) {
     const files = await deps.torrents.listFiles(candidate.id)
     const extras = await deps.torrents.listExtraObjects(candidate.id)
+    // Listing the prefix also finds what no row records, such as a sidecar
+    // whose presigned upload landed after its download stopped.
+    const stray = await deps.s3.listTorrentCacheKeys(storage, torrentObjectPrefix(candidate.infoHash))
     const keys = new Set([
       ...files.map((file) => file.objectKey),
       ...extras.map((extra) => extra.objectKey),
+      ...stray,
       torrentInfoObjectKey(candidate.infoHash),
       torrentLayoutObjectKey(candidate.infoHash),
     ])

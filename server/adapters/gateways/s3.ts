@@ -6,6 +6,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
   UploadPartCommand,
@@ -13,7 +14,12 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { attachmentContentDisposition } from '@shared/content-disposition'
 import { isTorrentCacheKey } from '../../domain/torrent-cache'
-import { type S3Gateway, type S3StorageCredentials, TorrentCacheDeletionRefusedError } from '../../usecases/ports'
+import {
+  type S3Gateway,
+  S3ObjectNotFoundError,
+  type S3StorageCredentials,
+  TorrentCacheDeletionRefusedError,
+} from '../../usecases/ports'
 
 const DEFAULT_EXPIRES_IN = 3600
 const MULTIPART_PART_SIZE = 5 * 1024 * 1024
@@ -201,6 +207,7 @@ export class S3Service implements S3Gateway {
       expiresIn: DEFAULT_EXPIRES_IN,
     })
     const response = await fetch(url, range ? { headers: { Range: range } } : undefined)
+    if (response.status === 404) throw new S3ObjectNotFoundError(key)
     if (!response.ok) throw new Error(`S3 object read failed: ${response.status}`)
     if (!response.body) return response.arrayBuffer()
     return response.body
@@ -422,10 +429,41 @@ export class S3Service implements S3Gateway {
     await Promise.all(keys.map((key) => this.sendDelete(storage, key)))
   }
 
+  // ListObjectsV2 answers XML, and the SDK's XML parser needs DOMParser, which
+  // Cloudflare Workers lacks; so the listing is a presigned GET read by hand.
+  async listTorrentCacheKeys(storage: S3StorageCredentials, prefix: string): Promise<string[]> {
+    if (!isTorrentCacheKey(prefix)) throw new Error(`Not a torrent cache prefix: ${prefix}`)
+    const client = this.createClient(storage)
+    const keys: string[] = []
+    let token: string | undefined
+    do {
+      const command = new ListObjectsV2Command({ Bucket: storage.bucket, Prefix: prefix, ContinuationToken: token })
+      const url = await getSignedUrl(client, command, { expiresIn: DEFAULT_EXPIRES_IN })
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`S3 listing failed: ${response.status}`)
+      const xml = await response.text()
+      for (const match of xml.matchAll(/<Key>([\s\S]*?)<\/Key>/g)) keys.push(decodeXmlText(match[1]))
+      const truncated = /<IsTruncated>\s*true\s*<\/IsTruncated>/.test(xml)
+      const next = /<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/.exec(xml)?.[1]
+      token = truncated && next ? decodeXmlText(next) : undefined
+    } while (token)
+    return keys.filter((key) => key.startsWith(prefix))
+  }
+
   private async sendDelete(storage: S3StorageCredentials, key: string): Promise<void> {
     const client = this.createClient(storage)
     await client.send(new DeleteObjectCommand({ Bucket: storage.bucket, Key: key }))
   }
+}
+
+const XML_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
+
+function decodeXmlText(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (whole, entity: string) => {
+    if (entity[0] !== '#') return XML_ENTITIES[entity.toLowerCase()] ?? whole
+    const code = entity[1] === 'x' || entity[1] === 'X' ? Number.parseInt(entity.slice(2), 16) : Number(entity.slice(1))
+    return Number.isFinite(code) ? String.fromCodePoint(code) : whole
+  })
 }
 
 async function bodyToBytes(body: unknown): Promise<Uint8Array> {

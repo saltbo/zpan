@@ -129,6 +129,10 @@ export type ObjectTorrent = z.infer<typeof objectTorrentSchema>
 // Sidecars are .nfo documents and images; 32 MiB is far above either.
 export const TORRENT_SIDECAR_MAX_BYTES = 32 * 1024 * 1024
 export const TORRENT_SIDECAR_MAX_COUNT = 10_000
+// The largest upload layout, as the JSON request body and as stored. A season
+// pack's plan is a few hundred KiB; the cap keeps a hostile plan from exhausting
+// Worker memory when it is stored and on every transfer that replays it.
+export const TORRENT_LAYOUT_MAX_BYTES = 8 * 1024 * 1024
 
 export const createTorrentSidecarUploadSchema = z.object({
   size: z.number().int().min(0).max(TORRENT_SIDECAR_MAX_BYTES).openapi({ type: 'integer', format: 'int64' }),

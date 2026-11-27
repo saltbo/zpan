@@ -2,14 +2,19 @@
 // (docs/design/torrent-cache.md §6). Sidecars go up first, then the layout that
 // names them.
 
-import { TORRENT_SIDECAR_MAX_BYTES, type TorrentFileUpload, type TorrentLayout } from '@shared/schemas'
+import {
+  TORRENT_LAYOUT_MAX_BYTES,
+  TORRENT_SIDECAR_MAX_BYTES,
+  type TorrentFileUpload,
+  type TorrentLayout,
+} from '@shared/schemas'
 import {
   TORRENT_LAYOUT_NAME,
   torrentExtraObjectKey,
   torrentLayoutObjectKey,
   torrentSidecarName,
 } from '../../domain/torrent-cache'
-import { badRequest, msg, notFound } from '../ports'
+import { badRequest, msg, notFound, payloadTooLarge } from '../ports'
 import { fillingTask, fillingTorrent, type TorrentFillDeps } from './fill'
 import { layoutProblem, sidecarsOf } from './layout'
 
@@ -45,9 +50,14 @@ export async function completeTorrentSidecarUpload(
 ): Promise<{ n: number; size: number }> {
   const { torrent, storage } = await fillStorage(deps, params)
   const name = torrentSidecarName(params.n)
-  const head = await deps.s3.headObject(storage, torrentExtraObjectKey(torrent.infoHash, name)).catch(() => null)
+  const key = torrentExtraObjectKey(torrent.infoHash, name)
+  const head = await deps.s3.headObject(storage, key).catch(() => null)
   if (!head) throw badRequest('Sidecar is not uploaded', 'TORRENT_SIDECAR_MISSING')
-  if (head.size > TORRENT_SIDECAR_MAX_BYTES) throw badRequest('Sidecar is too large', 'TORRENT_SIDECAR_TOO_LARGE')
+  if (head.size > TORRENT_SIDECAR_MAX_BYTES) {
+    // Nothing records a refused sidecar, so it would never be counted or evicted.
+    await deps.s3.evictTorrentCacheObjects(storage, [key])
+    throw badRequest('Sidecar is too large', 'TORRENT_SIDECAR_TOO_LARGE')
+  }
   await deps.torrents.saveExtraObject({
     torrentId: torrent.id,
     infoHash: torrent.infoHash,
@@ -75,6 +85,7 @@ export async function putTaskTorrentLayout(
   const problem = layoutProblem(params.layout, files, sidecarsOf(extras))
   if (problem) throw badRequest(msg('Layout is invalid: {reason}', { reason: problem }), 'TORRENT_LAYOUT_INVALID')
   const bytes = new TextEncoder().encode(JSON.stringify(params.layout))
+  if (bytes.length > TORRENT_LAYOUT_MAX_BYTES) throw payloadTooLarge('Layout is too large')
   await deps.s3.putObject(storage, torrentLayoutObjectKey(torrent.infoHash), bytes, 'application/json', bytes.length)
   await deps.torrents.saveExtraObject({
     torrentId: torrent.id,

@@ -88,6 +88,7 @@ export const ZH_ERROR_MESSAGES = {
   'Some torrent files are not uploaded yet': '部分种子文件尚未上传',
   'Sidecar is not uploaded': '附属文件尚未上传',
   'Sidecar is too large': '附属文件过大',
+  'Layout is too large': '目录布局过大',
   'Layout is invalid: {reason}': '目录布局无效：{reason}',
   'Task is not filling the torrent cache': '该任务未在填充种子缓存',
   'Torrent is not being downloaded': '种子不在下载中',

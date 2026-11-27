@@ -14,6 +14,12 @@ vi.mock('@aws-sdk/client-s3', () => {
     }
     send = mockSend
   }
+  class MockListObjectsV2Command {
+    input: unknown
+    constructor(input: unknown) {
+      this.input = input
+    }
+  }
   class MockPutObjectCommand {
     input: unknown
     constructor(input: unknown) {
@@ -86,6 +92,7 @@ vi.mock('@aws-sdk/client-s3', () => {
     CopyObjectCommand: MockCopyObjectCommand,
     DeleteObjectCommand: MockDeleteObjectCommand,
     DeleteObjectsCommand: MockDeleteObjectsCommand,
+    ListObjectsV2Command: MockListObjectsV2Command,
   }
 })
 
@@ -409,9 +416,9 @@ describe('S3Service', () => {
     })
 
     it('rejects failed object reads', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(null, { status: 404 })))
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response(null, { status: 500 })))
 
-      await expect(service.getObjectBytes(storage, 'missing.bin')).rejects.toThrow('S3 object read failed: 404')
+      await expect(service.getObjectBytes(storage, 'missing.bin')).rejects.toThrow('S3 object read failed: 500')
     })
   })
 
@@ -524,6 +531,56 @@ describe('S3Service', () => {
         'Not a torrent cache key',
       )
       expect(mockSend).not.toHaveBeenCalled()
+    })
+
+    it('lists every key under a torrent cache prefix across pages', async () => {
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+      vi.mocked(getSignedUrl).mockClear()
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            '<ListBucketResult><Contents><Key>bt/abc/x/0</Key></Contents><Contents><Key>bt/abc/x/a&amp;b</Key></Contents><IsTruncated>true</IsTruncated><NextContinuationToken>t&amp;1</NextContinuationToken></ListBucketResult>',
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            '<ListBucketResult><Contents><Key>bt/abc/x/&#49;0</Key></Contents><IsTruncated>false</IsTruncated></ListBucketResult>',
+          ),
+        )
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(service.listTorrentCacheKeys(storage, 'bt/abc/x/')).resolves.toEqual([
+        'bt/abc/x/0',
+        'bt/abc/x/a&b',
+        'bt/abc/x/10',
+      ])
+      const inputs = vi.mocked(getSignedUrl).mock.calls.map((call) => (call[1] as unknown as { input: unknown }).input)
+      expect(inputs).toEqual([
+        { Bucket: 'my-bucket', Prefix: 'bt/abc/x/', ContinuationToken: undefined },
+        { Bucket: 'my-bucket', Prefix: 'bt/abc/x/', ContinuationToken: 't&1' },
+      ])
+    })
+
+    it('lists nothing but torrent cache prefixes and reports a failed listing', async () => {
+      await expect(service.listTorrentCacheKeys(storage, 'org/')).rejects.toThrow('Not a torrent cache prefix')
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response('denied', { status: 403 })))
+      await expect(service.listTorrentCacheKeys(storage, 'bt/abc/')).rejects.toThrow('S3 listing failed: 403')
+    })
+
+    it('tells a missing object apart from a failed read', async () => {
+      const { S3ObjectNotFoundError } = await import('../../usecases/ports')
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValueOnce(new Response('', { status: 404 }))
+          .mockResolvedValueOnce(new Response('', { status: 503 })),
+      )
+      await expect(service.getObjectBytes(storage, 'bt/abc/layout.json')).rejects.toBeInstanceOf(S3ObjectNotFoundError)
+      const failed = service.getObjectBytes(storage, 'bt/abc/layout.json')
+      await expect(failed).rejects.toThrow('S3 object read failed: 503')
+      await expect(failed).rejects.not.toBeInstanceOf(S3ObjectNotFoundError)
     })
   })
 
