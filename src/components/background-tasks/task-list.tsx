@@ -16,6 +16,8 @@ interface BackgroundTaskListProps {
   onRetry: (id: string) => void
   cancelingId?: string
   retryingId?: string
+  /** The rows belong to the previous filter while the new one loads. */
+  refreshing?: boolean
 }
 
 // byteProgress: false marks jobs whose work is not measured in bytes (a scan
@@ -44,6 +46,7 @@ export function BackgroundTaskList({
   onRetry,
   cancelingId,
   retryingId,
+  refreshing = false,
 }: BackgroundTaskListProps) {
   const { t } = useTranslation()
 
@@ -79,7 +82,7 @@ export function BackgroundTaskList({
               <th className="px-4 py-3 text-right font-medium">{t('common.actions')}</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody aria-busy={refreshing} className={cn('transition-opacity', refreshing && 'opacity-50')}>
             {jobs.map((job) => (
               <tr key={job.id} className="border-b last:border-b-0">
                 <td className="px-4 py-3">

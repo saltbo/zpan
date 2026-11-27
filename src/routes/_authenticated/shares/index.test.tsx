@@ -181,3 +181,60 @@ describe('authenticated Shares load failure', () => {
     expect(screen.queryByText('common.loadError.title')).toBeNull()
   })
 })
+
+describe('authenticated Shares while a new filter loads', () => {
+  afterEach(() => {
+    router.search = { status: 'all', box: 'sent' }
+  })
+
+  it('keeps the toolbar and the previous rows, dimmed, until the new rows arrive [spec: list-state/refetch-keeps-layout]', async () => {
+    let resolveRevoked: (page: { items: ShareListItem[]; nextPageToken: null }) => void = () => {}
+    vi.mocked(listShares).mockImplementation((_token, _size, status) =>
+      status === 'revoked'
+        ? new Promise((resolve) => {
+            resolveRevoked = resolve
+          })
+        : Promise.resolve({ items: shares, nextPageToken: null }),
+    )
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const page = () => (
+      <QueryClientProvider client={queryClient}>
+        <SharesPage />
+      </QueryClientProvider>
+    )
+    const view = render(page())
+    expect(await screen.findByText('Public.pdf')).toBeTruthy()
+
+    router.search = { status: 'revoked', box: 'sent' }
+    view.rerender(page())
+
+    await waitFor(() => expect(listShares).toHaveBeenCalledWith(undefined, expect.any(Number), 'revoked'))
+    expect(screen.queryByText('common.loading')).toBeNull()
+    expect(screen.getByTestId('shares-toolbar')).toBeTruthy()
+    expect(screen.getByText('Public.pdf').closest('tbody')?.getAttribute('aria-busy')).toBe('true')
+
+    resolveRevoked({
+      items: [
+        share({
+          token: 'revoked-token',
+          status: 'revoked',
+          matter: { name: 'Revoked.pdf', type: 'application/pdf', dirtype: 0 },
+        }),
+      ],
+      nextPageToken: null,
+    })
+
+    expect(await screen.findByText('Revoked.pdf')).toBeTruthy()
+    expect(screen.queryByText('Public.pdf')).toBeNull()
+    expect(screen.getByText('Revoked.pdf').closest('tbody')?.getAttribute('aria-busy')).toBe('false')
+  })
+
+  it('shows the loading state on the first load', () => {
+    vi.mocked(listShares).mockReturnValue(new Promise(() => {}))
+
+    renderPage()
+
+    expect(screen.getByText('common.loading')).toBeTruthy()
+    expect(screen.queryByTestId('shares-toolbar')).toBeNull()
+  })
+})

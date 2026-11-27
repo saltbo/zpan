@@ -52,3 +52,11 @@ Feature: List state in the URL
     When a user types several characters in quick succession
     Then the search field and the link both hold the full text
     And going back to a link with another search shows that search in the field
+
+  @list-state/refetch-keeps-layout @web
+  Scenario: Changing a list's filter keeps the page in place while it loads
+    Given a user has a list open with its rows loaded
+    When the user picks another filter
+    Then the page header, the filter bar, and the previous rows stay on screen
+    And the previous rows are shown dimmed until the new rows arrive
+    But opening the list for the first time shows the loading state in its place

@@ -1,5 +1,5 @@
-import type { BackgroundJobStatus } from '@shared/types'
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { BackgroundJob, BackgroundJobStatus } from '@shared/types'
+import { keepPreviousData, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { ListChecks } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -37,10 +37,16 @@ export function TasksPage() {
 
   const status = statusForFilter(filter)
   const jobsQuery = useInfiniteQuery({
-    queryKey: [...QUERY_KEY, status],
-    queryFn: ({ pageParam }) => listBackgroundJobs({ status, pageToken: pageParam, pageSize: PAGE_SIZE }),
+    queryKey: [...QUERY_KEY, filter],
+    queryFn: async ({ pageParam }) => {
+      const page = await listBackgroundJobs({ status, pageToken: pageParam, pageSize: PAGE_SIZE })
+      return filter === 'active' ? { ...page, items: page.items.filter(isActiveJob) } : page
+    },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
+    // Keep the previous filter's rows on screen while the next one loads, so the
+    // page layout and the filter the user just picked stay in place.
+    placeholderData: keepPreviousData,
   })
   const loadMoreRef = useInfiniteScroll<HTMLDivElement>({
     hasNextPage: jobsQuery.hasNextPage,
@@ -80,8 +86,6 @@ export function TasksPage() {
   }
 
   const jobs = jobsQuery.data?.pages.flatMap((page) => page.items) ?? []
-  const visibleJobs =
-    filter === 'active' ? jobs.filter((job) => job.status === 'queued' || job.status === 'running') : jobs
 
   return (
     <div className="space-y-4">
@@ -95,8 +99,9 @@ export function TasksPage() {
       />
 
       <BackgroundTaskList
-        jobs={visibleJobs}
-        total={visibleJobs.length}
+        jobs={jobs}
+        total={jobs.length}
+        refreshing={jobsQuery.isPlaceholderData}
         filter={filter}
         onFilterChange={setFilter}
         onCancel={(id) => cancelMutation.mutate(id)}
@@ -111,6 +116,10 @@ export function TasksPage() {
       )}
     </div>
   )
+}
+
+function isActiveJob(job: BackgroundJob) {
+  return job.status === 'queued' || job.status === 'running'
 }
 
 function statusForFilter(filter: BackgroundTaskFilter): BackgroundJobStatus | undefined {
