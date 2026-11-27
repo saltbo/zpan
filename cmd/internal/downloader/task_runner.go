@@ -42,6 +42,7 @@ type TaskRunner struct {
 	geoIP      *geoip.DB
 	logger     *slog.Logger
 	running    map[string]context.CancelCauseFunc
+	caches     map[string]*torrentCache
 	speeds     map[string]transferSpeeds
 	attempts   map[string]int
 	wg         sync.WaitGroup
@@ -86,6 +87,7 @@ func NewTaskRunnerWithAPI(cfg config.Config, api apiClient) *TaskRunner {
 		api:      api,
 		logger:   slog.Default(),
 		running:  map[string]context.CancelCauseFunc{},
+		caches:   map[string]*torrentCache{},
 		speeds:   map[string]transferSpeeds{},
 		attempts: map[string]int{},
 	}
@@ -242,6 +244,9 @@ func (w *TaskRunner) localPollInterval() time.Duration {
 func (w *TaskRunner) process(ctx context.Context, task client.DownloadTask) {
 	defer w.finish(task.ID)
 	log := w.taskLogger(task)
+	if task.TorrentCache() {
+		w.setCacheState(task.ID, &torrentCache{})
+	}
 	defer w.recoverTaskPanic(ctx, task.ID, log)
 	log.Info("task started", "source_uri", task.SourceURI(), "target_folder", task.TargetFolder())
 	if err := w.resetTaskForAttempt(ctx, task, log); err != nil {
@@ -302,6 +307,9 @@ func (w *TaskRunner) downloadThenUpload(
 			log.Debug("task download progress", "downloaded_bytes", downloaded, "total_bytes", optionalInt64(total), "bps", bps)
 			lastProgressLog = time.Now()
 		}
+		if cache := w.cacheState(task.ID); cache != nil {
+			w.registerDuringDownload(ctx, log, task, cache, w.cancelFunc(task.ID))
+		}
 		return nil
 	})
 	if err != nil {
@@ -321,6 +329,10 @@ func (w *TaskRunner) downloadThenUpload(
 				// The server already moved the task to suspended (billing); the
 				// poll told us to stop. Don't touch its status.
 				log.Info("task stopped because it was suspended")
+				return
+			}
+			if errors.Is(context.Cause(ctx), errTaskSettledByCache) {
+				w.dropSettledTask(ctx, log, task, w.cacheState(task.ID))
 				return
 			}
 			zero := int64(0)
@@ -549,6 +561,15 @@ func (w *TaskRunner) uploadAndComplete(
 	currentDetail *client.DownloadTaskRuntime,
 ) {
 	zero := int64(0)
+	cache := w.cacheState(task.ID)
+	var registerErr error
+	if cache != nil {
+		registerErr = w.registerAfterDownload(ctx, log, task, cache)
+		if registerErr == nil && cache.settled() {
+			w.dropSettledTask(ctx, log, task, cache)
+			return
+		}
+	}
 	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{
 		Status:   "uploading",
 		Progress: downloadProgressPatch(result.Size, &result.Size, zero),
@@ -560,7 +581,19 @@ func (w *TaskRunner) uploadAndComplete(
 	task.Status.Runtime = currentDetail
 	upload, cleanupOverlay := w.postProcess(ctx, log, task, result)
 	defer cleanupOverlay()
-	resultObjectID, err := w.uploader.Upload(ctx, log, task, upload)
+	var resultObjectID string
+	err := registerErr
+	switch {
+	case err != nil:
+	case cache.fills():
+		var notices []string
+		notices, err = w.uploader.uploadToCache(ctx, log, task, upload, *cache.registration)
+		for _, notice := range notices {
+			w.uploader.reportScrapeSkipped(ctx, log, task.ID, notice)
+		}
+	default:
+		resultObjectID, err = w.uploader.Upload(ctx, log, task, upload)
+	}
 	if err != nil {
 		downloadedBytes := result.Size
 		if errors.Is(err, context.Canceled) {
@@ -613,6 +646,12 @@ func (w *TaskRunner) uploadAndComplete(
 		}
 		return
 	}
+	if cache.fills() {
+		// The server completed the task by instant transfer.
+		log.Info("task completed through the torrent cache", "info_hash", cache.registration.InfoHash)
+		w.retainOrCleanup(ctx, log, task, result)
+		return
+	}
 	uploadedBytes := result.Size
 	completedDetail := currentDetail
 	if completedDetail == nil {
@@ -634,6 +673,11 @@ func (w *TaskRunner) uploadAndComplete(
 		return
 	}
 	log.Debug("task completed", "object_id", resultObjectID)
+	w.retainOrCleanup(ctx, log, task, result)
+}
+
+// retainOrCleanup keeps a completed download seeding, or removes it.
+func (w *TaskRunner) retainOrCleanup(ctx context.Context, log *slog.Logger, task client.DownloadTask, result Result) {
 	if w.seeds.Retain(ctx, task, result, log) {
 		w.seeds.Report(ctx)
 		w.seeds.Cleanup(ctx)
@@ -729,11 +773,37 @@ func (w *TaskRunner) finish(taskID string) {
 	if exists {
 		delete(w.running, taskID)
 		delete(w.speeds, taskID)
+		delete(w.caches, taskID)
 	}
 	w.mu.Unlock()
 	if exists {
 		w.wg.Done()
 	}
+}
+
+func (w *TaskRunner) cacheState(taskID string) *torrentCache {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.caches[taskID]
+}
+
+func (w *TaskRunner) setCacheState(taskID string, state *torrentCache) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.caches == nil {
+		w.caches = map[string]*torrentCache{}
+	}
+	w.caches[taskID] = state
+}
+
+// cancelFunc stops a running task with a cause.
+func (w *TaskRunner) cancelFunc(taskID string) context.CancelCauseFunc {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if cancel := w.running[taskID]; cancel != nil {
+		return cancel
+	}
+	return func(error) {}
 }
 
 func (w *TaskRunner) waitForTasks() {
@@ -805,6 +875,9 @@ func (w *TaskRunner) heartbeat() client.Heartbeat {
 	if w.downloader != nil {
 		engineName = w.downloader.Name()
 		capabilities = w.downloader.Capabilities()
+		if w.supportsTorrentCache() {
+			capabilities = append(capabilities, TorrentCacheCapability)
+		}
 	}
 	speeds := w.currentTransferSpeeds()
 	freeDiskBytes, err := system.FreeDiskBytes(w.cfg.DownloadDir)

@@ -135,6 +135,34 @@ func (m *Manager) Capabilities() []string {
 	return out
 }
 
+// TorrentCacheCapability is reported in the heartbeat by a downloader that can
+// fill the torrent cache.
+const TorrentCacheCapability = "torrent-cache"
+
+// SupportsTorrentCache reports whether an engine can hand over torrent metadata.
+func (m *Manager) SupportsTorrentCache() bool {
+	for _, downloader := range m.currentDownloaders() {
+		if _, ok := downloader.(TorrentMetadataSource); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// TorrentMetadata returns the .torrent file of a torrent task from the engine
+// that runs it.
+func (m *Manager) TorrentMetadata(ctx context.Context, task DownloadTask) ([]byte, error) {
+	downloader, err := m.selectDownloader(task)
+	if err != nil {
+		return nil, err
+	}
+	source, ok := downloader.(TorrentMetadataSource)
+	if !ok {
+		return nil, fmt.Errorf("downloader %s cannot export torrent metadata", downloader.Name())
+	}
+	return source.TorrentMetadata(ctx, task)
+}
+
 func (m *Manager) Download(ctx context.Context, task DownloadTask, progress ProgressReporter) (Result, error) {
 	downloader, err := m.selectDownloader(task)
 	if err != nil {

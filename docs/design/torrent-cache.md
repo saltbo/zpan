@@ -200,7 +200,10 @@ every later one, so the first user's files are laid out exactly as everyone
 else's.
 
 qBittorrent exports the `.torrent` file through its Web API, and Aria2 saves it
-with `bt-save-metadata`, so both engines can supply the info dictionary. Only
+with `bt-save-metadata`, so both engines can supply the info dictionary. The
+downloader registers it as soon as the engine has it, so a torrent that turns
+out to be cached or already downloading elsewhere stops downloading early, and
+a torrent the server refuses uploads into the drive. Only
 v1 and hybrid torrents enter the cache. Padding files (BEP 47) count for piece
 boundaries but get no `torrent_files` row.
 
@@ -368,10 +371,9 @@ redirected to the returned link, which Stremio Web played.
 2. **Verification** (#687). The `torrent_verify` job and the sharing gate.
 3. **StremThru Store API** (#707). The endpoint subset, the `stremthru` key,
    link issuance and metering, and the workspace StremThru tab.
-4. **Downloader and layout** (not started). The Go downloader reports the
+4. **Downloader and layout** (#721, #722). The Go downloader reports the
    `torrent-cache` capability and uploads through the cache API, and the
-   `layout.json` upload and replay. It waits for the downloader's scraping work
-   to settle, and until it ships no downloader fills the cache.
+   `layout.json` upload and replay.
 5. **Drive details** (#715). The cached-file mark, torrent and verification
    state in the details sheet, and no Replace onto a cached file in the
    name-conflict dialog. An API client that passes `onConflict=replace` can

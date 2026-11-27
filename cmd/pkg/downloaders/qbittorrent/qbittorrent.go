@@ -329,6 +329,40 @@ func (q QBittorrent) Download(ctx context.Context, task downloader.DownloadTask,
 	return q.resultFromTorrent(ctx, qbt, task, taskDir, torrent)
 }
 
+// TorrentMetadata exports the task's .torrent file from qBittorrent, which
+// answers only once the metadata is resolved. A finished download that
+// qBittorrent no longer holds is read from the copy kept beside it.
+func (q QBittorrent) TorrentMetadata(ctx context.Context, task downloader.DownloadTask) ([]byte, error) {
+	taskDir := filepath.Join(q.Dir, task.ID)
+	qbt, err := q.login(ctx)
+	if err != nil {
+		return nil, err
+	}
+	torrent, ok, err := q.findTask(ctx, qbt, task)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return core.ReadMetadata(taskDir)
+	}
+	if strings.EqualFold(string(torrent.State), string(qbittorrent.TorrentStateMetaDl)) || torrent.State == "forcedMetaDL" {
+		return nil, downloader.ErrTorrentMetadataPending
+	}
+	data, err := qbt.ExportTorrentCtx(ctx, torrent.Hash)
+	if err != nil || len(data) == 0 {
+		return nil, downloader.ErrTorrentMetadataPending
+	}
+	return data, nil
+}
+
+// keepMetadata saves the .torrent file beside the download before qBittorrent
+// forgets the torrent, so a cache upload can still register it.
+func keepMetadata(ctx context.Context, qbt *qbittorrent.Client, taskDir string, hash string) {
+	if data, err := qbt.ExportTorrentCtx(ctx, hash); err == nil && len(data) > 0 {
+		_ = core.SaveMetadata(taskDir, data)
+	}
+}
+
 func (q QBittorrent) resultFromTorrent(
 	ctx context.Context,
 	qbt *qbittorrent.Client,
@@ -351,6 +385,7 @@ func (q QBittorrent) resultFromTorrent(
 		}
 		return result, nil
 	}
+	keepMetadata(ctx, qbt, taskDir, torrent.Hash)
 	_ = qbt.DeleteTorrentsCtx(ctx, []string{torrent.Hash}, false)
 	return result, nil
 }
