@@ -2548,7 +2548,6 @@
   "admin.entitlement.grantDescription": "Grant additional storage capacity.",
   "admin.entitlement.editDescription": "Adjust the granted capacity, expiry, or note.",
   "admin.entitlement.amount": "Amount",
-  "admin.entitlement.unit": "Unit",
   "admin.entitlement.expires": "Expires (optional)",
   "admin.entitlement.note": "Note (optional)",
   "admin.entitlement.grant": "Grant quota",

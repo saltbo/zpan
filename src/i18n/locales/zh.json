@@ -2548,7 +2548,6 @@
   "admin.entitlement.grantDescription": "授予额外的存储容量。",
   "admin.entitlement.editDescription": "调整授予的容量、过期时间或备注。",
   "admin.entitlement.amount": "容量",
-  "admin.entitlement.unit": "单位",
   "admin.entitlement.expires": "过期时间（可选）",
   "admin.entitlement.note": "备注（可选）",
   "admin.entitlement.grant": "授予配额",

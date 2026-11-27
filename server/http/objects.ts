@@ -607,6 +607,7 @@ const objects = app
       }
       if (capacity.value.offers.length === 0) throw quotaExceeded()
       const requestHash = await createCapacityRequestHash(orgId, input)
+      c.header('Vary', 'Accept-Language', { append: true })
       return c.json(
         {
           ...buildErrorBody(402, localizeMessage(CAPACITY_REQUIRED_MESSAGE, requestLanguage(c.req.raw)), {

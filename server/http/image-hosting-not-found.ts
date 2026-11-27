@@ -21,6 +21,7 @@ function responseHeaders(contentType: string): HeadersInit {
   return {
     'Cache-Control': 'no-store',
     'Content-Type': contentType,
+    Vary: 'Accept-Language',
     'X-Robots-Tag': 'noindex, nofollow',
   }
 }

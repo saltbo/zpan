@@ -50,3 +50,10 @@ Feature: Error messages
     Then the message is a product sentence in the request's language, not a code or the service's own text
     And a code the service reported stays machine-readable as the error's reason
     And the service's own text appears only in the server log
+
+  @error-messages/vary @api
+  Scenario: A cache keeps each language's error message apart
+    Given a request that fails with an error in the request's language
+    When the API answers with the error
+    Then the response says it varies by the request's language
+    And it still says it varies by any other header it already did, such as the origin
