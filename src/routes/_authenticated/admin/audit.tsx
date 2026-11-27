@@ -18,7 +18,7 @@ import { CursorPagination } from '@/components/list/cursor-pagination'
 import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
 import { Card } from '@/components/ui/card'
-import { useCursorPager } from '@/hooks/use-cursor-pager'
+import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { type AdminAuditFilter, listAdminAuditLogs } from '@/lib/api'
 
@@ -97,12 +97,13 @@ function AuditLogsPage() {
 
   const pager = useCursorPager(`${pageSize}:${action}:${timeRange}`)
 
-  const { data, isFetching, isPending, error } = useQuery({
+  const { data, isFetching, isPlaceholderData, isPending, error } = useQuery({
     queryKey: ['admin', 'audit', pageSize, action, timeRange, pager.pageToken],
     queryFn: () => listAdminAuditLogs({ pageToken: pager.pageToken, pageSize }, filter),
     placeholderData: keepPreviousData,
     enabled: auditEnabled,
   })
+  useStepBackFromEmptyPage(pager, { data, isFetching, isPlaceholderData })
 
   const items = data?.items ?? []
 

@@ -7,7 +7,7 @@ import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-d
 import { ConfirmActionDialog } from '@/components/admin/confirm-action-dialog'
 import { CursorPagination } from '@/components/list/cursor-pagination'
 import { useClipboard } from '@/hooks/use-clipboard'
-import { useCursorPager } from '@/hooks/use-cursor-pager'
+import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
 import {
   type ApiError,
   createSiteInvitation,
@@ -63,6 +63,7 @@ export function SiteInvitationsDrawer({ open, onOpenChange }: SiteInvitationsDra
     placeholderData: keepPreviousData,
     enabled: open,
   })
+  useStepBackFromEmptyPage(pager, invitationsQuery)
 
   const createMutation = useMutation({
     mutationFn: (nextEmail: string) => createSiteInvitation(nextEmail),

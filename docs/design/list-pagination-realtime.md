@@ -22,7 +22,9 @@ endpoint instead of making every page query execute a count.
 An admin table keeps the tokens of the pages it has visited in memory, so
 previous steps back without a page number. Its page size, search, and filters
 live in the URL; its position does not, because a token expires and is bound to
-the query that issued it. Changing any of them returns to the first page.
+the query that issued it. Changing any of them returns to the first page. A page
+after the first that comes back empty, because its last row was deleted, steps
+back to the page before it.
 
 Small collections with a hard product limit may return `{ items }`. They must
 not add offset pagination preemptively.

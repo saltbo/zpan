@@ -26,3 +26,21 @@ export function useCursorPager(resetKey: string) {
     },
   }
 }
+
+interface PageQuery {
+  data: { items: readonly unknown[] } | undefined
+  isFetching: boolean
+  isPlaceholderData: boolean
+}
+
+// A page after the first can come back empty once its last row is deleted. The
+// server never hands out a token for an empty page, so such a page is stale:
+// step back to the page before it. Only a settled answer for the current token
+// counts; kept-previous rows and a refetch in flight say nothing about it.
+export function useStepBackFromEmptyPage(
+  pager: Pick<ReturnType<typeof useCursorPager>, 'hasPrevious' | 'previous'>,
+  query: PageQuery,
+) {
+  const settled = !query.isFetching && !query.isPlaceholderData
+  if (pager.hasPrevious && settled && query.data?.items.length === 0) pager.previous()
+}

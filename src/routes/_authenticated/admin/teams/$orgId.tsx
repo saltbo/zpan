@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useCursorPager } from '@/hooks/use-cursor-pager'
+import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import {
   type AdminAuditFilter,
@@ -117,6 +117,7 @@ function AdminTeamDetailPage() {
     placeholderData: keepPreviousData,
     enabled: auditEnabled && teamQuery.isSuccess,
   })
+  useStepBackFromEmptyPage(activityPager, activityQuery)
   const activityItems = activityQuery.data?.items ?? []
 
   if (teamQuery.isLoading) {

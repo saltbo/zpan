@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { CursorPagination } from '@/components/list/cursor-pagination'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { useCursorPager } from '@/hooks/use-cursor-pager'
+import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
 import { listTeams, type TeamSummary } from '@/lib/api'
 import { formatDate, formatStorageUsage, getInitials } from '@/lib/format'
 
@@ -26,6 +26,7 @@ function TeamsPage() {
     queryFn: () => listTeams({ pageToken: pager.pageToken, pageSize }),
     placeholderData: keepPreviousData,
   })
+  useStepBackFromEmptyPage(pager, teamsQuery)
   const teams = teamsQuery.data?.items ?? []
 
   if (teamsQuery.isLoading) {

@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/c
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useCursorPager } from '@/hooks/use-cursor-pager'
+import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
 import { deleteInviteCode, generateInviteCodes, type InviteCode, listInviteCodes } from '@/lib/api'
 
 const inviteCodesQueryKey = ['admin', 'invite-codes'] as const
@@ -92,11 +92,12 @@ export function InviteCodesSection() {
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0])
   const pager = useCursorPager(String(pageSize))
 
-  const { data, isLoading, isFetching, isError, refetch } = useQuery({
+  const { data, isLoading, isFetching, isPlaceholderData, isError, refetch } = useQuery({
     queryKey: [...inviteCodesQueryKey, pageSize, pager.pageToken],
     queryFn: () => listInviteCodes({ pageToken: pager.pageToken, pageSize }),
     placeholderData: keepPreviousData,
   })
+  useStepBackFromEmptyPage(pager, { data, isFetching, isPlaceholderData })
 
   const generateMutation = useMutation({
     mutationFn: () => generateInviteCodes(count, expiresInDays ? Number(expiresInDays) : undefined),

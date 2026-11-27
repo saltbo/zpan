@@ -183,4 +183,33 @@ describe('InviteCodesSection list', () => {
     expect(await screen.findByText('ABCD-1234')).toBeTruthy()
     expect(screen.queryByText('PAGE-0002')).toBeNull()
   })
+
+  it('returns to the page before when the last code on a later page is deleted [spec: list-pagination/empty-later-page]', async () => {
+    const second = { ...code, id: 'code-2', code: 'PAGE-0002' } as InviteCode
+    let secondDeleted = false
+    vi.mocked(deleteInviteCode).mockImplementation((async () => {
+      secondDeleted = true
+    }) as never)
+    vi.mocked(listInviteCodes).mockImplementation(async (opts) => {
+      if (opts?.pageToken === 'tok-2') return { items: secondDeleted ? [] : [second], nextPageToken: null }
+      return { items: [code], nextPageToken: secondDeleted ? null : 'tok-2' }
+    })
+    renderSection()
+
+    expect(await screen.findByText('ABCD-1234')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'common.nextPage' }))
+    expect(await screen.findByText('PAGE-0002')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
+    const dialog = await screen.findByRole('dialog')
+    const confirm = Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent === 'common.delete')
+    fireEvent.click(confirm!)
+
+    expect(await screen.findByText('ABCD-1234')).toBeTruthy()
+    expect(screen.queryByText('PAGE-0002')).toBeNull()
+    await waitFor(() => {
+      expect((screen.getByRole('button', { name: 'common.previousPage' }) as HTMLButtonElement).disabled).toBe(true)
+      expect((screen.getByRole('button', { name: 'common.nextPage' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+  })
 })

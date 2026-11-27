@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useCursorPager } from '@/hooks/use-cursor-pager'
+import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import {
   type AdminAuditFilter,
@@ -119,6 +119,7 @@ export function AdminUserDetailPage() {
     placeholderData: keepPreviousData,
     enabled: auditEnabled && userQuery.isSuccess,
   })
+  useStepBackFromEmptyPage(activityPager, activityQuery)
 
   const user = userQuery.data
   const items = useMemo(
