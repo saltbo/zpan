@@ -25,7 +25,7 @@ import { buildObjectKey, fileExt } from '../lib/path-template'
 import { resolveActorProfiles } from './audit-actors'
 import type { Deps } from './deps'
 import { assertFolderNotUsedByDownload, ensureDownloadFolderPath } from './downloads/download-folders'
-import { assertTaskUploadAllowed } from './downloads/downloads'
+import { assertTaskUploadAllowed } from './downloads/task-upload-guard'
 import {
   chargedStorageId,
   duplicateMatterObject,
@@ -909,9 +909,29 @@ export async function deleteTaskUploadFile(
     return { ok: false, error: forbidden() }
   }
   await assertTaskUploadAllowed(deps as Deps, { taskId: params.taskId, downloaderId: params.downloaderId })
-  if (matter.trashedAt == null) await deps.matter.trash(orgId, objectId)
-  const purged = await deleteObject(deps, { orgId, objectId })
+  const purged = await purgeTaskFile(deps, orgId, matter)
   return purged.ok ? { ok: true, matter } : { ok: false, error: notFound() }
+}
+
+// A canceled task's files never reached the user either, so they go the same
+// way once the task settles to canceled. Its folders stay, as above.
+export async function purgeCanceledTaskFiles(
+  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'storageUsage' | 'share'>,
+  orgId: string,
+  taskId: string,
+): Promise<void> {
+  for (const matter of await deps.matter.listActiveFilesCreatedByTask(orgId, taskId)) {
+    await purgeTaskFile(deps, orgId, matter)
+  }
+}
+
+async function purgeTaskFile(
+  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'storageUsage' | 'share'>,
+  orgId: string,
+  matter: Matter,
+): Promise<DeleteObjectOutcome> {
+  if (matter.trashedAt == null) await deps.matter.trash(orgId, matter.id)
+  return deleteObject(deps, { orgId, objectId: matter.id })
 }
 
 // ─── Permanent delete (purge) ─────────────────────────────────────────────────

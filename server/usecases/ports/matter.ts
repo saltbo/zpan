@@ -144,6 +144,8 @@ export interface MatterRepo {
   // Active descendants of a folder path (parent LIKE `${parentPath}/%`). Used by the
   // WebDAV recursive COPY/MOVE to enumerate a subtree.
   listActiveDescendants(orgId: string, parentPath: string): Promise<Matter[]>
+  // Live files a download task created, by `createdByTaskId`.
+  listActiveFilesCreatedByTask(orgId: string, taskId: string): Promise<Matter[]>
   // Raw bulk status flips for WebDAV COPY rollback/overwrite (no conflict handling).
   trashByIds(orgId: string, ids: string[]): Promise<void>
   restoreActiveByIds(orgId: string, ids: string[]): Promise<void>

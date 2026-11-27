@@ -6,7 +6,7 @@ import { DirType } from '@shared/constants'
 import type { EpisodeMediaMetadata, MediaMetadata, MovieMediaMetadata, TvShowMediaMetadata } from '@shared/schemas'
 import { joinMatterPath } from '../domain/media-library'
 import type { Deps } from './deps'
-import { assertTaskUploadAllowed } from './downloads/downloads'
+import { assertTaskUploadAllowed } from './downloads/task-upload-guard'
 import { isWithinDownloadTarget } from './object'
 import {
   badRequest,

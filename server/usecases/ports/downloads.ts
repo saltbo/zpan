@@ -259,7 +259,8 @@ export interface DownloadTaskRepo {
   /** Re-queue in-flight tasks held by stale downloaders. */
   requeueAssignedToMany(downloaderIds: string[], statuses: string[], now: Date): Promise<void>
   /** Resolve control states (canceling→canceled, pausing→paused) held by stale downloaders. */
-  resolveControlAssignedToMany(downloaderIds: string[], now: Date): Promise<void>
+  // Returns the tasks it settled to canceled.
+  resolveControlAssignedToMany(downloaderIds: string[], now: Date): Promise<Array<{ id: string; orgId: string }>>
   /** Drop the stale 'seeding' runtime on completed tasks not owned by a live downloader. */
   clearStaleSeedingRuntime(leaseCutoff: Date, now: Date): Promise<void>
 }
