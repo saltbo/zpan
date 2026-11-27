@@ -18,6 +18,7 @@ import {
   STREMTHRU_LIST_DEFAULT_LIMIT,
   STREMTHRU_LIST_MAX_LIMIT,
   StremThruError,
+  type StremThruErrorCode,
   type StremThruFile,
   type StremThruTorzStatus,
   torzFile,
@@ -177,8 +178,8 @@ async function heldFiles(
   const refs = await deps.torrents.listWorkspaceReferences(task.orgId, torrent)
   const held = new Map<string, Matter>()
   for (const ref of refs) {
-    if (ref.dirtype !== DirType.FILE || !isWithinDownloadTarget(ref.parent, task.targetFolder)) continue
-    if (!held.has(ref.object)) held.set(ref.object, ref)
+    // Only cached files have keys under bt/; a copy elsewhere belongs to another task.
+    if (isWithinDownloadTarget(ref.parent, task.targetFolder) && !held.has(ref.object)) held.set(ref.object, ref)
   }
   return held
 }
@@ -369,10 +370,10 @@ function joinPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
 }
 
-async function rootFolder(deps: Deps, orgId: string, parent: string, name: string): Promise<Matter | null> {
+// The folder at `parent/name`, which holds files and so exists.
+async function rootFolder(deps: Deps, orgId: string, parent: string, name: string): Promise<Matter | undefined> {
   const { items } = await deps.matter.list(orgId, { parent, name, pageSize: 1 })
-  const folder = items[0]
-  return folder && folder.dirtype !== DirType.FILE && folder.name === name ? folder : null
+  return items[0]
 }
 
 async function holdsOnlyTorrentFiles(deps: Deps, orgId: string, path: string, infoHash: string): Promise<boolean> {
@@ -481,6 +482,15 @@ async function touchTorrent(deps: Pick<Deps, 'torrents'>, object: string, now: D
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
+const APP_ERROR_CODES: Record<number, StremThruErrorCode> = {
+  401: 'UNAUTHORIZED',
+  402: 'PAYMENT_REQUIRED',
+  403: 'FORBIDDEN',
+  404: 'NOT_FOUND',
+  422: 'PAYMENT_REQUIRED',
+  429: 'TOO_MANY_REQUESTS',
+}
+
 // Maps ZPan errors from the download usecases onto StremThru's codes.
 async function withStoreErrors<T>(run: () => Promise<T>): Promise<T> {
   try {
@@ -498,20 +508,7 @@ export function toStremThruError(error: unknown): Error {
     return new StremThruError('BAD_REQUEST', error.message)
   }
   if (error instanceof AppError) {
-    const code =
-      error.httpStatus === 404
-        ? 'NOT_FOUND'
-        : error.httpStatus === 401
-          ? 'UNAUTHORIZED'
-          : error.httpStatus === 403
-            ? 'FORBIDDEN'
-            : error.httpStatus === 402 || error.httpStatus === 422
-              ? 'PAYMENT_REQUIRED'
-              : error.httpStatus === 429
-                ? 'TOO_MANY_REQUESTS'
-                : error.httpStatus < 500
-                  ? 'BAD_REQUEST'
-                  : null
+    const code = APP_ERROR_CODES[error.httpStatus] ?? (error.httpStatus < 500 ? 'BAD_REQUEST' : null)
     if (code) return new StremThruError(code, error.message)
   }
   return error instanceof Error ? error : new Error(String(error))

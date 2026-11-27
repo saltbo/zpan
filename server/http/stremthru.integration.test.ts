@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
+import { transferTorrent } from '../usecases/torrent-cache/instant-transfer.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>
 
@@ -416,6 +417,136 @@ describe('StremThru Store API', () => {
     expect(badLink.status).toBe(400)
     expect(leftUser.status).toBe(403)
     expect(await json(leftUser)).toMatchObject({ error: { code: 'FORBIDDEN' } })
+  })
+})
+
+describe('StremThru removal and re-adding', () => {
+  async function add(call: Awaited<ReturnType<typeof setup>>['call'], link: string) {
+    return (
+      await json<{ data: Torz }>(await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link }) }))
+    ).data
+  }
+
+  it('trashes only the torrent files when the folder also holds other files, and leaves copies elsewhere', async () => {
+    const ctx = await setup()
+    const torz = await add(ctx.call, CACHED_HASH)
+    // The same torrent transferred elsewhere in the workspace, outside the torrent folder.
+    const copy = await transferTorrent(ctx.deps, {
+      torrentId: ctx.torrent.id,
+      orgId: ctx.owner.orgId,
+      userId: ctx.owner.userId,
+      targetFolder: 'Elsewhere',
+    })
+    expect(copy.ok).toBe(true)
+    await ctx.deps.matter.create({
+      orgId: ctx.owner.orgId,
+      name: 'notes.txt',
+      type: 'text/plain',
+      size: 1,
+      parent: 'Media/Show S01',
+      object: 'org/user/notes.txt',
+      storageId: STORAGE_ID,
+      status: 'active',
+    })
+    // A file the user moved straight into the torrent folder still belongs to the item.
+    const subtitle = (await activeFiles(ctx.db, ctx.owner.orgId)).find(
+      (file) => file.parent === 'Media/Show S01/Subs' && file.name === 'Show.S01E01.srt',
+    )
+    await ctx.deps.matter.update(subtitle?.id ?? '', ctx.owner.orgId, { parent: 'Media' })
+
+    const listed = await json<{ data: Torz }>(await ctx.call(`/v0/store/torz/${torz.id}`))
+    expect(listed.data.files.map((file) => typeof file.link)).toEqual(['string', 'string'])
+    const removed = await ctx.call(`/v0/store/torz/${torz.id}`, { method: 'DELETE' })
+
+    expect(removed.status).toBe(200)
+    const live = (await activeFiles(ctx.db, ctx.owner.orgId)).filter((file) => file.trashedAt === null)
+    expect(live.map((file) => `${file.parent}/${file.name}`).sort()).toEqual([
+      'Elsewhere/Show S01/Show.S01E01.mkv',
+      'Elsewhere/Show S01/Subs/Show.S01E01.srt',
+      'Media/Show S01/notes.txt',
+    ])
+  })
+
+  it('trashes the lone file of a single-file torrent', async () => {
+    const ctx = await setup()
+    const single = 'ef'.repeat(20)
+    await ctx.deps.torrents.create({
+      infoHash: single,
+      storageId: STORAGE_ID,
+      name: 'Movie.mkv',
+      private: true,
+      status: 'ready',
+      verified: 'sampled',
+      files: [{ fileIdx: 0, path: 'Movie.mkv', size: 5, mime: 'video/x-matroska' }],
+    })
+    const torz = await add(ctx.call, single)
+    expect(torz).toMatchObject({ name: 'Movie.mkv', private: true, files: [{ index: 0, path: '/Movie.mkv' }] })
+
+    await ctx.call(`/v0/store/torz/${torz.id}`, { method: 'DELETE' })
+
+    const files = await activeFiles(ctx.db, ctx.owner.orgId)
+    expect(files).toEqual([expect.objectContaining({ name: 'Movie.mkv', parent: 'Media' })])
+    expect(files[0].trashedAt).not.toBeNull()
+  })
+
+  it('cancels and removes a torrent that is still queued', async () => {
+    const ctx = await setup()
+    const torz = await add(ctx.call, UNKNOWN_HASH)
+    // An item still in progress is returned again rather than added twice.
+    expect((await add(ctx.call, UNKNOWN_HASH)).id).toBe(torz.id)
+
+    const removed = await ctx.call(`/v0/store/torz/${torz.id}`, { method: 'DELETE' })
+
+    expect(removed.status).toBe(200)
+    expect((await ctx.call(`/v0/store/torz/${torz.id}`)).status).toBe(404)
+  })
+
+  it('transfers again when a file of the earlier transfer was trashed by hand', async () => {
+    const ctx = await setup()
+    const first = await add(ctx.call, CACHED_HASH)
+    const video = (await activeFiles(ctx.db, ctx.owner.orgId)).find((file) => file.name === 'Show.S01E01.mkv')
+    await ctx.deps.matter.trash(ctx.owner.orgId, video?.id ?? '')
+
+    const second = await add(ctx.call, CACHED_HASH)
+
+    expect(second.id).not.toBe(first.id)
+    expect(second.status).toBe('downloaded')
+  })
+
+  it('refunds traffic and answers INTERNAL_SERVER_ERROR when the link cannot be signed', async () => {
+    const ctx = await setup()
+    const torz = await add(ctx.call, CACHED_HASH)
+    vi.mocked(S3Service.prototype.presignDownload).mockRejectedValueOnce(new Error('signing failed'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const res = await ctx.call('/v0/store/torz/link/generate', {
+      method: 'POST',
+      body: JSON.stringify({ link: torz.files[0].link }),
+    })
+
+    expect(res.status).toBe(500)
+    expect(await json(res)).toEqual({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Internal Server Error' } })
+    expect(await trafficUsed(ctx.db, ctx.owner.orgId)).toBe(0)
+  })
+
+  it('reads form-encoded bodies and rejects malformed JSON', async () => {
+    const ctx = await setup()
+
+    const form = await ctx.call('/v0/store/magnets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ magnet: `magnet:?xt=urn:btih:${CACHED_HASH}` }).toString(),
+    })
+    const malformed = await ctx.call('/v0/store/torz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{not json',
+    })
+
+    expect(form.status).toBe(201)
+    expect((await json<{ data: Torz }>(form)).data.status).toBe('downloaded')
+    expect(malformed.status).toBe(400)
+    expect(await json(malformed)).toEqual({ error: { code: 'BAD_REQUEST', message: 'Invalid JSON body' } })
   })
 })
 
