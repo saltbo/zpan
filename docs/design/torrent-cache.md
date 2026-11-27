@@ -54,7 +54,7 @@ and traffic metering. This proposal adds what is missing:
 | --- | --- |
 | `id`, `info_hash` | `info_hash` is the lowercase hex v1 infoHash, unique on the instance |
 | `storage_id` | Where its objects live, chosen by the normal storage selection when the download starts |
-| `name`, `total_size`, `file_count`, `private` | From the info dictionary |
+| `name`, `total_size`, `file_count`, `private` | From the info dictionary. `private` is reported to clients and does not limit sharing: private-tracker torrents are shared across the instance like any other, and honouring a tracker's rules is the operator's call |
 | `status` | `downloading`, `verifying`, `ready`, `invalid` |
 | `verified` | `full` or `sampled`, set when verification passes |
 | `source_task_id`, `source_downloader_id` | The download that filled it, kept for blame when verification fails |
@@ -281,7 +281,8 @@ including trash. Evictable torrents are deleted, objects first and rows second:
 
 - when `last_accessed_at` is older than the retention period (default 30 days),
   or
-- oldest access first, while the total cache size exceeds the admin's capacity.
+- oldest access first, while the total cache size exceeds the admin's capacity,
+  which is unset by default.
 
 Eviction is the only caller allowed to delete `bt/` keys. It re-counts
 references in the same batch that marks a torrent for deletion, so an instant
@@ -309,6 +310,13 @@ StremThru API and addon answer `PAYMENT_REQUIRED`.
 
 ## 13. Phases
 
+A spike comes first, because the plan rests on third-party clients accepting
+ZPan as a StremThru store. It points `mediafusion.elfhosted.com` at a ZPan
+preview that implements `user`, `torz/check`, `torz` add and get, and
+`link/generate` against one seeded torrent, and plays the file in Stremio. It
+also installs a minimal ZPan addon in AIOStreams. The phases follow only if
+both work.
+
 1. **Cache and instant transfer.** Tables, the `bt/` rules and gateway guard,
    the cache upload path in the downloader, checks 1 and 2, instant transfer
    on task submit, storage-usage reconcile, eviction.
@@ -317,16 +325,8 @@ StremThru API and addon answer `PAYMENT_REQUIRED`.
    issuance and metering.
 4. **ZPan addon.** Torznab search, play endpoint, settings UI.
 
-Before phase 3 ships, a spike points `mediafusion.elfhosted.com` at a ZPan
-preview that implements `user`, `torz/check`, and `link/generate` against a
-seeded torrent, and plays it in Stremio desktop and Android TV. The same spike
-installs ZPan's addon in AIOStreams.
+## 14. Out of scope
 
-## 14. Open decisions
-
-- **Private torrents.** The info dictionary's `private` flag is recorded, and
-  private-tracker torrents enter the shared cache like any other. An instance
-  may want to keep them to the requesting workspace.
 - **v2 torrents.** v2 hashes each file as its own Merkle tree, which would
   allow per-file verification and deduplication across torrents. They are out
   of scope until v2 shows up in practice.
