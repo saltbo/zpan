@@ -925,7 +925,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
     },
 
     async resolveControlAssignedToMany(downloaderIds, now) {
-      if (downloaderIds.length === 0) return
+      if (downloaderIds.length === 0) return []
       // A canceling task whose downloader vanished is effectively canceled.
       const cancelingWhere = and(
         inArray(downloadTasks.assignedDownloaderId, downloaderIds),
@@ -969,6 +969,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         pausingUpdate,
         ...changeQueries(pausingTargets, now, 'paused'),
       ])
+      return cancelingTargets
     },
 
     async clearStaleSeedingRuntime(leaseCutoff, now) {

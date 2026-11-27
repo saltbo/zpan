@@ -231,3 +231,17 @@ Feature: Remote download tasks
     Given a task upload token
     When it deletes a file another task or a user created, or any folder
     Then the API responds 403
+
+  @download-tasks/canceled-upload-cleanup @api
+  Scenario: Cancelling an uploading task leaves none of its files behind
+    Given a task that has uploaded some of its files
+    When the user cancels it and the task settles to canceled, by its downloader or by the stale-downloader sweep
+    Then none of the files the task created remain in the drive or its trash
+    And files other tasks or users created stay
+    And the folders it created stay
+
+  @download-tasks/canceled-token-no-rights @api
+  Scenario: A canceled task's upload token keeps no rights
+    Given a task the user canceled
+    When its upload token calls the object API, including deleting its own file
+    Then the API responds 401

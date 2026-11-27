@@ -3230,6 +3230,93 @@ describe('Objects API — error branches', () => {
     expect((await app.request(`/api/objects/${id}`, { headers: admin })).status).toBe(200)
   })
 
+  describe('cancelling an uploading task [spec: download-tasks/canceled-upload-cleanup]', () => {
+    async function uploadedTask() {
+      const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+      await insertStorage(db)
+      const context = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
+      const sibling = await mintSiblingTaskUploadToken(app, context)
+      const taskHeaders = { Authorization: `Bearer ${context.uploadToken}` }
+      const folderRes = await app.request('/api/objects', {
+        method: 'POST',
+        headers: { ...taskHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Sintel', type: 'folder', dirtype: 1, parent: 'Remote' }),
+      })
+      expect(folderRes.status).toBe(201)
+      const folder = (await folderRes.json()) as { id: string }
+      const own = await _uploadFile(app, taskHeaders, { name: 'a.mkv', parent: 'Remote/Sintel' })
+      const siblingFile = await _uploadFile(
+        app,
+        { Authorization: `Bearer ${sibling.uploadToken}` },
+        { name: 'b.mkv', parent: 'Remote' },
+      )
+      const admin = await adminHeaders(app)
+      const userFile = await _uploadFile(app, admin, { name: 'mine.txt', parent: 'Remote' })
+
+      const cancelRes = await app.request(`/api/downloads/tasks/${context.taskId}/status`, {
+        method: 'PUT',
+        headers: { ...admin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'canceled' }),
+      })
+      expect(cancelRes.status).toBe(200)
+      await expect(cancelRes.json()).resolves.toMatchObject({ status: { state: 'canceling' } })
+      return { app, db, admin, context, folder: folder.id, own, siblingFile, userFile }
+    }
+
+    async function expectOnlyTaskFilesGone(t: Awaited<ReturnType<typeof uploadedTask>>) {
+      expect((await t.app.request(`/api/objects/${t.own}`, { headers: t.admin })).status).toBe(404)
+      const trash = (await (await t.app.request('/api/trash/objects', { headers: t.admin })).json()) as {
+        items: Array<{ id: string }>
+      }
+      expect(trash.items.map((item) => item.id)).not.toContain(t.own)
+      for (const kept of [t.siblingFile, t.userFile, t.folder]) {
+        expect((await t.app.request(`/api/objects/${kept}`, { headers: t.admin })).status).toBe(200)
+      }
+    }
+
+    it('removes the files the task created once its downloader acks the cancel', async () => {
+      const t = await uploadedTask()
+
+      const ackRes = await t.app.request(`/api/downloads/tasks/${t.context.taskId}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${t.context.downloaderToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'canceled' }),
+      })
+      expect(ackRes.status).toBe(200)
+      await expect(ackRes.json()).resolves.toMatchObject({ status: { state: 'canceled' } })
+
+      await expectOnlyTaskFilesGone(t)
+    })
+
+    it('removes the files the task created when the stale-downloader sweep settles the cancel', async () => {
+      const t = await uploadedTask()
+      const staleHeartbeatAt = Date.now() - 120_000
+      await t.db.run(sql`
+        UPDATE downloaders SET last_heartbeat_at = ${staleHeartbeatAt}, status = 'offline', updated_at = ${staleHeartbeatAt}
+      `)
+      expect((await t.app.request('/api/downloads/downloaders', { headers: t.admin })).status).toBe(200)
+      const taskRes = await t.app.request(`/api/downloads/tasks/${t.context.taskId}`, { headers: t.admin })
+      await expect(taskRes.json()).resolves.toMatchObject({ status: { state: 'canceled' } })
+
+      await expectOnlyTaskFilesGone(t)
+    })
+
+    it('leaves the canceled task token no rights [spec: download-tasks/canceled-token-no-rights]', async () => {
+      const t = await uploadedTask()
+      const taskHeaders = { Authorization: `Bearer ${t.context.uploadToken}` }
+
+      expect((await t.app.request(`/api/objects/${t.own}`, { method: 'DELETE', headers: taskHeaders })).status).toBe(
+        401,
+      )
+      const createRes = await t.app.request('/api/objects', {
+        method: 'POST',
+        headers: { ...taskHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'late.mkv', type: 'video/x-matroska', size: 1, parent: 'Remote' }),
+      })
+      expect(createRes.status).toBe(401)
+    })
+  })
+
   it('answers 404 when a download-task-upload token deletes an unknown object', async () => {
     const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
     await insertStorage(db)

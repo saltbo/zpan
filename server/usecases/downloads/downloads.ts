@@ -25,6 +25,7 @@ import { parseDownloadTaskEvents } from '../../domain/download-task-events'
 import { hasFeature } from '../../domain/licensing'
 import type { Platform } from '../../platform/interface'
 import { resolveActorAttributions } from '../audit-actors'
+import { purgeCanceledTaskFiles } from '../object'
 import type {
   ActorIdentity,
   AgentInfoGateway,
@@ -42,6 +43,7 @@ import type {
   ListDownloadTasksFilters,
   MatterRepo,
   RemoteDownloadUsageRepo,
+  ShareRepo,
   StorageRepo,
   UpdateDownloadTaskFields,
 } from '../ports'
@@ -79,6 +81,7 @@ export type DownloadsDeps = {
   audit: AuditRepo
   matter: MatterRepo
   storages: StorageRepo
+  share: ShareRepo
 } & Omit<TorrentFillDeps, 'downloadTasks' | 'licenseBinding' | 'licenseCloudBaseUrl' | 'matter' | 'storages'>
 
 const DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES = 100 * 1024 * 1024
@@ -486,6 +489,7 @@ export async function updateDownloadTask(
       finishedAt: task.finishedAt ?? now,
       updatedAt: now,
     })
+    await purgeCanceledTaskFiles(deps, task.orgId, id)
     return deps.downloadTasks.get(task.orgId, id)
   }
   if (['pausing', 'paused', 'canceling', 'canceled'].includes(task.status)) {
@@ -656,6 +660,7 @@ export async function performDownloadTaskAction(
       finishedAt: status === 'canceled' ? (task.finishedAt ?? now) : task.finishedAt,
       updatedAt: now,
     })
+    if (status === 'canceled') await purgeCanceledTaskFiles(deps, orgId, id)
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -720,16 +725,6 @@ async function ensureTaskTargetFolder(deps: DownloadsDeps, task: DownloadTaskRec
   })
 }
 
-export async function assertTaskUploadAllowed(
-  deps: DownloadsDeps,
-  params: { taskId: string; downloaderId: string },
-): Promise<DownloadTaskRecord> {
-  const task = await deps.downloadTasks.findRecord(params.taskId)
-  if (!task || task.assignedDownloaderId !== params.downloaderId) throw new DownloadError('forbidden')
-  if (!['assigned', 'downloading', 'uploading'].includes(task.status)) throw new DownloadError('invalid_state')
-  return task
-}
-
 // ─── Assignment / recovery ───────────────────────────────────────────────────
 
 async function claimQueuedTasksForDownloader(
@@ -777,7 +772,8 @@ async function recoverStaleDownloaderAssignments(deps: DownloadsDeps): Promise<v
   await deps.downloadTasks.clearStaleSeedingRuntime(leaseCutoff, now)
   const unreachableIds = await deps.downloaders.listUnreachableIds(leaseCutoff)
   if (unreachableIds.length > 0) {
-    await deps.downloadTasks.resolveControlAssignedToMany(unreachableIds, now)
+    const canceled = await deps.downloadTasks.resolveControlAssignedToMany(unreachableIds, now)
+    for (const task of canceled) await purgeCanceledTaskFiles(deps, task.orgId, task.id)
   }
   // Requeue in-flight work and flip status to offline only on the online→offline
   // transition, so already-handled tasks are not re-queued repeatedly.
