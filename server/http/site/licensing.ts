@@ -4,8 +4,10 @@ import type { Context } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
 import type { BindingState } from '../../../shared/types'
 import { originFromRequestUrl } from '../../domain/site-public-origin'
+import { requestLanguage } from '../../middleware/error-handler'
 import { licenseRequestHost } from '../../middleware/license-host'
 import type { Env } from '../../middleware/platform'
+import { localizeMessage, textMessage } from '../../usecases/ports'
 import { runtimeInfo } from '../../usecases/site/instance-info'
 import {
   initiatePairing,
@@ -174,7 +176,15 @@ export const licensing = createRouter().openapi(entitlementsRoute, async (c) => 
 const adminApp = createRouter()
 
 export const licensingAdmin = adminApp
-  .openapi(bindingRoute, async (c) => c.json(await loadCurrentBinding(c), 200))
+  .openapi(bindingRoute, async (c) => {
+    const state = await loadCurrentBinding(c)
+    // The refresh error is a product message, shown in the request's language.
+    c.header('Vary', 'Accept-Language', { append: true })
+    const lastRefreshError = state.last_refresh_error
+      ? localizeMessage(textMessage(state.last_refresh_error), requestLanguage(c.req.raw))
+      : undefined
+    return c.json({ ...state, last_refresh_error: lastRefreshError }, 200)
+  })
   .openapi(initiatePairingRoute, async (c) => {
     const pairing = await initiatePairing(c.get('deps'), {
       baseUrl: getCloudBaseUrl(c),

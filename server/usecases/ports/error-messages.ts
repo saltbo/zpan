@@ -183,6 +183,8 @@ export const ZH_ERROR_MESSAGES = {
   'Invite link has expired': '邀请链接已过期',
   'Configure email delivery before sending invitations': '请先配置邮件发送，再发送邀请',
   'Failed to create invitation': '创建邀请失败',
+  'A user with this email already exists': '该邮箱已注册',
+  'A pending invitation already exists for this email': '该邮箱已有待接受的邀请',
   'Email must be enabled before email verification can be required': '须先启用邮件，才能要求邮箱验证',
   'Unknown error': '未知错误',
   'An invitation is required to register': '需要邀请才能注册',
@@ -217,6 +219,10 @@ export const ZH_ERROR_MESSAGES = {
   'Unknown builtin provider: {id}': '未知的内置登录方式：{id}',
   'Provider ID must contain only lowercase letters, numbers, and hyphens': '登录方式 ID 只能包含小写字母、数字和连字符',
   'Captcha configuration is invalid': '人机验证配置无效',
+  'Captcha provider is invalid': '人机验证服务无效',
+  'Captcha site key is required before enabling captcha': '启用人机验证前须填写站点密钥',
+  'Captcha secret key is required before enabling captcha': '启用人机验证前须填写密钥',
+  'Captcha minimum score must be between 0 and 1': '人机验证最低分数须在 0 到 1 之间',
   'Public URL must be an HTTP or HTTPS origin': '公开地址须为 HTTP 或 HTTPS 源',
   'SVG images are not allowed': '不允许 SVG 图片',
   'theme_mode must be preset or custom': '主题模式须为预设或自定义',
@@ -281,6 +287,8 @@ export const ZH_ERROR_MESSAGES = {
   'Email is disabled': '邮件功能未启用',
   'The test email could not be sent. Check the email settings.': '测试邮件发送失败，请检查邮件设置。',
   'The storage service could not complete the request': '存储服务未能完成请求',
+  'The custom-domain provider test failed. Check its settings.': '自定义域名服务测试失败，请检查其设置。',
+  'The quota change could not be applied': '无法应用此配额变更',
 } as const
 
 export type ErrorText = keyof typeof ZH_ERROR_MESSAGES

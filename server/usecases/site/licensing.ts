@@ -18,14 +18,16 @@ import {
   AppError,
   type CloudInstanceInfo,
   CloudInvalidResponseError,
-  CloudNetworkError,
   CloudUnboundError,
+  type ErrorText,
+  englishMessage,
   type InstanceRepo,
   type LicenseBindingRepo,
   type LicensingCloudGateway,
   type MemberCountRepo,
   type PairingPollResponse,
   type PairingResponse,
+  productMessage,
   type SystemOptionsRepo,
 } from '../ports'
 import { buildCloudInstanceInfo } from './instance-info'
@@ -234,7 +236,7 @@ export async function loadBindingState(
     active: false,
     account_email: state.cloudAccountEmail ?? undefined,
     last_refresh_at: state.lastRefreshAt ?? undefined,
-    last_refresh_error: state.lastRefreshError ?? undefined,
+    last_refresh_error: state.lastRefreshError ? refreshErrorMessage(state.lastRefreshError) : undefined,
   }
 
   if (state.cachedCert && state.instanceId) {
@@ -260,7 +262,16 @@ export async function loadBindingState(
 
 const INVALID_CERTIFICATE_ERROR = 'Invalid certificate from cloud'
 const INVALID_ENTITLEMENT_RESPONSE_ERROR = 'Invalid entitlement response from cloud'
+const INVALID_RESPONSE_MESSAGE: ErrorText = 'ZPan Cloud returned an unexpected response'
+const REFRESH_FAILED_MESSAGE: ErrorText = 'ZPan Cloud could not complete the request. Try again later.'
 const DEDUP_WINDOW_SEC = 5 * 60
+
+// The product message for a refresh failure. The binding stores this, never the
+// failure's own text, which only the refresh log carries. A row stored before that
+// rule holds raw text, which maps to the generic message.
+function refreshErrorMessage(text: string): string {
+  return englishMessage(productMessage(text, REFRESH_FAILED_MESSAGE))
+}
 
 function normaliseCert(
   raw: string,
@@ -294,11 +305,11 @@ export async function performRefresh(
       cloudBaseUrl: baseUrl,
     })
     if (!certificateExpiresAt) {
-      await deps.licenseBinding.setLicenseRefreshError(state.id, INVALID_CERTIFICATE_ERROR)
+      await deps.licenseBinding.setLicenseRefreshError(state.id, INVALID_RESPONSE_MESSAGE)
       return { status: 'error', error: INVALID_CERTIFICATE_ERROR }
     }
     if (!data.binding?.storeId || !data.account) {
-      await deps.licenseBinding.setLicenseRefreshError(state.id, INVALID_ENTITLEMENT_RESPONSE_ERROR)
+      await deps.licenseBinding.setLicenseRefreshError(state.id, INVALID_RESPONSE_MESSAGE)
       return { status: 'error', error: INVALID_ENTITLEMENT_RESPONSE_ERROR }
     }
 
@@ -318,8 +329,12 @@ export async function performRefresh(
       return { status: 'revoked' }
     }
 
-    if (err instanceof CloudInvalidResponseError || err instanceof CloudNetworkError || err instanceof Error) {
-      await deps.licenseBinding.setLicenseRefreshError(state.id, err.message)
+    if (err instanceof CloudInvalidResponseError) {
+      await deps.licenseBinding.setLicenseRefreshError(state.id, INVALID_RESPONSE_MESSAGE)
+      return { status: 'error', error: err.message }
+    }
+    if (err instanceof Error) {
+      await deps.licenseBinding.setLicenseRefreshError(state.id, refreshErrorMessage(err.message))
       return { status: 'error', error: err.message }
     }
 
@@ -568,7 +583,7 @@ export async function triggerRefresh(
   params: TriggerRefreshParams,
 ): Promise<{ lastRefreshAt: number | null }> {
   const instance = await buildCloudInstanceInfo(deps, { url: params.instanceUrl, runtime: params.runtime })
-  await performRefresh(deps, params.baseUrl, instance)
+  logRefreshOutcome(await performRefresh(deps, params.baseUrl, instance))
 
   const state = await deps.licenseBinding.loadLicenseState()
 

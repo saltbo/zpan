@@ -97,11 +97,11 @@ describe('site-invitation usecase', () => {
       expect(sentHtml).toContain('https://app.example.com/sign-up?invite=tok-1')
     })
 
-    it('returns conflict with the thrown message on a duplicate without sending', async () => {
+    it('returns conflict naming an existing invitation without sending [spec: error-messages/exception-text]', async () => {
       const { deps, send } = makeDeps({
         siteInvitations: {
           createSiteInvitation: async () => {
-            throw new Error('Invitation already exists')
+            throw new Error('A pending invitation already exists for this email')
           },
         },
       })
@@ -113,8 +113,27 @@ describe('site-invitation usecase', () => {
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(409)
-      expect(out.error.message).toBe('Invitation already exists')
+      expect(out.error.message).toBe('A pending invitation already exists for this email')
+      expect(out.error.localizedMessage('zh')).toBe('该邮箱已有待接受的邀请')
       expect(send).not.toHaveBeenCalled()
+    })
+
+    it('answers an unexpected failure with a product message and keeps its text for the log [spec: error-messages/exception-text]', async () => {
+      const { deps } = makeDeps({
+        siteInvitations: {
+          createSiteInvitation: async () => {
+            throw new Error('D1_ERROR: database is locked')
+          },
+        },
+      })
+      const out = await createSiteInvitation(deps, platform, {
+        userId: 'u1',
+        email: 'new@example.com',
+        requestUrl: 'https://app.example.com/api/admin/site-invitations',
+      })
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.message).toBe('Failed to create invitation')
+      expect(out.error.meta.diagnostics?.message).toBe('D1_ERROR: database is locked')
     })
 
     it('falls back to a default message when a non-Error is thrown', async () => {

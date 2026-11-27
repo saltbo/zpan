@@ -203,7 +203,7 @@ describe('performRefresh', () => {
     expect(state.refreshToken).toBeNull()
   })
 
-  it('updates last_refresh_error on network error, keeps binding', async () => {
+  it('records a network error as a product message, keeps binding [spec: error-messages/license-refresh]', async () => {
     const db = makeDb()
     await seedBinding(db)
 
@@ -217,7 +217,7 @@ describe('performRefresh', () => {
     expect(outcome).toEqual({ status: 'error', error: 'Connection timeout' })
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')
-    expect(state.lastRefreshError).toBe('Connection timeout')
+    expect(state.lastRefreshError).toBe('ZPan Cloud could not complete the request. Try again later.')
   })
 
   it('keeps the previous binding when cloud returns an invalid certificate', async () => {
@@ -251,7 +251,7 @@ describe('performRefresh', () => {
     expect(state.refreshToken).toBe('old-rt')
     expect(state.cachedCert).toBe('old-cert')
     expect(state.cachedExpiresAt).toBe(1234567890)
-    expect(state.lastRefreshError).toBe('Invalid certificate from cloud')
+    expect(state.lastRefreshError).toBe('ZPan Cloud returned an unexpected response')
   })
 
   it('keeps the previous binding when cloud omits the store or account', async () => {
@@ -278,7 +278,7 @@ describe('performRefresh', () => {
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')
     expect(state.cloudStoreId).toBe('store-old')
-    expect(state.lastRefreshError).toBe('Invalid entitlement response from cloud')
+    expect(state.lastRefreshError).toBe('ZPan Cloud returned an unexpected response')
   })
 
   it('keeps the previous binding when cloud omits certificate', async () => {
@@ -303,7 +303,7 @@ describe('performRefresh', () => {
 
     const state = await createLicenseBindingRepo(db).loadLicenseState()
     expect(state.refreshToken).toBe('old-rt')
-    expect(state.lastRefreshError).toBe('Cloud response missing certificate')
+    expect(state.lastRefreshError).toBe('ZPan Cloud returned an unexpected response')
   })
 })
 

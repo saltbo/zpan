@@ -174,6 +174,22 @@ describe('site settings usecase', () => {
     expect(setMany).not.toHaveBeenCalled()
   })
 
+  it('names the missing captcha setting in the request language [spec: error-messages/exception-text]', async () => {
+    const { deps } = makeDeps()
+    const error = await updateSiteCaptcha(deps, {
+      enabled: true,
+      provider: 'hcaptcha',
+      siteKey: '',
+      secretKey: null,
+      minScore: null,
+    }).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(AppError)
+    const appError = error as AppError
+    expect(appError.message).toBe('Captcha site key is required before enabling captcha')
+    expect(appError.localizedMessage('zh')).toBe('启用人机验证前须填写站点密钥')
+    expect(appError.meta.diagnostics?.message).toBe('Captcha site key is required before enabling captcha')
+  })
+
   it('writes quota settings as one group', async () => {
     const { deps, setMany } = makeDeps()
     const input = { defaultOrgBytes: 1024, defaultTeamBytes: 2048, defaultMonthlyTrafficBytes: 4096 }
