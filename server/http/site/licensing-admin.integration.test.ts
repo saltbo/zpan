@@ -423,18 +423,16 @@ describe('DELETE /api/site/licensing/binding', () => {
     const res = await app.request('/api/site/licensing/binding', { method: 'DELETE', headers })
 
     // The cloud unbind failed — surface it as an error, do not report success.
+    // Cloud's own text stays in the server log, out of the response body.
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toMatchObject({
+    const body = await res.json()
+    expect(body).toMatchObject({
       error: {
         message: 'License unbound locally, but cloud unbind failed',
-        details: [
-          {
-            reason: 'CLOUD_UNBIND_FAILED',
-            metadata: { cloudUnbindError: expect.stringContaining('Cloud unbind failed: 401') },
-          },
-        ],
+        details: [{ reason: 'CLOUD_UNBIND_FAILED' }],
       },
     })
+    expect(JSON.stringify(body)).not.toContain('Cloud unbind failed: 401')
 
     // ...but the local binding is still gone (best-effort cloud cleanup).
     const state = await createLicenseBindingRepo(db).loadLicenseState()

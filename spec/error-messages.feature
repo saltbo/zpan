@@ -42,3 +42,11 @@ Feature: Error messages
   Scenario: Every error message has its Chinese text
     Given the server's error messages, including every sign-in service error
     Then each one has Chinese text with the same parameters
+
+  @error-messages/external-failure @api
+  Scenario: A failure outside ZPan reaches the user as a product message
+    Given a request that fails because of ZPan Cloud, a storage service or an email provider
+    When the API answers with the error
+    Then the message is a product sentence in the request's language, not a code or the service's own text
+    And a code the service reported stays machine-readable as the error's reason
+    And the service's own text appears only in the server log

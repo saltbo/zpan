@@ -118,7 +118,6 @@ export const ZH_ERROR_MESSAGES = {
   'Part number is outside this upload session': '分片编号超出此上传会话的范围',
   'Uploaded object ETag does not match': '上传对象的 ETag 不一致',
   'Upload already completed': '上传已完成',
-  'Storage cleanup failed: {detail}': '存储清理失败：{detail}',
 
   // WebDAV
   'Invalid DAV path': 'DAV 路径无效',
@@ -277,13 +276,19 @@ export const ZH_ERROR_MESSAGES = {
   'Purchase request conflict': '购买请求冲突',
   'Too many pending capacity purchases': '待处理的容量购买过多',
   'License unbound locally, but cloud unbind failed': '已在本地解绑授权，但云端解绑失败',
-  quota_store_binding_missing: '此站点尚未绑定云端商店',
-  unsupported_media_type: '不支持的媒体类型',
-  payload_too_large: '内容过大',
-  license_inactive: '授权未激活',
-  cloud_required: '需要连接 ZPan Cloud',
-  invalid_cloud_response: '云端响应无效',
-  cloud_request_failed: '云端请求失败',
+  'This site is not connected to a ZPan Cloud store': '此站点尚未绑定 ZPan Cloud 商店',
+  'The license is not active': '授权未激活',
+  'This needs a connection to ZPan Cloud': '需要连接 ZPan Cloud',
+  'ZPan Cloud returned an unexpected response': 'ZPan Cloud 返回了无法识别的响应',
+  'ZPan Cloud could not complete the request. Try again later.': 'ZPan Cloud 未能完成请求，请稍后再试。',
+  'ZPan Cloud rejected the request': 'ZPan Cloud 拒绝了此请求',
+  'The payment could not be verified': '无法验证此次支付',
+
+  // Failures of a service outside ZPan, whose own text stays in the server log
+  'Image upload failed': '图片上传失败',
+  'Email is disabled': '邮件功能未启用',
+  'The test email could not be sent. Check the email settings.': '测试邮件发送失败，请检查邮件设置。',
+  'The storage service could not complete the request': '存储服务未能完成请求',
 } as const
 
 export type ErrorText = keyof typeof ZH_ERROR_MESSAGES
@@ -307,6 +312,39 @@ export const msg = (template: ErrorText, params: Params) => new Message(template
 
 /** Text from outside the catalog's call sites, translated when the catalog matches it. */
 export const textMessage = (text: string) => new Message(text)
+
+// The machine codes that adapters and ZPan Cloud report, with the message the user
+// sees for each. A code may carry an HTTP status suffix (`cloud_request_failed_502`).
+const ERROR_CODE_MESSAGES: Record<string, ErrorText> = {
+  quota_store_binding_missing: 'This site is not connected to a ZPan Cloud store',
+  license_inactive: 'The license is not active',
+  cloud_required: 'This needs a connection to ZPan Cloud',
+  invalid_cloud_response: 'ZPan Cloud returned an unexpected response',
+  cloud_request_failed: 'ZPan Cloud could not complete the request. Try again later.',
+  cloud_request_timeout: 'ZPan Cloud could not complete the request. Try again later.',
+  x402_payment_proof_invalid: 'The payment could not be verified',
+  unsupported_media_type: 'Unsupported media type',
+  payload_too_large: 'Payload too large',
+}
+
+const ERROR_CODE = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/
+
+/** The code without its status suffix when `text` is a machine code, else null. */
+export function errorCode(text: string): string | null {
+  if (!ERROR_CODE.test(text)) return null
+  return text.replace(/_\d{3}$/, '')
+}
+
+/**
+ * The message the user sees for text from outside the product: a known code's
+ * message, text the catalog already has, or `fallback` for anything else.
+ */
+export function productMessage(text: string, fallback: ErrorText): ErrorMessage {
+  const code = errorCode(text)
+  if (code && code in ERROR_CODE_MESSAGES) return ERROR_CODE_MESSAGES[code]
+  if (resolve(new Message(text))) return new Message(text)
+  return fallback
+}
 
 const fill = (template: string, params: Params) =>
   template.replace(/\{(\w+)\}/g, (whole, name: string) => (name in params ? String(params[name]) : whole))

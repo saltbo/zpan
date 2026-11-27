@@ -2,16 +2,7 @@ import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema } from '@shared/schemas'
 import { publicProfileSchema } from '@shared/schemas/profile'
-import {
-  badRequest,
-  forbidden,
-  internalError,
-  noStorage,
-  notFound,
-  payloadTooLarge,
-  textMessage,
-  unsupportedMediaType,
-} from '../usecases/ports'
+import { badRequest, imageUploadError, notFound, textMessage, unsupportedMediaType } from '../usecases/ports'
 import { getUserQuota } from '../usecases/quota'
 import { listPublicProfileShares } from '../usecases/share'
 import {
@@ -64,15 +55,6 @@ const updateEntitlementSchema = z.object({
 // boundary's own logic.
 function failureError(failure: { status: 400 | 404; error: string }) {
   return failure.status === 404 ? notFound(textMessage(failure.error)) : badRequest(textMessage(failure.error))
-}
-
-// Maps the image-upload gateway outcome ({ status, error }) to its error factory.
-function imageUploadError(status: 400 | 403 | 413 | 500 | 503, error: string) {
-  if (status === 413) return payloadTooLarge(textMessage(error))
-  if (status === 503) return noStorage(textMessage(error))
-  if (status === 403) return forbidden(textMessage(error))
-  if (status === 500) return internalError(textMessage(error))
-  return badRequest(textMessage(error))
 }
 
 const setAvatarRoute = authRoute(
@@ -256,7 +238,7 @@ export const users = createRouter()
       userId: c.get('userId') as string,
       file,
     })
-    if (!result.ok) throw imageUploadError(result.status, result.error)
+    if (!result.ok) throw imageUploadError(result)
     return c.json({ url: result.url }, 200)
   })
   .openapi(deleteAvatarRoute, async (c) => {

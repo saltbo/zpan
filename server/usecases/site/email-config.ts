@@ -18,8 +18,8 @@ import {
   type EmailConfig,
   type EmailGateway,
   type EmailProvider,
+  externalError,
   type SystemOptionsRepo,
-  textMessage,
 } from '../ports'
 
 export type EmailConfigDeps = {
@@ -37,7 +37,7 @@ export type MaskedEmailSettings = EmailSettings
 
 // A test send either succeeds or fails for a reportable reason (provider error,
 // or email being disabled — the gateway throws for both). A failure becomes a 400
-// carrying the gateway's message.
+// with a product message; the gateway's own text goes to the server log.
 export type SendTestEmailOutcome = { ok: true } | { ok: false; error: AppError }
 
 function maskSecret(value: string): string {
@@ -151,8 +151,11 @@ export async function sendTestEmail(
     })
     return { ok: true }
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Unknown error'
-    return { ok: false, error: badRequest(textMessage(message)) }
+    const message = e instanceof Error ? e.message : String(e)
+    return {
+      ok: false,
+      error: externalError(badRequest, message, 'The test email could not be sent. Check the email settings.'),
+    }
   }
 }
 

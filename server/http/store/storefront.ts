@@ -9,9 +9,10 @@ import {
   x402PaymentRequiredSchema,
 } from '@shared/schemas'
 import { requireFeature } from '../../middleware/require-feature'
-import { badGateway, badRequest, forbidden, textMessage } from '../../usecases/ports'
+import { badRequest } from '../../usecases/ports'
 import {
   cancelOrder,
+  cloudFailure,
   continueOrderPayment,
   createBillingPortalSession,
   createCheckout,
@@ -24,6 +25,7 @@ import {
   listTargets,
   purchaseCapacity,
   redeemGiftCard,
+  storeNotBound,
 } from '../../usecases/store/store'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 import { createRouter } from '../router'
@@ -408,17 +410,17 @@ export const cloudStore = app
   })
   .openapi(ordersRoute, async (c) => {
     const ready = await getStoreReadiness(c.get('deps'))
-    if (!ready.ready) throw forbidden(textMessage(ready.error))
+    if (!ready.ready) throw storeNotBound(ready.error)
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) throw badRequest('No active organization')
     const query = c.req.valid('query')
     const result = await getCloudOrders(c, { limit: query.limit, offset: query.offset, customerId: targetOrgId })
-    if ('error' in result) throw badGateway(textMessage(result.error))
+    if ('error' in result) throw cloudFailure(result.error)
     return c.json(result, 200)
   })
   .openapi(continuePaymentRoute, async (c) => {
     const ready = await getStoreReadiness(c.get('deps'))
-    if (!ready.ready) throw forbidden(textMessage(ready.error))
+    if (!ready.ready) throw storeNotBound(ready.error)
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) throw badRequest('No active organization')
     const result = await continueOrderPayment(c.get('deps'), getCloudBaseUrl(c), {
@@ -431,7 +433,7 @@ export const cloudStore = app
   })
   .openapi(cancelOrderRoute, async (c) => {
     const ready = await getStoreReadiness(c.get('deps'))
-    if (!ready.ready) throw forbidden(textMessage(ready.error))
+    if (!ready.ready) throw storeNotBound(ready.error)
     const targetOrgId = c.get('orgId')
     if (!targetOrgId) throw badRequest('No active organization')
     const result = await cancelOrder(c.get('deps'), getCloudBaseUrl(c), {

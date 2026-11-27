@@ -1729,7 +1729,7 @@ describe('Download tasks API integration', () => {
     expect(actors.find((event) => event.action === 'download_resolve_started')).toBeUndefined()
   })
 
-  it('returns storage failure details when multipart upload session creation fails [spec: download-tasks/upload-session-failure]', async () => {
+  it('returns a storage failure when multipart upload session creation fails [spec: download-tasks/upload-session-failure]', async () => {
     vi.mocked(S3Service.prototype.createMultipartUpload).mockRejectedValueOnce(
       new Error('bucket does not support multipart'),
     )
@@ -1786,7 +1786,7 @@ describe('Download tasks API integration', () => {
 
     expect(createObjectRes.status).toBe(502)
     const sessionBody = (await createObjectRes.json()) as { error: { message: string; details: { reason: string }[] } }
-    expect(sessionBody.error.message).toBe('Storage multipart upload failed: bucket does not support multipart')
+    expect(sessionBody.error.message).toBe('The storage service could not complete the request')
     expect(sessionBody.error.details[0].reason).toBe('STORAGE_FAILURE')
   })
 
@@ -1970,7 +1970,7 @@ describe('Download tasks API integration', () => {
     expect(liveTargets[0].count).toBe(1)
   })
 
-  it('returns storage failure details when multipart upload completion fails [spec: download-tasks/upload-completion-failure]', async () => {
+  it('returns a storage failure when multipart upload completion fails [spec: download-tasks/upload-completion-failure]', async () => {
     vi.mocked(S3Service.prototype.completeMultipartUpload).mockRejectedValueOnce(new Error('InvalidPart: part missing'))
     const { app, db } = await createTestApp()
     await insertStorage(db)
@@ -2008,7 +2008,7 @@ describe('Download tasks API integration', () => {
 
     expect(completeRes.status).toBe(502)
     const completeBody = (await completeRes.json()) as { error: { message: string; details: { reason: string }[] } }
-    expect(completeBody.error.message).toBe('Storage multipart upload complete failed: InvalidPart: part missing')
+    expect(completeBody.error.message).toBe('The storage service could not complete the request')
     expect(completeBody.error.details[0].reason).toBe('STORAGE_FAILURE')
   })
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { validatePath } from '../../domain/image-hosting'
-import { englishMessage, localizeMessage, msg, textMessage, ZH_ERROR_MESSAGES } from './error-messages'
+import { englishMessage, localizeMessage, msg, productMessage, textMessage, ZH_ERROR_MESSAGES } from './error-messages'
 
 const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort()
 
@@ -10,6 +10,26 @@ describe('error message catalog', () => {
       expect(chinese.trim(), english).not.toBe('')
       expect(placeholders(chinese), english).toEqual(placeholders(english))
     }
+  })
+
+  it('keeps machine codes out of the catalog, so no code is shown as a message [spec: error-messages/external-failure]', () => {
+    for (const english of Object.keys(ZH_ERROR_MESSAGES)) {
+      expect(english, english).not.toMatch(/^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/)
+    }
+  })
+
+  it('turns text from outside the product into a product message [spec: error-messages/external-failure]', () => {
+    const fallback = 'Image upload failed'
+    const zh = (text: string) => localizeMessage(productMessage(text, fallback), 'zh')
+    const en = (text: string) => localizeMessage(productMessage(text, fallback), 'en')
+    expect(en('quota_store_binding_missing')).toBe('This site is not connected to a ZPan Cloud store')
+    expect(zh('quota_store_binding_missing')).toBe('此站点尚未绑定 ZPan Cloud 商店')
+    expect(en('license_inactive')).toBe('The license is not active')
+    expect(en('cloud_required')).toBe('This needs a connection to ZPan Cloud')
+    expect(en('cloud_request_failed_503')).toBe('ZPan Cloud could not complete the request. Try again later.')
+    expect(en('some_unknown_cloud_code')).toBe('Image upload failed')
+    expect(zh('Invalid login: 535 Authentication failed')).toBe('图片上传失败')
+    expect(zh('Email is disabled')).toBe('邮件功能未启用')
   })
 
   it('renders English from the key and fills parameters', () => {

@@ -145,13 +145,15 @@ Feature: Remote download tasks
   Scenario: Upload session creation failures are surfaced
     Given multipart upload session creation fails
     When the downloader uploads
-    Then the storage failure details are returned
+    Then the error names a storage failure as its reason
+    And the storage service's own text stays in the server log
 
   @download-tasks/upload-completion-failure @api
   Scenario: Upload completion failures are surfaced
     Given multipart upload completion fails
     When the downloader completes upload
-    Then the storage failure details are returned
+    Then the error names a storage failure as its reason
+    And the storage service's own text stays in the server log
 
   @download-tasks/normalize-target @api
   Scenario: Target folder paths are normalized

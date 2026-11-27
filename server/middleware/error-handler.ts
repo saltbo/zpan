@@ -38,7 +38,7 @@ export function jsonError(c: Context<Env>, err: unknown): Response {
   if (mapped) {
     c.set('errorLog', {
       reason: mapped.json.error.details?.[0]?.reason ?? mapped.json.error.status,
-      message: mapped.message,
+      message: mapped.diagnostic ?? mapped.message,
     })
     return c.json(localizeBody(mapped.json, language), mapped.status)
   }

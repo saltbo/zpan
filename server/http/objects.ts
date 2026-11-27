@@ -623,8 +623,9 @@ const objects = app
         // Paid capacity is optional: the quota is exhausted either way, so a
         // store that is unbound or unreachable falls back to the 422 contract.
         // A Cloud failure is logged rather than shown to the uploader.
-        if (capacity.error.message !== 'quota_store_binding_missing') {
-          console.error(`objects.capacity_offer_lookup_failed error=${capacity.error.message}`)
+        if (capacity.error.meta.reason !== 'QUOTA_STORE_BINDING_MISSING') {
+          const detail = capacity.error.meta.diagnostics?.message ?? capacity.error.message
+          console.error(`objects.capacity_offer_lookup_failed error=${detail}`)
         }
         throw quotaExceeded()
       }

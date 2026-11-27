@@ -1,4 +1,13 @@
 import type { Platform } from '../../platform/interface'
+import {
+  type AppError,
+  badRequest,
+  externalError,
+  forbidden,
+  internalError,
+  noStorage,
+  payloadTooLarge,
+} from './app-error'
 
 // User avatars (`AVATAR_PREFIX`) and team/org logos (`LOGO_PREFIX`) are hosted on
 // the ZPan Cloud avatar service. The prefix the usecase passes encodes which one
@@ -12,6 +21,19 @@ export const LOGO_PREFIX = '_system/org-logos'
 export type ImageUploadResult =
   | { ok: true; url: string }
   | { ok: false; status: 400 | 403 | 413 | 500 | 503; error: string }
+
+const IMAGE_UPLOAD_FAILURES = {
+  400: badRequest,
+  403: forbidden,
+  413: payloadTooLarge,
+  500: internalError,
+  503: noStorage,
+} satisfies Record<Extract<ImageUploadResult, { ok: false }>['status'], (message: never) => AppError>
+
+/** The API error for a failed upload; the gateway's code stays in the server log. */
+export function imageUploadError(failure: Extract<ImageUploadResult, { ok: false }>): AppError {
+  return externalError(IMAGE_UPLOAD_FAILURES[failure.status], failure.error, 'Image upload failed')
+}
 
 // Upload/delete public images (avatars, org logos) via the Cloud avatar service.
 // `platform` is passed per call because the active license binding + cloud base

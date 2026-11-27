@@ -55,6 +55,8 @@ export interface DomainErrorMapping {
   message: string
   /** AIP-193 body for JSON responses. */
   json: ErrorResponse
+  /** Server-log text when it differs from `message`, e.g. a storage provider's error. */
+  diagnostic?: string
 }
 
 const mapping = (status: ContentfulStatusCode, message: string, opts?: ErrorOptions): DomainErrorMapping => ({
@@ -86,7 +88,11 @@ export function mapDomainError(error: unknown): DomainErrorMapping | null {
   }
   if (error instanceof ObjectUploadSessionError) {
     if (error.code === 'storage_failure') {
-      return mapping(502, error.message, { reason: error.reason.toUpperCase() })
+      const message = 'The storage service could not complete the request'
+      return {
+        ...mapping(502, message, { reason: error.reason.toUpperCase() }),
+        diagnostic: error.message,
+      }
     }
     if (error.code === 'not_found') {
       return mapping(404, 'Not found', { reason: error.reason.toUpperCase() })
