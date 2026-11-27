@@ -10,6 +10,7 @@ import { ADMIN_EMAIL, ADMIN_PASSWORD, expandSignInForm } from './helpers'
 test.describe('Sign-in language menu', () => {
   test('the language button switches the page and persists through sign-in @all @desktop @critical', async ({
     page,
+    isMobile,
   }) => {
     await page.goto('/sign-in')
 
@@ -33,6 +34,8 @@ test.describe('Sign-in language menu', () => {
     expect((await responsePromise).status()).toBe(200)
     await expect(page).toHaveURL(/files/, { timeout: 10_000 })
 
+    // Below 768 px the sidebar lives in an off-canvas sheet behind its trigger.
+    if (isMobile) await page.getByRole('button', { name: '切换侧边栏' }).click()
     await expect(page.getByRole('link', { name: '我的文件' })).toBeVisible()
     expect(await page.evaluate(() => localStorage.getItem('i18nextLng'))).toBe('zh')
   })
