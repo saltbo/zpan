@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type {
+  AppError,
   ImageDomainProviderConfig,
   ImageDomainProviderGateway,
   ImageHostingConfigRecord,
@@ -210,15 +211,18 @@ describe('image-domain provider settings', () => {
     )
   })
 
-  it('persists a provider test error and returns a 400 business error', async () => {
+  it('persists a provider test error and answers with a product message [spec: error-messages/exception-text]', async () => {
     const deps = harness(cloudflareConfig)
     deps.imageDomains.test = async () => {
       throw new Error('fallback origin inactive')
     }
-    await expect(testImageDomainProvider(deps)).rejects.toMatchObject({
+    const error = (await testImageDomainProvider(deps).catch((e: unknown) => e)) as AppError
+    expect(error).toMatchObject({
       httpStatus: 400,
-      message: 'fallback origin inactive',
+      message: 'The custom-domain provider test failed. Check its settings.',
     })
+    expect(error.localizedMessage('zh')).toBe('自定义域名服务测试失败，请检查其设置。')
+    expect(error.meta.diagnostics?.message).toBe('fallback origin inactive')
     expect(deps.setMany).toHaveBeenCalledWith(
       expect.arrayContaining([{ key: 'image_domain_error', value: 'fallback origin inactive' }]),
     )

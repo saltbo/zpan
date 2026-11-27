@@ -8,7 +8,7 @@ import type {
   ImageHostingConfigRepo,
   SystemOptionsRepo,
 } from '../ports'
-import { badRequest, IMAGE_DOMAIN_OPTION_KEYS, textMessage } from '../ports'
+import { badRequest, externalError, IMAGE_DOMAIN_OPTION_KEYS } from '../ports'
 
 export type ImageDomainProviderDeps = {
   imageDomains: ImageDomainProviderGateway
@@ -200,7 +200,7 @@ export async function testImageDomainProvider(deps: ImageDomainProviderDeps): Pr
       { key: IMAGE_DOMAIN_OPTION_KEYS.lastTestedAt, value: new Date().toISOString() },
       { key: IMAGE_DOMAIN_OPTION_KEYS.error, value: message },
     ])
-    throw badRequest(textMessage(message))
+    throw externalError(badRequest, message, 'The custom-domain provider test failed. Check its settings.')
   }
 }
 

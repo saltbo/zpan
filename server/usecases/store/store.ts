@@ -60,7 +60,6 @@ import {
   notFound,
   type QuotaRepo,
   rateLimited,
-  textMessage,
 } from '../ports'
 import { verifyCloudEventToken } from '../site/licensing'
 
@@ -967,6 +966,7 @@ export async function processDeliveryWebhook(
     )
     return { ok: true, duplicate: result.duplicate, eventId: result.eventId, receipt: parsed.data }
   } catch (error) {
-    return { ok: false, error: badRequest(textMessage((error as Error).message)) }
+    const text = error instanceof Error ? error.message : String(error)
+    return { ok: false, error: externalError(badRequest, text, 'The quota change could not be applied') }
   }
 }

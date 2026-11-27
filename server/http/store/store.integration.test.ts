@@ -2363,7 +2363,13 @@ describe('Quota Store API', () => {
 
     expect(first.status).toBe(200)
     expect(retry.status).toBe(400)
-    await expect(retry.json()).resolves.toMatchObject({ error: { code: 400, message: 'webhook_payload_conflict' } })
+    await expect(retry.json()).resolves.toMatchObject({
+      error: {
+        code: 400,
+        message: 'The quota change could not be applied',
+        details: [{ reason: 'WEBHOOK_PAYLOAD_CONFLICT' }],
+      },
+    })
   })
 
   it('allows failed delivery retries when the payload is unchanged', async () => {
@@ -2390,7 +2396,13 @@ describe('Quota Store API', () => {
     const retry = await postWebhook(app, payload)
 
     expect(failed.status).toBe(400)
-    await expect(failed.json()).resolves.toMatchObject({ error: { code: 400, message: 'target_quota_missing' } })
+    await expect(failed.json()).resolves.toMatchObject({
+      error: {
+        code: 400,
+        message: 'The quota change could not be applied',
+        details: [{ reason: 'TARGET_QUOTA_MISSING' }],
+      },
+    })
     expect(retry.status).toBe(200)
     await expect(retry.json()).resolves.toMatchObject({ success: true, duplicate: false })
     const deliveries = await db.all<{ status: string; error: string | null }>(

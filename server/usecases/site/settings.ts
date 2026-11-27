@@ -30,7 +30,7 @@ import { readCaptchaConfig } from '../../domain/captcha'
 import { hasFeature } from '../../domain/licensing'
 import { normalizePublicOrigin } from '../../domain/site-public-origin'
 import { WEBDAV_AUTH_CHALLENGE, webDavPathUrl, webDavPublicUrl } from '../../domain/webdav-public-url'
-import { badRequest, featureBlocked, type LicenseBindingRepo, type SystemOptionsRepo, textMessage } from '../ports'
+import { badRequest, externalError, featureBlocked, type LicenseBindingRepo, type SystemOptionsRepo } from '../ports'
 import { invalidateSiteConfig } from './config-cache'
 import { loadBindingState, resolveEffectiveSignupMode } from './licensing'
 import { getSiteRoutingConfig, refreshSiteRoutingConfig } from './routing-config'
@@ -321,7 +321,11 @@ export async function updateSiteCaptcha(
   try {
     readCaptchaConfig(values)
   } catch (error) {
-    throw badRequest(error instanceof Error ? textMessage(error.message) : 'Captcha configuration is invalid')
+    throw externalError(
+      badRequest,
+      error instanceof Error ? error.message : String(error),
+      'Captcha configuration is invalid',
+    )
   }
 
   await deps.systemOptions.setMany(Object.entries(values).map(([key, value]) => ({ key, value })))

@@ -1315,11 +1315,17 @@ describe('cloud-store usecase', () => {
       expect(out).toMatchObject({ ok: true, duplicate: true, eventId: 'evt-1' })
     })
 
-    it('surfaces a fulfillment failure as processing_failed', async () => {
+    it('refuses a fulfillment failure with its code as reason and a product message [spec: error-messages/cloud-webhook]', async () => {
       verified('evt-1')
       const { deps } = makeDeps({ processThrows: new Error('webhook_payload_conflict') })
       const out = await processDeliveryWebhook(deps, params(validEvent))
-      expectError(out, { httpStatus: 400, message: 'webhook_payload_conflict' })
+      expectError(out, {
+        httpStatus: 400,
+        reason: 'WEBHOOK_PAYLOAD_CONFLICT',
+        message: 'The quota change could not be applied',
+      })
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.meta.diagnostics?.message).toBe('webhook_payload_conflict')
     })
 
     it('passes the bound license + payload hash to token verification', async () => {

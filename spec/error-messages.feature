@@ -57,3 +57,26 @@ Feature: Error messages
     When the API answers with the error
     Then the response says it varies by the request's language
     And it still says it varies by any other header it already did, such as the origin
+
+  @error-messages/exception-text @api
+  Scenario: An admin setting that fails is refused with a product message
+    Given an admin who saves a captcha configuration, invites a user, or tests the image custom-domain provider
+    When the save, the invitation or the provider test fails
+    Then the message is a product sentence in the request's language
+    And a reason the product names itself, such as a missing captcha site key or an existing invitation, is still shown
+    And the exception's or the provider's own text appears only in the server log
+
+  @error-messages/license-refresh @api
+  Scenario: A failed license refresh shows a product message
+    Given a site bound to ZPan Cloud whose last license refresh failed
+    When an admin opens the license binding
+    Then the refresh error is a product sentence in the request's language, not the network's or ZPan Cloud's own text
+    And the failure's own text appears only in the server log
+
+  @error-messages/cloud-webhook @api
+  Scenario: ZPan Cloud's quota delivery is refused with a code and a product message
+    Given a quota change from ZPan Cloud that ZPan cannot apply
+    When ZPan answers the delivery
+    Then the answer is a failure, so ZPan Cloud retries it
+    And the error's reason is the failure's code, such as WEBHOOK_PAYLOAD_CONFLICT
+    And the message is a product sentence, not the code

@@ -11,11 +11,11 @@ import {
   badRequest,
   conflict,
   type EmailGateway,
+  externalError,
   type KeysetPage,
   type KeysetPageOpts,
   notFound,
   type SiteInvitationRepo,
-  textMessage,
 } from '../ports'
 
 export type SiteInvitationDeps = {
@@ -93,8 +93,8 @@ export async function createSiteInvitation(
   try {
     invitation = await deps.siteInvitations.createSiteInvitation(userId, email)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to create invitation'
-    return { ok: false, error: conflict(textMessage(message)) }
+    const text = error instanceof Error ? error.message : String(error)
+    return { ok: false, error: externalError(conflict, text, 'Failed to create invitation') }
   }
   await sendSiteInvitationEmail(deps, platform, requestUrl, invitation)
   return { ok: true, invitation }

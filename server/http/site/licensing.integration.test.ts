@@ -64,6 +64,36 @@ describe('GET /api/site/licensing/binding', () => {
     expect(body.bound).toBe(true)
   })
 
+  it('shows a failed refresh as a product message in the request language [spec: error-messages/license-refresh]', async () => {
+    const { app, db } = await createTestApp()
+    const repo = createLicenseBindingRepo(db)
+    await repo.createLicenseBinding({
+      cloudBindingId: 'bind-1',
+      cloudStoreId: 'store-1',
+      instanceId: 'inst-1',
+      cloudAccountId: 'acc-1',
+      refreshToken: 'secret',
+      cachedCert: 'test-cert',
+      cachedExpiresAt: Math.floor(Date.now() / 1000) + 86400,
+      lastRefreshAt: Math.floor(Date.now() / 1000),
+    })
+    const state = await repo.loadLicenseState()
+    // A row written before refresh failures were stored as product messages.
+    await repo.setLicenseRefreshError(state.id, 'getaddrinfo ENOTFOUND cloud.zpan.space')
+
+    const headers = await adminHeaders(app)
+    const en = await app.request('/api/site/licensing/binding', { headers })
+    expect(((await en.json()) as Record<string, unknown>).last_refresh_error).toBe(
+      'ZPan Cloud could not complete the request. Try again later.',
+    )
+
+    const zh = await app.request('/api/site/licensing/binding', { headers: { ...headers, 'Accept-Language': 'zh-CN' } })
+    expect(((await zh.json()) as Record<string, unknown>).last_refresh_error).toBe(
+      'ZPan Cloud 未能完成请求，请稍后再试。',
+    )
+    expect(zh.headers.get('Vary')).toContain('Accept-Language')
+  })
+
   it('requires an administrator', async () => {
     const { app } = await createTestApp()
     const res = await app.request('/api/site/licensing/binding')
