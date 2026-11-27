@@ -320,6 +320,7 @@ export {
 export type {
   CompleteTaskTorrentInput,
   CompleteTorrentFileUploadInput,
+  ObjectTorrent,
   RegisterTaskTorrentInput,
   ReplaceTorrentCacheConfigInput,
   TaskTorrentRegistration,
@@ -330,6 +331,7 @@ export type {
 export {
   completeTaskTorrentSchema,
   completeTorrentFileUploadSchema,
+  objectTorrentSchema,
   registerTaskTorrentSchema,
   replaceTorrentCacheConfigSchema,
   taskTorrentRegistrationSchema,

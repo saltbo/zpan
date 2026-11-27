@@ -2074,6 +2074,54 @@ func (e MovieMediaMetadataTmdbType) Valid() bool {
 	}
 }
 
+// Defines values for ObjectTorrentStatus.
+const (
+	ObjectTorrentStatusDownloading ObjectTorrentStatus = "downloading"
+	ObjectTorrentStatusEvicting    ObjectTorrentStatus = "evicting"
+	ObjectTorrentStatusInvalid     ObjectTorrentStatus = "invalid"
+	ObjectTorrentStatusReady       ObjectTorrentStatus = "ready"
+	ObjectTorrentStatusVerifying   ObjectTorrentStatus = "verifying"
+)
+
+// Valid indicates whether the value is a known member of the ObjectTorrentStatus enum.
+func (e ObjectTorrentStatus) Valid() bool {
+	switch e {
+	case ObjectTorrentStatusDownloading:
+		return true
+	case ObjectTorrentStatusEvicting:
+		return true
+	case ObjectTorrentStatusInvalid:
+		return true
+	case ObjectTorrentStatusReady:
+		return true
+	case ObjectTorrentStatusVerifying:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ObjectTorrentVerified.
+const (
+	ObjectTorrentVerifiedFull        ObjectTorrentVerified = "full"
+	ObjectTorrentVerifiedLessThannil ObjectTorrentVerified = "<nil>"
+	ObjectTorrentVerifiedSampled     ObjectTorrentVerified = "sampled"
+)
+
+// Valid indicates whether the value is a known member of the ObjectTorrentVerified enum.
+func (e ObjectTorrentVerified) Valid() bool {
+	switch e {
+	case ObjectTorrentVerifiedFull:
+		return true
+	case ObjectTorrentVerifiedLessThannil:
+		return true
+	case ObjectTorrentVerifiedSampled:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PublicAuthProviderType.
 const (
 	PublicAuthProviderTypeBuiltin PublicAuthProviderType = "builtin"
@@ -4182,31 +4230,31 @@ func (e PatchStorageJSONBodyStatus) Valid() bool {
 
 // Defines values for PatchStorageJSONBodyStatusReason.
 const (
-	AuthenticationFailed PatchStorageJSONBodyStatusReason = "authentication_failed"
-	BucketNotFound       PatchStorageJSONBodyStatusReason = "bucket_not_found"
-	Cors                 PatchStorageJSONBodyStatusReason = "cors"
-	LessThannil          PatchStorageJSONBodyStatusReason = "<nil>"
-	NetworkError         PatchStorageJSONBodyStatusReason = "network_error"
-	PermissionDenied     PatchStorageJSONBodyStatusReason = "permission_denied"
-	Unknown              PatchStorageJSONBodyStatusReason = "unknown"
+	PatchStorageJSONBodyStatusReasonAuthenticationFailed PatchStorageJSONBodyStatusReason = "authentication_failed"
+	PatchStorageJSONBodyStatusReasonBucketNotFound       PatchStorageJSONBodyStatusReason = "bucket_not_found"
+	PatchStorageJSONBodyStatusReasonCors                 PatchStorageJSONBodyStatusReason = "cors"
+	PatchStorageJSONBodyStatusReasonLessThannil          PatchStorageJSONBodyStatusReason = "<nil>"
+	PatchStorageJSONBodyStatusReasonNetworkError         PatchStorageJSONBodyStatusReason = "network_error"
+	PatchStorageJSONBodyStatusReasonPermissionDenied     PatchStorageJSONBodyStatusReason = "permission_denied"
+	PatchStorageJSONBodyStatusReasonUnknown              PatchStorageJSONBodyStatusReason = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the PatchStorageJSONBodyStatusReason enum.
 func (e PatchStorageJSONBodyStatusReason) Valid() bool {
 	switch e {
-	case AuthenticationFailed:
+	case PatchStorageJSONBodyStatusReasonAuthenticationFailed:
 		return true
-	case BucketNotFound:
+	case PatchStorageJSONBodyStatusReasonBucketNotFound:
 		return true
-	case Cors:
+	case PatchStorageJSONBodyStatusReasonCors:
 		return true
-	case LessThannil:
+	case PatchStorageJSONBodyStatusReasonLessThannil:
 		return true
-	case NetworkError:
+	case PatchStorageJSONBodyStatusReasonNetworkError:
 		return true
-	case PermissionDenied:
+	case PatchStorageJSONBodyStatusReasonPermissionDenied:
 		return true
-	case Unknown:
+	case PatchStorageJSONBodyStatusReasonUnknown:
 		return true
 	default:
 		return false
@@ -6424,6 +6472,23 @@ type ObjectPage struct {
 	Items         []ObjectListItem `json:"items"`
 	NextPageToken *string          `json:"nextPageToken"`
 }
+
+// ObjectTorrent defines model for ObjectTorrent.
+type ObjectTorrent struct {
+	// InfoHash Lowercase hex v1 infoHash
+	InfoHash string              `json:"infoHash"`
+	Name     string              `json:"name"`
+	Status   ObjectTorrentStatus `json:"status"`
+
+	// Verified How verification passed; null until it has
+	Verified *ObjectTorrentVerified `json:"verified"`
+}
+
+// ObjectTorrentStatus defines model for ObjectTorrent.Status.
+type ObjectTorrentStatus string
+
+// ObjectTorrentVerified How verification passed; null until it has
+type ObjectTorrentVerified string
 
 // PendingInvitation defines model for PendingInvitation.
 type PendingInvitation struct {
@@ -11987,6 +12052,9 @@ type ClientInterface interface {
 
 	ReplaceObjectMediaMetadata(ctx context.Context, id string, body ReplaceObjectMediaMetadataJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetObjectTorrent request
+	GetObjectTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// TransferObjectWithBody request with any body
 	TransferObjectWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -13501,6 +13569,18 @@ func (c *Client) ReplaceObjectMediaMetadataWithBody(ctx context.Context, id stri
 
 func (c *Client) ReplaceObjectMediaMetadata(ctx context.Context, id string, body ReplaceObjectMediaMetadataJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReplaceObjectMediaMetadataRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetObjectTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetObjectTorrentRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -18394,6 +18474,40 @@ func NewReplaceObjectMediaMetadataRequestWithBody(server string, id string, cont
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetObjectTorrentRequest generates requests for GetObjectTorrent
+func NewGetObjectTorrentRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/objects/%s/torrent", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -23839,6 +23953,9 @@ type ClientWithResponsesInterface interface {
 
 	ReplaceObjectMediaMetadataWithResponse(ctx context.Context, id string, body ReplaceObjectMediaMetadataJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceObjectMediaMetadataResponse, error)
 
+	// GetObjectTorrentWithResponse request
+	GetObjectTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetObjectTorrentResponse, error)
+
 	// TransferObjectWithBodyWithResponse request with any body
 	TransferObjectWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TransferObjectResponse, error)
 
@@ -26570,6 +26687,38 @@ func (r ReplaceObjectMediaMetadataResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ReplaceObjectMediaMetadataResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetObjectTorrentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ObjectTorrent
+	JSON400      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetObjectTorrentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetObjectTorrentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetObjectTorrentResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -31129,6 +31278,15 @@ func (c *ClientWithResponses) ReplaceObjectMediaMetadataWithResponse(ctx context
 	return ParseReplaceObjectMediaMetadataResponse(rsp)
 }
 
+// GetObjectTorrentWithResponse request returning *GetObjectTorrentResponse
+func (c *ClientWithResponses) GetObjectTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetObjectTorrentResponse, error) {
+	rsp, err := c.GetObjectTorrent(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetObjectTorrentResponse(rsp)
+}
+
 // TransferObjectWithBodyWithResponse request with arbitrary body returning *TransferObjectResponse
 func (c *ClientWithResponses) TransferObjectWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TransferObjectResponse, error) {
 	rsp, err := c.TransferObjectWithBody(ctx, id, contentType, body, reqEditors...)
@@ -35410,6 +35568,46 @@ func ParseReplaceObjectMediaMetadataResponse(rsp *http.Response) (*ReplaceObject
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetObjectTorrentResponse parses an HTTP response from a GetObjectTorrentWithResponse call
+func ParseGetObjectTorrentResponse(rsp *http.Response) (*GetObjectTorrentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetObjectTorrentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ObjectTorrent
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

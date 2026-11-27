@@ -134,3 +134,9 @@ Feature: Torrent cache
     Given a licensed workspace
     When an admin opens its StremThru settings and creates a StremThru key
     Then they see the torrent folder, the address, and the MediaFusion token for the new key
+
+  @torrent-cache/drive-cached-mark @web
+  Scenario: A transferred file shows that it comes from the torrent cache
+    Given a file transferred from a cached torrent
+    When its details are opened
+    Then they show it is cached, with its torrent and verification state, and its content cannot be replaced

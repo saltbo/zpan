@@ -120,6 +120,8 @@ export class NameConflictError extends Error {
   constructor(
     public readonly conflictingName: string,
     public readonly conflictingId: string,
+    // The existing file references the torrent cache, so 'replace' is not offered.
+    public readonly conflictingReadOnly = false,
   ) {
     super(`An item named '${conflictingName}' already exists in this location`)
     this.name = 'NameConflictError'

@@ -4,6 +4,7 @@ import {
   normalizeTorrentFolder,
   selectTorrentsToEvict,
   torrentFileObjectKey,
+  torrentInfoHashOfKey,
   torrentKeyRange,
   torrentTreeRoot,
 } from './torrent-cache'
@@ -17,6 +18,12 @@ describe('torrent cache keys', () => {
     expect(isTorrentCacheKey(torrentFileObjectKey('ab', 3))).toBe(true)
     expect(isTorrentCacheKey('org/user/20260101/token.mkv')).toBe(false)
     expect(isTorrentCacheKey('ih/org/img.png')).toBe(false)
+  })
+
+  it('reads the infoHash out of a cache key', () => {
+    expect(torrentInfoHashOfKey(torrentFileObjectKey('ab', 3))).toBe('ab')
+    expect(torrentInfoHashOfKey('org/user/20260101/token.mkv')).toBeNull()
+    expect(torrentInfoHashOfKey('bt/')).toBeNull()
   })
 
   it('bounds a torrent key range to that torrent', () => {

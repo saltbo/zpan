@@ -1,4 +1,4 @@
-import { DirType, ObjectStatus } from '@shared/constants'
+import { DirType, isTorrentCacheKey, ObjectStatus } from '@shared/constants'
 import type { SQL } from 'drizzle-orm'
 import {
   aliasedTable,
@@ -235,14 +235,14 @@ export function createMatterRepo(db: Database): MatterRepo {
     if (!existing) return { finalName: name, toTrash: null }
 
     if (strategy === 'fail') {
-      throw new NameConflictError(existing.name, existing.id)
+      throw new NameConflictError(existing.name, existing.id, isTorrentCacheKey(existing.object))
     }
 
     if (strategy === 'replace') {
       const incomingIsFolder = options.isFolder === true
       const existingIsFolder = existing.dirtype !== DirType.FILE
       if (incomingIsFolder || existingIsFolder) {
-        throw new NameConflictError(existing.name, existing.id)
+        throw new NameConflictError(existing.name, existing.id, isTorrentCacheKey(existing.object))
       }
       return { finalName: name, toTrash: existing }
     }

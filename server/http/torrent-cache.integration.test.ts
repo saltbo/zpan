@@ -200,6 +200,77 @@ describe('torrent cache references', () => {
   })
 })
 
+describe('cached file torrent', () => {
+  it('returns the torrent of a transferred file and not found for other files', async () => {
+    const { app, db, deps } = await createTestApp()
+    const headers = { ...(await authedHeaders(app)), 'Content-Type': 'application/json' }
+    await seedStorage(db)
+    const workspace = await personalWorkspace(db)
+    const infoHash = 'c3'.repeat(20)
+    const torrent = await cachedTorrent(deps, infoHash, [{ path: 'movie.mkv', size: 50 }])
+    await transferTorrent(deps, {
+      torrentId: torrent.id,
+      orgId: workspace.orgId,
+      userId: workspace.userId,
+      targetFolder: '',
+    })
+    const [movie] = await fileRow(db, workspace.orgId, 'movie.mkv')
+
+    const res = await app.request(`/api/objects/${movie.id}/torrent`, { headers })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ infoHash, name: torrent.name, status: 'ready', verified: 'full' })
+
+    const folder = await app.request('/api/objects', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name: 'Plain', type: 'folder', dirtype: 1 }),
+    })
+    const plain = (await folder.json()) as { id: string }
+    expect((await app.request(`/api/objects/${plain.id}/torrent`, { headers })).status).toBe(404)
+    expect((await app.request('/api/objects/missing/torrent', { headers })).status).toBe(404)
+  })
+
+  it('marks a name conflict with a transferred file as read-only', async () => {
+    const { app, db, deps } = await createTestApp()
+    const headers = { ...(await authedHeaders(app)), 'Content-Type': 'application/json' }
+    await seedStorage(db)
+    const workspace = await personalWorkspace(db)
+    const torrent = await cachedTorrent(deps, 'd4'.repeat(20), [{ path: 'movie.mkv', size: 50 }])
+    await transferTorrent(deps, {
+      torrentId: torrent.id,
+      orgId: workspace.orgId,
+      userId: workspace.userId,
+      targetFolder: '',
+    })
+    const [movie] = await fileRow(db, workspace.orgId, 'movie.mkv')
+
+    const copy = await app.request(`/api/objects/${movie.id}/copies`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ parent: movie.parent, onConflict: 'fail' }),
+    })
+    expect(copy.status).toBe(409)
+    const body = (await copy.json()) as {
+      error: { details: Array<{ reason: string; metadata: Record<string, string> }> }
+    }
+    expect(body.error.details[0]).toMatchObject({
+      reason: 'NAME_CONFLICT',
+      metadata: { conflictingName: 'movie.mkv', conflictingId: movie.id, conflictingReadOnly: 'true' },
+    })
+
+    const folder = { name: 'Plain', type: 'folder', dirtype: 1 }
+    await app.request('/api/objects', { method: 'POST', headers, body: JSON.stringify(folder) })
+    const again = await app.request('/api/objects', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...folder, onConflict: 'fail' }),
+    })
+    expect(again.status).toBe(409)
+    const plain = (await again.json()) as { error: { details: Array<{ metadata: Record<string, string> }> } }
+    expect(plain.error.details[0].metadata.conflictingReadOnly).toBeUndefined()
+  })
+})
+
 describe('torrent cache eviction', () => {
   it('deletes only torrents no drive file holds once their retention has passed [spec: torrent-cache/eviction]', async () => {
     const { app, db, deps } = await createTestApp()

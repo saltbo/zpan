@@ -26,6 +26,7 @@ import type {
   OAuthConsentSubmit,
   OAuthGrant,
   OAuthGrantList,
+  ObjectTorrent,
   PatchStorageInput,
   PresignObjectUploadPartsInput,
   PublicProfile,
@@ -290,9 +291,9 @@ function toErrorBody(status: number, raw: unknown): ApiErrorBody {
 
 const SESSION_REQUEST_TIMEOUT_MS = 10_000
 
-export function isNameConflictError(
-  err: unknown,
-): err is ApiError & { metadata: { conflictingName: string; conflictingId: string } } {
+export function isNameConflictError(err: unknown): err is ApiError & {
+  metadata: { conflictingName: string; conflictingId: string; conflictingReadOnly?: 'true' }
+} {
   return err instanceof ApiError && err.status === 409 && err.reason === 'NAME_CONFLICT'
 }
 
@@ -336,6 +337,10 @@ export function getObject(id: string) {
 
 export function getObjectCreator(id: string) {
   return unwrap<ActorProfile>(objects[':id'].creator.$get({ param: { id } }))
+}
+
+export function getObjectTorrent(id: string) {
+  return unwrap<ObjectTorrent>(objects[':id'].torrent.$get({ param: { id } }))
 }
 
 // POST /api/objects returns a folder, or a file draft with `upload` instructions:
