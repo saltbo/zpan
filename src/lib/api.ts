@@ -19,6 +19,8 @@ import type {
   EmailSettings,
   EpisodeMediaMetadata,
   ImageDomainProviderResponse,
+  InviteCode,
+  InviteCodeListItem,
   MediaLibrary,
   MovieMediaMetadata,
   OAuthConsentContext,
@@ -930,19 +932,8 @@ export function deleteAuthProvider(providerId: string) {
 
 // Invite Codes API
 
-export interface InviteCode {
-  id: string
-  code: string
-  createdBy: string
-  usedBy: string | null
-  usedByUser?: { name: string; email: string }
-  usedAt: string | null
-  expiresAt: string | null
-  createdAt: string
-}
-
 export function listInviteCodes(opts: CursorPageRequest = {}) {
-  return unwrap<CursorPage<InviteCode>>(inviteCodes.index.$get({ query: cursorQuery(opts) }))
+  return unwrap<CursorPage<InviteCodeListItem>>(inviteCodes.index.$get({ query: cursorQuery(opts) }))
 }
 
 export function generateInviteCodes(count: number, expiresInDays?: number) {
