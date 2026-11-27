@@ -1,15 +1,24 @@
 import { ObjectStatus } from '@shared/constants'
 import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { generateId } from '../../../shared/ids'
-import { downloaders, matters, stremthruLinks, torrentCacheConfigs, torrentFiles, torrents } from '../../db/schema'
+import {
+  downloaders,
+  matters,
+  stremthruLinks,
+  torrentCacheConfigs,
+  torrentExtraObjects,
+  torrentFiles,
+  torrents,
+} from '../../db/schema'
 import { executeWriteTransaction } from '../../db/transaction'
-import { torrentFileObjectKey, torrentKeyRange } from '../../domain/torrent-cache'
+import { torrentExtraObjectKey, torrentFileObjectKey, torrentKeyRange } from '../../domain/torrent-cache'
 import type { Database } from '../../platform/interface'
 import type {
   AdminTorrentRecord,
   EvictionCandidate,
   StremThruLinkRepo,
   TorrentCacheConfigRepo,
+  TorrentExtraObjectRecord,
   TorrentFileRecord,
   TorrentRecord,
   TorrentRepo,
@@ -150,6 +159,45 @@ export function createTorrentRepo(db: Database): TorrentRepo {
         .orderBy(asc(torrentFiles.fileIdx))
     },
 
+    async saveExtraObject(input) {
+      const row = {
+        torrentId: input.torrentId,
+        name: input.name,
+        size: input.size,
+        storageId: input.storageId,
+        objectKey: torrentExtraObjectKey(input.infoHash.toLowerCase(), input.name),
+        uploadedAt: input.uploadedAt,
+      }
+      await db
+        .insert(torrentExtraObjects)
+        .values(row)
+        .onConflictDoUpdate({
+          target: [torrentExtraObjects.torrentId, torrentExtraObjects.name],
+          set: { size: row.size, storageId: row.storageId, objectKey: row.objectKey, uploadedAt: row.uploadedAt },
+        })
+    },
+
+    async listExtraObjects(torrentId): Promise<TorrentExtraObjectRecord[]> {
+      return db
+        .select()
+        .from(torrentExtraObjects)
+        .where(eq(torrentExtraObjects.torrentId, torrentId))
+        .orderBy(asc(torrentExtraObjects.name))
+    },
+
+    async getExtraObject(torrentId, name) {
+      const rows = await db
+        .select()
+        .from(torrentExtraObjects)
+        .where(and(eq(torrentExtraObjects.torrentId, torrentId), eq(torrentExtraObjects.name, name)))
+        .limit(1)
+      return rows[0] ?? null
+    },
+
+    async deleteExtraObjects(torrentId) {
+      await db.delete(torrentExtraObjects).where(eq(torrentExtraObjects.torrentId, torrentId))
+    },
+
     async createIfAbsent(input) {
       const existing = await repo.getByInfoHash(input.infoHash)
       if (existing) return { created: false, torrent: existing }
@@ -238,6 +286,7 @@ export function createTorrentRepo(db: Database): TorrentRepo {
     async delete(id) {
       await executeWriteTransaction(db, [
         db.delete(torrentFiles).where(eq(torrentFiles.torrentId, id)),
+        db.delete(torrentExtraObjects).where(eq(torrentExtraObjects.torrentId, id)),
         db.delete(torrents).where(eq(torrents.id, id)),
       ])
     },

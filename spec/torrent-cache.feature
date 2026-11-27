@@ -140,3 +140,9 @@ Feature: Torrent cache
     Given a file transferred from a cached torrent
     When its details are opened
     Then they show it is cached, with its torrent and verification state, and its content cannot be replaced
+
+  @torrent-cache/layout-replay @api
+  Scenario: A second holder gets the scraped layout
+    Given a cached torrent whose first download was scraped
+    When another workspace transfers it
+    Then it gets the same folders, sidecars and media metadata

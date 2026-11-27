@@ -86,6 +86,9 @@ export const ZH_ERROR_MESSAGES = {
   'Uploaded file size does not match the torrent': '上传文件的大小与种子不一致',
   'Uploaded files do not match the torrent': '上传的文件与种子不一致',
   'Some torrent files are not uploaded yet': '部分种子文件尚未上传',
+  'Sidecar is not uploaded': '附属文件尚未上传',
+  'Sidecar is too large': '附属文件过大',
+  'Layout is invalid: {reason}': '目录布局无效：{reason}',
   'Task is not filling the torrent cache': '该任务未在填充种子缓存',
   'Torrent is not being downloaded': '种子不在下载中',
   '{count} drive files still hold this torrent; it can be evicted once they are deleted, including from trash':

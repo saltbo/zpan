@@ -811,6 +811,24 @@ export const torrentFiles = sqliteTable(
   ],
 )
 
+// torrent_extra_objects — what a cache download stored beside a torrent's files:
+// the scraper's sidecars (x/<n>) and the upload layout (layout.json). Counted in
+// the storage's used bytes and deleted with the torrent.
+export const torrentExtraObjects = sqliteTable(
+  'torrent_extra_objects',
+  {
+    torrentId: text('torrent_id')
+      .notNull()
+      .references(() => torrents.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(), // x/<n> | layout.json, the key below bt/<infoHash>/
+    size: integer('size').notNull(),
+    storageId: text('storage_id').notNull(),
+    objectKey: text('object_key').notNull(), // bt/<infoHash>/<name>
+    uploadedAt: integer('uploaded_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.torrentId, t.name] }), index('torrent_extra_objects_storage_idx').on(t.storageId)],
+)
+
 // torrent_cache_configs — per-workspace torrent settings; no row means defaults
 export const torrentCacheConfigs = sqliteTable('torrent_cache_configs', {
   orgId: text('org_id')

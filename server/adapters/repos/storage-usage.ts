@@ -1,6 +1,6 @@
 import { DirType } from '@shared/constants'
 import { eq, sql } from 'drizzle-orm'
-import { imageHostings, matters, orgQuotas, storages, torrentFiles } from '../../db/schema'
+import { imageHostings, matters, orgQuotas, storages, torrentExtraObjects, torrentFiles } from '../../db/schema'
 import { TORRENT_CACHE_PREFIX } from '../../domain/torrent-cache'
 import type { Database } from '../../platform/interface'
 import type { StorageUsageRepo } from '../../usecases/ports'
@@ -11,7 +11,8 @@ const TORRENT_KEY_TO = `${TORRENT_CACHE_PREFIX.slice(0, -1)}0`
 
 export function createStorageUsageRepo(db: Database): StorageUsageRepo {
   // A storage's used bytes: its drive files and hosted images, except drive files
-  // that reference the torrent cache, plus the cached torrent files it holds once.
+  // that reference the torrent cache, plus the cached torrent files, sidecars,
+  // and layouts it holds once.
   async function reconcileStorages(storageIds: Iterable<string>): Promise<void> {
     for (const storageId of new Set(storageIds)) {
       await db
@@ -35,6 +36,10 @@ export function createStorageUsageRepo(db: Database): StorageUsageRepo {
             SELECT SUM(${torrentFiles.size})
             FROM ${torrentFiles}
             WHERE ${torrentFiles.storageId} = ${storageId}
+          ), 0) + COALESCE((
+            SELECT SUM(${torrentExtraObjects.size})
+            FROM ${torrentExtraObjects}
+            WHERE ${torrentExtraObjects.storageId} = ${storageId}
           ), 0)`,
         })
         .where(eq(storages.id, storageId))

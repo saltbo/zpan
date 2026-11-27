@@ -72,11 +72,14 @@ export async function deleteClaimedTorrent(
   const storage = await deps.storages.get(candidate.storageId)
   if (storage) {
     const files = await deps.torrents.listFiles(candidate.id)
-    await deps.s3.evictTorrentCacheObjects(storage, [
+    const extras = await deps.torrents.listExtraObjects(candidate.id)
+    const keys = new Set([
       ...files.map((file) => file.objectKey),
+      ...extras.map((extra) => extra.objectKey),
       torrentInfoObjectKey(candidate.infoHash),
       torrentLayoutObjectKey(candidate.infoHash),
     ])
+    await deps.s3.evictTorrentCacheObjects(storage, [...keys])
   }
   await deps.torrents.delete(candidate.id)
 }

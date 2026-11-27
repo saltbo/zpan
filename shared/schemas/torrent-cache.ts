@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi'
 import { ADMIN_TORRENT_STATUSES } from './admin-torrents'
+import { episodeMediaMetadataSchema, movieMediaMetadataSchema, tvShowMediaMetadataSchema } from './matter-metadata'
 
 export const torrentCacheConfigSchema = z
   .object({
@@ -122,3 +123,90 @@ export const objectTorrentSchema = z
   .openapi('ObjectTorrent')
 
 export type ObjectTorrent = z.infer<typeof objectTorrentSchema>
+
+// ─── Sidecars and the upload layout (docs/design/torrent-cache.md §3, §6) ────
+
+// Sidecars are .nfo documents and images; 32 MiB is far above either.
+export const TORRENT_SIDECAR_MAX_BYTES = 32 * 1024 * 1024
+export const TORRENT_SIDECAR_MAX_COUNT = 10_000
+
+export const createTorrentSidecarUploadSchema = z.object({
+  size: z.number().int().min(0).max(TORRENT_SIDECAR_MAX_BYTES).openapi({ type: 'integer', format: 'int64' }),
+})
+
+export type CreateTorrentSidecarUploadInput = z.infer<typeof createTorrentSidecarUploadSchema>
+
+// A path relative to the transfer's target folder, slash-delimited, without
+// empty, `.` or `..` segments.
+const layoutPathSchema = z
+  .string()
+  .min(1)
+  .max(4096)
+  .refine((value) => value.split('/').every((part) => part !== '' && part !== '.' && part !== '..'), {
+    message: 'Path segments must not be empty, . or ..',
+  })
+
+const imageRef = () => layoutPathSchema.optional().describe('Layout path of the sidecar image')
+
+// The `media` file metadata the upload would have set, with each image written
+// as the layout path of its sidecar; instant transfer resolves them to matter ids.
+export const torrentLayoutMovieMediaSchema = movieMediaMetadataSchema
+  .extend({ poster: imageRef(), fanart: imageRef() })
+  .openapi('TorrentLayoutMovieMedia')
+export const torrentLayoutTvShowMediaSchema = tvShowMediaMetadataSchema.extend({
+  poster: imageRef(),
+  fanart: imageRef(),
+})
+export const torrentLayoutEpisodeMediaSchema = episodeMediaMetadataSchema
+  .extend({ still: imageRef() })
+  .openapi('TorrentLayoutEpisodeMedia')
+
+export const torrentLayoutEntrySchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      kind: z.literal('folder'),
+      path: layoutPathSchema,
+      media: torrentLayoutTvShowMediaSchema.optional().describe("A show folder's media"),
+    })
+    .strict()
+    .openapi('TorrentLayoutFolder'),
+  z
+    .object({
+      kind: z.literal('torrent-file'),
+      path: layoutPathSchema.describe('Where the file goes; a taken name is renamed, as `X (1).mkv`'),
+      fileIdx: z.number().int().min(0).describe('Position of the file in the info dictionary'),
+      media: z
+        .discriminatedUnion('kind', [torrentLayoutMovieMediaSchema, torrentLayoutEpisodeMediaSchema])
+        .optional()
+        .describe("A movie's or an episode's media"),
+    })
+    .strict()
+    .openapi('TorrentLayoutTorrentFile'),
+  z
+    .object({
+      kind: z.literal('sidecar'),
+      path: layoutPathSchema.describe('Where the sidecar goes; an entry already at its name wins'),
+      sidecar: z
+        .number()
+        .int()
+        .min(0)
+        .max(TORRENT_SIDECAR_MAX_COUNT - 1)
+        .describe('The uploaded sidecar, stored as bt/<infoHash>/x/<n>'),
+      video: layoutPathSchema
+        .optional()
+        .describe('Layout path of the video it is named after: it takes the name that video was given'),
+    })
+    .strict()
+    .openapi('TorrentLayoutSidecar'),
+])
+
+export type TorrentLayoutEntry = z.infer<typeof torrentLayoutEntrySchema>
+
+export const torrentLayoutSchema = z
+  .object({
+    version: z.literal(1),
+    entries: z.array(torrentLayoutEntrySchema).min(1).max(100_000),
+  })
+  .openapi('TorrentLayout')
+
+export type TorrentLayout = z.infer<typeof torrentLayoutSchema>

@@ -27,8 +27,19 @@ export function torrentInfoObjectKey(infoHash: string): string {
   return `${TORRENT_CACHE_PREFIX}${infoHash}/info`
 }
 
+export const TORRENT_LAYOUT_NAME = 'layout.json'
+
 export function torrentLayoutObjectKey(infoHash: string): string {
-  return `${TORRENT_CACHE_PREFIX}${infoHash}/layout.json`
+  return torrentExtraObjectKey(infoHash, TORRENT_LAYOUT_NAME)
+}
+
+// A scraper sidecar a cache download stored beside the torrent's files.
+export function torrentSidecarName(n: number): string {
+  return `x/${n}`
+}
+
+export function torrentExtraObjectKey(infoHash: string, name: string): string {
+  return `${TORRENT_CACHE_PREFIX}${infoHash}/${name}`
 }
 
 // The half-open key range [from, to) holding every object of one torrent, so
