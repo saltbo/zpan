@@ -1,6 +1,6 @@
 // Torrents lists (docs/design/torrents.md §3 workspace_torrents, §11).
 
-import { and, asc, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { generateId } from '../../../shared/ids'
 import { matters, torrents, workspaceTorrents } from '../../db/schema'
 import { executeWriteTransactionWithResults } from '../../db/transaction'
@@ -88,19 +88,30 @@ export function createWorkspaceTorrentRepo(db: Database): WorkspaceTorrentRepo {
 
   return {
     async insert(input) {
-      if (input.torrentId) {
-        const held = await db
+      const infoHash = input.infoHash?.toLowerCase() ?? null
+      // The entry the workspace already has for the torrent: the same torrent,
+      // or (before the torrent reaches the instance) the same infoHash.
+      async function held(): Promise<EntryRow | undefined> {
+        const same = [
+          input.torrentId ? eq(workspaceTorrents.torrentId, input.torrentId) : undefined,
+          infoHash ? eq(workspaceTorrents.infoHash, infoHash) : undefined,
+        ].filter((clause) => clause !== undefined)
+        if (same.length === 0) return undefined
+        const rows = await db
           .select()
           .from(workspaceTorrents)
-          .where(and(eq(workspaceTorrents.orgId, input.orgId), eq(workspaceTorrents.torrentId, input.torrentId)))
+          .where(and(eq(workspaceTorrents.orgId, input.orgId), or(...same)))
+          .orderBy(asc(workspaceTorrents.createdAt))
           .limit(1)
-        if (held[0]) return { created: false, entry: toEntry(held[0]) }
+        return rows[0]
       }
+      const existing = await held()
+      if (existing) return { created: false, entry: toEntry(existing) }
       const row: EntryRow = {
         id: generateId(),
         orgId: input.orgId,
         torrentId: input.torrentId,
-        infoHash: input.infoHash?.toLowerCase() ?? null,
+        infoHash,
         source: input.source,
         sourceUri: input.sourceUri,
         displayName: input.displayName,
@@ -117,15 +128,11 @@ export function createWorkspaceTorrentRepo(db: Database): WorkspaceTorrentRepo {
       try {
         await db.insert(workspaceTorrents).values(row)
       } catch (error) {
-        // A concurrent add of the same torrent won the unique (org_id, torrent_id).
-        if (!input.torrentId) throw error
-        const winner = await db
-          .select()
-          .from(workspaceTorrents)
-          .where(and(eq(workspaceTorrents.orgId, input.orgId), eq(workspaceTorrents.torrentId, input.torrentId)))
-          .limit(1)
-        if (!winner[0]) throw error
-        return { created: false, entry: toEntry(winner[0]) }
+        // A concurrent add of the same torrent won the unique (org_id,
+        // torrent_id) or (org_id, info_hash).
+        const winner = await held()
+        if (!winner) throw error
+        return { created: false, entry: toEntry(winner) }
       }
       return { created: true, entry: row as WorkspaceTorrentRecord }
     },
@@ -147,17 +154,12 @@ export function createWorkspaceTorrentRepo(db: Database): WorkspaceTorrentRepo {
       return rows[0] ? toEntry(rows[0]) : null
     },
 
-    async findUnresolvedBySourceUri(orgId, sourceUri) {
+    async findBySourceUri(orgId, sourceUri) {
       const rows = await db
         .select()
         .from(workspaceTorrents)
-        .where(
-          and(
-            eq(workspaceTorrents.orgId, orgId),
-            eq(workspaceTorrents.sourceUri, sourceUri),
-            isNull(workspaceTorrents.infoHash),
-          ),
-        )
+        .where(and(eq(workspaceTorrents.orgId, orgId), eq(workspaceTorrents.sourceUri, sourceUri)))
+        .orderBy(asc(workspaceTorrents.createdAt))
         .limit(1)
       return rows[0] ? toEntry(rows[0]) : null
     },
@@ -202,11 +204,12 @@ export function createWorkspaceTorrentRepo(db: Database): WorkspaceTorrentRepo {
       return rows.map(toEntry)
     },
 
-    async attachTorrent(infoHash, torrentId, now) {
-      await db
-        .update(workspaceTorrents)
-        .set({ torrentId, updatedAt: now })
+    async listWaiting(infoHash) {
+      const rows = await db
+        .select()
+        .from(workspaceTorrents)
         .where(and(eq(workspaceTorrents.infoHash, infoHash.toLowerCase()), isNull(workspaceTorrents.torrentId)))
+      return rows.map(toEntry)
     },
 
     async update(id, fields) {
@@ -279,6 +282,9 @@ export function createWorkspaceTorrentRepo(db: Database): WorkspaceTorrentRepo {
           and(
             eq(torrents.id, candidate.id),
             inArray(torrents.status, [...EVICTABLE_STATUSES]),
+            // Nobody touched it since it was ranked: a save to drive touches the
+            // torrent before it inserts the drive rows that would hold it.
+            eq(torrents.lastAccessedAt, candidate.lastAccessedAt),
             sql`NOT ${referencedByMatter}`,
             sql`NOT ${heldByDownloadEntry}`,
             // Nobody played or added it since it was ranked.

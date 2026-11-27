@@ -196,14 +196,18 @@ export async function addTorz(deps: Deps, caller: StoreCaller, link: string | un
   const source = link ? torzSource(link) : null
   if (!source) throw new StremThruError('BAD_REQUEST', 'A magnet link or torrent URL is required')
   const infoHash = source.type === 'magnet' ? parseCheckHash(source.uri) : null
-  const existing = infoHash
-    ? await deps.workspaceTorrents.findByInfoHash(caller.orgId, infoHash)
-    : await deps.workspaceTorrents.findUnresolvedBySourceUri(caller.orgId, source.uri)
+  // A torrent URL the workspace added before is matched by the link, resolved
+  // or not, because addons add the same links again and again. One whose entry
+  // merged into another is matched by the infoHash its task learned.
+  const knownHash = infoHash ?? (await deps.downloadTasks.findInfoHashBySourceUri(caller.orgId, source.uri)) ?? null
+  const existing =
+    (source.type === 'torrent_url' ? await deps.workspaceTorrents.findBySourceUri(caller.orgId, source.uri) : null) ??
+    (knownHash ? await deps.workspaceTorrents.findByInfoHash(caller.orgId, knownHash) : null)
   if (existing) {
     const detail = await getWorkspaceTorrent(deps, caller.orgId, existing.id)
     if (detail.state.status !== 'failed') return toTorz(deps, caller, existing.id)
   }
-  const id = await withStoreErrors(() => placeEntry(deps, caller, source, infoHash, existing))
+  const id = await withStoreErrors(() => placeEntry(deps, caller, source, existing?.infoHash ?? knownHash, existing))
   return toTorz(deps, caller, id)
 }
 
@@ -219,7 +223,11 @@ async function placeEntry(
 ): Promise<string> {
   const now = new Date()
   const found = infoHash ? await deps.torrents.getByInfoHash(infoHash) : null
-  const torrent = found && found.status !== 'evicting' ? found : null
+  // A ready torrent is accessed now, before the entry holds it, so a capacity
+  // sweep that ranked it meanwhile loses its claim; one already claimed is
+  // treated as gone.
+  const touched = found?.status === 'ready' ? await deps.torrents.touch(found.id, ['ready'], now) : true
+  const torrent = found && found.status !== 'evicting' && touched ? found : null
   const waits =
     !!torrent &&
     (torrent.status === 'ready' ||
@@ -247,7 +255,7 @@ async function placeEntry(
       updatedAt: now,
     })
   } else {
-    const { entry } = await deps.workspaceTorrents.insert({
+    const { created, entry } = await deps.workspaceTorrents.insert({
       orgId: caller.orgId,
       torrentId: torrent?.id ?? null,
       infoHash,
@@ -260,9 +268,10 @@ async function placeEntry(
       createdBy: { type: 'api_key', ref: caller.keyId, issuer: null },
       now,
     })
+    // A concurrent add of the same torrent placed it already.
+    if (!created) return entry.id
     entryId = entry.id
   }
-  if (torrent?.status === 'ready') await deps.torrents.touch(torrent.id, ['ready'], now)
   if (waits) return entryId
 
   try {

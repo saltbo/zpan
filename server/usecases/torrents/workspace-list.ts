@@ -103,11 +103,12 @@ export interface IssueLinkParams {
   now?: Date
 }
 
-// A presigned URL for a file of a list entry, valid for 12 hours. The entry is
-// played now and its torrent accessed now. The file's size is charged when a
-// link is issued; while the issued link has more than an hour left it is
-// returned again without another charge, because players reconnect and addons
-// regenerate links.
+// A presigned URL for a file of a list entry, valid for 12 hours. The file's
+// size is charged to the workspace when a link is issued; while the link issued
+// to the user in this workspace has more than an hour left it is returned again
+// without another charge, because players reconnect and addons regenerate
+// links. Once a link is handed out, the entry is played now and its torrent
+// accessed now; a refused charge plays nothing.
 export async function issueTorrentFileLink(
   deps: Deps,
   params: IssueLinkParams,
@@ -118,10 +119,10 @@ export async function issueTorrentFileLink(
   const file = detail.files.find((item) => item.id === params.fileId)
   if (!torrent || !file) throw notFound('Torrent file not found')
   if (!detail.playable) throw conflict('Torrent file is not playable yet', 'TORRENT_NOT_READY')
-  await recordEntryPlayed(deps, detail.view, now)
 
-  const issued = await deps.stremthruLinks.get(params.userId, file.id)
+  const issued = await deps.stremthruLinks.get(params.userId, params.orgId, file.id)
   if (issued && issued.expiresAt.getTime() - now.getTime() > TORRENT_LINK_REUSE_MIN_REMAINING_MS) {
+    await recordEntryPlayed(deps, detail.view, now)
     return { url: issued.url, expiresAt: issued.expiresAt }
   }
 
@@ -157,6 +158,7 @@ export async function issueTorrentFileLink(
     throw error
   }
   const expiresAt = new Date(now.getTime() + TORRENT_LINK_TTL_SECONDS * 1000)
+  await recordEntryPlayed(deps, detail.view, now)
   await deps.stremthruLinks.save({
     userId: params.userId,
     orgId: params.orgId,

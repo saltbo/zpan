@@ -849,15 +849,18 @@ export const workspaceTorrents = sqliteTable(
   (t) => [
     uniqueIndex('workspace_torrents_org_torrent_uniq').on(t.orgId, t.torrentId),
     index('workspace_torrents_org_created_idx').on(t.orgId, t.createdAt, t.id),
-    index('workspace_torrents_org_hash_idx').on(t.orgId, t.infoHash),
+    // One entry per torrent in a workspace, also before the torrent reaches the
+    // instance (entries without an infoHash yet are not constrained).
+    uniqueIndex('workspace_torrents_org_hash_uniq').on(t.orgId, t.infoHash),
     index('workspace_torrents_torrent_idx').on(t.torrentId),
     index('workspace_torrents_task_idx').on(t.taskId),
     index('workspace_torrents_source_played_idx').on(t.source, t.lastPlayedAt),
   ],
 )
 
-// stremthru_links — the playback link last issued to a user for a torrent file,
-// so a regenerated link is the same one (and charged once) while it has time left
+// stremthru_links — the playback link last issued to a user for a torrent file in
+// a workspace, so a regenerated link is the same one (and charged once to that
+// workspace) while it has time left
 export const stremthruLinks = sqliteTable(
   'stremthru_links',
   {
@@ -874,7 +877,7 @@ export const stremthruLinks = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
-    uniqueIndex('stremthru_links_user_file_uniq').on(t.userId, t.torrentFileId),
+    uniqueIndex('stremthru_links_user_org_file_uniq').on(t.userId, t.orgId, t.torrentFileId),
     index('stremthru_links_expires_idx').on(t.expiresAt),
   ],
 )

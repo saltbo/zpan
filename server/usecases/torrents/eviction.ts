@@ -4,7 +4,10 @@
 // stremthru list entry holds it until it expires. Each sweep first expires
 // stremthru entries not played within the retention period, then deletes
 // torrents nobody holds once their last access is older than the retention
-// period, or oldest first while the torrents exceed the optional capacity. When
+// period, or oldest first while the torrents exceed the optional capacity. A
+// downloading torrent whose download was abandoned (canceled once its last
+// holder went, or failed with nobody left to take it over) goes at once: a later
+// download uploads every file anew, so its partial objects are of no use. When
 // evicting every unheld torrent is not enough, torrents held only by stremthru
 // entries go next, least recently played first, with their entries. Objects go
 // first and rows second, so a failed sweep leaves rows that the next sweep
@@ -19,6 +22,9 @@ import { expireStremThruEntries } from './workspace-list'
 export { loadTorrentPolicy, TORRENT_OPTION_KEYS } from './policy'
 
 const SWEEP_BATCH = 100
+// An abandoned fill is swept once its tasks have been still for this long, well
+// past the 15-minute upload presigns, so no upload lands after its objects go.
+export const ABANDONED_FILL_GRACE_MS = 60 * 60 * 1000
 
 export type TorrentEvictionDeps = Deps
 
@@ -28,6 +34,15 @@ export async function evictTorrents(deps: TorrentEvictionDeps, now = new Date())
   let total = await deps.torrents.totalSize()
   let evicted = 0
   const touchedStorages = new Set<string>()
+
+  const stillSince = new Date(now.getTime() - ABANDONED_FILL_GRACE_MS)
+  for (const candidate of await deps.torrents.listAbandonedFills(stillSince, SWEEP_BATCH)) {
+    if (!(await deps.torrents.claimAbandonedFill(candidate, stillSince))) continue
+    await deleteClaimedTorrent(deps, candidate)
+    touchedStorages.add(candidate.storageId)
+    total -= candidate.size
+    evicted++
+  }
 
   const candidates = await deps.torrents.listEvictionCandidates(SWEEP_BATCH)
   const selected = selectTorrentsToEvict(candidates, {

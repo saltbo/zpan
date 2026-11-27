@@ -23,7 +23,7 @@ import { torrentInfoObjectKey } from '../../domain/torrents'
 import type { Deps } from '../deps'
 import { badRequest, type DownloadTaskRecord, notFound, type TorrentRecord } from '../ports'
 import { loadBindingState } from '../site/licensing'
-import { resolveTaskEntry, TORRENT_INVALID_MESSAGE } from './entries'
+import { resolveTaskEntry, TORRENT_EVICTING_MESSAGE, TORRENT_INVALID_MESSAGE } from './entries'
 import { transferTorrent } from './instant-transfer'
 
 export { TORRENT_INVALID_MESSAGE }
@@ -209,6 +209,16 @@ async function settleJoinedTask(deps: TorrentFillDeps, task: DownloadTaskRecord,
   await deps.downloadTasks.setFields(task.id, { torrentId: null, torrentRole: null, updatedAt: now })
 }
 
+async function failEvicting(deps: TorrentFillDeps, task: DownloadTaskRecord, now: Date): Promise<void> {
+  await deps.downloadTasks.setFields(task.id, {
+    status: 'failed',
+    errorCode: 'TORRENT_EVICTING',
+    errorMessage: TORRENT_EVICTING_MESSAGE,
+    finishedAt: now,
+    updatedAt: now,
+  })
+}
+
 async function failInvalid(deps: TorrentFillDeps, task: DownloadTaskRecord, now: Date): Promise<void> {
   await deps.downloadTasks.setFields(task.id, {
     status: 'failed',
@@ -311,20 +321,24 @@ export async function reportTaskTorrentInfo(
       return
     }
   }
-  if (torrent.status === 'downloading') {
-    // The download that started this torrent stopped (or this task runs
-    // again): this one takes it over and uploads every entry anew.
-    await deps.torrents.setSource(torrent.id, { taskId: task.id, downloaderId: params.downloaderId }, now)
+  // The download that started this torrent stopped (or this task runs again):
+  // this one takes it over and uploads every entry anew, unless the sweep of
+  // abandoned fills claimed it meanwhile.
+  if (
+    torrent.status === 'downloading' &&
+    (await deps.torrents.setSource(torrent.id, { taskId: task.id, downloaderId: params.downloaderId }, now))
+  ) {
     await deps.torrents.resetEntries(torrent.id)
     await startFill(deps, task, { ...torrent, sourceTaskId: task.id }, bytes, now)
     await resolveTaskEntry(deps, task, { ...torrent, sourceTaskId: task.id }, now)
     return
   }
   // Invalid or being evicted: the torrent cannot be filled. A task for the list
-  // alone has nowhere else to go and fails; any other uploads into the drive the
-  // way a downloader that reports nothing does.
+  // alone has nowhere else to go and fails, saying which it was; any other
+  // uploads into the drive the way a downloader that reports nothing does.
   if (task.listOnly) {
-    await failInvalid(deps, { ...task, infoHash }, now)
+    if (torrent.status !== 'invalid') await failEvicting(deps, task, now)
+    else await failInvalid(deps, { ...task, infoHash }, now)
     return
   }
   await deps.downloadTasks.setFields(task.id, { infoHash, torrentId: null, torrentRole: null, updatedAt: now })

@@ -541,6 +541,66 @@ describe('StremThru removal and re-adding', () => {
     expect(await trafficUsed(ctx.db, ctx.owner.orgId)).toBe(0)
   })
 
+  it('returns the entry a concurrent add placed first, without a second download', async () => {
+    const ctx = await setup()
+    const first = await add(ctx.call, UNKNOWN_HASH)
+    // The second add looked before the first one's entry existed.
+    vi.spyOn(ctx.deps.workspaceTorrents, 'findByInfoHash').mockResolvedValueOnce(null)
+
+    const second = await add(ctx.call, UNKNOWN_HASH)
+
+    expect(second.id).toBe(first.id)
+    const tasks = await ctx.db.all<{ id: string }>(sql`
+      SELECT id FROM download_tasks WHERE org_id = ${ctx.owner.orgId}
+    `)
+    expect(tasks).toHaveLength(1)
+  })
+
+  it('downloads anew a ready torrent that a sweep claims while it is added', async () => {
+    const ctx = await setup()
+    // The capacity sweep claims the torrent between the add's read and its touch.
+    vi.spyOn(ctx.deps.torrents, 'touch').mockImplementationOnce(async () => {
+      await ctx.db.run(sql`UPDATE torrents SET status = 'evicting' WHERE info_hash = ${CACHED_HASH}`)
+      return false
+    })
+
+    const torz = await add(ctx.call, CACHED_HASH)
+
+    expect(torz).toMatchObject({ status: 'queued', files: [] })
+    expect(await entries(ctx.db, ctx.owner.orgId)).toEqual([
+      expect.objectContaining({ id: torz.id, status: 'resolving', torrentId: null }),
+    ])
+    const tasks = await ctx.db.all<{ listOnly: number }>(sql`
+      SELECT list_only AS listOnly FROM download_tasks WHERE org_id = ${ctx.owner.orgId}
+    `)
+    expect(tasks).toEqual([{ listOnly: 1 }])
+  })
+
+  it('plays nothing when the traffic quota refuses the link', async () => {
+    const ctx = await setup()
+    const torz = await add(ctx.call, CACHED_HASH)
+    const [before] = await ctx.db.all<{ accessed: number }>(sql`
+      SELECT last_accessed_at AS accessed FROM torrents WHERE info_hash = ${CACHED_HASH}
+    `)
+    vi.spyOn(ctx.deps.quota, 'consumeTrafficIfQuotaAllows').mockResolvedValueOnce(false)
+
+    const res = await ctx.call('/v0/store/torz/link/generate', {
+      method: 'POST',
+      body: JSON.stringify({ link: torz.files[0].link }),
+    })
+
+    expect(res.status).toBe(402)
+    expect(await json(res)).toMatchObject({ error: { code: 'PAYMENT_REQUIRED', message: 'Traffic quota exceeded' } })
+    const [entry] = await ctx.db.all<{ played: number | null }>(sql`
+      SELECT last_played_at AS played FROM workspace_torrents WHERE id = ${torz.id}
+    `)
+    expect(entry.played).toBeNull()
+    const [after] = await ctx.db.all<{ accessed: number }>(sql`
+      SELECT last_accessed_at AS accessed FROM torrents WHERE info_hash = ${CACHED_HASH}
+    `)
+    expect(after.accessed).toBe(before.accessed)
+  })
+
   it('reads form-encoded bodies and rejects malformed JSON', async () => {
     const ctx = await setup()
 

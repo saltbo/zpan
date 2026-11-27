@@ -1,7 +1,7 @@
 import type { WorkspaceTorrent, WorkspaceTorrentFile } from '@shared/schemas'
 import { useQuery } from '@tanstack/react-query'
 import { Download, FolderInput, Play, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { LoadErrorAlert } from '@/components/errors/load-error-alert'
@@ -11,13 +11,20 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createWorkspaceTorrentFileLink, getWorkspaceTorrent } from '@/lib/api'
+import { ApiError, createWorkspaceTorrentFileLink, getWorkspaceTorrent } from '@/lib/api'
+import { startDownload } from '@/lib/browser-navigation'
 import { formatDate, formatSize } from '@/lib/format'
 import { TorrentStatusBadge } from './torrent-status-badge'
 
 export const workspaceTorrentQueryKey = (id: string) => ['workspace-torrents', 'detail', id]
 
 const PLAYABLE_TYPES = /^(video|audio)\//
+// An entry still on its way refreshes on its own until it settles, as the list does.
+const REFRESH_MS = 5000
+
+export function settled(status: WorkspaceTorrent['status'] | undefined): boolean {
+  return status === 'ready' || status === 'failed'
+}
 
 function fileName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1)
@@ -28,11 +35,13 @@ interface TorrentSheetProps {
   onOpenChange: (open: boolean) => void
   onSave: (entry: WorkspaceTorrent) => void
   onRemove: (entry: WorkspaceTorrent) => void
+  // Save to drive and Remove need an editor; a viewer only plays and downloads.
+  canEdit: boolean
 }
 
 // A torrent of the workspace's list with its own file tree; each file plays or
 // downloads through a presigned link (docs/design/torrents.md §9).
-export function TorrentSheet({ id, onOpenChange, onSave, onRemove }: TorrentSheetProps) {
+export function TorrentSheet({ id, onOpenChange, onSave, onRemove, canEdit }: TorrentSheetProps) {
   const { t } = useTranslation()
   const [preview, setPreview] = useState<PreviewFile | null>(null)
   const [opening, setOpening] = useState<string | null>(null)
@@ -40,8 +49,16 @@ export function TorrentSheet({ id, onOpenChange, onSave, onRemove }: TorrentShee
     queryKey: workspaceTorrentQueryKey(id ?? ''),
     queryFn: () => getWorkspaceTorrent(id as string),
     enabled: !!id,
+    refetchInterval: (current) => (current.state.data && !settled(current.state.data.status) ? REFRESH_MS : false),
   })
   const entry = query.data
+  const gone = query.error instanceof ApiError && query.error.status === 404
+
+  // The entry behind the link is gone (removed, expired or evicted): close the
+  // sheet rather than offer a retry that cannot succeed.
+  useEffect(() => {
+    if (id && gone) onOpenChange(false)
+  }, [id, gone, onOpenChange])
 
   async function open(file: WorkspaceTorrentFile, mode: 'play' | 'download') {
     if (!entry) return
@@ -49,7 +66,7 @@ export function TorrentSheet({ id, onOpenChange, onSave, onRemove }: TorrentShee
     try {
       const link = await createWorkspaceTorrentFileLink(entry.id, file.id)
       if (mode === 'download') {
-        window.open(link.url, '_blank', 'noopener')
+        startDownload(link.url)
         return
       }
       setPreview({ id: file.id, name: fileName(file.path), type: file.mime, size: file.size, downloadUrl: link.url })
@@ -69,11 +86,11 @@ export function TorrentSheet({ id, onOpenChange, onSave, onRemove }: TorrentShee
             <SheetDescription>{t('torrents.sheet.description')}</SheetDescription>
           </SheetHeader>
           <div className="space-y-4 px-4 pb-6">
-            {query.isPending ? (
+            {query.isPending || gone ? (
               <p className="py-6 text-center text-sm text-muted-foreground" role="status">
                 {t('common.loading')}
               </p>
-            ) : query.isError || !entry ? (
+            ) : !entry ? (
               <LoadErrorAlert error={query.error} onRetry={() => query.refetch()} retrying={query.isFetching} />
             ) : (
               <>
@@ -96,16 +113,18 @@ export function TorrentSheet({ id, onOpenChange, onSave, onRemove }: TorrentShee
                     </>
                   )}
                 </dl>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => onSave(entry)} disabled={entry.status !== 'ready'}>
-                    <FolderInput />
-                    {t('torrents.save.action')}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => onRemove(entry)}>
-                    <Trash2 />
-                    {t('torrents.remove.action')}
-                  </Button>
-                </div>
+                {canEdit && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => onSave(entry)} disabled={entry.status !== 'ready'}>
+                      <FolderInput />
+                      {t('torrents.save.action')}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => onRemove(entry)}>
+                      <Trash2 />
+                      {t('torrents.remove.action')}
+                    </Button>
+                  </div>
+                )}
                 <Separator />
                 <section aria-label={t('torrents.sheet.files')} className="space-y-2">
                   <h3 className="text-sm font-medium">{t('torrents.sheet.files')}</h3>

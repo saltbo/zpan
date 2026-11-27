@@ -392,7 +392,7 @@ const APP_SCHEMA_SQL = `
   );
   CREATE UNIQUE INDEX IF NOT EXISTS workspace_torrents_org_torrent_uniq ON workspace_torrents(org_id, torrent_id);
   CREATE INDEX IF NOT EXISTS workspace_torrents_org_created_idx ON workspace_torrents(org_id, created_at, id);
-  CREATE INDEX IF NOT EXISTS workspace_torrents_org_hash_idx ON workspace_torrents(org_id, info_hash);
+  CREATE UNIQUE INDEX IF NOT EXISTS workspace_torrents_org_hash_uniq ON workspace_torrents(org_id, info_hash);
   CREATE INDEX IF NOT EXISTS workspace_torrents_torrent_idx ON workspace_torrents(torrent_id);
   CREATE INDEX IF NOT EXISTS workspace_torrents_task_idx ON workspace_torrents(task_id);
   CREATE INDEX IF NOT EXISTS workspace_torrents_source_played_idx ON workspace_torrents(source, last_played_at);
@@ -405,7 +405,7 @@ const APP_SCHEMA_SQL = `
     expires_at INTEGER NOT NULL,
     created_at INTEGER NOT NULL
   );
-  CREATE UNIQUE INDEX IF NOT EXISTS stremthru_links_user_file_uniq ON stremthru_links(user_id, torrent_file_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS stremthru_links_user_org_file_uniq ON stremthru_links(user_id, org_id, torrent_file_id);
   CREATE INDEX IF NOT EXISTS stremthru_links_expires_idx ON stremthru_links(expires_at);
   CREATE TABLE IF NOT EXISTS webdav_dead_properties (
     id TEXT PRIMARY KEY,

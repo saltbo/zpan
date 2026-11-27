@@ -515,6 +515,36 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
       return row ? toRecord(row) : null
     },
 
+    async findRecords(ids) {
+      const unique = [...new Set(ids)]
+      const found: DownloadTaskRecord[] = []
+      // D1 binds at most 100 parameters per statement.
+      for (let i = 0; i < unique.length; i += 90) {
+        const rows = await db
+          .select()
+          .from(downloadTasks)
+          .where(and(inArray(downloadTasks.id, unique.slice(i, i + 90)), isNull(downloadTasks.deletedAt)))
+        found.push(...rows.map(toRecord))
+      }
+      return found
+    },
+
+    async findInfoHashBySourceUri(orgId, sourceUri) {
+      const rows = await db
+        .select({ infoHash: downloadTasks.infoHash })
+        .from(downloadTasks)
+        .where(
+          and(
+            eq(downloadTasks.orgId, orgId),
+            eq(downloadTasks.sourceUri, sourceUri),
+            isNotNull(downloadTasks.infoHash),
+          ),
+        )
+        .orderBy(desc(downloadTasks.createdAt))
+        .limit(1)
+      return rows[0]?.infoHash ?? null
+    },
+
     async listPendingCleanup(downloaderId, limit) {
       const rows = await db
         .select()

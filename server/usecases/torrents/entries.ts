@@ -12,12 +12,14 @@ import type {
   DownloadTaskRecord,
   TorrentRecord,
   WorkspaceTorrentRecord,
+  WorkspaceTorrentUpdate,
   WorkspaceTorrentView,
 } from '../ports'
 
 export const TORRENT_INVALID_MESSAGE = 'The torrent failed verification'
 export const TORRENT_STOPPED_MESSAGE = 'The download stopped before the torrent was complete'
 export const TORRENT_EVICTED_MESSAGE = 'The torrent was evicted'
+export const TORRENT_EVICTING_MESSAGE = 'The torrent was being evicted when the download began; add it again'
 export const TORRENT_NOT_KEPT_MESSAGE = 'The downloader did not report the torrent, so it was not kept'
 
 const TERMINAL_STATUSES = ['completed', 'failed', 'canceled']
@@ -54,8 +56,9 @@ export async function loadStateTasks(
   deps: Pick<Deps, 'downloadTasks'>,
   views: readonly WorkspaceTorrentView[],
 ): Promise<Map<string, DownloadTaskRecord>> {
-  const tasks = await Promise.all(stateTaskIds(views).map((id) => deps.downloadTasks.findRecord(id)))
-  return new Map(tasks.flatMap((task) => (task ? [[task.id, task] as const] : [])))
+  const ids = stateTaskIds(views)
+  const tasks = ids.length > 0 ? await deps.downloadTasks.findRecords(ids) : []
+  return new Map(tasks.map((task) => [task.id, task] as const))
 }
 
 // The status the Torrents list shows for an entry.
@@ -107,9 +110,10 @@ async function attachableTorrent(deps: EntryDeps, infoHash: string | null): Prom
 }
 
 // A remote download of a magnet or torrent URL lands in the drive and in the
-// list. Adding a torrent the workspace already holds reuses its entry: a
-// stremthru entry becomes a download one, so it no longer expires, unless it
-// still runs the task that fills the torrent for the list alone.
+// list. Adding a torrent the workspace already holds reuses its entry, which
+// becomes a download one, so it no longer expires and capacity eviction passes
+// its torrent by. An entry whose task still fills the torrent for the list alone
+// keeps that task, which tells how the torrent's uploads are stored.
 export async function addDownloadEntry(
   deps: EntryDeps,
   task: DownloadTaskRecord,
@@ -121,7 +125,10 @@ export async function addDownloadEntry(
   if (existing) {
     const runningFill =
       existing.source === 'stremthru' && existing.taskId ? await deps.downloadTasks.findRecord(existing.taskId) : null
-    if (runningFill && active(runningFill)) return existing
+    if (runningFill && active(runningFill)) {
+      await deps.workspaceTorrents.update(existing.id, { source: 'download', updatedAt: now })
+      return { ...existing, source: 'download' }
+    }
     await deps.workspaceTorrents.update(existing.id, {
       source: 'download',
       taskId: task.id,
@@ -151,10 +158,69 @@ export async function addDownloadEntry(
   return entry
 }
 
+// Two entries of one workspace turned out to hold the same torrent: `drop` goes
+// and `keep` stays. The merged entry is a download one when either was, so a
+// remote download never loses its "never expires".
+async function mergeEntries(
+  deps: EntryDeps,
+  keep: WorkspaceTorrentRecord,
+  drop: WorkspaceTorrentRecord,
+  fields: { torrent: TorrentRecord; taskId: string | null; now: Date },
+): Promise<void> {
+  await deps.workspaceTorrents.delete(drop.id)
+  await deps.workspaceTorrents.update(keep.id, {
+    infoHash: fields.torrent.infoHash,
+    torrentId: fields.torrent.id,
+    source: keep.source === 'download' || drop.source === 'download' ? 'download' : 'stremthru',
+    taskId: fields.taskId,
+    updatedAt: fields.now,
+  })
+}
+
+// The workspace's other entry for the torrent, if any.
+async function otherHolder(
+  deps: EntryDeps,
+  entry: WorkspaceTorrentRecord,
+  torrent: TorrentRecord,
+): Promise<WorkspaceTorrentRecord | null> {
+  const byTorrent = (await deps.workspaceTorrents.listByTorrent(torrent.id)).find(
+    (item) => item.orgId === entry.orgId && item.id !== entry.id,
+  )
+  if (byTorrent) return byTorrent
+  const byHash = await deps.workspaceTorrents.findByInfoHash(entry.orgId, torrent.infoHash)
+  return byHash && byHash.id !== entry.id ? byHash : null
+}
+
+// Gives the entry its torrent, unless the workspace holds the torrent in
+// another entry (a concurrent add won the unique (org_id, torrent_id) or
+// (org_id, info_hash)): then returns that entry, and nothing changed.
+async function attachEntry(
+  deps: EntryDeps,
+  entry: WorkspaceTorrentRecord,
+  torrent: TorrentRecord,
+  fields: WorkspaceTorrentUpdate,
+): Promise<WorkspaceTorrentRecord | null> {
+  const before = await otherHolder(deps, entry, torrent)
+  if (before) return before
+  try {
+    await deps.workspaceTorrents.update(entry.id, { ...fields, infoHash: torrent.infoHash, torrentId: torrent.id })
+    return null
+  } catch (error) {
+    const winner = await otherHolder(deps, entry, torrent)
+    if (!winner) throw error
+    return winner
+  }
+}
+
 // The torrent reached the instance: every entry waiting on its infoHash now
-// holds it.
+// holds it. An entry whose workspace already holds the torrent merges into
+// that entry.
 export async function attachWaitingEntries(deps: EntryDeps, torrent: TorrentRecord, now = new Date()) {
-  await deps.workspaceTorrents.attachTorrent(torrent.infoHash, torrent.id, now)
+  for (const entry of await deps.workspaceTorrents.listWaiting(torrent.infoHash)) {
+    const status = entry.status === 'failed' ? 'failed' : 'downloading'
+    const holder = await attachEntry(deps, entry, torrent, { status, updatedAt: now })
+    if (holder) await mergeEntries(deps, holder, entry, { torrent, taskId: holder.taskId ?? entry.taskId, now })
+  }
 }
 
 // A task learned its torrent from the reported info dictionary. A torrent URL
@@ -171,34 +237,22 @@ export async function resolveTaskEntry(
   await attachWaitingEntries(deps, torrent, now)
   const entry = await deps.workspaceTorrents.findByTask(task.id)
   if (!entry || entry.torrentId === torrent.id) return
-  const holder = (await deps.workspaceTorrents.listByTorrent(torrent.id)).find((item) => item.orgId === task.orgId)
-  if (!holder) {
-    await deps.workspaceTorrents.update(entry.id, {
-      infoHash: torrent.infoHash,
-      torrentId: torrent.id,
-      status: 'downloading',
-      updatedAt: now,
-    })
-    return
-  }
-  const source = entry.source === 'download' || holder.source === 'download' ? 'download' : 'stremthru'
+  const holder = await attachEntry(deps, entry, torrent, { status: 'downloading', updatedAt: now })
+  if (!holder) return
   if (torrent.sourceTaskId === task.id) {
-    await deps.workspaceTorrents.delete(holder.id)
-    await deps.workspaceTorrents.update(entry.id, {
-      infoHash: torrent.infoHash,
-      torrentId: torrent.id,
-      status: 'downloading',
-      updatedAt: now,
-    })
+    await mergeEntries(deps, entry, holder, { torrent, taskId: task.id, now })
+    await deps.workspaceTorrents.update(entry.id, { status: 'downloading', updatedAt: now })
     return
   }
-  await deps.workspaceTorrents.delete(entry.id)
-  await deps.workspaceTorrents.update(holder.id, { source, taskId: task.id, error: null, updatedAt: now })
+  await mergeEntries(deps, holder, entry, { torrent, taskId: task.id, now })
+  await deps.workspaceTorrents.update(holder.id, { error: null, updatedAt: now })
 }
 
 // A task that fills a torrent stopped (failed or canceled) before it completed:
 // the entries waiting on that download, and the task's own, are failed. A
 // remote download waiting with a task of its own goes on by downloading itself.
+// The downloader's error text belongs to the task's workspace, so entries of
+// other workspaces get the generic message.
 export async function failWaitingEntries(
   deps: EntryDeps,
   task: DownloadTaskRecord,
@@ -225,7 +279,7 @@ export async function failWaitingEntries(
     }
     await deps.workspaceTorrents.update(entry.id, {
       status: 'failed',
-      error: error ?? TORRENT_STOPPED_MESSAGE,
+      error: entry.orgId === task.orgId ? (error ?? TORRENT_STOPPED_MESSAGE) : TORRENT_STOPPED_MESSAGE,
       updatedAt: now,
     })
   }

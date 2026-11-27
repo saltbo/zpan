@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { useUrlText } from '@/hooks/use-url-text'
+import { useWorkspaceRoleAtLeast } from '@/hooks/use-workspace-role'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
@@ -87,13 +88,18 @@ function TorrentsList() {
   const [saveOpen, setSaveOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<WorkspaceTorrent | null>(null)
   const [removeOpen, setRemoveOpen] = useState(false)
+  // Save to drive and Remove need an editor (the routes' minTeamRole); a viewer
+  // only browses, plays and downloads.
+  const canEdit = useWorkspaceRoleAtLeast('editor')
 
   function askSave(entry: WorkspaceTorrent) {
+    saveMutation.reset()
     setSaveTarget(entry)
     setSaveOpen(true)
   }
 
   function askRemove(entry: WorkspaceTorrent) {
+    removeMutation.reset()
     setRemoveTarget(entry)
     setRemoveOpen(true)
   }
@@ -134,7 +140,6 @@ function TorrentsList() {
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
       toast.success(t('torrents.save.success', { name: entry.name, folder: folder || t('torrents.save.root') }))
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : t('common.error')),
   })
 
   const removeMutation = useMutation({
@@ -145,8 +150,10 @@ function TorrentsList() {
       queryClient.removeQueries({ queryKey: workspaceTorrentQueryKey(entry.id) })
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : t('common.error')),
   })
+
+  // A rejected save or remove stays in its dialog, where the user can retry or cancel.
+  const errorText = (error: Error | null) => (error ? error.message || t('common.error') : null)
 
   return (
     <>
@@ -197,9 +204,18 @@ function TorrentsList() {
                   onClick={() => openEntry(entry.id)}
                 >
                   <td className="px-4 py-3">
-                    <div className="truncate font-medium" title={entry.name}>
+                    {/* The name is the row's keyboard target; a click anywhere on the row opens it too. */}
+                    <button
+                      type="button"
+                      className="block w-full truncate text-left font-medium hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      title={entry.name}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openEntry(entry.id)
+                      }}
+                    >
                       {entry.name}
-                    </div>
+                    </button>
                     {entry.status === 'failed' && entry.error && (
                       <div className="truncate text-xs text-destructive" title={entry.error}>
                         {entry.error}
@@ -229,15 +245,19 @@ function TorrentsList() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEntry(entry.id)}>{t('torrents.open')}</DropdownMenuItem>
-                        <DropdownMenuItem disabled={entry.status !== 'ready'} onClick={() => askSave(entry)}>
-                          <FolderInput />
-                          {t('torrents.save.action')}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive" onClick={() => askRemove(entry)}>
-                          <Trash2 />
-                          {t('torrents.remove.action')}
-                        </DropdownMenuItem>
+                        {canEdit && (
+                          <>
+                            <DropdownMenuItem disabled={entry.status !== 'ready'} onClick={() => askSave(entry)}>
+                              <FolderInput />
+                              {t('torrents.save.action')}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem variant="destructive" onClick={() => askRemove(entry)}>
+                              <Trash2 />
+                              {t('torrents.remove.action')}
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </td>
@@ -263,6 +283,7 @@ function TorrentsList() {
         onOpenChange={(open) => !open && openEntry(undefined)}
         onSave={askSave}
         onRemove={askRemove}
+        canEdit={canEdit}
       />
 
       <MoveDialog
@@ -270,6 +291,7 @@ function TorrentsList() {
         onOpenChange={setSaveOpen}
         onConfirm={(folder) => saveTarget && saveMutation.mutate({ entry: saveTarget, folder })}
         isPending={saveMutation.isPending}
+        error={errorText(saveMutation.error)}
         excludeIds={[]}
         title={t('torrents.save.title', { name: saveTarget?.name ?? '' })}
         confirmLabel={t('torrents.save.confirm')}
@@ -282,6 +304,7 @@ function TorrentsList() {
         description={t('torrents.remove.description')}
         confirmLabel={t('torrents.remove.confirm')}
         isPending={removeMutation.isPending}
+        error={errorText(removeMutation.error)}
         onConfirm={() => removeTarget && removeMutation.mutate(removeTarget)}
       />
     </>

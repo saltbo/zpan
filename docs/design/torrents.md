@@ -104,7 +104,7 @@ Torrents list:
 | Column | Notes |
 | --- | --- |
 | `id`, `org_id` | `id` is also the item id StremThru clients see |
-| `torrent_id`, `info_hash` | `info_hash` is known at submit for a magnet link and once the downloader reports metadata for a torrent URL; `torrent_id` once the `torrents` row exists. `(org_id, torrent_id)` is unique |
+| `torrent_id`, `info_hash` | `info_hash` is known at submit for a magnet link and once the downloader reports metadata for a torrent URL; `torrent_id` once the `torrents` row exists. `(org_id, torrent_id)` and `(org_id, info_hash)` are unique, so concurrent adds of one torrent make one entry |
 | `source` | `download` (a remote download) or `stremthru` |
 | `source_uri`, `display_name` | The submitted link, and the name shown before metadata (a magnet's `dn`) |
 | `task_id` | The download task the entry started, null when the torrent was already on the instance |
@@ -114,8 +114,12 @@ Torrents list:
 | `created_at`, `updated_at` | |
 
 Adding a torrent a workspace already holds returns the existing entry. A
-torrent URL cannot be matched before its infoHash is known, so an entry that
-resolves to a torrent the workspace already holds merges into that entry.
+torrent URL is matched by its link, resolved or not, or by the infoHash a task
+of the workspace learned for it. A torrent URL cannot be matched by infoHash
+before that is known, so an entry that resolves to a torrent the workspace
+already holds merges into that entry. A merged entry is a `download` one when
+either entry was, and a remote download of a torrent a `stremthru` entry holds
+makes that entry a `download` one.
 
 `download_tasks` carries `info_hash` once known, `torrent_id`, and
 `torrent_role`: `fill` for the task whose download is the torrent's first,
@@ -343,8 +347,11 @@ valid for 12 hours. Bytes flow between the player and the bucket.
 
 Metering follows direct-share downloads and charges the file's size when a link
 is issued. Players reconnect and seek, and addons regenerate links, so ZPan
-keeps the link issued per user and torrent file in `stremthru_links` and returns
-it unchanged while it has more than an hour left. One viewing is charged once.
+keeps the link issued per user, workspace and torrent file in `stremthru_links`
+and returns it unchanged while it has more than an hour left. One viewing is
+charged once, to the workspace it was issued in; another workspace of the same
+user issues and charges its own. The entry counts as played only once a link is
+handed out, so a refused charge does not keep it from expiring.
 
 ## 11. Eviction
 
@@ -368,10 +375,19 @@ objects first and rows second:
   enough, torrents held only by `stremthru` entries, with no drive file and no
   `download` entry, go next, least recently played first, with their entries.
 
+A `downloading` torrent whose download was abandoned, with no holder and no
+task that fills or waits for it active or changed in the last hour, is deleted
+at once: a later download uploads every file anew, so its partial objects are of
+no use. This covers a list-only fill canceled when its last holder went. The
+hour outlasts the 15-minute upload presigns, so no upload lands afterwards, and
+a download that takes the torrent over meanwhile keeps it.
+
 Eviction lists `bt/<infoHash>/` and deletes every object under it, so an object
 no row records, such as an upload that landed after its task stopped, goes too.
-It re-counts holders in the same batch that marks a torrent for deletion, so an
-instant transfer racing the sweep keeps the torrent.
+It re-counts holders in the same batch that marks a torrent for deletion, and
+checks that `last_accessed_at` did not change since the torrent was ranked, so
+an instant transfer racing the sweep (which touches the torrent before it
+writes the drive rows) keeps the torrent.
 
 ## 12. Authentication
 

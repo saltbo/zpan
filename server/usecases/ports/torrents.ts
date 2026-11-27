@@ -94,6 +94,11 @@ export interface EvictionCandidate {
   lastAccessedAt: Date
 }
 
+// A downloading torrent whose fill stopped and that nothing holds any more.
+export interface AbandonedFill extends EvictionCandidate {
+  sourceTaskId: string | null
+}
+
 // A torrent as the admin Torrents page lists it.
 export interface AdminTorrentRecord extends TorrentRecord {
   // Drive files, live or in trash, that reference the torrent, plus the
@@ -115,8 +120,9 @@ export interface TorrentRepo {
   // Inserts the torrent unless its infoHash is already on the instance; the unique
   // info_hash makes a concurrent second insert return the first one.
   createIfAbsent(input: CreateTorrentInput): Promise<{ created: boolean; torrent: TorrentRecord }>
-  // Hands a downloading torrent to the download that now fills it.
-  setSource(id: string, source: { taskId: string; downloaderId: string }, now: Date): Promise<void>
+  // Hands a downloading torrent to the download that now fills it; false when the
+  // torrent is no longer downloading (an abandoned fill swept meanwhile).
+  setSource(id: string, source: { taskId: string; downloaderId: string }, now: Date): Promise<boolean>
   // Moves a torrent between statuses; false when it was not in one of `from`.
   transition(
     id: string,
@@ -152,6 +158,12 @@ export interface TorrentRepo {
   // Claims a torrent for eviction in one statement that re-counts its references
   // and checks that it was not accessed since it was listed. False when it lost.
   claimForEviction(candidate: EvictionCandidate): Promise<boolean>
+  // Downloading torrents whose download was abandoned: nothing holds them, and
+  // no task that fills or waits for them is active or changed after `before`.
+  listAbandonedFills(before: Date, limit: number): Promise<AbandonedFill[]>
+  // Claims an abandoned fill for eviction, re-checking all of the above and that
+  // no other download took it over since it was listed. False when it lost.
+  claimAbandonedFill(candidate: AbandonedFill, before: Date): Promise<boolean>
   // Deletes the torrent row and its entry rows.
   delete(id: string): Promise<void>
   // Every torrent, newest first, with its holder count.
@@ -168,8 +180,10 @@ export interface IssuedLink {
 }
 
 export interface StremThruLinkRepo {
-  get(userId: string, torrentFileId: string): Promise<IssuedLink | null>
-  // Replaces the user's link for the file.
+  // The link issued to the user for the file in the workspace: a link is metered
+  // to one workspace, so it is never handed out in another.
+  get(userId: string, orgId: string, torrentFileId: string): Promise<IssuedLink | null>
+  // Replaces the user's link for the file in the workspace.
   save(input: {
     userId: string
     orgId: string
@@ -246,13 +260,14 @@ export interface StremThruHeldTorrent extends EvictionCandidate {
 }
 
 export interface WorkspaceTorrentRepo {
-  // Inserts the entry; when the workspace already holds its torrent (the unique
-  // (org_id, torrent_id)), returns that entry instead.
+  // Inserts the entry; when the workspace already has an entry for its torrent or
+  // its infoHash (the unique (org_id, torrent_id) and (org_id, info_hash)),
+  // returns that entry instead.
   insert(input: NewWorkspaceTorrentInput): Promise<{ created: boolean; entry: WorkspaceTorrentRecord }>
   get(orgId: string, id: string): Promise<WorkspaceTorrentView | null>
   findByInfoHash(orgId: string, infoHash: string): Promise<WorkspaceTorrentRecord | null>
-  // A torrent URL entry not yet resolved, by its link.
-  findUnresolvedBySourceUri(orgId: string, sourceUri: string): Promise<WorkspaceTorrentRecord | null>
+  // The workspace's entry added from a link, resolved or not.
+  findBySourceUri(orgId: string, sourceUri: string): Promise<WorkspaceTorrentRecord | null>
   findByTask(taskId: string): Promise<WorkspaceTorrentRecord | null>
   // The workspace's entries, newest first, each with its torrent; `search`
   // matches the name or the infoHash.
@@ -264,8 +279,9 @@ export interface WorkspaceTorrentRepo {
   ): Promise<{ items: WorkspaceTorrentView[]; total: number }>
   // Entries of every workspace that hold the torrent.
   listByTorrent(torrentId: string): Promise<WorkspaceTorrentRecord[]>
-  // Entries still waiting for a torrent whose infoHash just reached the instance.
-  attachTorrent(infoHash: string, torrentId: string, now: Date): Promise<void>
+  // Entries, in any workspace, still waiting for a torrent whose infoHash just
+  // reached the instance.
+  listWaiting(infoHash: string): Promise<WorkspaceTorrentRecord[]>
   update(id: string, fields: WorkspaceTorrentUpdate): Promise<void>
   delete(id: string): Promise<void>
   // Entries that hold the torrent, from any workspace.

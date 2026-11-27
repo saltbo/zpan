@@ -21,6 +21,8 @@ interface MoveDialogProps {
   // other than a move.
   title?: string
   confirmLabel?: string
+  // A rejected confirm, shown above the buttons (UX.md: an error of the whole form).
+  error?: string | null
 }
 
 function buildPath(parent: string, name: string): string {
@@ -38,6 +40,7 @@ export function MoveDialog({
   onDismissOperation,
   title,
   confirmLabel,
+  error,
 }: MoveDialogProps) {
   const { t } = useTranslation()
   const [browsingPath, setBrowsingPath] = useState('')
@@ -141,6 +144,12 @@ export function MoveDialog({
                 )
               })}
             </div>
+
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
 
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -1,11 +1,20 @@
 import { ObjectStatus } from '@shared/constants'
 import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { generateId } from '../../../shared/ids'
-import { downloaders, matters, stremthruLinks, torrentFiles, torrents, workspaceTorrents } from '../../db/schema'
+import {
+  downloaders,
+  downloadTasks,
+  matters,
+  stremthruLinks,
+  torrentFiles,
+  torrents,
+  workspaceTorrents,
+} from '../../db/schema'
 import { executeWriteTransaction, rowsPerInsert } from '../../db/transaction'
 import { torrentEntryObjectKey, torrentKeyRange, torrentTreeLayoutPath, torrentTreeRoot } from '../../domain/torrents'
 import type { Database } from '../../platform/interface'
 import type {
+  AbandonedFill,
   AdminTorrentRecord,
   EvictionCandidate,
   StremThruLinkRepo,
@@ -42,6 +51,19 @@ const referenced = sql`(EXISTS (
 ) OR EXISTS (
   SELECT 1 FROM ${workspaceTorrents} WHERE ${workspaceTorrents.torrentId} = ${torrents.id}
 ))`
+
+// Some task that fills or waits for the torrent is still active, or changed
+// after `before` (its last uploads may still land).
+function liveTask(before: Date) {
+  return sql`EXISTS (
+    SELECT 1 FROM ${downloadTasks}
+    WHERE (${downloadTasks.torrentId} = ${torrents.id} OR ${downloadTasks.id} = ${torrents.sourceTaskId})
+      AND (
+        (${downloadTasks.deletedAt} IS NULL AND ${downloadTasks.status} NOT IN ('completed', 'failed', 'canceled'))
+        OR ${downloadTasks.updatedAt} > ${before.getTime()}
+      )
+  )`
+}
 
 // Drive files, live or in trash, that reference one of the torrent's objects,
 // plus the Torrents list entries that hold it. Written with qualified names,
@@ -202,10 +224,12 @@ export function createTorrentRepo(db: Database): TorrentRepo {
     },
 
     async setSource(id, source, now) {
-      await db
+      const rows = await db
         .update(torrents)
         .set({ sourceTaskId: source.taskId, sourceDownloaderId: source.downloaderId, updatedAt: now })
-        .where(eq(torrents.id, id))
+        .where(and(eq(torrents.id, id), eq(torrents.status, 'downloading')))
+        .returning({ id: torrents.id })
+      return rows.length === 1
     },
 
     async transition(id, from, to, fields = {}) {
@@ -336,6 +360,39 @@ export function createTorrentRepo(db: Database): TorrentRepo {
       return rows.length === 1
     },
 
+    async listAbandonedFills(before, limit): Promise<AbandonedFill[]> {
+      return db
+        .select({
+          id: torrents.id,
+          infoHash: torrents.infoHash,
+          storageId: torrents.storageId,
+          size: torrents.totalSize,
+          lastAccessedAt: torrents.lastAccessedAt,
+          sourceTaskId: torrents.sourceTaskId,
+        })
+        .from(torrents)
+        .where(and(eq(torrents.status, 'downloading'), sql`NOT ${referenced}`, sql`NOT ${liveTask(before)}`))
+        .orderBy(asc(torrents.updatedAt), asc(torrents.id))
+        .limit(limit)
+    },
+
+    async claimAbandonedFill(candidate, before) {
+      const rows = await db
+        .update(torrents)
+        .set({ status: 'evicting', updatedAt: new Date() })
+        .where(
+          and(
+            eq(torrents.id, candidate.id),
+            eq(torrents.status, 'downloading'),
+            candidate.sourceTaskId ? eq(torrents.sourceTaskId, candidate.sourceTaskId) : isNull(torrents.sourceTaskId),
+            sql`NOT ${referenced}`,
+            sql`NOT ${liveTask(before)}`,
+          ),
+        )
+        .returning({ id: torrents.id })
+      return rows.length === 1
+    },
+
     async delete(id) {
       await executeWriteTransaction(db, [
         db.delete(torrentFiles).where(eq(torrentFiles.torrentId, id)),
@@ -373,11 +430,17 @@ export function createTorrentRepo(db: Database): TorrentRepo {
 
 export function createStremThruLinkRepo(db: Database): StremThruLinkRepo {
   return {
-    async get(userId, torrentFileId) {
+    async get(userId, orgId, torrentFileId) {
       const rows = await db
         .select({ url: stremthruLinks.url, expiresAt: stremthruLinks.expiresAt })
         .from(stremthruLinks)
-        .where(and(eq(stremthruLinks.userId, userId), eq(stremthruLinks.torrentFileId, torrentFileId)))
+        .where(
+          and(
+            eq(stremthruLinks.userId, userId),
+            eq(stremthruLinks.orgId, orgId),
+            eq(stremthruLinks.torrentFileId, torrentFileId),
+          ),
+        )
         .limit(1)
       return rows[0] ?? null
     },
@@ -395,8 +458,8 @@ export function createStremThruLinkRepo(db: Database): StremThruLinkRepo {
           createdAt: input.now,
         })
         .onConflictDoUpdate({
-          target: [stremthruLinks.userId, stremthruLinks.torrentFileId],
-          set: { orgId: input.orgId, url: input.url, expiresAt: input.expiresAt, createdAt: input.now },
+          target: [stremthruLinks.userId, stremthruLinks.orgId, stremthruLinks.torrentFileId],
+          set: { url: input.url, expiresAt: input.expiresAt, createdAt: input.now },
         })
     },
   }

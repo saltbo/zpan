@@ -5,8 +5,10 @@ import userEvent from '@testing-library/user-event'
 import type * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { useWorkspaceRoleAtLeast } from '@/hooks/use-workspace-role'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import {
+  ApiError,
   createWorkspaceTorrentFileLink,
   deleteWorkspaceTorrent,
   getWorkspaceTorrent,
@@ -14,6 +16,7 @@ import {
   listWorkspaceTorrents,
   saveWorkspaceTorrentToDrive,
 } from '@/lib/api'
+import { startDownload } from '@/lib/browser-navigation'
 import { Route } from './index'
 
 const navigate = vi.fn()
@@ -33,6 +36,8 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock('@/hooks/useEntitlement', () => ({ useEntitlement: vi.fn() }))
+vi.mock('@/hooks/use-workspace-role', () => ({ useWorkspaceRoleAtLeast: vi.fn() }))
+vi.mock('@/lib/browser-navigation', () => ({ startDownload: vi.fn() }))
 vi.mock('@/hooks/useServerEvents', () => ({ useServerEventSubscription: vi.fn() }))
 vi.mock('@/components/UpgradeHint', () => ({ UpgradeHint: () => <div>upgrade-hint</div> }))
 vi.mock('@/components/preview/file-preview-dialog', () => ({
@@ -120,6 +125,7 @@ beforeEach(() => {
   )
   search = {}
   entitled(true)
+  vi.mocked(useWorkspaceRoleAtLeast).mockReturnValue(true)
   vi.mocked(listWorkspaceTorrents).mockResolvedValue({
     items: [
       entry(),
@@ -157,7 +163,6 @@ describe('Torrents page', () => {
     })
     vi.mocked(saveWorkspaceTorrentToDrive).mockResolvedValue({ files: [] })
     vi.mocked(deleteWorkspaceTorrent).mockResolvedValue(undefined)
-    const open = vi.spyOn(window, 'open').mockReturnValue(null)
     const view = renderPage()
 
     const ready = await screen.findByTestId('torrent-entry-e-1')
@@ -170,8 +175,14 @@ describe('Torrents page', () => {
     expect(within(failed).getByText('tracker down')).toBeTruthy()
 
     // Opening a row puts it in the URL; the sheet reads the selected entry back.
-    await user.click(within(ready).getByText('Big Buck Bunny'))
-    expect(navigate).toHaveBeenCalled()
+    await user.click(within(failed).getByText('torrents.source.download'))
+    expect(navigate).toHaveBeenCalledTimes(1)
+    // The name is the row's keyboard target.
+    within(ready).getByRole('button', { name: 'Big Buck Bunny' }).focus()
+    await user.keyboard('{Enter}')
+    expect(navigate).toHaveBeenCalledTimes(2)
+    const opened = navigate.mock.calls[1][0] as { search: (prev: object) => object }
+    expect(opened.search({ q: 'x' })).toEqual({ q: 'x', id: 'e-1' })
     search = { id: 'e-1' }
     view.unmount()
     renderPage()
@@ -184,7 +195,8 @@ describe('Torrents page', () => {
     expect(createWorkspaceTorrentFileLink).toHaveBeenCalledWith('e-1', 'f-0')
     expect(screen.queryByRole('button', { name: 'torrents.sheet.play {"name":"bunny.srt"}' })).toBeNull()
     await user.click(screen.getByRole('button', { name: 'torrents.sheet.download {"name":"bunny.srt"}' }))
-    await waitFor(() => expect(open).toHaveBeenCalledWith('https://bucket/bunny.mkv', '_blank', 'noopener'))
+    // A download starts in this tab, so a popup blocker cannot drop it after the await.
+    await waitFor(() => expect(startDownload).toHaveBeenCalledWith('https://bucket/bunny.mkv'))
 
     await user.click(screen.getByRole('button', { name: 'torrents.save.action' }))
     const picker = await screen.findByRole('dialog', { name: /torrents.save.title/ })
@@ -213,5 +225,84 @@ describe('Torrents page', () => {
 
     expect(await screen.findByText('upgrade-hint')).toBeTruthy()
     expect(listWorkspaceTorrents).not.toHaveBeenCalled()
+  })
+
+  it('keeps a rejected save or remove in its dialog', async () => {
+    const user = userEvent.setup()
+    search = { id: 'e-1' }
+    vi.mocked(saveWorkspaceTorrentToDrive).mockRejectedValue(new Error('Quota exceeded'))
+    vi.mocked(deleteWorkspaceTorrent).mockRejectedValue(new Error('Torrent not found'))
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'torrents.save.action' }))
+    const picker = await screen.findByRole('dialog', { name: /torrents.save.title/ })
+    await user.click(within(picker).getByRole('button', { name: 'torrents.save.confirm' }))
+    expect((await within(picker).findByRole('alert')).textContent).toBe('Quota exceeded')
+    expect(screen.getByRole('dialog', { name: /torrents.save.title/ })).toBeTruthy()
+    await user.click(within(picker).getByRole('button', { name: 'common.cancel' }))
+
+    await user.click(screen.getByRole('button', { name: 'torrents.remove.action' }))
+    const confirm = await screen.findByRole('dialog', { name: /torrents.remove.title/ })
+    expect(within(confirm).queryByRole('alert')).toBeNull()
+    await user.click(within(confirm).getByRole('button', { name: 'torrents.remove.confirm' }))
+    expect((await within(confirm).findByRole('alert')).textContent).toBe('Torrent not found')
+  })
+
+  it('offers a viewer play and download, without Save to drive or Remove', async () => {
+    const user = userEvent.setup()
+    vi.mocked(useWorkspaceRoleAtLeast).mockReturnValue(false)
+    const view = renderPage()
+
+    const row = await screen.findByTestId('torrent-entry-e-1')
+    await user.click(within(row).getByRole('button', { name: /torrents.rowActions/ }))
+    expect(await screen.findByRole('menuitem', { name: 'torrents.open' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'torrents.save.action' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'torrents.remove.action' })).toBeNull()
+    expect(useWorkspaceRoleAtLeast).toHaveBeenCalledWith('editor')
+
+    view.unmount()
+    search = { id: 'e-1' }
+    renderPage()
+    expect(await screen.findByText('Big Buck Bunny/bunny.mkv')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'torrents.sheet.play {"name":"bunny.mkv"}' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'torrents.save.action' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'torrents.remove.action' })).toBeNull()
+  })
+
+  it('refreshes an open entry until it settles, and keeps it shown when a refresh fails', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      search = { id: 'e-1' }
+      vi.mocked(getWorkspaceTorrent)
+        .mockResolvedValueOnce({ ...detail, status: 'downloading', playable: false, files: [] })
+        .mockRejectedValueOnce(new Error('network down'))
+        .mockResolvedValueOnce(detail)
+      renderPage()
+
+      expect(await screen.findByText('torrents.sheet.noFiles')).toBeTruthy()
+      await vi.advanceTimersByTimeAsync(5000)
+      await waitFor(() => expect(getWorkspaceTorrent).toHaveBeenCalledTimes(2))
+      // The failed refresh leaves what was loaded in place.
+      expect(screen.getByText('torrents.sheet.noFiles')).toBeTruthy()
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(await screen.findByText('Big Buck Bunny/bunny.mkv')).toBeTruthy()
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(getWorkspaceTorrent).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('closes the sheet when the entry behind the link is gone', async () => {
+    search = { id: 'gone' }
+    vi.mocked(getWorkspaceTorrent).mockRejectedValue(
+      new ApiError(404, { error: { code: 404, status: 'NOT_FOUND', message: 'Torrent not found' } }),
+    )
+    renderPage()
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled())
+    const closed = navigate.mock.calls.at(-1)?.[0] as { search: (prev: object) => object }
+    expect(closed.search({ id: 'gone', q: 'x' })).toEqual({ q: 'x', id: undefined })
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
   })
 })
