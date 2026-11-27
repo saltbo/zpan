@@ -2,6 +2,7 @@ import { z } from '@hono/zod-openapi'
 import { isSafeHttpUrl } from '../url-safety'
 import { actorAttributionSchema } from './actors'
 import { opaqueIdSchema } from './id'
+import { torrentInfoSchema } from './torrents'
 
 export const downloaderStatusSchema = z.enum(['online', 'offline', 'disabled'])
 export const downloaderEngineSchema = z.enum(['http', 'aria2', 'qbittorrent'])
@@ -157,14 +158,6 @@ export const downloadTaskSchema = z
           downloaderId: opaqueIdSchema,
           assignedAt: z.string().nullable().optional(),
           uploadToken: z.string().optional(),
-          // Present only when the task is assigned as a torrent's fill: the
-          // downloader uploads through the torrent upload API, not the object
-          // API. The name is the downloader protocol's until one upload path
-          // replaces it (docs/design/torrents.md §14).
-          torrentCache: z
-            .literal(true)
-            .optional()
-            .describe('Upload through the torrent upload API (/api/downloads/tasks/{id}/torrent) instead of objects'),
           executor: actorAttributionSchema.optional(),
         })
         .nullable(),
@@ -418,7 +411,18 @@ export const updateDownloadTaskSchema = z
         'Why the downloader uploaded this download without media scraping. Recorded in the task activity; the task carries on.',
       )
       .optional(),
+    torrentInfo: torrentInfoSchema
+      .describe(
+        "Base64 of the bencoded info dictionary of the torrent this task downloads, reported once the engine has it. Its SHA-1 is the torrent's infoHash. A torrent already on the instance, or being downloaded by another task, settles the task: the response then shows it completed, or queued to wait for that download, and the downloader drops its own. Sent on its own.",
+      )
+      .optional(),
   })
+  .refine(
+    (input) =>
+      input.torrentInfo === undefined ||
+      Object.keys(input).every((key) => key === 'torrentInfo' || input[key as keyof typeof input] === undefined),
+    { message: 'Torrent metadata is reported on its own' },
+  )
   .refine(
     (input) =>
       input.cleanupCompleted !== true ||

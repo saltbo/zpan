@@ -73,11 +73,6 @@ func (t DownloadTask) UploadToken() string {
 	return t.Status.Assignment.UploadToken
 }
 
-// TorrentCache reports whether the task is assigned as a torrent's fill.
-func (t DownloadTask) TorrentCache() bool {
-	return t.Status.Assignment != nil && t.Status.Assignment.TorrentCache
-}
-
 func (t DownloadTask) DeleteRequested() bool {
 	return t.Control != nil && t.Control.Action == "delete"
 }
@@ -117,9 +112,6 @@ type DownloadTaskAssignment struct {
 	DownloaderID string `json:"downloaderId"`
 	AssignedAt   string `json:"assignedAt"`
 	UploadToken  string `json:"uploadToken,omitempty"`
-	// TorrentCache is set when the task is assigned as a torrent's fill: its files go
-	// up through the torrent upload API instead of the object API.
-	TorrentCache bool `json:"torrentCache,omitempty"`
 }
 
 type DownloadTaskOutput struct {
@@ -237,6 +229,9 @@ type TaskPatch struct {
 	// ScrapeSkippedReason records in the task activity why the download was
 	// uploaded without media scraping.
 	ScrapeSkippedReason string `json:"scrapeSkippedReason,omitempty"`
+	// TorrentInfo is the base64 of the bencoded info dictionary of the
+	// torrent the task downloads. It is reported on its own.
+	TorrentInfo string `json:"torrentInfo,omitempty"`
 }
 
 func (p TaskPatch) State() string {
@@ -605,12 +600,15 @@ const (
 	OnConflictFail   OnConflict = "fail"
 )
 
-func (c *Client) CreateObject(ctx context.Context, token string, name string, size int64, parent string, onConflict OnConflict) (ObjectDraft, error) {
-	return c.createMatter(ctx, token, name, "application/octet-stream", size, parent, dirTypeFile, onConflict)
+// CreateObject creates a file. torrentPath, when not empty, is the file's path
+// inside the torrent the task downloads: the server then stores it once on the
+// instance as that file of the torrent.
+func (c *Client) CreateObject(ctx context.Context, token string, name string, size int64, parent string, onConflict OnConflict, torrentPath string) (ObjectDraft, error) {
+	return c.createMatter(ctx, token, name, "application/octet-stream", size, parent, dirTypeFile, onConflict, torrentPath)
 }
 
 func (c *Client) CreateFolder(ctx context.Context, token string, name string, parent string, onConflict OnConflict) (ObjectDraft, error) {
-	return c.createMatter(ctx, token, name, "folder", 0, parent, dirTypeUserFolder, onConflict)
+	return c.createMatter(ctx, token, name, "folder", 0, parent, dirTypeUserFolder, onConflict, "")
 }
 
 // ObjectEntry is a live entry found in a folder.
@@ -671,17 +669,22 @@ func (c *Client) createMatter(
 	parent string,
 	dirtype int,
 	conflict OnConflict,
+	torrentPath string,
 ) (ObjectDraft, error) {
 	sizeInt := int(size)
 	onConflict := openapi.CreateObjectJSONBodyOnConflict(conflict)
-	res, err := c.api.CreateObjectWithResponse(ctx, openapi.CreateObjectJSONRequestBody{
+	body := openapi.CreateObjectJSONRequestBody{
 		Name:       name,
 		Type:       &contentType,
 		Size:       &sizeInt,
 		Parent:     &parent,
 		Dirtype:    &dirtype,
 		OnConflict: &onConflict,
-	}, bearer(token))
+	}
+	if torrentPath != "" {
+		body.TorrentPath = &torrentPath
+	}
+	res, err := c.api.CreateObjectWithResponse(ctx, body, bearer(token))
 	if err != nil {
 		return ObjectDraft{}, err
 	}

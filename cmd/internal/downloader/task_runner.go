@@ -42,7 +42,7 @@ type TaskRunner struct {
 	geoIP      *geoip.DB
 	logger     *slog.Logger
 	running    map[string]context.CancelCauseFunc
-	caches     map[string]*torrentCache
+	reports    map[string]*torrentReport
 	speeds     map[string]transferSpeeds
 	attempts   map[string]int
 	wg         sync.WaitGroup
@@ -62,7 +62,7 @@ type apiClient interface {
 	SeedingTasks(context.Context) ([]client.DownloadTask, error)
 	UpdateTask(context.Context, string, client.TaskPatch) (client.DownloadTask, error)
 	CreateFolder(context.Context, string, string, string, client.OnConflict) (client.ObjectDraft, error)
-	CreateObject(context.Context, string, string, int64, string, client.OnConflict) (client.ObjectDraft, error)
+	CreateObject(context.Context, string, string, int64, string, client.OnConflict, string) (client.ObjectDraft, error)
 	CompleteObjectUpload(context.Context, string, string, string, []client.CompletedObjectUploadPart) (client.ObjectDraft, error)
 	AbortObjectUploadSession(context.Context, string, string, string) error
 	DeleteObject(context.Context, string, string) error
@@ -87,7 +87,7 @@ func NewTaskRunnerWithAPI(cfg config.Config, api apiClient) *TaskRunner {
 		api:      api,
 		logger:   slog.Default(),
 		running:  map[string]context.CancelCauseFunc{},
-		caches:   map[string]*torrentCache{},
+		reports:  map[string]*torrentReport{},
 		speeds:   map[string]transferSpeeds{},
 		attempts: map[string]int{},
 	}
@@ -244,8 +244,8 @@ func (w *TaskRunner) localPollInterval() time.Duration {
 func (w *TaskRunner) process(ctx context.Context, task client.DownloadTask) {
 	defer w.finish(task.ID)
 	log := w.taskLogger(task)
-	if task.TorrentCache() {
-		w.setCacheState(task.ID, &torrentCache{})
+	if w.canReportTorrent(task) {
+		w.setReportState(task.ID, &torrentReport{})
 	}
 	defer w.recoverTaskPanic(ctx, task.ID, log)
 	log.Info("task started", "source_uri", task.SourceURI(), "target_folder", task.TargetFolder())
@@ -307,8 +307,8 @@ func (w *TaskRunner) downloadThenUpload(
 			log.Debug("task download progress", "downloaded_bytes", downloaded, "total_bytes", optionalInt64(total), "bps", bps)
 			lastProgressLog = time.Now()
 		}
-		if cache := w.cacheState(task.ID); cache != nil {
-			w.registerDuringDownload(ctx, log, task, cache, w.cancelFunc(task.ID))
+		if report := w.reportState(task.ID); report != nil {
+			w.reportDuringDownload(ctx, log, task, report, w.cancelFunc(task.ID))
 		}
 		return nil
 	})
@@ -331,8 +331,8 @@ func (w *TaskRunner) downloadThenUpload(
 				log.Info("task stopped because it was suspended")
 				return
 			}
-			if errors.Is(context.Cause(ctx), errTaskSettledByCache) {
-				w.dropSettledTask(ctx, log, task, w.cacheState(task.ID))
+			if errors.Is(context.Cause(ctx), errTaskSettledByServer) {
+				w.dropSettledTask(context.WithoutCancel(ctx), log, task)
 				return
 			}
 			zero := int64(0)
@@ -561,12 +561,12 @@ func (w *TaskRunner) uploadAndComplete(
 	currentDetail *client.DownloadTaskRuntime,
 ) {
 	zero := int64(0)
-	cache := w.cacheState(task.ID)
-	var registerErr error
-	if cache != nil {
-		registerErr = w.registerAfterDownload(ctx, log, task, cache)
-		if registerErr == nil && cache.settled() {
-			w.dropSettledTask(ctx, log, task, cache)
+	report := w.reportState(task.ID)
+	var reportErr error
+	if report != nil {
+		reportErr = w.reportAfterDownload(ctx, log, task, report)
+		if reportErr == nil && report.settled {
+			w.dropSettledTask(ctx, log, task)
 			return
 		}
 	}
@@ -579,19 +579,14 @@ func (w *TaskRunner) uploadAndComplete(
 	task.Status.Progress.Download = *transferProgress(result.Size, &result.Size, zero)
 	task.Status.Progress.Upload = *transferProgress(0, &result.Size, zero)
 	task.Status.Runtime = currentDetail
+	// The torrent's files are known before scraping, so the scraper lists every
+	// one of them.
+	result.TorrentPaths = torrentPaths(log, result, report)
 	upload, cleanupOverlay := w.postProcess(ctx, log, task, result)
 	defer cleanupOverlay()
-	var resultObjectID string
-	err := registerErr
-	switch {
-	case err != nil:
-	case cache.fills():
-		var notices []string
-		notices, err = w.uploader.uploadToCache(ctx, log, task, upload, *cache.registration)
-		for _, notice := range notices {
-			w.uploader.reportScrapeSkipped(ctx, log, task.ID, notice)
-		}
-	default:
+	upload.TorrentPaths = result.TorrentPaths
+	resultObjectID, err := "", reportErr
+	if err == nil {
 		resultObjectID, err = w.uploader.Upload(ctx, log, task, upload)
 	}
 	if err != nil {
@@ -644,12 +639,6 @@ func (w *TaskRunner) uploadAndComplete(
 		}); updateErr != nil {
 			log.Error("failed to mark task failed", "error", updateErr)
 		}
-		return
-	}
-	if cache.fills() {
-		// The server completed the task by instant transfer.
-		log.Info("task completed by instant transfer", "info_hash", cache.registration.InfoHash)
-		w.retainOrCleanup(ctx, log, task, result)
 		return
 	}
 	uploadedBytes := result.Size
@@ -773,7 +762,7 @@ func (w *TaskRunner) finish(taskID string) {
 	if exists {
 		delete(w.running, taskID)
 		delete(w.speeds, taskID)
-		delete(w.caches, taskID)
+		delete(w.reports, taskID)
 	}
 	w.mu.Unlock()
 	if exists {
@@ -781,19 +770,19 @@ func (w *TaskRunner) finish(taskID string) {
 	}
 }
 
-func (w *TaskRunner) cacheState(taskID string) *torrentCache {
+func (w *TaskRunner) reportState(taskID string) *torrentReport {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return w.caches[taskID]
+	return w.reports[taskID]
 }
 
-func (w *TaskRunner) setCacheState(taskID string, state *torrentCache) {
+func (w *TaskRunner) setReportState(taskID string, state *torrentReport) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.caches == nil {
-		w.caches = map[string]*torrentCache{}
+	if w.reports == nil {
+		w.reports = map[string]*torrentReport{}
 	}
-	w.caches[taskID] = state
+	w.reports[taskID] = state
 }
 
 // cancelFunc stops a running task with a cause.
@@ -875,9 +864,6 @@ func (w *TaskRunner) heartbeat() client.Heartbeat {
 	if w.downloader != nil {
 		engineName = w.downloader.Name()
 		capabilities = w.downloader.Capabilities()
-		if w.supportsTorrentCache() {
-			capabilities = append(capabilities, TorrentCacheCapability)
-		}
 	}
 	speeds := w.currentTransferSpeeds()
 	freeDiskBytes, err := system.FreeDiskBytes(w.cfg.DownloadDir)

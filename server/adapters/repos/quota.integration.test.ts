@@ -2,9 +2,11 @@ import { eq, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { describe, expect, it } from 'vitest'
 import { BASE62_PATTERN } from '../../../shared/ids.js'
-import { orgQuotaEntitlements, orgQuotas, systemOptions } from '../../db/schema.js'
+import { orgQuotaEntitlements, orgQuotas, storages, systemOptions } from '../../db/schema.js'
 import { adminHeaders, createTestApp } from '../../test/setup.js'
+import { withStorageUsageReservation } from '../../usecases/storage-usage.js'
 import { createQuotaRepo } from './quota.js'
+import { createStorageUsageRepo } from './storage-usage.js'
 
 describe('effective quota', () => {
   it('enforces one quota row per organization', async () => {
@@ -837,6 +839,59 @@ describe('effective quota', () => {
     await expect(
       createQuotaRepo(db).incrementUsageIfEffectiveQuotaAllows(orgId, storageId, 1, true, now),
     ).resolves.toBe(false)
+  })
+
+  it('adds storage bytes apart from the org bytes, and rolls both back', async () => {
+    const { db } = await createTestApp()
+    const orgId = nanoid()
+    const storageId = nanoid()
+    const now = new Date()
+    await db.insert(orgQuotas).values({
+      id: nanoid(),
+      orgId,
+      quota: 1000,
+      used: 900,
+      trafficQuota: 0,
+      trafficUsed: 0,
+      trafficPeriod: '2026-05',
+    })
+    await db.insert(orgQuotaEntitlements).values([entitlement(orgId, 'storage', `plan:${orgId}`, 1000, 'active', now)])
+    await db.insert(storages).values({
+      id: storageId,
+      bucket: 'b',
+      endpoint: 'https://s3.example.com',
+      region: 'auto',
+      accessKey: 'k',
+      secretKey: 's',
+      filePath: '$UID/$RAW_NAME',
+      customHost: '',
+      capacity: 0,
+      used: 50,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    })
+    const usage = async () => {
+      const [org] = await db.select().from(orgQuotas).where(eq(orgQuotas.orgId, orgId))
+      const [storage] = await db.select().from(storages).where(eq(storages.id, storageId))
+      return { org: org.used, storage: storage.used }
+    }
+    const deps = { quota: createQuotaRepo(db), storageUsage: createStorageUsageRepo(db) }
+
+    // Overwriting a 20-byte torrent reference with 30 bytes: the org pays the net
+    // 10 bytes, the storage gains all 30.
+    await withStorageUsageReservation(deps, { orgId, storageId, bytes: 10, storageBytes: 30 }, async () => {
+      expect(await usage()).toEqual({ org: 910, storage: 80 })
+    })
+    await expect(
+      withStorageUsageReservation(deps, { orgId, storageId, bytes: 10, storageBytes: 30 }, async () => {
+        throw new Error('persist failed')
+      }),
+    ).rejects.toThrow('persist failed')
+    expect(await usage()).toEqual({ org: 910, storage: 80 })
+    // The storage-only part never needs org quota headroom.
+    await withStorageUsageReservation(deps, { orgId, storageId, bytes: 0, storageBytes: 5 }, async () => {})
+    expect(await usage()).toEqual({ org: 910, storage: 85 })
   })
 })
 

@@ -6,7 +6,7 @@ import { transferTorrent } from '../../usecases/torrents/instant-transfer.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>
 
-const STORAGE_ID = 'cache-storage'
+const STORAGE_ID = 'torrent-storage'
 
 // Every command the S3 gateway sends, as `<Command> <Key>`.
 let s3Commands: string[] = []
@@ -38,7 +38,7 @@ async function setup() {
   return { ...testApp, admin }
 }
 
-async function cachedTorrent(
+async function seedTorrent(
   deps: TestApp['deps'],
   infoHash: string,
   opts: {
@@ -95,16 +95,16 @@ type Page = {
 }
 
 describe('Admin torrents API', () => {
-  it('lists cached torrents with holders, status, verification and last access, page by page [spec: torrents/admin-list]', async () => {
+  it('lists torrents with holders, status, verification and last access, page by page [spec: torrents/admin-list]', async () => {
     const { app, db, deps, admin } = await setup()
     const now = Date.now()
     await db.run(sql`
       INSERT INTO downloaders (id, name, token_hash, token_jti, created_by, created_at, updated_at)
       VALUES ('dl-1', 'Home NAS', 'hash', 'jti-1', 'admin', ${now}, ${now})
     `)
-    const held = await cachedTorrent(deps, 'a1'.repeat(20), { now: new Date(now - 3000), downloaderId: 'dl-1' })
-    await cachedTorrent(deps, 'b2'.repeat(20), { status: 'verifying', verified: null, now: new Date(now - 2000) })
-    const unheld = await cachedTorrent(deps, 'c3'.repeat(20), {
+    const held = await seedTorrent(deps, 'a1'.repeat(20), { now: new Date(now - 3000), downloaderId: 'dl-1' })
+    await seedTorrent(deps, 'b2'.repeat(20), { status: 'verifying', verified: null, now: new Date(now - 2000) })
+    const unheld = await seedTorrent(deps, 'c3'.repeat(20), {
       verified: 'sampled',
       now: new Date(now - 1000),
       downloaderId: 'dl-gone',
@@ -156,8 +156,8 @@ describe('Admin torrents API', () => {
 
   it('evicts a torrent nobody holds and refuses a held one [spec: torrents/admin-evict]', async () => {
     const { app, db, deps, admin } = await setup()
-    const held = await cachedTorrent(deps, 'a1'.repeat(20))
-    const unheld = await cachedTorrent(deps, 'c3'.repeat(20))
+    const held = await seedTorrent(deps, 'a1'.repeat(20))
+    const unheld = await seedTorrent(deps, 'c3'.repeat(20))
     await deps.storageUsage.reconcileStorages([STORAGE_ID])
     const workspace = await adminWorkspace(db)
     expect(
@@ -198,7 +198,7 @@ describe('Admin torrents API', () => {
 
   it('refuses to evict a torrent that is still downloading or verifying', async () => {
     const { app, deps, admin } = await setup()
-    const verifying = await cachedTorrent(deps, 'b2'.repeat(20), { status: 'verifying', verified: null })
+    const verifying = await seedTorrent(deps, 'b2'.repeat(20), { status: 'verifying', verified: null })
 
     const res = await app.request(`/api/site/torrents/${verifying.id}`, { method: 'DELETE', headers: admin })
 
@@ -241,7 +241,7 @@ describe('Admin torrents API', () => {
 
   it('refuses non-admins', async () => {
     const { app, deps } = await setup()
-    const torrent = await cachedTorrent(deps, 'c3'.repeat(20))
+    const torrent = await seedTorrent(deps, 'c3'.repeat(20))
     const member = await authedHeaders(app, 'member@example.com')
 
     const list = await app.request('/api/site/torrents', { headers: member })

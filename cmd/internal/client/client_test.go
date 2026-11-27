@@ -49,12 +49,49 @@ func TestCreateObjectUsesRenameConflictStrategy(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := mustClient(t, server.URL, "token").CreateObject(context.Background(), "upload-token", "movie.mkv", 1024, "Downloads", OnConflictRename)
+	_, err := mustClient(t, server.URL, "token").CreateObject(context.Background(), "upload-token", "movie.mkv", 1024, "Downloads", OnConflictRename, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if body["onConflict"] != "rename" {
 		t.Fatalf("expected onConflict rename, got %#v", body["onConflict"])
+	}
+	if _, ok := body["torrentPath"]; ok {
+		t.Fatalf("a file outside a torrent sent torrentPath: %#v", body)
+	}
+
+	_, err = mustClient(t, server.URL, "token").CreateObject(context.Background(), "upload-token", "Show - S01E01.mkv", 1024, "Downloads", OnConflictRename, "Season 01/E01.mkv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body["torrentPath"] != "Season 01/E01.mkv" {
+		t.Fatalf("torrentPath = %#v", body["torrentPath"])
+	}
+}
+
+func TestUpdateTaskReportsTorrentInfoOnItsOwn(t *testing.T) {
+	var body map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch || r.URL.Path != "/api/downloads/tasks/task-1" {
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(downloadTaskFixture("task-1", "completed"))
+	}))
+	defer server.Close()
+
+	task, err := mustClient(t, server.URL, "token").UpdateTask(context.Background(), "task-1", TaskPatch{TorrentInfo: "ZDQ6bmFtZTE6YWU="})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(body) != 1 || body["torrentInfo"] != "ZDQ6bmFtZTE6YWU=" {
+		t.Fatalf("body = %#v", body)
+	}
+	if task.State() != "completed" {
+		t.Fatalf("state = %q", task.State())
 	}
 }
 
@@ -570,7 +607,7 @@ func TestCreateObjectMapsUploadInstructions(t *testing.T) {
 	}))
 	defer server.Close()
 
-	draft, err := mustClient(t, server.URL, "token").CreateObject(context.Background(), "upload-token", "movie.mkv", 1024, "", OnConflictRename)
+	draft, err := mustClient(t, server.URL, "token").CreateObject(context.Background(), "upload-token", "movie.mkv", 1024, "", OnConflictRename, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -705,7 +742,7 @@ func TestClientEmptyResponseBranches(t *testing.T) {
 		{
 			name: "create object",
 			call: func(api *Client) error {
-				_, err := api.CreateObject(context.Background(), "upload-token", "file.bin", 1, "", OnConflictRename)
+				_, err := api.CreateObject(context.Background(), "upload-token", "file.bin", 1, "", OnConflictRename, "")
 				return err
 			},
 		},

@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCursorPager } from '@/hooks/use-cursor-pager'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { evictCachedTorrent, getTorrentSettings, listCachedTorrents } from '@/lib/api'
+import { evictTorrent, getTorrentSettings, listTorrents } from '@/lib/api'
 import { formatSize } from '@/lib/format'
 import { numberOptionParam } from '@/lib/list-search'
 
@@ -111,12 +111,12 @@ function TorrentTable() {
 
   const query = useQuery({
     queryKey: ['admin', 'torrents', pageSize, pager.pageToken],
-    queryFn: () => listCachedTorrents({ pageToken: pager.pageToken, pageSize }),
+    queryFn: () => listTorrents({ pageToken: pager.pageToken, pageSize }),
     placeholderData: keepPreviousData,
   })
 
   const evictMutation = useMutation({
-    mutationFn: (id: string) => evictCachedTorrent(id),
+    mutationFn: (id: string) => evictTorrent(id),
     onSuccess: () => {
       setEvictTarget(null)
       queryClient.invalidateQueries({ queryKey: ['admin', 'torrents'] })

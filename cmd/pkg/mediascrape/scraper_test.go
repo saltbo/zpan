@@ -8,12 +8,15 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/saltbo/zpan/pkg/system"
 )
 
 type fakeTMDB struct {
@@ -411,5 +414,44 @@ func TestFolderName(t *testing.T) {
 	}
 	if got := FolderName("Untitled", 0); got != "Untitled" {
 		t.Errorf("FolderName without year = %q", got)
+	}
+}
+
+// A torrent's own files are listed whatever their names; the rest of the
+// download is filtered as before.
+func TestListFilesKeepsTheTorrentsFiles(t *testing.T) {
+	dir := t.TempDir()
+	for _, p := range []string{"a.mkv", ".hidden", ".meta/x.txt", "extras/foo.torrent", "abc.torrent", ".junk/y"} {
+		full := filepath.Join(dir, filepath.FromSlash(p))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keeps := system.NewKeeps([]string{
+		filepath.Join(dir, "a.mkv"),
+		filepath.Join(dir, ".hidden"),
+		filepath.Join(dir, ".meta", "x.txt"),
+		filepath.Join(dir, "extras", "foo.torrent"),
+	})
+	files, err := listFiles(Download{Path: dir, IsDir: true, Keeps: keeps})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rels []string
+	for _, file := range files {
+		rels = append(rels, file.rel)
+	}
+	if want := []string{".hidden", ".meta/x.txt", "a.mkv", "extras/foo.torrent"}; !slices.Equal(rels, want) {
+		t.Fatalf("listed %v, want %v", rels, want)
+	}
+	files, err = listFiles(Download{Path: dir, IsDir: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || files[0].rel != "a.mkv" {
+		t.Fatalf("without keeps listed %v", files)
 	}
 }

@@ -111,6 +111,9 @@ type Result struct {
 	Seed  *Seed
 	// Plan, when a processor set one, is uploaded instead of Path.
 	Plan *UploadPlan
+	// TorrentPaths maps each local file of a reported torrent to its path
+	// inside the torrent; each is uploaded with that torrentPath.
+	TorrentPaths map[string]string
 }
 
 // UploadPlan lays a download out under one folder in the task's target

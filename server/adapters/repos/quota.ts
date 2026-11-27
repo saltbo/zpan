@@ -331,8 +331,9 @@ async function incrementUsageIfEffectiveQuotaAllows(
   bytes: number,
   teamQuotaEnabled = true,
   now = new Date(),
+  storageBytes = bytes,
 ): Promise<boolean> {
-  if (teamQuotaEnabled) {
+  if (teamQuotaEnabled && bytes > 0) {
     const rows = await db.select({ id: orgQuotas.id }).from(orgQuotas).where(eq(orgQuotas.orgId, orgId)).limit(1)
     if (rows.length === 0) return false
     const limitBytes = activeEntitlementBytesSql(orgId, 'storage', now)
@@ -349,10 +350,10 @@ async function incrementUsageIfEffectiveQuotaAllows(
     if (updated.length === 0) return false
   }
 
-  if (storageId !== null) {
+  if (storageId !== null && storageBytes > 0) {
     await db
       .update(storages)
-      .set({ used: sql`${storages.used} + ${bytes}` })
+      .set({ used: sql`${storages.used} + ${storageBytes}` })
       .where(eq(storages.id, storageId))
   }
 
@@ -556,7 +557,7 @@ export function createQuotaRepo(db: Database): QuotaRepo {
     hasTrafficQuotaForBytes: (orgId, bytes, now) => hasTrafficQuotaForBytes(db, orgId, bytes, now),
     consumeTrafficIfQuotaAllows: (orgId, bytes, now) => consumeTrafficIfQuotaAllows(db, orgId, bytes, now),
     refundTraffic: (orgId, bytes, now) => refundTraffic(db, orgId, bytes, now),
-    incrementUsageIfEffectiveQuotaAllows: (orgId, storageId, bytes, teamQuotaEnabled, now) =>
-      incrementUsageIfEffectiveQuotaAllows(db, orgId, storageId, bytes, teamQuotaEnabled, now),
+    incrementUsageIfEffectiveQuotaAllows: (orgId, storageId, bytes, teamQuotaEnabled, now, storageBytes) =>
+      incrementUsageIfEffectiveQuotaAllows(db, orgId, storageId, bytes, teamQuotaEnabled, now, storageBytes),
   }
 }

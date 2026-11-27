@@ -70,17 +70,15 @@ export async function transferTorrent(
     now?: Date
     // The download task the transfer completes; its files record it.
     taskId?: string
-    // The download that filled the torrent gets its files before verification
-    // passes (docs/design/torrents.md §7); every other transfer needs ready.
-    sourceTaskId?: string
   },
 ): Promise<InstantTransferOutcome> {
   const { orgId } = params
   const torrent = await deps.torrents.get(params.torrentId)
   if (!torrent) return { ok: false, error: notFound('Torrent not found') }
   const notReady = conflict('Torrent is not ready', 'TORRENT_NOT_READY')
-  const isSource = params.sourceTaskId !== undefined && params.sourceTaskId === torrent.sourceTaskId
-  const statuses: TorrentStatus[] = isSource ? ['ready', 'verifying'] : ['ready']
+  // Only a verified torrent reaches a workspace this way: the download that
+  // filled it already holds the files it uploaded (docs/design/torrents.md §7).
+  const statuses: TorrentStatus[] = ['ready']
   if (!statuses.includes(torrent.status)) return { ok: false, error: notReady }
   // Touching first makes a racing eviction lose: its claim requires the access
   // time it listed, and a claimed torrent is no longer ready to touch.

@@ -672,7 +672,7 @@ func TestCollectDirectoryEntriesSkipsDownloadSidecars(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries, err := collectDirectoryEntries(root)
+	entries, err := collectDirectoryEntries(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2210,7 +2210,7 @@ func (a *recordingAPI) CreateFolder(context.Context, string, string, string, cli
 	return client.ObjectDraft{ID: "folder-1", Name: "folder"}, nil
 }
 
-func (a *recordingAPI) CreateObject(context.Context, string, string, int64, string, client.OnConflict) (client.ObjectDraft, error) {
+func (a *recordingAPI) CreateObject(context.Context, string, string, int64, string, client.OnConflict, string) (client.ObjectDraft, error) {
 	return a.createObjectDraft, nil
 }
 

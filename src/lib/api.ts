@@ -1198,11 +1198,11 @@ export function updateIhostConfig(data: { customDomain?: string | null; refererA
 
 // Admin Torrents: every torrent on the instance, eviction, retention and capacity.
 
-export function listCachedTorrents(opts: CursorPageRequest = {}) {
+export function listTorrents(opts: CursorPageRequest = {}) {
   return unwrap<CursorPage<AdminTorrent>>(adminTorrentsApi.index.$get({ query: cursorQuery(opts) }))
 }
 
-export function evictCachedTorrent(id: string) {
+export function evictTorrent(id: string) {
   return discard(adminTorrentsApi[':id'].$delete({ param: { id } }))
 }
 

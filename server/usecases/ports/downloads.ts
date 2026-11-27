@@ -225,8 +225,8 @@ export interface DownloadTaskRepo {
   /** Active task whose target is `folderPath` or a descendant of it. */
   findActiveTargetWithin(orgId: string, folderPath: string): Promise<DownloadTaskRecord | null>
   setFields(id: string, fields: UpdateDownloadTaskFields): Promise<void>
-  /** Assigns a queued task; `torrentRole` 'fill' assigns it in cache mode, null in drive mode. */
-  claimQueued(id: string, downloaderId: string, now: Date, options?: { torrentRole?: 'fill' | null }): Promise<boolean>
+  /** Assigns a queued task; `torrentRole` null clears a role left from an earlier run. */
+  claimQueued(id: string, downloaderId: string, now: Date, options?: { torrentRole?: null }): Promise<boolean>
   /** A user's live tasks of the given source types in a workspace, newest first, with their total. */
   listByCreator(params: {
     orgId: string

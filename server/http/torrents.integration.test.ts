@@ -8,7 +8,7 @@ import { transferTorrent } from '../usecases/torrents/instant-transfer.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>
 
-const STORAGE_ID = 'cache-storage'
+const STORAGE_ID = 'torrent-storage'
 const DAY = 24 * 60 * 60 * 1000
 
 // Every command the S3 gateway sends, as `<Command> <Key>`.
@@ -33,7 +33,7 @@ beforeEach(() => {
   vi.spyOn(S3Service.prototype, 'listTorrentKeys').mockResolvedValue([])
 })
 
-function cacheCommands(): string[] {
+function torrentCommands(): string[] {
   return s3Commands.filter((command) => command.includes(' bt/'))
 }
 
@@ -69,7 +69,7 @@ async function fileKeys(deps: TestApp['deps'], torrentId: string): Promise<strin
   return (await deps.torrents.listFiles(torrentId)).map((file) => file.objectKey)
 }
 
-async function cachedTorrent(
+async function seedTorrent(
   deps: TestApp['deps'],
   infoHash: string,
   files: Array<{ path: string; size: number }>,
@@ -112,7 +112,7 @@ describe('drive files that reference a torrent', () => {
     const headers = { ...(await authedHeaders(app)), 'Content-Type': 'application/json' }
     await seedStorage(db)
     const workspace = await personalWorkspace(db)
-    const torrent = await cachedTorrent(deps, 'a1'.repeat(20), [
+    const torrent = await seedTorrent(deps, 'a1'.repeat(20), [
       { path: 'one.mkv', size: 100 },
       { path: 'two.mkv', size: 200 },
     ])
@@ -171,9 +171,9 @@ describe('drive files that reference a torrent', () => {
     ])
     expect((await fileRow(db, workspace.orgId, copied.name))[0]).toMatchObject({ id: copied.id, object: cachedKey })
     expect((await fileRow(db, workspace.orgId, 'dav-copy.mkv'))[0]).toMatchObject({ object: cachedKey })
-    expect(cacheCommands()).toEqual([])
+    expect(torrentCommands()).toEqual([])
     expect(await deps.torrents.listFiles(torrent.id)).toHaveLength(2)
-    // The cached bytes are counted once, however many files hold them.
+    // The torrent's bytes are counted once, however many files hold them.
     expect(await storageUsed(db)).toBe(300)
   })
 
@@ -182,7 +182,7 @@ describe('drive files that reference a torrent', () => {
     const headers = { ...(await authedHeaders(app)), 'Content-Type': 'application/json' }
     await seedStorage(db)
     const workspace = await personalWorkspace(db)
-    const torrent = await cachedTorrent(deps, 'b2'.repeat(20), [
+    const torrent = await seedTorrent(deps, 'b2'.repeat(20), [
       { path: 'movie.mkv', size: 50 },
       { path: 'extra.mkv', size: 30 },
     ])
@@ -201,6 +201,9 @@ describe('drive files that reference a torrent', () => {
       body: { configId: 'webdav', userId: workspace.userId, permissions: { objects: ['read', 'create', 'update'] } },
     })) as { key: string }
     const [before] = await fileRow(db, workspace.orgId, 'movie.mkv')
+    // The org quota counted the reference; the storage did not, so it reserves
+    // every byte of the new object (the org pays nothing net of the 50 freed).
+    const increment = vi.spyOn(deps.quota, 'incrementUsageIfEffectiveQuotaAllows')
     const put = await app.request(`/dav/${workspace.slug}/${encodeDavPathSegment(torrent.name)}/movie.mkv`, {
       method: 'PUT',
       headers: basicHeaders(workspace.email, key, { 'Content-Type': 'video/x-matroska', 'Content-Length': '9' }),
@@ -212,6 +215,7 @@ describe('drive files that reference a torrent', () => {
     expect(overwritten.object).not.toMatch(/^bt\//)
     expect(overwritten.object.startsWith(`${workspace.orgId}/`)).toBe(true)
     expect(s3Commands).toContain(`PutObjectCommand ${overwritten.object}`)
+    expect(increment).toHaveBeenLastCalledWith(workspace.orgId, STORAGE_ID, 0, true, undefined, 9)
 
     // A web upload that replaces the other referencing file.
     vi.spyOn(S3Service.prototype, 'presignUpload').mockResolvedValue('https://upload.example.com/part')
@@ -244,10 +248,11 @@ describe('drive files that reference a torrent', () => {
     const [replaced] = await fileRow(db, workspace.orgId, 'extra.mkv')
     expect(replaced.id).toBe(created.id)
     expect(replaced.object).not.toMatch(/^bt\//)
+    expect(increment).toHaveBeenLastCalledWith(workspace.orgId, STORAGE_ID, 0, true, undefined, 4)
 
     // The torrent's objects were never written or deleted, and still count once;
     // the storage now also holds the two owned objects.
-    expect(cacheCommands()).toEqual([])
+    expect(torrentCommands()).toEqual([])
     expect(await fileKeys(deps, torrent.id)).toEqual(keys)
     expect(await deps.torrents.get(torrent.id)).toMatchObject({ status: 'ready' })
     expect(await storageUsed(db)).toBe(80 + 9 + 4)
@@ -264,10 +269,10 @@ describe('torrent eviction', () => {
     const workspace = await personalWorkspace(db)
     const now = new Date()
     const monthAgo = new Date(now.getTime() - 31 * DAY)
-    const unheld = await cachedTorrent(deps, 'c3'.repeat(20), [{ path: 'unheld.mkv', size: 10 }], monthAgo)
+    const unheld = await seedTorrent(deps, 'c3'.repeat(20), [{ path: 'unheld.mkv', size: 10 }], monthAgo)
     const [unheldKey] = await fileKeys(deps, unheld.id)
-    const trashed = await cachedTorrent(deps, 'd4'.repeat(20), [{ path: 'trashed.mkv', size: 20 }], monthAgo)
-    const live = await cachedTorrent(deps, 'e5'.repeat(20), [{ path: 'live.mkv', size: 40 }], monthAgo)
+    const trashed = await seedTorrent(deps, 'd4'.repeat(20), [{ path: 'trashed.mkv', size: 20 }], monthAgo)
+    const live = await seedTorrent(deps, 'e5'.repeat(20), [{ path: 'live.mkv', size: 40 }], monthAgo)
     for (const torrent of [trashed, live]) {
       const result = await transferTorrent(deps, {
         torrentId: torrent.id,
@@ -285,7 +290,7 @@ describe('torrent eviction', () => {
     expect(await evictTorrents(deps, now)).toBe(1)
 
     const unheldHash = 'c3'.repeat(20)
-    expect(cacheCommands().sort()).toEqual(
+    expect(torrentCommands().sort()).toEqual(
       [`DeleteObjectCommand ${unheldKey}`, `DeleteObjectCommand bt/${unheldHash}/info`].sort(),
     )
     expect(await deps.torrents.get(unheld.id)).toBeNull()

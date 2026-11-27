@@ -84,8 +84,8 @@ export const FREE_SOCIAL_LOGIN_LIMIT = 1
 // The 2nd downloader requires the downloaders_unlimited feature.
 export const FREE_DOWNLOADER_LIMIT = 1
 
-// Cached torrent bytes live under this reserved object-key prefix; a drive file
-// whose object is under it references the cache and its content is read-only
+// Torrent bytes live under this reserved object-key prefix; a drive file
+// whose object is under it references a torrent, whose objects only eviction deletes
 // (docs/design/torrents.md).
 export const TORRENT_PREFIX = 'bt/'
 

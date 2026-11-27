@@ -506,7 +506,7 @@ describe('S3Service', () => {
   })
 
   describe('torrent keys', () => {
-    it('refuses to delete cached torrent objects outside eviction [spec: torrents/only-eviction-deletes]', async () => {
+    it('refuses to delete torrent objects outside eviction [spec: torrents/only-eviction-deletes]', async () => {
       mockSend.mockClear()
       mockSend.mockResolvedValue({ $metadata: {} })
 

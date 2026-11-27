@@ -16,7 +16,7 @@ function fakeS3() {
 }
 
 describe('releaseMatterObjects', () => {
-  it('deletes owned objects and leaves cached torrent objects to eviction', async () => {
+  it('deletes owned objects and leaves torrent objects to eviction', async () => {
     const s3 = fakeS3()
     await releaseMatterObjects(s3, storageA, ['org/u/a.mkv', 'bt/ab/0', ''])
     expect(s3.deleteObjects).toHaveBeenCalledWith(storageA, ['org/u/a.mkv'])

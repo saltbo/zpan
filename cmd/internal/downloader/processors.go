@@ -126,6 +126,7 @@ func (p *scrapeProcessor) Process(ctx context.Context, result Result) (Result, e
 		Name:   result.Name,
 		TMDBID: p.tmdbID,
 		IMDbID: p.imdbID,
+		Keeps:  keepsOf(result.TorrentPaths),
 	}, p.overlayDir)
 	if errors.Is(err, mediascrape.ErrNoVideo) {
 		return result, nil

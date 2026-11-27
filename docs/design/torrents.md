@@ -164,7 +164,18 @@ server what it is uploading:
   API (`torrents/export`, Web API 2.8.14 and later), and Aria2 saves it as
   `<infoHash>.torrent` with `bt-save-metadata`.
 - Each file of the torrent is created with `torrentPath`, its path inside the
-  torrent, because scraping may give it a different name.
+  torrent, because scraping may give it a different name. Every file of the
+  torrent goes up, dot-files and `.torrent` files included. Only the engine's
+  own control files beside them are left out.
+
+The report is taken only before the upload starts (the task `assigned` or
+`downloading`). The downloader drops its download only when the answer settled
+the task, either completed by instant transfer or queued to join. Any other
+answer, a 403 or 409 included, just ends reporting and leaves pausing and
+canceling to the task's controls. A file of the torrent has one upload at a
+time. A repeated create in the same folder under the same name, as a retried
+request sends, replaces its draft. Any other create of the same file is
+refused, and so is one after the file landed.
 
 The server stores the uploads of a `fill` task under `bt/<infoHash>/`, records
 each one in `torrent_files` with the `layout_path` it was created at, and
@@ -194,8 +205,8 @@ follows the [upload layout](media-library.md#upload-layout) rules: movie, show,
 and season folders are reused by name, a sidecar already present wins, and a
 video whose name is taken is renamed (`X (1).mkv`).
 
-The first requester's task finishes through the same transfer, so its drive
-files are laid out exactly as everyone else's.
+The first requester's task needs no transfer: its drive files are the ones it
+uploaded, at the layout every later holder replays.
 
 **Organization quota** grows by the full size of the drive files a transfer
 writes, as for any file, and the reservation runs before the rows are written.
@@ -234,7 +245,8 @@ poison every later hit. Three checks close this:
    compared with the dictionary. Files are concatenated in order, because
    pieces span file boundaries.
 
-Checks 1 and 2 run when the `fill` task completes. Check 3 runs as a
+Check 1 runs when the downloader reports the dictionary, and check 2 when the
+`fill` task completes. Check 3 runs as a
 `torrent_verify` background job that streams pieces through
 `crypto.DigestStream` on Workers or `createHash` on Node and continues in
 follow-up messages over piece ranges, so no invocation hits CPU or subrequest
@@ -391,7 +403,8 @@ sidecars and an uploaded `layout.json` (#721, #726). None of it is in a release
 yet, and production holds no torrent data, so the rework changes tables without
 migrating rows.
 
-The rework, in order:
+The rework, in order; phases 1 and 2 are built (#737 and its successor), and
+phase 3 remains:
 
 1. **Rename and simplify the server.** Rename *torrent cache* to *Torrents*
    throughout: the entitlement `torrents`, `download_tasks.torrent_role`,

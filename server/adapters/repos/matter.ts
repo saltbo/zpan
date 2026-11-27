@@ -817,6 +817,22 @@ export function createMatterRepo(db: Database): MatterRepo {
       return rows.map(toMatter)
     },
 
+    async listDraftsByObject(orgId, storageId, object): Promise<Matter[]> {
+      const rows = await db
+        .select()
+        .from(matters)
+        .where(
+          and(
+            eq(matters.orgId, orgId),
+            eq(matters.storageId, storageId),
+            eq(matters.object, object),
+            eq(matters.status, ObjectStatus.DRAFT),
+            isNull(matters.purgedAt),
+          ),
+        )
+      return rows.map(toMatter)
+    },
+
     async listActiveFilesCreatedByTask(orgId, taskId): Promise<Matter[]> {
       const rows = await db
         .select()

@@ -18,6 +18,7 @@ import {
   notFound,
 } from './ports'
 import { confirmDownloadTraffic, meterDownloadTraffic, reverseDownloadTraffic } from './store/traffic-metering'
+import { recordFillMedia } from './torrents/fill-upload'
 import { createTrafficEventId } from './transfer-activity'
 
 const IMAGE_URL_TTL_SECONDS = 15 * 60
@@ -35,7 +36,7 @@ export interface TaskUploadWriter {
 // folder an earlier task made) takes `media` only while it has none, so an
 // earlier task's show data is never overwritten.
 export async function setTaskMediaMetadata(
-  deps: Pick<Deps, 'matter' | 'downloaders' | 'downloadTasks'>,
+  deps: Pick<Deps, 'matter' | 'downloaders' | 'downloadTasks' | 'torrents' | 'storages'>,
   params: { orgId: string; objectId: string; writer: TaskUploadWriter; media: MediaMetadata },
 ): Promise<void> {
   const { orgId, objectId, writer, media } = params
@@ -54,12 +55,15 @@ export async function setTaskMediaMetadata(
   }
   if (createdByTask(matter, writer, task.assignedAt)) {
     if (!(await deps.matter.setMediaMetadata(orgId, objectId, media, { onlyIfAbsent: false }))) throw notFound()
-    return
+  } else {
+    if (matter.dirtype === DirType.FILE) throw forbidden('Object is outside task authorization')
+    if (!(await deps.matter.setMediaMetadata(orgId, objectId, media, { onlyIfAbsent: true }))) {
+      throw conflict('Folder already has media metadata', 'MEDIA_METADATA_EXISTS')
+    }
   }
-  if (matter.dirtype === DirType.FILE) throw forbidden('Object is outside task authorization')
-  if (!(await deps.matter.setMediaMetadata(orgId, objectId, media, { onlyIfAbsent: true }))) {
-    throw conflict('Folder already has media metadata', 'MEDIA_METADATA_EXISTS')
-  }
+  // A task filling a torrent records the media on the torrent's entry too, so
+  // every later holder gets it (docs/design/torrents.md §4).
+  await recordFillMedia(deps, task, matter, media)
 }
 
 function createdByTask(matter: Matter, writer: TaskUploadWriter, assignedAt: Date | null): boolean {
