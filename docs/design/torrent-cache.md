@@ -272,8 +272,10 @@ replaying requests recorded from MediaFusion and Comet in tests.
 
 - **Drive.** Transferred files are ordinary files in the target folder, laid
   out as in [section 4](#4-instant-transfer). The details sheet marks a cached
-  file and shows its torrent and verification state. Actions that write
-  content are disabled on it.
+  file and shows its torrent and verification state, read from
+  `GET /api/objects/{id}/torrent`. Actions that write content are disabled on
+  it: the name-conflict dialog offers no Replace when the existing file is
+  cached, because `NAME_CONFLICT` carries `conflictingReadOnly`.
 - **Downloads.** A submitted torrent task shows that it completed by instant
   transfer, or that it joined a download already in progress.
 - **Workspace settings, StremThru tab.** The workspace's torrent folder,
@@ -354,9 +356,11 @@ redirected to the returned link, which Stremio Web played.
    `torrent-cache` capability and uploads through the cache API, and the
    `layout.json` upload and replay. It waits for the downloader's scraping work
    to settle, and until it ships no downloader fills the cache.
-5. **Drive details** (not started). The cached-file mark, torrent and
-   verification state in the details sheet, and disabled content-writing
-   actions, from section 9. The server already refuses those writes.
+5. **Drive details** (#715). The cached-file mark, torrent and verification
+   state in the details sheet, and no Replace onto a cached file in the
+   name-conflict dialog. An API client that passes `onConflict=replace` can
+   still replace a cached file: the server trashes the reference and never
+   touches the `bt/` bytes.
 
 ## 15. Out of scope
 
