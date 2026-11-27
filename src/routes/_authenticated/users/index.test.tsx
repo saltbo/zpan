@@ -84,17 +84,13 @@ afterEach(() => {
 describe('UsersPage list state in the URL', () => {
   it('restores search from the link and writes changes back [spec: list-state/users]', async () => {
     vi.mocked(getUserQuotaById).mockResolvedValue({ used: 0, total: 1024, hasPersonalOrg: true })
-    vi.mocked(listUsers).mockResolvedValue({
-      items: [user('alice', 'Alice'), user('bob', 'Bob')],
-      nextPageToken: null,
-    })
+    vi.mocked(listUsers).mockResolvedValue({ items: [user('alice', 'Alice')], nextPageToken: null })
     routerSearch.reset(usersSearchSchema.parse({ q: 'ali' }))
 
     renderUsersPage()
 
     expect(await screen.findByText('Alice')).toBeTruthy()
-    expect(screen.queryByText('Bob')).toBeNull()
-    expect(listUsers).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 20 })
+    expect(listUsers).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 20, search: 'ali' })
 
     fireEvent.change(await screen.findByPlaceholderText('admin.users.searchPlaceholder'), { target: { value: 'bo' } })
     expect(routerSearch.search).toEqual({ q: 'bo' })
@@ -122,7 +118,7 @@ describe('UsersPage infinite scroll', () => {
 
     expect(await screen.findByText('Carol')).toBeTruthy()
     expect(screen.getByText('Alice')).toBeTruthy()
-    expect(listUsers).toHaveBeenLastCalledWith({ pageToken: 'tok-2', pageSize: 20 })
+    expect(listUsers).toHaveBeenLastCalledWith({ pageToken: 'tok-2', pageSize: 20, search: '' })
 
     // The last page has no next token, so nothing observes the end of the list any more.
     await waitFor(() => expect(IntersectionObserverStub.live).toHaveLength(0))
@@ -131,21 +127,52 @@ describe('UsersPage infinite scroll', () => {
 })
 
 describe('UsersPage while searching', () => {
-  it('keeps the header, search field, and table mounted [spec: list-state/refetch-keeps-layout]', async () => {
+  it('finds a user who is not on the loaded first page by asking the server [spec: list-pagination/directory-search]', async () => {
     vi.mocked(getUserQuotaById).mockResolvedValue({ used: 0, total: 1024, hasPersonalOrg: true })
-    vi.mocked(listUsers).mockResolvedValue({ items: [user('alice', 'Alice'), user('bob', 'Bob')], nextPageToken: null })
+    vi.mocked(listUsers).mockImplementation(async ({ search } = {}) =>
+      search === 'zed'
+        ? { items: [user('zed', 'Zed')], nextPageToken: null }
+        : { items: [user('alice', 'Alice')], nextPageToken: 'tok-2' },
+    )
+
+    renderUsersPage()
+    expect(await screen.findByText('Alice')).toBeTruthy()
+
+    fireEvent.change(screen.getByPlaceholderText('admin.users.searchPlaceholder'), { target: { value: 'zed' } })
+
+    expect(await screen.findByText('Zed')).toBeTruthy()
+    expect(screen.queryByText('Alice')).toBeNull()
+    expect(screen.queryByText('admin.users.noUsers')).toBeNull()
+    expect(listUsers).toHaveBeenLastCalledWith({ pageToken: undefined, pageSize: 20, search: 'zed' })
+  })
+
+  it('keeps the header, search field, and rows in place while the new search loads [spec: list-state/refetch-keeps-layout]', async () => {
+    vi.mocked(getUserQuotaById).mockResolvedValue({ used: 0, total: 1024, hasPersonalOrg: true })
+    let resolveSearch: (page: { items: AdminUserListItem[]; nextPageToken: null }) => void = () => {}
+    vi.mocked(listUsers).mockImplementation(({ search } = {}) =>
+      search === 'bo'
+        ? new Promise((resolve) => {
+            resolveSearch = resolve
+          })
+        : Promise.resolve({ items: [user('alice', 'Alice'), user('bob', 'Bob')], nextPageToken: null }),
+    )
 
     renderUsersPage()
 
     const field = await screen.findByPlaceholderText('admin.users.searchPlaceholder')
+    expect(await screen.findByText('Alice')).toBeTruthy()
     field.focus()
     fireEvent.change(field, { target: { value: 'bo' } })
 
+    await waitFor(() => expect(listUsers).toHaveBeenCalledTimes(2))
     expect(screen.queryByText('common.loading')).toBeNull()
     expect(screen.getByPlaceholderText('admin.users.searchPlaceholder')).toBe(field)
     expect(document.activeElement).toBe(field)
+    expect(screen.getByText('Alice')).toBeTruthy()
+
+    act(() => resolveSearch({ items: [user('bob', 'Bob')], nextPageToken: null }))
+
+    await waitFor(() => expect(screen.queryByText('Alice')).toBeNull())
     expect(screen.getByText('Bob')).toBeTruthy()
-    expect(screen.queryByText('Alice')).toBeNull()
-    expect(listUsers).toHaveBeenCalledTimes(1)
   })
 })
