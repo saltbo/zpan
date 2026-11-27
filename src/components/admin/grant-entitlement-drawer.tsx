@@ -54,12 +54,17 @@ function targetBinding(target: EntitlementTarget) {
   }
 }
 
-function bytesToAmountUnit(bytes: number): { amount: string; unit: DataUnit } {
-  for (const unit of ['TB', 'GB', 'MB'] as DataUnit[]) {
-    const factor = DATA_UNITS[unit]
-    if (bytes % factor === 0) return { amount: String(bytes / factor), unit }
-  }
-  return { amount: String(bytes / DATA_UNITS.GB), unit: 'GB' }
+const UNITS_LARGEST_FIRST: DataUnit[] = ['TB', 'GB', 'MB']
+
+// The largest unit whose amount is at least one and fits the one-decimal amount
+// control; otherwise the largest unit at or above one, kept exact so saving
+// unchanged does not alter the bytes.
+export function bytesToAmountUnit(bytes: number): { amount: string; unit: DataUnit } {
+  const candidates = UNITS_LARGEST_FIRST.map((unit) => ({ unit, value: bytes / DATA_UNITS[unit] }))
+  const atLeastOne = candidates.filter(({ value }) => value >= 1)
+  const pick =
+    atLeastOne.find(({ value }) => Number.isInteger(value * 10)) ?? atLeastOne[0] ?? candidates[candidates.length - 1]
+  return { amount: String(pick.value), unit: pick.unit }
 }
 
 function isoToDatetimeLocal(iso: string | null): string {
