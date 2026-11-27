@@ -81,8 +81,22 @@ function TorrentsList() {
   const [text, setText] = useUrlText(search.q ?? '', (value) =>
     navigate({ search: (prev) => ({ ...prev, q: value || undefined }), replace: true }),
   )
+  // Each dialog keeps its target while it closes, so its title does not blank
+  // out during the closing animation.
   const [saveTarget, setSaveTarget] = useState<WorkspaceTorrent | null>(null)
+  const [saveOpen, setSaveOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<WorkspaceTorrent | null>(null)
+  const [removeOpen, setRemoveOpen] = useState(false)
+
+  function askSave(entry: WorkspaceTorrent) {
+    setSaveTarget(entry)
+    setSaveOpen(true)
+  }
+
+  function askRemove(entry: WorkspaceTorrent) {
+    setRemoveTarget(entry)
+    setRemoveOpen(true)
+  }
 
   const query = useInfiniteQuery({
     queryKey: [...QUERY_KEY, search.q ?? ''],
@@ -115,7 +129,7 @@ function TorrentsList() {
     mutationFn: ({ entry, folder }: { entry: WorkspaceTorrent; folder: string }) =>
       saveWorkspaceTorrentToDrive(entry.id, folder),
     onSuccess: (_result, { entry, folder }) => {
-      setSaveTarget(null)
+      setSaveOpen(false)
       queryClient.invalidateQueries({ queryKey: ['objects'] })
       queryClient.invalidateQueries({ queryKey: ['user', 'quota'] })
       toast.success(t('torrents.save.success', { name: entry.name, folder: folder || t('torrents.save.root') }))
@@ -126,7 +140,7 @@ function TorrentsList() {
   const removeMutation = useMutation({
     mutationFn: (entry: WorkspaceTorrent) => deleteWorkspaceTorrent(entry.id),
     onSuccess: (_result, entry) => {
-      setRemoveTarget(null)
+      setRemoveOpen(false)
       if (search.id === entry.id) openEntry(undefined)
       queryClient.removeQueries({ queryKey: workspaceTorrentQueryKey(entry.id) })
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
@@ -215,12 +229,12 @@ function TorrentsList() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEntry(entry.id)}>{t('torrents.open')}</DropdownMenuItem>
-                        <DropdownMenuItem disabled={entry.status !== 'ready'} onClick={() => setSaveTarget(entry)}>
+                        <DropdownMenuItem disabled={entry.status !== 'ready'} onClick={() => askSave(entry)}>
                           <FolderInput />
                           {t('torrents.save.action')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive" onClick={() => setRemoveTarget(entry)}>
+                        <DropdownMenuItem variant="destructive" onClick={() => askRemove(entry)}>
                           <Trash2 />
                           {t('torrents.remove.action')}
                         </DropdownMenuItem>
@@ -247,13 +261,13 @@ function TorrentsList() {
       <TorrentSheet
         id={search.id ?? null}
         onOpenChange={(open) => !open && openEntry(undefined)}
-        onSave={setSaveTarget}
-        onRemove={setRemoveTarget}
+        onSave={askSave}
+        onRemove={askRemove}
       />
 
       <MoveDialog
-        open={saveTarget !== null}
-        onOpenChange={(open) => !open && setSaveTarget(null)}
+        open={saveOpen}
+        onOpenChange={setSaveOpen}
         onConfirm={(folder) => saveTarget && saveMutation.mutate({ entry: saveTarget, folder })}
         isPending={saveMutation.isPending}
         excludeIds={[]}
@@ -262,8 +276,8 @@ function TorrentsList() {
       />
 
       <ConfirmActionDialog
-        open={removeTarget !== null}
-        onOpenChange={(open) => !open && setRemoveTarget(null)}
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
         title={t('torrents.remove.title', { name: removeTarget?.name ?? '' })}
         description={t('torrents.remove.description')}
         confirmLabel={t('torrents.remove.confirm')}

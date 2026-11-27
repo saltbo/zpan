@@ -406,7 +406,7 @@ sidecars and an uploaded `layout.json` (#721, #726). None of it is in a release
 yet, and production holds no torrent data, so the rework changes tables without
 migrating rows.
 
-The rework, in order, all built (#737, #738, and its successor):
+The rework, in order, all built (#737, #738, #745):
 
 1. **Rename and simplify the server.** Rename *torrent cache* to *Torrents*
    throughout: the entitlement `torrents`, `download_tasks.torrent_role`,
