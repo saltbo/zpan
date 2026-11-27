@@ -131,6 +131,15 @@ components:
     backdropFilter: none
     rounded: "{rounded.md}"
     shadow: "{shadows.overlay-light}"
+  auth-card:
+    backgroundColor: "color-mix(in oklab, oklch(1 0 0) 90%, transparent)"
+    backdropFilter: "blur(12px)"
+    rounded: "{rounded.xl}"
+    padding: 24px
+    shadow: "{shadows.overlay-light}"
+  auth-corner-control:
+    rounded: "{rounded.pill}"
+    height: 32px
 ---
 
 # ZPan design
@@ -183,6 +192,27 @@ between an icon and its text, 16 px between form fields and card padding, 24 px
 between cards. Forms stay compact: no viewport-sized gaps, and no gap under 12 px
 except in a dense, table-like editor.
 
+The signed-out pages (sign-in, sign-up, forgot-password, reset-password) share one
+card: ambient canvas, the display wordmark, one quiet subtitle, and the language
+and theme controls anchored in the top corner with the logical `end-3` offset, so
+the pair moves to the top-left when the document direction is RTL. The pair is
+`size="sm"` outline buttons, 32 px tall, with the icon first and the current
+setting as the label.
+
+## Direction & Writing Mode
+
+`<html>` carries `lang` and `dir` from the active language: `lang` is the
+supported code, `dir` is i18next's own direction reading (`Intl.Locale` text info
+with its built-in RTL list). `main.tsx` applies the direction before the first
+render, because a Radix menu root bakes `dir` in at mount, and
+`useDocumentDirection` re-applies it whenever the language changes. New code
+writes logical properties (`ms-`/`me-`, `ps-`/`pe-`, `start-`/`end-`,
+`text-start`/`text-end`), never physical left/right. The physical shapes installed
+components ship with are flipped by `[dir="rtl"]` rules keyed to their
+`data-slot` markers in `globals.css`, the same technique as the glass rules, so
+one rule fixes a pattern app-wide. Physical leading/trailing padding is already
+side-correct in RTL, so alignment, absolute insets, and chevrons are what flip.
+
 ## Elevation & Depth
 
 Depth is one step: a card has a hairline border and a small shadow over the
@@ -227,7 +257,14 @@ menus, and no motion on data. Reduced motion is honoured.
 Built from shadcn/ui (new-york style, neutral base) with tokens from the theme;
 installed components are adapted where they are used, never edited. ZPan's own
 shared pieces are `AdminFormDrawer` and its field components, `PageHeader`,
-`AdminPageHeader`, `ProBadge`, `UpgradeHint`, and `AmbientCanvas`.
+`AdminPageHeader`, `ProBadge`, `UpgradeHint`, `AmbientCanvas`, and `AuthCard`.
+The language and theme controls are one pair of shapes used in two places:
+`LanguageMenuSub`/`ThemeMenuSub` inside the account menu, and
+`LanguageMenuButton`/`ThemeMenuButton` standalone on the auth card. Both forms
+share one radio group, the same `Palette` and `Languages` icons, and the same
+setting label, so the login page shows the same object the signed-in menu shows.
+The word "Language" and "Theme" live in the accessible name; the visible label is
+the language's own name (endonym) and the current theme setting.
 
 ## Do's and Don'ts
 
