@@ -46,19 +46,29 @@ export function LanguageMenuSub() {
   )
 }
 
-/** Standalone button for pages with no surrounding menu, e.g. the sign-in page. */
-export function LanguageMenuButton({ className }: { className?: string }) {
+/**
+ * Standalone button for pages with no surrounding menu, e.g. the sign-in page.
+ * `compact` shows only the current language's own name, for a page header.
+ */
+export function LanguageMenuButton({ className, compact = false }: { className?: string; compact?: boolean }) {
   const { t, i18n } = useTranslation()
+  const name = `${t('settings.appearance.language')}: ${languageLabel(i18n.resolvedLanguage)}`
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className={className}>
+        <Button
+          type="button"
+          variant={compact ? 'ghost' : 'outline'}
+          size="sm"
+          className={className}
+          aria-label={compact ? name : undefined}
+        >
           <Languages className="size-4" />
-          {t('settings.appearance.language')}: {languageLabel(i18n.resolvedLanguage)}
+          {compact ? languageLabel(i18n.resolvedLanguage) : name}
           <ChevronDown className="size-4 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="center">
+      <DropdownMenuContent align={compact ? 'end' : 'center'}>
         <LanguageRadioGroup />
       </DropdownMenuContent>
     </DropdownMenu>

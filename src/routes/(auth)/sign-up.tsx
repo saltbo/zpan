@@ -67,7 +67,7 @@ function SignUp() {
 
   if (showClosedView) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <div className="w-full max-w-sm space-y-6 p-6">
           <div className="space-y-2 text-center">
             <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
@@ -86,7 +86,7 @@ function SignUp() {
 
   if (mustUseInvitation && hasInvite && siteInvitationQuery.isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <div className="w-full max-w-sm space-y-6 p-6">
           <div className="space-y-2 text-center">
             <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
@@ -99,7 +99,7 @@ function SignUp() {
 
   if (showInvalidInviteView) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <div className="w-full max-w-sm space-y-6 p-6">
           <div className="space-y-2 text-center">
             <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
@@ -127,7 +127,7 @@ function SignUp() {
 
   if (verificationSentTo) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <div className="flex w-full max-w-sm flex-col gap-6 p-6 text-center">
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl font-bold">{t('auth.verifyEmailTitle')}</h1>
@@ -173,7 +173,7 @@ function SignUp() {
   const showDivider = authProviders.length > 0
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <div className="flex flex-1 items-center justify-center">
       <div className="w-full max-w-sm space-y-6 p-6">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
