@@ -3,8 +3,8 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { ActorIdentity, auditEventActor } from '@/components/actor-identity'
-import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { listTeamActivities } from '@/lib/api'
 
 export const Route = createFileRoute('/_authenticated/teams/$teamId/activity')({
@@ -71,13 +71,11 @@ function TeamActivityPage() {
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isPending, error } = useInfiniteQuery({
     queryKey: ['team-activity', teamId],
-    queryFn: ({ pageParam = 1 }) => listTeamActivities(teamId, pageParam as number, PAGE_SIZE),
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) => {
-      const loaded = (lastPage.page - 1) * lastPage.pageSize + lastPage.items.length
-      return loaded < lastPage.total ? lastPage.page + 1 : undefined
-    },
+    queryFn: ({ pageParam }) => listTeamActivities(teamId, { pageToken: pageParam, pageSize: PAGE_SIZE }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
   })
+  const loadMoreRef = useInfiniteScroll<HTMLDivElement>({ hasNextPage, isFetchingNextPage, fetchNextPage })
 
   const allItems = data?.pages.flatMap((p) => p.items) ?? []
 
@@ -120,10 +118,8 @@ function TeamActivityPage() {
       )}
 
       {hasNextPage && (
-        <div className="pt-2 text-center">
-          <Button variant="outline" size="sm" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
-            {isFetchingNextPage ? t('common.loading') : t('activity.loadMore')}
-          </Button>
+        <div ref={loadMoreRef} className="py-3 text-center text-sm text-muted-foreground" role="status">
+          {isFetchingNextPage ? t('common.loading') : null}
         </div>
       )}
     </div>

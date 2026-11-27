@@ -26,6 +26,8 @@ import {
   type ImageUpload,
   type ImageUploadResult,
   type InviteLinkInfo,
+  type KeysetPage,
+  type KeysetPageOpts,
   LOGO_PREFIX,
   type OrgRepo,
   type PendingInvitation,
@@ -106,19 +108,19 @@ export async function joinTeam(
 // user may read a *personal* org's feed (personal orgs are public to auth users).
 // A non-member of a non-personal org is forbidden.
 export type ListActivityOutcome =
-  | { ok: true; result: { items: AuditEventWithUser[]; total: number } }
+  | { ok: true; result: KeysetPage<AuditEventWithUser> }
   | { ok: false; reason: 'forbidden' }
 
 export async function listActivity(
   deps: Pick<TeamDeps, 'org' | 'audit' | 'auditActorDirectory' | 'agentInfo'>,
-  params: { teamId: string; userId: string; page: number; pageSize: number },
+  params: KeysetPageOpts & { teamId: string; userId: string },
 ): Promise<ListActivityOutcome> {
-  const { teamId, userId, page, pageSize } = params
+  const { teamId, userId, pageSize, after } = params
   const role = await deps.org.getMemberRole(teamId, userId)
   if (role === null && !(await deps.org.isPersonalOrg(teamId))) {
     return { ok: false, reason: 'forbidden' }
   }
-  const result = await deps.audit.list(teamId, { page, pageSize })
+  const result = await deps.audit.list(teamId, { pageSize, after })
   return {
     ok: true,
     result: { ...result, items: await resolveAuditActorProfiles(deps, result.items) },
@@ -168,8 +170,8 @@ export async function deleteTeamLogo(
 
 // ─── Admin: team listing / detail ────────────────────────────────────────────
 
-export function listTeams(deps: Pick<TeamDeps, 'teams'>): Promise<{ items: TeamSummary[]; total: number }> {
-  return deps.teams.listTeams().then((items) => ({ items, total: items.length }))
+export function listTeams(deps: Pick<TeamDeps, 'teams'>, opts: KeysetPageOpts): Promise<KeysetPage<TeamSummary>> {
+  return deps.teams.listTeams(opts)
 }
 
 export function getTeam(deps: Pick<TeamDeps, 'teams'>, orgId: string): Promise<TeamSummary | null> {

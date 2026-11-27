@@ -1,5 +1,5 @@
 import type { OrgQuotaEntitlement } from '@shared/types'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { Activity, ArrowLeft, BadgeCent, CalendarDays, Mail } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -9,13 +9,14 @@ import { AdminAuditActivityFeed } from '@/components/admin/audit-activity-feed'
 import {
   AUDIT_DEFAULT_PAGE_SIZE,
   AUDIT_FILTER_ALL,
+  AUDIT_PAGE_SIZE_OPTIONS,
   AuditLogFilters,
-  AuditPagination,
   type AuditTimeRange,
   auditActionToFilter,
   auditTimeRangeToFilter,
 } from '@/components/admin/audit-log-controls'
 import { GrantEntitlementDialog } from '@/components/admin/grant-entitlement-dialog'
+import { CursorPagination } from '@/components/list/cursor-pagination'
 import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -32,6 +33,7 @@ import {
 } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useCursorPager } from '@/hooks/use-cursor-pager'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import {
   type AdminAuditFilter,
@@ -54,7 +56,6 @@ export function AdminUserDetailPage() {
   const [grantOpen, setGrantOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<OrgQuotaEntitlement | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<OrgQuotaEntitlement | null>(null)
-  const [activityPage, setActivityPage] = useState(1)
   const [activityPageSize, setActivityPageSize] = useState(AUDIT_DEFAULT_PAGE_SIZE)
   const [activityAction, setActivityAction] = useState(AUDIT_FILTER_ALL)
   const [activityTimeRange, setActivityTimeRange] = useState<AuditTimeRange>('all')
@@ -100,9 +101,22 @@ export function AdminUserDetailPage() {
     }
   }, [userId, activityAction, activityTimeRange])
 
+  const activityPager = useCursorPager(`${activityPageSize}:${activityAction}:${activityTimeRange}`)
+
   const activityQuery = useQuery({
-    queryKey: ['admin', 'users', userId, 'activity', activityPage, activityPageSize, activityAction, activityTimeRange],
-    queryFn: () => listAdminAuditLogs(activityPage, activityPageSize, activityFilter),
+    queryKey: [
+      'admin',
+      'users',
+      userId,
+      'activity',
+      activityPageSize,
+      activityAction,
+      activityTimeRange,
+      activityPager.pageToken,
+    ],
+    queryFn: () =>
+      listAdminAuditLogs({ pageToken: activityPager.pageToken, pageSize: activityPageSize }, activityFilter),
+    placeholderData: keepPreviousData,
     enabled: auditEnabled && userQuery.isSuccess,
   })
 
@@ -120,22 +134,6 @@ export function AdminUserDetailPage() {
 
   const activeItems = useMemo(() => items.filter((item) => item.status === 'active'), [items])
   const activityItems = activityQuery.data?.items ?? []
-  const activityTotal = activityQuery.data?.total ?? 0
-
-  function handleActivityActionChange(value: string) {
-    setActivityAction(value)
-    setActivityPage(1)
-  }
-
-  function handleActivityTimeRangeChange(value: AuditTimeRange) {
-    setActivityTimeRange(value)
-    setActivityPage(1)
-  }
-
-  function handleActivityPageSizeChange(value: number) {
-    setActivityPageSize(value)
-    setActivityPage(1)
-  }
 
   if (userQuery.isLoading) {
     return (
@@ -242,8 +240,8 @@ export function AdminUserDetailPage() {
                     action={activityAction}
                     timeRange={activityTimeRange}
                     disabled={activityQuery.isFetching}
-                    onActionChange={handleActivityActionChange}
-                    onTimeRangeChange={handleActivityTimeRangeChange}
+                    onActionChange={setActivityAction}
+                    onTimeRangeChange={setActivityTimeRange}
                   />
                   <AdminAuditActivityFeed
                     events={activityItems}
@@ -251,13 +249,15 @@ export function AdminUserDetailPage() {
                     isError={activityQuery.isError}
                   />
                   {!activityQuery.isPending && !activityQuery.isError && (
-                    <AuditPagination
-                      page={activityPage}
+                    <CursorPagination
                       pageSize={activityPageSize}
-                      total={activityTotal}
+                      pageSizeOptions={AUDIT_PAGE_SIZE_OPTIONS}
+                      hasPrevious={activityPager.hasPrevious}
+                      nextPageToken={activityQuery.data?.nextPageToken}
                       disabled={activityQuery.isFetching}
-                      onPageChange={setActivityPage}
-                      onPageSizeChange={handleActivityPageSizeChange}
+                      onPageSizeChange={setActivityPageSize}
+                      onPrevious={activityPager.previous}
+                      onNext={activityPager.next}
                     />
                   )}
                 </div>

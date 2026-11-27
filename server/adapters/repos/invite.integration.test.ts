@@ -164,48 +164,70 @@ describe('redeemInviteCode', () => {
 })
 
 describe('listInviteCodes', () => {
-  it('returns empty items and total 0 when no codes exist', async () => {
+  it('returns an empty page without a next boundary when no codes exist', async () => {
     const { db } = await createTestApp()
-    const result = await createInviteRepo(db).list(1, 20)
-    expect(result).toEqual({ items: [], total: 0 })
+    const result = await createInviteRepo(db).list({ pageSize: 20 })
+    expect(result).toEqual({ items: [], nextBoundary: null })
   })
 
-  it('returns all codes when fewer than pageSize', async () => {
+  it('returns all codes without a next boundary when fewer than pageSize', async () => {
     const { db } = await createTestApp()
     await createInviteRepo(db).generate('admin-1', 3)
-    const result = await createInviteRepo(db).list(1, 20)
-    expect(result.total).toBe(3)
+    const result = await createInviteRepo(db).list({ pageSize: 20 })
     expect(result.items).toHaveLength(3)
+    expect(result.nextBoundary).toBeNull()
   })
 
-  it('paginates correctly — page 1 returns first pageSize items', async () => {
+  it('has no next boundary when the page is exactly full', async () => {
+    const { db } = await createTestApp()
+    await createInviteRepo(db).generate('admin-1', 3)
+    const result = await createInviteRepo(db).list({ pageSize: 3 })
+    expect(result.items).toHaveLength(3)
+    expect(result.nextBoundary).toBeNull()
+  })
+
+  it('returns a boundary of the last visible row when more rows exist', async () => {
     const { db } = await createTestApp()
     await createInviteRepo(db).generate('admin-1', 5)
-    const result = await createInviteRepo(db).list(1, 3)
-    expect(result.total).toBe(5)
+    const result = await createInviteRepo(db).list({ pageSize: 3 })
     expect(result.items).toHaveLength(3)
+    const last = result.items[2]
+    expect(result.nextBoundary).toEqual({ createdAt: last.createdAt, id: last.id })
   })
 
-  it('paginates correctly — page 2 returns remaining items', async () => {
+  it('walks every code exactly once across pages, even when createdAt ties', async () => {
     const { db } = await createTestApp()
-    await createInviteRepo(db).generate('admin-1', 5)
-    const result = await createInviteRepo(db).list(2, 3)
-    expect(result.total).toBe(5)
-    expect(result.items).toHaveLength(2)
+    await createInviteRepo(db).generate('admin-1', 7)
+    const seen: string[] = []
+    let after: { createdAt: Date; id: string } | undefined
+    for (let i = 0; i < 10; i++) {
+      const page = await createInviteRepo(db).list({ pageSize: 3, after })
+      seen.push(...page.items.map((item) => item.id))
+      if (!page.nextBoundary) break
+      after = page.nextBoundary
+    }
+    expect(seen).toHaveLength(7)
+    expect(new Set(seen).size).toBe(7)
+    const all = await createInviteRepo(db).list({ pageSize: 20 })
+    expect(seen).toEqual(all.items.map((item) => item.id))
   })
 
-  it('returns empty items on a page beyond total count', async () => {
+  it('returns an empty page after the oldest boundary', async () => {
     const { db } = await createTestApp()
     await createInviteRepo(db).generate('admin-1', 2)
-    const result = await createInviteRepo(db).list(5, 20)
-    expect(result.total).toBe(2)
-    expect(result.items).toHaveLength(0)
+    const all = await createInviteRepo(db).list({ pageSize: 20 })
+    const oldest = all.items[all.items.length - 1]
+    const result = await createInviteRepo(db).list({
+      pageSize: 20,
+      after: { createdAt: oldest.createdAt, id: oldest.id },
+    })
+    expect(result).toEqual({ items: [], nextBoundary: null })
   })
 
   it('orders results by createdAt descending', async () => {
     const { db } = await createTestApp()
     await createInviteRepo(db).generate('admin-1', 3)
-    const result = await createInviteRepo(db).list(1, 20)
+    const result = await createInviteRepo(db).list({ pageSize: 20 })
     const timestamps = result.items.map((item) => item.createdAt.getTime())
     const sorted = [...timestamps].sort((a, b) => b - a)
     expect(timestamps).toEqual(sorted)

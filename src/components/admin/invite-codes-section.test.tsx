@@ -50,7 +50,7 @@ function renderSection() {
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', TestResizeObserver)
-  vi.mocked(listInviteCodes).mockResolvedValue({ items: [code], total: 1 } as never)
+  vi.mocked(listInviteCodes).mockResolvedValue({ items: [code], nextPageToken: null })
   vi.mocked(deleteInviteCode).mockResolvedValue(undefined as never)
 })
 
@@ -92,8 +92,8 @@ describe('InviteCodesSection list', () => {
   it('lists codes with their status and offers delete only for available codes [spec: invite-codes/admin-console-manage]', async () => {
     vi.mocked(listInviteCodes).mockResolvedValue({
       items: [code, { ...code, id: 'code-2', code: 'USED-0001', usedBy: 'user-1' }],
-      total: 2,
-    } as never)
+      nextPageToken: null,
+    })
     renderSection()
     expect(await screen.findByText('ABCD-1234')).toBeTruthy()
     expect(screen.getByText('USED-0001')).toBeTruthy()
@@ -113,7 +113,7 @@ describe('InviteCodesSection list', () => {
   })
 
   it('shows an empty state whose action opens the generate drawer', async () => {
-    vi.mocked(listInviteCodes).mockResolvedValue({ items: [], total: 0 } as never)
+    vi.mocked(listInviteCodes).mockResolvedValue({ items: [], nextPageToken: null })
     vi.mocked(generateInviteCodes).mockResolvedValue({ items: [] } as never)
     renderSection()
     expect(await screen.findByText('admin.auth.noInviteCodes')).toBeTruthy()
@@ -130,8 +130,35 @@ describe('InviteCodesSection list', () => {
     vi.mocked(listInviteCodes).mockRejectedValueOnce(new Error('boom'))
     renderSection()
     expect(await screen.findByText('admin.auth.inviteCodesLoadFailed')).toBeTruthy()
-    vi.mocked(listInviteCodes).mockResolvedValue({ items: [code], total: 1 } as never)
+    vi.mocked(listInviteCodes).mockResolvedValue({ items: [code], nextPageToken: null })
     fireEvent.click(screen.getByRole('button', { name: 'admin.overview.retry' }))
     expect(await screen.findByText('ABCD-1234')).toBeTruthy()
+  })
+
+  it('pages through every code with the previous response token [spec: list-pagination/invite-codes-beyond-first-page]', async () => {
+    const second = { ...code, id: 'code-2', code: 'PAGE-0002' } as InviteCode
+    vi.mocked(listInviteCodes).mockImplementation(async (opts) =>
+      opts?.pageToken === 'tok-2'
+        ? { items: [second], nextPageToken: null }
+        : { items: [code], nextPageToken: 'tok-2' },
+    )
+    renderSection()
+
+    expect(await screen.findByText('ABCD-1234')).toBeTruthy()
+    expect(listInviteCodes).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 20 })
+    expect((screen.getByRole('button', { name: 'common.previousPage' }) as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.nextPage' }))
+    expect(await screen.findByText('PAGE-0002')).toBeTruthy()
+    expect(listInviteCodes).toHaveBeenLastCalledWith({ pageToken: 'tok-2', pageSize: 20 })
+    // An unused code on a later page can still be deleted.
+    expect(screen.getAllByRole('button', { name: 'common.delete' })).toHaveLength(1)
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'common.nextPage' }) as HTMLButtonElement).disabled).toBe(true),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.previousPage' }))
+    expect(await screen.findByText('ABCD-1234')).toBeTruthy()
+    expect(screen.queryByText('PAGE-0002')).toBeNull()
   })
 })

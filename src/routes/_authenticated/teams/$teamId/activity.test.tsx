@@ -1,8 +1,8 @@
 import type { AuditEvent } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type * as React from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { listTeamActivities } from '@/lib/api'
 import { Route } from './activity'
 
@@ -20,7 +20,31 @@ vi.mock('@/lib/api', () => ({ listTeamActivities: vi.fn() }))
 
 type ActivityRoute = typeof Route & { component: React.ComponentType }
 
+class IntersectionObserverStub {
+  static instances: IntersectionObserverStub[] = []
+  readonly observe = vi.fn()
+  readonly disconnect = vi.fn()
+
+  constructor(readonly callback: IntersectionObserverCallback) {
+    IntersectionObserverStub.instances.push(this)
+  }
+
+  intersect() {
+    this.callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
+  }
+
+  static get live() {
+    return IntersectionObserverStub.instances.filter((instance) => instance.disconnect.mock.calls.length === 0)
+  }
+}
+
+beforeEach(() => {
+  IntersectionObserverStub.instances = []
+  vi.stubGlobal('IntersectionObserver', IntersectionObserverStub)
+})
+
 afterEach(() => {
+  vi.unstubAllGlobals()
   cleanup()
   vi.clearAllMocks()
 })
@@ -37,7 +61,7 @@ describe('TeamActivityPage actors', () => {
         resolved: true,
       },
     })
-    vi.mocked(listTeamActivities).mockResolvedValue({ items: [event], total: 1, page: 1, pageSize: 20 })
+    vi.mocked(listTeamActivities).mockResolvedValue({ items: [event], nextPageToken: null })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const Component = (Route as ActivityRoute).component
 
@@ -49,6 +73,38 @@ describe('TeamActivityPage actors', () => {
 
     expect(await screen.findByText('Mac Agent')).toBeTruthy()
     expect(screen.queryByText('Ambor')).toBeNull()
+  })
+})
+
+describe('TeamActivityPage infinite scroll', () => {
+  it('appends the next page with the previous token when the end is reached, with no Load more button', async () => {
+    vi.mocked(listTeamActivities).mockImplementation(async (_teamId, opts) =>
+      opts?.pageToken === 'tok-2'
+        ? { items: [auditEvent({ id: 'audit-2', targetName: 'second.txt' })], nextPageToken: null }
+        : { items: [auditEvent({ id: 'audit-1', targetName: 'first.txt' })], nextPageToken: 'tok-2' },
+    )
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const Component = (Route as ActivityRoute).component
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Component />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByText(/first\.txt/)).toBeTruthy()
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(listTeamActivities).toHaveBeenCalledTimes(1)
+    expect(listTeamActivities).toHaveBeenCalledWith('team-1', { pageToken: undefined, pageSize: 20 })
+
+    await waitFor(() => expect(IntersectionObserverStub.live).toHaveLength(1))
+    act(() => IntersectionObserverStub.live[0].intersect())
+
+    expect(await screen.findByText(/second\.txt/)).toBeTruthy()
+    expect(screen.getByText(/first\.txt/)).toBeTruthy()
+    expect(listTeamActivities).toHaveBeenLastCalledWith('team-1', { pageToken: 'tok-2', pageSize: 20 })
+    await waitFor(() => expect(IntersectionObserverStub.live).toHaveLength(0))
+    expect(listTeamActivities).toHaveBeenCalledTimes(2)
   })
 })
 

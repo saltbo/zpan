@@ -1,21 +1,23 @@
 Feature: List state in the URL
-  A list's search, filter, sort, and page live in the URL, so back, reload, and a
-  shared link restore the same view (UX.md, Lists). Typing in a search field
-  updates the link without adding a history entry for each keystroke.
+  A list's search, filter, sort, and page size live in the URL, so back, reload, and
+  a shared link restore the same view (UX.md, Lists). The position inside a cursor
+  list is not in the link: page tokens expire and are bound to their query. Typing
+  in a search field updates the link without adding a history entry for each
+  keystroke.
 
   @list-state/admin-users @web
-  Scenario: The admin user list restores its search and page from the link
-    Given an admin opens the user list with a search, a page, and a page size in the link
-    Then the list shows that search, page, and page size
-    When the admin searches, changes page, or changes page size
-    Then the link carries the new search, page, and page size
+  Scenario: The admin user list restores its search and page size from the link
+    Given an admin opens the user list with a search and a page size in the link
+    Then the list shows that search and page size, from the first page
+    When the admin searches or changes page size
+    Then the link carries the new search and page size
 
   @list-state/users @web
-  Scenario: The user directory restores its search and page from the link
-    Given an admin opens the user directory with a search and a page in the link
-    Then the directory shows that search and page
-    When the admin searches or changes page
-    Then the link carries the new search and page
+  Scenario: The user directory restores its search from the link
+    Given an admin opens the user directory with a search in the link
+    Then the directory shows that search
+    When the admin searches
+    Then the link carries the new search
 
   @list-state/tasks @web
   Scenario: The task list restores its filter from the link
@@ -40,7 +42,7 @@ Feature: List state in the URL
 
   @list-state/unusable-values @web
   Scenario: A link with a value the list cannot use opens the default view
-    Given a link whose list filter, sort, or page is not one the list offers
+    Given a link whose list filter, sort, or page size is not one the list offers
     When a user opens it
     Then that value is ignored and the list opens with its default
 

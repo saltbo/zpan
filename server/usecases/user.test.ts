@@ -15,6 +15,7 @@ import {
   getPublicProfile,
   grantUserEntitlement,
   listUserEntitlements,
+  listUsers,
   removeAvatar,
   revokeUserEntitlement,
   type UserDeps,
@@ -38,6 +39,7 @@ const failure: UserOperationFailure = { error: 'User not found: missing', status
 function makeDeps(userAdmin: Partial<UserAdminRepo> = {}) {
   const repo: UserAdminRepo = {
     isBanned: async () => false,
+    listUsers: async () => ({ items: [], nextBoundary: null }),
     getSiteRole: async () => null,
     findActiveUserIdByUsername: async () => null,
     listUserPersonalEntitlements: async () => ({ orgId: 'org-1', items: [] }),
@@ -58,6 +60,17 @@ function makeDeps(userAdmin: Partial<UserAdminRepo> = {}) {
 beforeEach(() => vi.clearAllMocks())
 
 describe('user usecase', () => {
+  describe('listUsers', () => {
+    it('forwards the search and page request to the repo', async () => {
+      const page = { items: [], nextBoundary: { createdAt: new Date(1000), id: 'u-1' } }
+      const list = vi.fn(async () => page)
+      const { deps } = makeDeps({ listUsers: list })
+      const out = await listUsers(deps, { pageSize: 20, search: 'ann' })
+      expect(out).toEqual(page)
+      expect(list).toHaveBeenCalledWith({ pageSize: 20, search: 'ann' })
+    })
+  })
+
   describe('listUserEntitlements', () => {
     it('returns the repo result', async () => {
       const result = { orgId: 'org-1', items: [sampleEntitlement] }

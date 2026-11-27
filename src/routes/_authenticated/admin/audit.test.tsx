@@ -27,11 +27,10 @@ vi.mock('react-i18next', () => ({
       if (key === 'admin.audit.last30Days') return 'Last 30 days'
       if (key === 'admin.audit.last90Days') return 'Last 90 days'
       if (key === 'admin.audit.empty') return 'No audit events yet.'
-      if (key === 'admin.users.prevPage') return 'Previous'
-      if (key === 'admin.users.nextPage') return 'Next'
-      if (key === 'admin.users.pageInfo') return `Page ${values?.page} of ${values?.total}`
-      if (key === 'admin.users.pageSize') return 'Rows per page'
-      if (key === 'admin.users.pageSizeOption') return `${values?.count} / page`
+      if (key === 'common.previousPage') return 'Previous'
+      if (key === 'common.nextPage') return 'Next'
+      if (key === 'common.rowsPerPage') return 'Rows per page'
+      if (key === 'common.pageSizeOption') return `${values?.count} / page`
       if (key === 'activity.action.upload') return 'uploaded'
       if (key === 'activity.action.delete') return 'deleted'
       if (key === 'activity.action.replace') return 'replaced'
@@ -96,13 +95,8 @@ function auditEvent(overrides: Partial<AdminAuditEvent> = {}): AdminAuditEvent {
   }
 }
 
-function auditPage(page: number, items: AdminAuditEvent[], total = items.length, pageSize = 20) {
-  return {
-    items,
-    total,
-    page,
-    pageSize,
-  }
+function auditPage(items: AdminAuditEvent[], nextPageToken: string | null = null) {
+  return { items, nextPageToken }
 }
 
 beforeEach(() => {
@@ -130,7 +124,7 @@ afterEach(() => {
 describe('AuditLogsPage filters and pagination', () => {
   it('shows the stable Agent identity instead of the delegated user', async () => {
     vi.mocked(listAdminAuditLogs).mockResolvedValue(
-      auditPage(1, [
+      auditPage([
         auditEvent({
           actorType: 'oauth',
           actorRef: 'agt_agent-1',
@@ -152,7 +146,7 @@ describe('AuditLogsPage filters and pagination', () => {
 
   it('shows the API key name instead of the key owner', async () => {
     vi.mocked(listAdminAuditLogs).mockResolvedValue(
-      auditPage(1, [
+      auditPage([
         auditEvent({
           actorType: 'api_key',
           actorRef: 'key-1',
@@ -167,72 +161,94 @@ describe('AuditLogsPage filters and pagination', () => {
     expect(screen.queryByText('Ava Stone')).toBeNull()
   })
 
-  it('uses structured filters and standard pagination', async () => {
-    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage(1, [auditEvent()], 21))
+  it('uses structured filters and cursor pagination', async () => {
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage([auditEvent()], 'tok-2'))
 
     const user = userEvent.setup()
     renderAuditPage()
 
     expect(await screen.findByText(/contract\.pdf/)).toBeTruthy()
-    expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, {})
+    expect(listAdminAuditLogs).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 20 }, {})
     expect(screen.queryByRole('button', { name: 'admin.audit.loadMore' })).toBeNull()
+    expect(screen.queryByText(/Page \d+ of/)).toBeNull()
 
     await user.click(screen.getByRole('combobox', { name: 'Event type' }))
     await user.click(await screen.findByRole('option', { name: 'downloaded via share' }))
 
-    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, { action: 'share_download' }))
+    await waitFor(() =>
+      expect(listAdminAuditLogs).toHaveBeenCalledWith(
+        { pageToken: undefined, pageSize: 20 },
+        { action: 'share_download' },
+      ),
+    )
 
     await user.click(screen.getByRole('combobox', { name: 'Time range' }))
     await user.click(await screen.findByRole('option', { name: 'Last 30 days' }))
 
+    const filtered = expect.objectContaining({
+      action: 'share_download',
+      createdFrom: expect.any(String),
+      createdTo: expect.any(String),
+    })
     await waitFor(() =>
-      expect(listAdminAuditLogs).toHaveBeenCalledWith(
-        1,
-        20,
-        expect.objectContaining({
-          action: 'share_download',
-          createdFrom: expect.any(String),
-          createdTo: expect.any(String),
-        }),
-      ),
+      expect(listAdminAuditLogs).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 20 }, filtered),
     )
 
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
-    await waitFor(() =>
-      expect(listAdminAuditLogs).toHaveBeenCalledWith(
-        2,
-        20,
-        expect.objectContaining({
-          action: 'share_download',
-          createdFrom: expect.any(String),
-          createdTo: expect.any(String),
-        }),
-      ),
-    )
+    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith({ pageToken: 'tok-2', pageSize: 20 }, filtered))
+
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Previous' }).hasAttribute('disabled')).toBe(true))
+    expect(vi.mocked(listAdminAuditLogs).mock.calls.at(-1)?.[0]).toEqual({ pageToken: undefined, pageSize: 20 })
 
     await user.click(screen.getByRole('combobox', { name: 'Rows per page' }))
     await user.click(await screen.findByRole('option', { name: '50 / page' }))
 
     await waitFor(() =>
-      expect(listAdminAuditLogs).toHaveBeenCalledWith(
-        1,
-        50,
-        expect.objectContaining({
-          action: 'share_download',
-          createdFrom: expect.any(String),
-          createdTo: expect.any(String),
-        }),
-      ),
+      expect(listAdminAuditLogs).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 50 }, filtered),
     )
   })
 
+  it('returns to the first page when a filter changes on a later page', async () => {
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage([auditEvent()], 'tok-2'))
+
+    const user = userEvent.setup()
+    renderAuditPage()
+
+    expect(await screen.findByText(/contract\.pdf/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith({ pageToken: 'tok-2', pageSize: 20 }, {}))
+
+    await user.click(screen.getByRole('combobox', { name: 'Event type' }))
+    await user.click(await screen.findByRole('option', { name: 'downloaded via share' }))
+
+    await waitFor(() =>
+      expect(vi.mocked(listAdminAuditLogs).mock.calls.at(-1)).toEqual([
+        { pageToken: undefined, pageSize: 20 },
+        { action: 'share_download' },
+      ]),
+    )
+  })
+
+  it('disables Next on the last page and Previous on the first', async () => {
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage([auditEvent()]))
+
+    renderAuditPage()
+
+    expect(await screen.findByText(/contract\.pdf/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Next' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Previous' }).hasAttribute('disabled')).toBe(true)
+  })
+
   it('keeps the empty state visible with pagination controls', async () => {
-    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage(1, [], 0))
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage([]))
 
     renderAuditPage()
 
     expect(await screen.findByText('No audit events yet.')).toBeTruthy()
-    expect(screen.getByText('Page 1 of 1')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy()
+    expect(screen.queryByText(/Page \d+ of/)).toBeNull()
   })
 })

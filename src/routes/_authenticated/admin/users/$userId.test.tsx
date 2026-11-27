@@ -27,11 +27,10 @@ vi.mock('react-i18next', () => ({
       if (key === 'activity.empty') return 'No activity yet'
       if (key === 'activity.loadMore') return 'Load more'
       if (key === 'admin.users.tabEntitlement') return 'Entitlement'
-      if (key === 'admin.users.prevPage') return 'Previous'
-      if (key === 'admin.users.nextPage') return 'Next'
-      if (key === 'admin.users.pageInfo') return `Page ${values?.page} of ${values?.total}`
-      if (key === 'admin.users.pageSize') return 'Rows per page'
-      if (key === 'admin.users.pageSizeOption') return `${values?.count} / page`
+      if (key === 'common.previousPage') return 'Previous'
+      if (key === 'common.nextPage') return 'Next'
+      if (key === 'common.rowsPerPage') return 'Rows per page'
+      if (key === 'common.pageSizeOption') return `${values?.count} / page`
       if (key === 'admin.audit.eventType') return 'Event type'
       if (key === 'admin.audit.timeRange') return 'Time range'
       if (key === 'admin.audit.allEvents') return 'All events'
@@ -189,13 +188,8 @@ function entitlement(overrides: Partial<OrgQuotaEntitlement> = {}): OrgQuotaEnti
   }
 }
 
-function auditPage(page: number, items: AdminAuditEvent[], total = items.length) {
-  return {
-    items,
-    total,
-    page,
-    pageSize: 20,
-  }
+function auditPage(items: AdminAuditEvent[], nextPageToken: string | null = null) {
+  return { items, nextPageToken }
 }
 
 function allowAuditLogs() {
@@ -247,17 +241,22 @@ describe('Admin user detail activity', () => {
   it('calls listAdminAuditLogs with the route user id filter', async () => {
     allowAuditLogs()
     mockBaseQueries()
-    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage(1, [auditEvent()]))
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage([auditEvent()]))
 
     renderUserDetailPage()
 
-    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, { userId: 'route-user-1' }))
+    await waitFor(() =>
+      expect(listAdminAuditLogs).toHaveBeenCalledWith(
+        { pageToken: undefined, pageSize: 20 },
+        { userId: 'route-user-1' },
+      ),
+    )
   })
 
   it('renders the activity empty state', async () => {
     allowAuditLogs()
     mockBaseQueries()
-    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage(1, []))
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage([]))
 
     renderUserDetailPage()
 
@@ -268,22 +267,18 @@ describe('Admin user detail activity', () => {
   it('renders Activity and Entitlement tabs in order and pages activity results', async () => {
     allowAuditLogs()
     mockBaseQueries()
-    vi.mocked(listAdminAuditLogs)
-      .mockResolvedValueOnce(auditPage(1, [auditEvent()], 21))
-      .mockResolvedValueOnce(
-        auditPage(
-          2,
-          [
+    vi.mocked(listAdminAuditLogs).mockImplementation(async ({ pageToken } = {}) =>
+      pageToken
+        ? auditPage([
             auditEvent({
               id: 'audit-2',
               action: 'rename',
               targetName: 'renamed-contract.pdf',
               metadata: JSON.stringify({ from: 'contract.pdf' }),
             }),
-          ],
-          21,
-        ),
-      )
+          ])
+        : auditPage([auditEvent()], 'tok-2'),
+    )
 
     renderUserDetailPage()
 
@@ -295,13 +290,19 @@ describe('Admin user detail activity', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Next' }))
 
     expect(await screen.findByText(/renamed-contract\.pdf/)).toBeTruthy()
-    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith(2, 20, { userId: 'route-user-1' }))
+    await waitFor(() =>
+      expect(listAdminAuditLogs).toHaveBeenCalledWith({ pageToken: 'tok-2', pageSize: 20 }, { userId: 'route-user-1' }),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(await screen.findByText(/contract\.pdf/)).toBeTruthy()
+    expect(screen.queryByText(/renamed-contract\.pdf/)).toBeNull()
   })
 
   it('filters activity by event type and time range while preserving the route user id', async () => {
     allowAuditLogs()
     mockBaseQueries()
-    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage(1, [auditEvent()]))
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage([auditEvent()]))
 
     const user = userEvent.setup()
     renderUserDetailPage()
@@ -311,10 +312,13 @@ describe('Admin user detail activity', () => {
     await user.click(await screen.findByRole('option', { name: 'copied' }))
 
     await waitFor(() =>
-      expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, {
-        userId: 'route-user-1',
-        action: 'object_copy',
-      }),
+      expect(listAdminAuditLogs).toHaveBeenCalledWith(
+        { pageToken: undefined, pageSize: 20 },
+        {
+          userId: 'route-user-1',
+          action: 'object_copy',
+        },
+      ),
     )
 
     await user.click(screen.getByRole('combobox', { name: 'Time range' }))
@@ -322,8 +326,7 @@ describe('Admin user detail activity', () => {
 
     await waitFor(() =>
       expect(listAdminAuditLogs).toHaveBeenCalledWith(
-        1,
-        20,
+        { pageToken: undefined, pageSize: 20 },
         expect.objectContaining({
           userId: 'route-user-1',
           action: 'object_copy',
@@ -338,7 +341,7 @@ describe('Admin user detail activity', () => {
     allowAuditLogs()
     mockBaseQueries()
     vi.mocked(listAdminAuditLogs).mockResolvedValue(
-      auditPage(1, [
+      auditPage([
         auditEvent({
           id: 'audit-metadata-status',
           targetName: 'metadata-status.pdf',
@@ -392,7 +395,7 @@ describe('Admin user detail activity', () => {
     })
     vi.mocked(listAdminAuditLogs).mockImplementation(() =>
       Promise.resolve(
-        auditPage(1, [
+        auditPage([
           revoked
             ? auditEvent({ id: 'audit-after-revoke', targetName: 'after-revoke.pdf' })
             : auditEvent({ targetName: 'before-revoke.pdf' }),
@@ -413,7 +416,10 @@ describe('Admin user detail activity', () => {
     await waitFor(() => expect(revokeUserEntitlement).toHaveBeenCalledWith('route-user-1', 'entitlement-1'))
     await waitFor(() => {
       const postRevokeActivityCalls = vi.mocked(listAdminAuditLogs).mock.calls.slice(initialActivityCalls)
-      expect(postRevokeActivityCalls).toContainEqual([1, 20, { userId: 'route-user-1' }])
+      expect(postRevokeActivityCalls).toContainEqual([
+        { pageToken: undefined, pageSize: 20 },
+        { userId: 'route-user-1' },
+      ])
     })
     await user.click(screen.getByRole('tab', { name: 'Activity' }))
     expect(await screen.findByText(/after-revoke\.pdf/)).toBeTruthy()

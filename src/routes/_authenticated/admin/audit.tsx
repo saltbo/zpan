@@ -1,5 +1,5 @@
 import type { AdminAuditEvent } from '@shared/types'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,15 +8,17 @@ import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import {
   AUDIT_DEFAULT_PAGE_SIZE,
   AUDIT_FILTER_ALL,
+  AUDIT_PAGE_SIZE_OPTIONS,
   AuditLogFilters,
-  AuditPagination,
   type AuditTimeRange,
   auditActionToFilter,
   auditTimeRangeToFilter,
 } from '@/components/admin/audit-log-controls'
+import { CursorPagination } from '@/components/list/cursor-pagination'
 import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
 import { Card } from '@/components/ui/card'
+import { useCursorPager } from '@/hooks/use-cursor-pager'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { type AdminAuditFilter, listAdminAuditLogs } from '@/lib/api'
 
@@ -81,7 +83,6 @@ function AuditLogsPage() {
   const { t } = useTranslation()
   const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
   const auditEnabled = hasFeature('audit_log')
-  const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(AUDIT_DEFAULT_PAGE_SIZE)
   const [action, setAction] = useState(AUDIT_FILTER_ALL)
   const [timeRange, setTimeRange] = useState<AuditTimeRange>('all')
@@ -94,29 +95,16 @@ function AuditLogsPage() {
     }
   }, [action, timeRange])
 
+  const pager = useCursorPager(`${pageSize}:${action}:${timeRange}`)
+
   const { data, isFetching, isPending, error } = useQuery({
-    queryKey: ['admin', 'audit', page, pageSize, action, timeRange],
-    queryFn: () => listAdminAuditLogs(page, pageSize, filter),
+    queryKey: ['admin', 'audit', pageSize, action, timeRange, pager.pageToken],
+    queryFn: () => listAdminAuditLogs({ pageToken: pager.pageToken, pageSize }, filter),
+    placeholderData: keepPreviousData,
     enabled: auditEnabled,
   })
 
   const items = data?.items ?? []
-  const total = data?.total ?? 0
-
-  function handleActionChange(value: string) {
-    setAction(value)
-    setPage(1)
-  }
-
-  function handleTimeRangeChange(value: AuditTimeRange) {
-    setTimeRange(value)
-    setPage(1)
-  }
-
-  function handlePageSizeChange(value: number) {
-    setPageSize(value)
-    setPage(1)
-  }
 
   return (
     <div className="space-y-4">
@@ -139,8 +127,8 @@ function AuditLogsPage() {
             action={action}
             timeRange={timeRange}
             disabled={isFetching}
-            onActionChange={handleActionChange}
-            onTimeRangeChange={handleTimeRangeChange}
+            onActionChange={setAction}
+            onTimeRangeChange={setTimeRange}
           />
 
           {isPending ? (
@@ -172,13 +160,15 @@ function AuditLogsPage() {
           )}
 
           {!isPending && !error && (
-            <AuditPagination
-              page={page}
+            <CursorPagination
               pageSize={pageSize}
-              total={total}
+              pageSizeOptions={AUDIT_PAGE_SIZE_OPTIONS}
+              hasPrevious={pager.hasPrevious}
+              nextPageToken={data?.nextPageToken}
               disabled={isFetching}
-              onPageChange={setPage}
-              onPageSizeChange={handlePageSizeChange}
+              onPageSizeChange={setPageSize}
+              onPrevious={pager.previous}
+              onNext={pager.next}
             />
           )}
         </div>

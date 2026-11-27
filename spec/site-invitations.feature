@@ -20,10 +20,10 @@ Feature: Site invitations
     Then an invitation is created and returned
 
   @site-invitations/list @api
-  Scenario: Admins list invitations with totals
-    Given existing site invitations
-    When an admin lists them
-    Then the invitations and total are returned
+  Scenario: Admins page through invitations
+    Given more site invitations than one page
+    When an admin lists them and follows each next page token
+    Then every invitation is returned exactly once, newest first
 
   @site-invitations/resend @api
   Scenario: Resending an invitation rotates its token

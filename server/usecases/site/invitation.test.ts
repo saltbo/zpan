@@ -28,7 +28,7 @@ function makeDeps(overrides: { siteInvitations?: Partial<SiteInvitationRepo>; em
 
   const siteInvitations: SiteInvitationRepo = {
     getSiteName,
-    listSiteInvitations: async () => ({ items: [], total: 0 }),
+    listSiteInvitations: async () => ({ items: [], nextBoundary: null }),
     createSiteInvitation: async () => sampleInvitation,
     resendSiteInvitation: async () => sampleInvitation,
     revokeSiteInvitation: async () => 'ok',
@@ -57,16 +57,17 @@ beforeEach(() => vi.clearAllMocks())
 describe('site-invitation usecase', () => {
   it('listSiteInvitations forwards the repo result', async () => {
     const { deps } = makeDeps({
-      siteInvitations: { listSiteInvitations: async () => ({ items: [sampleInvitation], total: 1 }) },
+      siteInvitations: { listSiteInvitations: async () => ({ items: [sampleInvitation], nextBoundary: null }) },
     })
-    expect(await listSiteInvitations(deps, 2, 50)).toEqual({ items: [sampleInvitation], total: 1 })
+    expect(await listSiteInvitations(deps, { pageSize: 50 })).toEqual({ items: [sampleInvitation], nextBoundary: null })
   })
 
-  it('listSiteInvitations passes page and pageSize through', async () => {
-    const list = vi.fn(async () => ({ items: [], total: 0 }))
+  it('listSiteInvitations passes the page size and boundary through', async () => {
+    const list = vi.fn(async () => ({ items: [], nextBoundary: null }))
     const { deps } = makeDeps({ siteInvitations: { listSiteInvitations: list } })
-    await listSiteInvitations(deps, 3, 25)
-    expect(list).toHaveBeenCalledWith(3, 25)
+    const after = { createdAt: new Date(1000), id: 'inv-1' }
+    await listSiteInvitations(deps, { pageSize: 25, after })
+    expect(list).toHaveBeenCalledWith({ pageSize: 25, after })
   })
 
   describe('createSiteInvitation', () => {

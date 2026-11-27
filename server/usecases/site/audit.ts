@@ -8,6 +8,7 @@ import type {
   AgentInfoGateway,
   AuditActorDirectory,
   AuditRepo,
+  KeysetPage,
   ListAdminAuditOpts,
 } from '../ports'
 
@@ -18,7 +19,7 @@ export async function listAuditEvents(
     agentInfo: AgentInfoGateway
   },
   opts: ListAdminAuditOpts,
-): Promise<{ items: AdminAuditEventWithOrg[]; total: number; page: number; pageSize: number }> {
+): Promise<KeysetPage<AdminAuditEventWithOrg>> {
   const result = await deps.audit.listAdminAudit(opts)
   const items = await resolveAuditActorProfiles(deps, result.items)
   if (items === result.items) return result

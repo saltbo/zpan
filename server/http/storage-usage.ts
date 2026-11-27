@@ -1,11 +1,12 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { opaqueIdSchema } from '@shared/schemas'
+import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema } from '@shared/schemas'
 import { STORAGE_USAGE_CATEGORIES, STORAGE_USAGE_SORT_FIELDS } from '@shared/storage-usage'
 import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
 import { getStorageUsage, listStorageUsageItems } from '../usecases/storage-usage-dashboard'
-import { authRoute, jsonContent } from './openapi'
+import { authRoute, errorResponse, jsonContent } from './openapi'
+import { decodeOptionalPageToken, encodeNextPageToken, pageQueryFingerprint, sortValueCursorCodec } from './page-token'
 
 const categorySchema = z.enum(STORAGE_USAGE_CATEGORIES)
 const sortFieldSchema = z.enum(STORAGE_USAGE_SORT_FIELDS)
@@ -24,16 +25,18 @@ const usageSchema = z
   })
   .openapi('StorageUsage')
 
-const itemSchema = z.object({
-  id: opaqueIdSchema,
-  name: z.string(),
-  path: z.string(),
-  parentPath: z.string(),
-  type: z.string(),
-  size: z.number().int(),
-  updatedAt: z.string(),
-  source: z.enum(['files', 'image_hosting', 'trash']),
-})
+const itemSchema = z
+  .object({
+    id: opaqueIdSchema,
+    name: z.string(),
+    path: z.string(),
+    parentPath: z.string(),
+    type: z.string(),
+    size: z.number().int(),
+    updatedAt: z.string(),
+    source: z.enum(['files', 'image_hosting', 'trash']),
+  })
+  .openapi('StorageUsageItem')
 
 const getUsageRoute = authRoute(
   { scopes: [AuthorizationScope.STORAGE_USAGE_READ], minTeamRole: 'viewer' },
@@ -56,24 +59,15 @@ const listItemsRoute = authRoute(
     method: 'get',
     path: '/items',
     request: {
-      query: z.object({
+      query: cursorPageQuerySchema.extend({
         category: categorySchema,
-        page: z.coerce.number().int().min(1).default(1),
-        pageSize: z.coerce.number().int().min(1).max(100).default(20),
         sortBy: sortFieldSchema.default('size'),
         sortDir: z.enum(['asc', 'desc']).default('desc'),
       }),
     },
     responses: {
-      200: jsonContent(
-        z.object({
-          items: z.array(itemSchema),
-          total: z.number().int(),
-          page: z.number().int(),
-          pageSize: z.number().int(),
-        }),
-        'Storage usage items',
-      ),
+      200: jsonContent(cursorPageSchema(itemSchema, 'StorageUsageItemPage'), 'Storage usage items'),
+      400: errorResponse('Invalid page token'),
     },
   },
 )
@@ -89,9 +83,18 @@ const app = new OpenAPIHono<Env>()
 const storageUsage = app
   .openapi(getUsageRoute, async (c) => c.json(await getStorageUsage(c.get('deps'), requireOrg(c)), 200))
   .openapi(listItemsRoute, async (c) => {
-    const query = c.req.valid('query')
-    const result = await listStorageUsageItems(c.get('deps'), requireOrg(c), query)
-    return c.json({ ...result, page: query.page, pageSize: query.pageSize }, 200)
+    const { pageToken, ...query } = c.req.valid('query')
+    const orgId = requireOrg(c)
+    const page = {
+      query: await pageQueryFingerprint({ resource: 'storage-usage-items', orgId, ...query }),
+      codec: sortValueCursorCodec,
+    }
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, page)
+    const result = await listStorageUsageItems(c.get('deps'), orgId, { ...query, after })
+    return c.json(
+      { items: result.items, nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, page) },
+      200,
+    )
   })
 
 export default storageUsage

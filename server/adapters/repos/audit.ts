@@ -5,6 +5,7 @@ import { auditEvents } from '../../db/schema'
 import { assertAuditEvent } from '../../domain/audit-events'
 import type { Database } from '../../platform/interface'
 import type { AuditActorProfile, AuditActorType, AuditRepo, RecordAuditEventInput } from '../../usecases/ports'
+import { afterCreatedAtId, keysetPage } from './keyset'
 
 export function auditEventValues(event: RecordAuditEventInput): typeof auditEvents.$inferInsert {
   assertAuditEvent(event)
@@ -128,10 +129,8 @@ export function createAuditRepo(db: Database): AuditRepo {
     },
 
     async list(orgId, opts) {
-      const page = opts.page ?? 1
-      const pageSize = opts.pageSize ?? 20
-      const offset = (page - 1) * pageSize
-      const rows = await db
+      const { pageSize } = opts
+      const found = await db
         .select({
           id: auditEvents.id,
           orgId: auditEvents.orgId,
@@ -147,20 +146,13 @@ export function createAuditRepo(db: Database): AuditRepo {
           createdAt: auditEvents.createdAt,
           userName: user.name,
           userImage: user.image,
-          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
         })
         .from(auditEvents)
         .leftJoin(user, eq(auditEvents.userId, user.id))
-        .where(eq(auditEvents.orgId, orgId))
-        .orderBy(desc(auditEvents.createdAt))
-        .limit(pageSize)
-        .offset(offset)
-
-      let total = Number(rows[0]?.pageTotal ?? 0)
-      if (rows.length === 0 && page > 1) {
-        const countRows = await db.select({ count: count() }).from(auditEvents).where(eq(auditEvents.orgId, orgId))
-        total = countRows[0]?.count ?? 0
-      }
+        .where(and(eq(auditEvents.orgId, orgId), afterCreatedAtId(auditEvents.createdAt, auditEvents.id, opts.after)))
+        .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id))
+        .limit(pageSize + 1)
+      const { rows, next } = keysetPage(found, pageSize, (row) => ({ createdAt: row.createdAt, id: row.id }))
       const items = rows.map((row) => {
         const actorType = normalizeActorType(row.actorType, row.userId)
         return {
@@ -185,13 +177,11 @@ export function createAuditRepo(db: Database): AuditRepo {
         }
       })
 
-      return { items, total }
+      return { items, nextBoundary: next }
     },
 
     async listAdminAudit(opts) {
-      const page = opts.page ?? 1
-      const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? 20))
-      const offset = (page - 1) * pageSize
+      const { pageSize } = opts
 
       const filters = [
         opts.orgId ? eq(auditEvents.orgId, opts.orgId) : undefined,
@@ -200,10 +190,10 @@ export function createAuditRepo(db: Database): AuditRepo {
         opts.targetType ? eq(auditEvents.targetType, opts.targetType) : undefined,
         opts.createdFrom ? gte(auditEvents.createdAt, opts.createdFrom) : undefined,
         opts.createdTo ? lte(auditEvents.createdAt, opts.createdTo) : undefined,
+        afterCreatedAtId(auditEvents.createdAt, auditEvents.id, opts.after),
       ].filter(Boolean) as Parameters<typeof and>
 
-      const whereClause = and(...filters)
-      const rows = await db
+      const found = await db
         .select({
           id: auditEvents.id,
           orgId: auditEvents.orgId,
@@ -220,21 +210,14 @@ export function createAuditRepo(db: Database): AuditRepo {
           userName: user.name,
           userImage: user.image,
           orgName: organization.name,
-          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
         })
         .from(auditEvents)
         .leftJoin(user, eq(auditEvents.userId, user.id))
         .leftJoin(organization, eq(auditEvents.orgId, organization.id))
-        .where(whereClause)
-        .orderBy(desc(auditEvents.createdAt))
-        .limit(pageSize)
-        .offset(offset)
-
-      let total = Number(rows[0]?.pageTotal ?? 0)
-      if (rows.length === 0 && page > 1) {
-        const countRows = await db.select({ count: count() }).from(auditEvents).where(whereClause)
-        total = countRows[0]?.count ?? 0
-      }
+        .where(and(...filters))
+        .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id))
+        .limit(pageSize + 1)
+      const { rows, next } = keysetPage(found, pageSize, (row) => ({ createdAt: row.createdAt, id: row.id }))
       const items = rows.map((row) => {
         const actorType = normalizeActorType(row.actorType, row.userId)
         return {
@@ -260,7 +243,7 @@ export function createAuditRepo(db: Database): AuditRepo {
         }
       })
 
-      return { items, total, page, pageSize }
+      return { items, nextBoundary: next }
     },
 
     async listByTarget(opts) {

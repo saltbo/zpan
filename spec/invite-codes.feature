@@ -14,10 +14,10 @@ Feature: Invite codes
     Then the API responds 403
 
   @invite-codes/list @api
-  Scenario: Admins list created codes with totals
-    Given created invite codes
-    When an admin lists them
-    Then the codes and total are returned
+  Scenario: Admins page through every created code
+    Given more invite codes than one page
+    When an admin lists them and follows each next page token
+    Then every code is returned exactly once, newest first
 
   @invite-codes/generate @api
   Scenario: Admins generate a batch of codes

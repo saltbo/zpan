@@ -42,11 +42,10 @@ describe('Admin Invite Codes API — GET /', () => {
     const headers = await adminHeaders(app)
     const res = await app.request('/api/site/invite-codes', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
-    expect(body).toEqual({ items: [], total: 0, page: 1, pageSize: 20 })
+    expect(await res.json()).toEqual({ items: [], nextPageToken: null })
   })
 
-  it('returns created codes with correct total [spec: invite-codes/list]', async () => {
+  it('returns created codes without a next page token', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -58,12 +57,12 @@ describe('Admin Invite Codes API — GET /', () => {
 
     const res = await app.request('/api/site/invite-codes', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; total: number }
-    expect(body.total).toBe(3)
+    const body = (await res.json()) as { items: unknown[]; nextPageToken: string | null }
     expect(body.items).toHaveLength(3)
+    expect(body.nextPageToken).toBeNull()
   })
 
-  it('paginates with page and pageSize query params', async () => {
+  it('follows next page tokens through every code exactly once [spec: invite-codes/list]', async () => {
     const { app } = await createTestApp()
     const headers = await adminHeaders(app)
 
@@ -73,11 +72,40 @@ describe('Admin Invite Codes API — GET /', () => {
       body: JSON.stringify({ count: 5 }),
     })
 
-    const res = await app.request('/api/site/invite-codes?page=2&pageSize=3', { headers })
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; total: number }
-    expect(body.total).toBe(5)
-    expect(body.items).toHaveLength(2)
+    const ids: string[] = []
+    const sizes: number[] = []
+    let token: string | null = null
+    for (let i = 0; i < 5; i++) {
+      const query = new URLSearchParams({ pageSize: '2' })
+      if (token) query.set('pageToken', token)
+      const res = await app.request(`/api/site/invite-codes?${query}`, { headers })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { items: Array<{ id: string }>; nextPageToken: string | null }
+      sizes.push(body.items.length)
+      ids.push(...body.items.map((item) => item.id))
+      token = body.nextPageToken
+      if (!token) break
+    }
+    expect(sizes).toEqual([2, 2, 1])
+    expect(new Set(ids).size).toBe(5)
+  })
+
+  it('rejects a tampered page token and one reused with another page size', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await app.request('/api/site/invite-codes', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count: 3 }),
+    })
+    const first = await app.request('/api/site/invite-codes?pageSize=2', { headers })
+    const { nextPageToken } = (await first.json()) as { nextPageToken: string }
+
+    const tampered = await app.request(`/api/site/invite-codes?pageSize=2&pageToken=${nextPageToken}x`, { headers })
+    expect(tampered.status).toBe(400)
+    const resized = await app.request(`/api/site/invite-codes?pageSize=1&pageToken=${nextPageToken}`, { headers })
+    expect(resized.status).toBe(400)
+    expect(await resized.json()).toMatchObject({ error: { details: [{ reason: 'INVALID_PAGE_TOKEN' }] } })
   })
 })
 

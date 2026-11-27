@@ -1,6 +1,7 @@
 // Plain, framework-free DTOs and the repository port for audit events.
 
 import type { ActorAttribution, ActorType } from '@shared/schemas'
+import type { KeysetPage, KeysetPageOpts } from './pagination'
 
 export type AuditActorType = ActorType
 
@@ -41,9 +42,7 @@ export interface AdminAuditEventWithOrg extends AuditEventWithUser {
   orgName: string | null
 }
 
-export interface ListAdminAuditOpts {
-  page?: number
-  pageSize?: number
+export interface ListAdminAuditOpts extends KeysetPageOpts {
   orgId?: string
   userId?: string
   action?: string
@@ -63,13 +62,8 @@ export interface ListAuditByTargetOpts {
 export interface AuditRepo {
   record(event: RecordAuditEventInput): Promise<void>
   recordOnce(event: RecordAuditEventInput, idempotencyKey: string, occurredAt?: Date): Promise<void>
-  list(
-    orgId: string,
-    opts: { page?: number; pageSize?: number },
-  ): Promise<{ items: AuditEventWithUser[]; total: number }>
-  listAdminAudit(
-    opts: ListAdminAuditOpts,
-  ): Promise<{ items: AdminAuditEventWithOrg[]; total: number; page: number; pageSize: number }>
+  list(orgId: string, opts: KeysetPageOpts): Promise<KeysetPage<AuditEventWithUser>>
+  listAdminAudit(opts: ListAdminAuditOpts): Promise<KeysetPage<AdminAuditEventWithOrg>>
   listByTarget(
     opts: ListAuditByTargetOpts,
   ): Promise<{ items: AuditEvent[]; total: number; page: number; pageSize: number }>

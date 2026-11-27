@@ -50,11 +50,10 @@ vi.mock('react-i18next', () => ({
       if (key === 'admin.teams.colUsage') return 'Storage'
       if (key === 'admin.teams.activeEntitlements') return 'Active grants'
       if (key === 'admin.teams.backToTeams') return 'Back to teams'
-      if (key === 'admin.users.prevPage') return 'Previous'
-      if (key === 'admin.users.nextPage') return 'Next'
-      if (key === 'admin.users.pageInfo') return `Page ${values?.page} of ${values?.total}`
-      if (key === 'admin.users.pageSize') return 'Rows per page'
-      if (key === 'admin.users.pageSizeOption') return `${values?.count} / page`
+      if (key === 'common.previousPage') return 'Previous'
+      if (key === 'common.nextPage') return 'Next'
+      if (key === 'common.rowsPerPage') return 'Rows per page'
+      if (key === 'common.pageSizeOption') return `${values?.count} / page`
       if (key === 'admin.audit.eventType') return 'Event type'
       if (key === 'admin.audit.timeRange') return 'Time range'
       if (key === 'admin.audit.allEvents') return 'All events'
@@ -201,13 +200,8 @@ function entitlement(overrides: Partial<OrgQuotaEntitlement> = {}): OrgQuotaEnti
   }
 }
 
-function auditPage(page: number, items: AdminAuditEvent[], total = items.length, pageSize = 20) {
-  return {
-    items,
-    total,
-    page,
-    pageSize,
-  }
+function auditPage(items: AdminAuditEvent[], nextPageToken: string | null = null) {
+  return { items, nextPageToken }
 }
 
 function allowAuditLogs() {
@@ -258,19 +252,23 @@ describe('Admin team detail activity', () => {
   it('calls listAdminAuditLogs with the route org id filter', async () => {
     allowAuditLogs()
     mockBaseQueries()
-    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage(1, [auditEvent()]))
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage([auditEvent()]))
 
     renderTeamDetailPage()
 
-    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, { orgId: 'route-org-1' }))
+    await waitFor(() =>
+      expect(listAdminAuditLogs).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 20 }, { orgId: 'route-org-1' }),
+    )
   })
 
   it('renders Activity and Entitlement tabs in order and pages activity results', async () => {
     allowAuditLogs()
     mockBaseQueries()
-    vi.mocked(listAdminAuditLogs)
-      .mockResolvedValueOnce(auditPage(1, [auditEvent()], 21))
-      .mockResolvedValueOnce(auditPage(2, [auditEvent({ id: 'audit-2', targetName: 'page-two.pdf' })], 21))
+    vi.mocked(listAdminAuditLogs).mockImplementation(async ({ pageToken } = {}) =>
+      pageToken
+        ? auditPage([auditEvent({ id: 'audit-2', targetName: 'page-two.pdf' })])
+        : auditPage([auditEvent()], 'tok-2'),
+    )
 
     const user = userEvent.setup()
     renderTeamDetailPage()
@@ -283,29 +281,39 @@ describe('Admin team detail activity', () => {
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
     expect(await screen.findByText(/page-two\.pdf/)).toBeTruthy()
-    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith(2, 20, { orgId: 'route-org-1' }))
+    await waitFor(() =>
+      expect(listAdminAuditLogs).toHaveBeenCalledWith({ pageToken: 'tok-2', pageSize: 20 }, { orgId: 'route-org-1' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(await screen.findByText(/contract\.pdf/)).toBeTruthy()
+    expect(screen.queryByText(/page-two\.pdf/)).toBeNull()
   })
 
   it('filters activity by event type and time range while preserving the route org id and resetting pagination', async () => {
     allowAuditLogs()
     mockBaseQueries()
-    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage(1, [auditEvent()], 21))
+    vi.mocked(listAdminAuditLogs).mockResolvedValue(auditPage([auditEvent()], 'tok-2'))
 
     const user = userEvent.setup()
     renderTeamDetailPage()
 
     expect(await screen.findByText(/contract\.pdf/)).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    await waitFor(() => expect(listAdminAuditLogs).toHaveBeenCalledWith(2, 20, { orgId: 'route-org-1' }))
+    await waitFor(() =>
+      expect(listAdminAuditLogs).toHaveBeenCalledWith({ pageToken: 'tok-2', pageSize: 20 }, { orgId: 'route-org-1' }),
+    )
 
     await user.click(screen.getByRole('combobox', { name: 'Event type' }))
     await user.click(await screen.findByRole('option', { name: 'copied' }))
 
     await waitFor(() =>
-      expect(listAdminAuditLogs).toHaveBeenCalledWith(1, 20, {
-        orgId: 'route-org-1',
-        action: 'object_copy',
-      }),
+      expect(listAdminAuditLogs).toHaveBeenCalledWith(
+        { pageToken: undefined, pageSize: 20 },
+        {
+          orgId: 'route-org-1',
+          action: 'object_copy',
+        },
+      ),
     )
 
     await user.click(screen.getByRole('combobox', { name: 'Time range' }))
@@ -313,8 +321,7 @@ describe('Admin team detail activity', () => {
 
     await waitFor(() =>
       expect(listAdminAuditLogs).toHaveBeenCalledWith(
-        1,
-        20,
+        { pageToken: undefined, pageSize: 20 },
         expect.objectContaining({
           orgId: 'route-org-1',
           action: 'object_copy',
@@ -328,11 +335,11 @@ describe('Admin team detail activity', () => {
   it('renders activity empty and error states', async () => {
     allowAuditLogs()
     mockBaseQueries()
-    vi.mocked(listAdminAuditLogs).mockResolvedValueOnce(auditPage(1, []))
+    vi.mocked(listAdminAuditLogs).mockResolvedValueOnce(auditPage([]))
 
     const emptyView = renderTeamDetailPage()
     expect(await screen.findByText('No activity yet')).toBeTruthy()
-    expect(screen.getByText('Page 1 of 1')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy()
     emptyView.unmount()
     cleanup()
 
@@ -342,7 +349,7 @@ describe('Admin team detail activity', () => {
 
     renderTeamDetailPage()
     expect(await screen.findByText('Failed to load activity')).toBeTruthy()
-    expect(screen.queryByText('Page 1 of 1')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
   })
 
   it('renders the activity loading state', async () => {
@@ -377,7 +384,7 @@ describe('Admin team detail activity', () => {
     })
     vi.mocked(listAdminAuditLogs).mockImplementation(() =>
       Promise.resolve(
-        auditPage(1, [
+        auditPage([
           revoked
             ? auditEvent({ id: 'audit-after-revoke', targetName: 'after-revoke.pdf' })
             : auditEvent({ targetName: 'before-revoke.pdf' }),
@@ -399,7 +406,7 @@ describe('Admin team detail activity', () => {
     await waitFor(() => expect(revokeOrgEntitlement).toHaveBeenCalledWith('route-org-1', 'entitlement-1'))
     await waitFor(() => {
       const postRevokeActivityCalls = vi.mocked(listAdminAuditLogs).mock.calls.slice(initialActivityCalls)
-      expect(postRevokeActivityCalls).toContainEqual([1, 20, { orgId: 'route-org-1' }])
+      expect(postRevokeActivityCalls).toContainEqual([{ pageToken: undefined, pageSize: 20 }, { orgId: 'route-org-1' }])
     })
     await user.click(screen.getByRole('tab', { name: 'Activity' }))
     expect(await screen.findByText(/after-revoke\.pdf/)).toBeTruthy()

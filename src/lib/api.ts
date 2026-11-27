@@ -55,6 +55,7 @@ import type {
   AdminDashboardStorageStats,
   AdminDashboardTrafficStats,
   AdminOverview,
+  AdminUserListItem,
   Announcement,
   AuditEvent,
   AuthProvider,
@@ -145,20 +146,28 @@ export function getSiteConfig() {
   return unwrap<SiteConfig>(configzApi.index.$get())
 }
 
+export type CursorPageRequest = { pageToken?: string; pageSize?: number }
+
+function cursorQuery(opts: CursorPageRequest): { pageSize: string; pageToken?: string } {
+  return { pageSize: String(opts.pageSize ?? 20), ...(opts.pageToken ? { pageToken: opts.pageToken } : {}) }
+}
+
 export function getStorageUsage() {
   return unwrap<StorageUsageResponse>(storageUsageApi.index.$get())
 }
 
 export function listStorageUsageItems(
   category: StorageUsageCategory,
-  page = 1,
-  pageSize = 20,
-  sortBy: StorageUsageSortField = 'size',
-  sortDir: StorageUsageSortDirection = 'desc',
+  opts: CursorPageRequest & { sortBy?: StorageUsageSortField; sortDir?: StorageUsageSortDirection } = {},
 ) {
-  return unwrap<PaginatedResponse<StorageUsageItem>>(
+  return unwrap<CursorPage<StorageUsageItem>>(
     storageUsageApi.items.$get({
-      query: { category, page: String(page), pageSize: String(pageSize), sortBy, sortDir },
+      query: {
+        category,
+        sortBy: opts.sortBy ?? 'size',
+        sortDir: opts.sortDir ?? 'desc',
+        ...cursorQuery(opts),
+      },
     }),
   )
 }
@@ -720,8 +729,8 @@ export interface TeamSummary {
   createdAt: number
 }
 
-export function listTeams() {
-  return unwrap<{ items: TeamSummary[]; total: number }>(adminTeams.index.$get())
+export function listTeams(opts: CursorPageRequest = {}) {
+  return unwrap<CursorPage<TeamSummary>>(adminTeams.index.$get({ query: cursorQuery(opts) }))
 }
 
 export function getTeam(orgId: string) {
@@ -851,10 +860,8 @@ export interface InviteCode {
   createdAt: string
 }
 
-export function listInviteCodes(page = 1, pageSize = 20) {
-  return unwrap<{ items: InviteCode[]; total: number }>(
-    inviteCodes.index.$get({ query: { page: String(page), pageSize: String(pageSize) } }),
-  )
+export function listInviteCodes(opts: CursorPageRequest = {}) {
+  return unwrap<CursorPage<InviteCode>>(inviteCodes.index.$get({ query: cursorQuery(opts) }))
 }
 
 export function generateInviteCodes(count: number, expiresInDays?: number) {
@@ -869,10 +876,8 @@ export function deleteInviteCode(id: string) {
 
 // Site Invitations API
 
-export function listSiteInvitations(page = 1, pageSize = 20) {
-  return unwrap<{ items: SiteInvitation[]; total: number }>(
-    adminSiteInvitations.index.$get({ query: { page: String(page), pageSize: String(pageSize) } }),
-  )
+export function listSiteInvitations(opts: CursorPageRequest = {}) {
+  return unwrap<CursorPage<SiteInvitation>>(adminSiteInvitations.index.$get({ query: cursorQuery(opts) }))
 }
 
 export function createSiteInvitation(email: string) {
@@ -927,15 +932,22 @@ export function testImageDomainProvider() {
 
 export type { PublicUser }
 
+export function listUsers(opts: CursorPageRequest & { search?: string } = {}) {
+  const search = opts.search?.trim()
+  return unwrap<CursorPage<AdminUserListItem>>(
+    users.index.$get({ query: { ...cursorQuery(opts), ...(search ? { q: search } : {}) } }),
+  )
+}
+
 export function getProfile(username: string) {
   return unwrap<PublicProfile>(users[':username'].$get({ param: { username } }))
 }
 
 // Teams Activity API
 
-export function listTeamActivities(teamId: string, page = 1, pageSize = 20) {
-  return unwrap<PaginatedResponse<AuditEvent>>(
-    teamsApi[':teamId'].activity.$get({ param: { teamId }, query: { page: String(page), pageSize: String(pageSize) } }),
+export function listTeamActivities(teamId: string, opts: CursorPageRequest = {}) {
+  return unwrap<CursorPage<AuditEvent>>(
+    teamsApi[':teamId'].activity.$get({ param: { teamId }, query: cursorQuery(opts) }),
   )
 }
 
@@ -1616,16 +1628,13 @@ export interface AdminAuditFilter {
   createdTo?: string
 }
 
-export function listAdminAuditLogs(page = 1, pageSize = 20, filter: AdminAuditFilter = {}) {
-  const query: Record<string, string> = {
-    page: String(page),
-    pageSize: String(pageSize),
-  }
+export function listAdminAuditLogs(opts: CursorPageRequest = {}, filter: AdminAuditFilter = {}) {
+  const query: Record<string, string> = cursorQuery(opts)
   if (filter.orgId) query.orgId = filter.orgId
   if (filter.userId) query.userId = filter.userId
   if (filter.action) query.action = filter.action
   if (filter.targetType) query.targetType = filter.targetType
   if (filter.createdFrom) query.createdFrom = filter.createdFrom
   if (filter.createdTo) query.createdTo = filter.createdTo
-  return unwrap<PaginatedResponse<AdminAuditEvent>>(adminAuditApi.index.$get({ query }))
+  return unwrap<CursorPage<AdminAuditEvent>>(adminAuditApi.index.$get({ query }))
 }

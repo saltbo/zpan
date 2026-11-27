@@ -98,7 +98,7 @@ beforeEach(() => {
     items: [{ orgId: 'org-1', name: 'Personal', type: 'personal', role: 'owner' }],
     total: 1,
   })
-  vi.mocked(listStorageUsageItems).mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 20 })
+  vi.mocked(listStorageUsageItems).mockResolvedValue({ items: [], nextPageToken: null })
   vi.mocked(deleteIhostImage).mockResolvedValue(undefined)
   vi.mocked(deleteObject).mockResolvedValue(undefined)
   vi.mocked(purgeTrashObject).mockResolvedValue(undefined)
@@ -123,7 +123,14 @@ describe('StoragePage', () => {
     renderPage()
     const photos = await screen.findAllByText('storage.category.photos')
     fireEvent.click(photos[1])
-    await waitFor(() => expect(listStorageUsageItems).toHaveBeenCalledWith('photos', 1, 20, 'size', 'desc'))
+    await waitFor(() =>
+      expect(listStorageUsageItems).toHaveBeenCalledWith('photos', {
+        pageToken: undefined,
+        pageSize: 20,
+        sortBy: 'size',
+        sortDir: 'desc',
+      }),
+    )
     expect(screen.getByText('storage.manageFilesTitle')).toBeTruthy()
   })
 
@@ -141,18 +148,107 @@ describe('StoragePage', () => {
           source: 'files',
         },
       ],
-      total: 1,
-      page: 1,
-      pageSize: 20,
+      nextPageToken: null,
     })
     renderPage()
     const photos = await screen.findAllByText('storage.category.photos')
     fireEvent.click(photos[1])
     fireEvent.click(await screen.findByText('storage.columnName'))
 
-    await waitFor(() => expect(listStorageUsageItems).toHaveBeenCalledWith('photos', 1, 20, 'name', 'asc'))
+    await waitFor(() =>
+      expect(listStorageUsageItems).toHaveBeenCalledWith('photos', {
+        pageToken: undefined,
+        pageSize: 20,
+        sortBy: 'name',
+        sortDir: 'asc',
+      }),
+    )
     fireEvent.click(await screen.findByText('storage.columnName'))
-    await waitFor(() => expect(listStorageUsageItems).toHaveBeenCalledWith('photos', 1, 20, 'name', 'desc'))
+    await waitFor(() =>
+      expect(listStorageUsageItems).toHaveBeenCalledWith('photos', {
+        pageToken: undefined,
+        pageSize: 20,
+        sortBy: 'name',
+        sortDir: 'desc',
+      }),
+    )
+  })
+
+  it('pages a category with the previous response token and returns with Previous', async () => {
+    const item = (id: string, name: string) => ({
+      id,
+      name,
+      path: `Photos/${name}`,
+      parentPath: 'Photos',
+      type: 'image/jpeg',
+      size: 100,
+      updatedAt: '2026-07-23T00:00:00.000Z',
+      source: 'files' as const,
+    })
+    vi.mocked(listStorageUsageItems).mockImplementation(async (_category, opts) =>
+      opts?.pageToken === 'tok-2'
+        ? { items: [item('photo-2', 'two.jpg')], nextPageToken: null }
+        : { items: [item('photo-1', 'one.jpg')], nextPageToken: 'tok-2' },
+    )
+
+    renderPage()
+    const photos = await screen.findAllByText('storage.category.photos')
+    fireEvent.click(photos[1])
+    expect(await screen.findByText('/Photos/one.jpg')).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'common.previousPage' }) as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.nextPage' }))
+    expect(await screen.findByText('/Photos/two.jpg')).toBeTruthy()
+    expect(listStorageUsageItems).toHaveBeenLastCalledWith('photos', {
+      pageToken: 'tok-2',
+      pageSize: 20,
+      sortBy: 'size',
+      sortDir: 'desc',
+    })
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'common.nextPage' }) as HTMLButtonElement).disabled).toBe(true),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.previousPage' }))
+    expect(await screen.findByText('/Photos/one.jpg')).toBeTruthy()
+    expect(screen.queryByText('/Photos/two.jpg')).toBeNull()
+  })
+
+  it('returns to the first page when the sort changes', async () => {
+    const item = (id: string, name: string) => ({
+      id,
+      name,
+      path: `Photos/${name}`,
+      parentPath: 'Photos',
+      type: 'image/jpeg',
+      size: 100,
+      updatedAt: '2026-07-23T00:00:00.000Z',
+      source: 'files' as const,
+    })
+    vi.mocked(listStorageUsageItems).mockImplementation(async (_category, opts) =>
+      opts?.pageToken === 'tok-2'
+        ? { items: [item('photo-2', 'two.jpg')], nextPageToken: null }
+        : { items: [item('photo-1', 'one.jpg')], nextPageToken: 'tok-2' },
+    )
+
+    renderPage()
+    const photos = await screen.findAllByText('storage.category.photos')
+    fireEvent.click(photos[1])
+    await screen.findByText('/Photos/one.jpg')
+    fireEvent.click(screen.getByRole('button', { name: 'common.nextPage' }))
+    await screen.findByText('/Photos/two.jpg')
+
+    fireEvent.click(screen.getByText('storage.columnName'))
+
+    await waitFor(() =>
+      expect(listStorageUsageItems).toHaveBeenLastCalledWith('photos', {
+        pageToken: undefined,
+        pageSize: 20,
+        sortBy: 'name',
+        sortDir: 'asc',
+      }),
+    )
+    expect(await screen.findByText('/Photos/one.jpg')).toBeTruthy()
   })
 
   it('shows the full path and opens the containing folder', async () => {
@@ -169,9 +265,7 @@ describe('StoragePage', () => {
           source: 'files',
         },
       ],
-      total: 1,
-      page: 1,
-      pageSize: 20,
+      nextPageToken: null,
     })
 
     renderPage()
@@ -216,9 +310,7 @@ describe('StoragePage', () => {
           source: 'files',
         },
       ],
-      total: 2,
-      page: 1,
-      pageSize: 20,
+      nextPageToken: null,
     })
 
     renderPage()
@@ -252,9 +344,7 @@ describe('StoragePage', () => {
           source,
         },
       ],
-      total: 1,
-      page: 1,
-      pageSize: 20,
+      nextPageToken: null,
     })
 
     renderPage()

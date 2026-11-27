@@ -5,7 +5,16 @@ import zh from './locales/zh.json'
 const enLocale = en as Record<string, string>
 const zhLocale = zh as Record<string, string>
 
-const NEW_COMMON_KEYS = ['common.close', 'common.sidebar', 'common.sidebarDescription', 'common.toggleSidebar']
+const NEW_COMMON_KEYS = [
+  'common.close',
+  'common.sidebar',
+  'common.sidebarDescription',
+  'common.toggleSidebar',
+  'common.rowsPerPage',
+  'common.pageSizeOption',
+  'common.previousPage',
+  'common.nextPage',
+]
 
 describe('common locale keys — presence', () => {
   for (const key of NEW_COMMON_KEYS) {

@@ -787,8 +787,8 @@ describe('Admin audit API with new event types', () => {
 
     const res = await app.request('/api/site/audit-events?action=site_quotas_update', { headers: admin })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<{ action: string }>; total: number }
-    expect(body.total).toBeGreaterThan(0)
+    const body = (await res.json()) as { items: Array<{ action: string }> }
+    expect(body.items.length).toBeGreaterThan(0)
     expect(body.items.every((e) => e.action === 'site_quotas_update')).toBe(true)
   })
 
@@ -805,8 +805,8 @@ describe('Admin audit API with new event types', () => {
 
     const res = await app.request('/api/site/audit-events?targetType=site_settings', { headers: admin })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<{ targetType: string }>; total: number }
-    expect(body.total).toBeGreaterThan(0)
+    const body = (await res.json()) as { items: Array<{ targetType: string }> }
+    expect(body.items.length).toBeGreaterThan(0)
     expect(body.items.every((e) => e.targetType === 'site_settings')).toBe(true)
   })
 

@@ -1,9 +1,19 @@
-import { isTeamOrgLike } from '@shared/org-slugs'
-import { and, count, eq, inArray } from 'drizzle-orm'
+import { isTeamOrgLike, LEGACY_PERSONAL_ORG_SLUG_PREFIX } from '@shared/org-slugs'
+import { and, count, desc, eq, inArray, notLike, sql } from 'drizzle-orm'
 import { member, organization, user } from '../../db/auth-schema'
 import type { Database } from '../../platform/interface'
 import type { TeamRepo, TeamSummary } from '../../usecases/ports'
+import { afterCreatedAtId, keysetPage } from './keyset'
 import { createQuotaRepo } from './quota'
+
+// SQL form of isTeamOrgLike, so personal orgs never take a slot in a team page.
+function teamOrgCondition() {
+  const metadataType = sql`CASE WHEN json_valid(${organization.metadata}) THEN json_extract(${organization.metadata}, '$.type') END`
+  return and(
+    notLike(organization.slug, `${LEGACY_PERSONAL_ORG_SLUG_PREFIX}%`),
+    sql`(${metadataType} IS NULL OR ${metadataType} <> 'personal')`,
+  )
+}
 
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
@@ -43,21 +53,22 @@ export function createTeamRepo(db: Database): TeamRepo {
   const quota = createQuotaRepo(db)
 
   return {
-    async listTeams() {
-      const rows = await db
+    async listTeams({ pageSize, after }) {
+      const found = await db
         .select({
           id: organization.id,
           name: organization.name,
           slug: organization.slug,
-          metadata: organization.metadata,
           logo: organization.logo,
           createdAt: organization.createdAt,
         })
         .from(organization)
-        .orderBy(organization.name)
-      const teamRows = rows.filter(isTeamOrgLike)
+        .where(and(teamOrgCondition(), afterCreatedAtId(organization.createdAt, organization.id, after)))
+        .orderBy(desc(organization.createdAt), desc(organization.id))
+        .limit(pageSize + 1)
+      const { rows: teamRows, next } = keysetPage(found, pageSize, (row) => ({ createdAt: row.createdAt, id: row.id }))
 
-      if (teamRows.length === 0) return []
+      if (teamRows.length === 0) return { items: [], nextBoundary: null }
 
       const orgIds = teamRows.map((r) => r.id)
       const quotas = await quota.getEffectiveQuotasByOrg(orgIds)
@@ -75,7 +86,7 @@ export function createTeamRepo(db: Database): TeamRepo {
       const memberByOrg = new Map(memberChunks.flat().map((r) => [r.orgId, r.total]))
       const owners = await listOwnerNames(db, orgIds)
 
-      return teamRows.map((r) => {
+      const items = teamRows.map((r) => {
         const q = quotas.get(r.id)
         return {
           id: r.id,
@@ -89,6 +100,7 @@ export function createTeamRepo(db: Database): TeamRepo {
           createdAt: r.createdAt.getTime(),
         } satisfies TeamSummary
       })
+      return { items, nextBoundary: next }
     },
 
     async getTeam(orgId) {

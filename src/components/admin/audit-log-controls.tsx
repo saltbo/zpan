@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { AdminAuditFilter } from '@/lib/api'
 
@@ -156,62 +155,6 @@ export function AuditLogFilters({
             ))}
           </SelectContent>
         </Select>
-      </div>
-    </div>
-  )
-}
-
-interface AuditPaginationProps {
-  page: number
-  pageSize: number
-  total: number
-  disabled?: boolean
-  onPageChange: (page: number) => void
-  onPageSizeChange: (pageSize: number) => void
-}
-
-export function AuditPagination({
-  page,
-  pageSize,
-  total,
-  disabled = false,
-  onPageChange,
-  onPageSizeChange,
-}: AuditPaginationProps) {
-  const { t } = useTranslation()
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span>{t('admin.users.pageSize')}</span>
-        <Select value={String(pageSize)} onValueChange={(value) => onPageSizeChange(Number(value))} disabled={disabled}>
-          <SelectTrigger className="h-8 w-32" aria-label={t('admin.users.pageSize')}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {AUDIT_PAGE_SIZE_OPTIONS.map((option) => (
-              <SelectItem key={option} value={String(option)}>
-                {t('admin.users.pageSizeOption', { count: option })}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" size="sm" disabled={disabled || page <= 1} onClick={() => onPageChange(page - 1)}>
-          {t('admin.users.prevPage')}
-        </Button>
-        <span className="text-sm text-muted-foreground">{t('admin.users.pageInfo', { page, total: totalPages })}</span>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={disabled || page >= totalPages}
-          onClick={() => onPageChange(page + 1)}
-        >
-          {t('admin.users.nextPage')}
-        </Button>
       </div>
     </div>
   )

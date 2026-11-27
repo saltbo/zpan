@@ -52,16 +52,92 @@ describe('storage usage breakdown projection', () => {
       })
     }
 
-    const byName = await usage.listItems(orgId, 'documents', 1, 2, 'name', 'asc')
+    const byName = await usage.listItems(orgId, { category: 'documents', pageSize: 2, sortBy: 'name', sortDir: 'asc' })
     expect(byName.items.map((item) => item.name)).toEqual(['alpha.pdf', 'bravo.pdf'])
     expect(byName.items[0]).toMatchObject({
       path: 'Reports/2026/alpha.pdf',
       parentPath: 'Reports/2026',
     })
-    expect(byName.total).toBe(3)
+    expect(byName.nextBoundary).toMatchObject({ value: 'bravo.pdf' })
 
-    const bySize = await usage.listItems(orgId, 'documents', 1, 3, 'size', 'desc')
+    const bySize = await usage.listItems(orgId, { category: 'documents', pageSize: 3, sortBy: 'size', sortDir: 'desc' })
     expect(bySize.items.map((item) => item.size)).toEqual([30, 20, 10])
+    expect(bySize.nextBoundary).toBeNull()
+  })
+
+  it.each([
+    ['name', 'asc'],
+    ['name', 'desc'],
+    ['size', 'asc'],
+    ['size', 'desc'],
+    ['updatedAt', 'asc'],
+    ['updatedAt', 'desc'],
+  ] as const)('pages category items sorted by %s %s without repeating or skipping rows', async (sortBy, sortDir) => {
+    const { db, orgId } = await setup()
+    const usage = createStorageUsageBreakdownRepo(db)
+    const matter = createMatterRepo(db)
+
+    // Names differ only by case and sizes repeat, so the id tie-breaker decides the order.
+    const names = ['Alpha.pdf', 'alpha.pdf', 'beta.pdf', 'Beta.pdf', 'gamma.pdf', 'delta.pdf', 'epsilon.pdf']
+    for (const [index, name] of names.entries()) {
+      await matter.create({
+        orgId,
+        name,
+        type: 'application/pdf',
+        size: (index % 3) * 10,
+        dirtype: DirType.FILE,
+        parent: index % 2 === 0 ? '' : 'sub',
+        object: `${index}-${name}`,
+        storageId: 'storage-1',
+        status: ObjectStatus.ACTIVE,
+      })
+    }
+
+    const full = await usage.listItems(orgId, { category: 'documents', pageSize: 100, sortBy, sortDir })
+    expect(full.items).toHaveLength(names.length)
+    expect(full.nextBoundary).toBeNull()
+
+    const seen: string[] = []
+    let after: { value: string | number; id: string } | undefined
+    for (let i = 0; i < 10; i++) {
+      const page = await usage.listItems(orgId, { category: 'documents', pageSize: 2, sortBy, sortDir, after })
+      seen.push(...page.items.map((item) => item.id))
+      if (!page.nextBoundary) break
+      after = page.nextBoundary
+    }
+    expect(seen).toEqual(full.items.map((item) => item.id))
+    expect(new Set(seen).size).toBe(names.length)
+  })
+
+  it('pages image hosting items for each sort field and direction', async () => {
+    const { db, orgId } = await setup()
+    const usage = createStorageUsageBreakdownRepo(db)
+    const now = Date.now()
+    for (let i = 0; i < 5; i++) {
+      await db.run(sql`
+        INSERT INTO image_hostings (
+          id, org_id, token, path, storage_id, storage_key, size, mime, status, access_count, created_at
+        ) VALUES (
+          ${`img-${i}`}, ${orgId}, ${`tok-${i}`}, ${`dir/${i % 2 === 0 ? 'A' : 'a'}${i}.png`}, 'storage-1',
+          ${`key-${i}`}, ${(i % 2) * 5}, 'image/png', 'active', 0, ${now + (i % 3) * 1000}
+        )
+      `)
+    }
+    for (const sortBy of ['name', 'size', 'updatedAt'] as const) {
+      for (const sortDir of ['asc', 'desc'] as const) {
+        const full = await usage.listItems(orgId, { category: 'image_hosting', pageSize: 100, sortBy, sortDir })
+        expect(full.items).toHaveLength(5)
+        const seen: string[] = []
+        let after: { value: string | number; id: string } | undefined
+        for (let i = 0; i < 10; i++) {
+          const page = await usage.listItems(orgId, { category: 'image_hosting', pageSize: 2, sortBy, sortDir, after })
+          seen.push(...page.items.map((item) => item.id))
+          if (!page.nextBoundary) break
+          after = page.nextBoundary
+        }
+        expect(seen).toEqual(full.items.map((item) => item.id))
+      }
+    }
   })
 
   it('initializes new spaces and moves file bytes through active, trash, restore, and purge', async () => {
