@@ -648,7 +648,7 @@ func (w *TaskRunner) uploadAndComplete(
 	}
 	if cache.fills() {
 		// The server completed the task by instant transfer.
-		log.Info("task completed through the torrent cache", "info_hash", cache.registration.InfoHash)
+		log.Info("task completed by instant transfer", "info_hash", cache.registration.InfoHash)
 		w.retainOrCleanup(ctx, log, task, result)
 		return
 	}

@@ -62,7 +62,7 @@ export const REMOTE_DOWNLOAD_API_KEY_PERMISSIONS = {
 
 // A StremThru key lives in third-party addon configuration, so it carries no
 // ZPan API scope at all: only the /stremthru Store API accepts it, verified by
-// its template (docs/design/torrent-cache.md §12).
+// its template (docs/design/torrents.md §12).
 export const STREMTHRU_API_KEY_PERMISSIONS = { stremthru: ['store'] } satisfies ApiKeyPermissions
 
 export const API_KEY_TEMPLATE_PERMISSIONS = {

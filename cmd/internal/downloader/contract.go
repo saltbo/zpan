@@ -278,7 +278,7 @@ var ErrTorrentMetadataPending = errors.New("torrent metadata is not resolved yet
 
 // TorrentMetadataSource is an engine that can hand over a torrent task's
 // .torrent file, during the download and after it finished. A downloader whose
-// engine is one reports the torrent-cache capability.
+// engine is one reports the torrent fill capability.
 type TorrentMetadataSource interface {
 	TorrentMetadata(ctx context.Context, task DownloadTask) ([]byte, error)
 }

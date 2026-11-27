@@ -1,6 +1,6 @@
 import { z } from '@hono/zod-openapi'
 
-// Admin view of the instance torrent cache (docs/design/torrent-cache.md §9, §11).
+// Admin view of the instance's torrents (docs/design/torrents.md §9, §11).
 
 const int64 = () => z.number().int().min(0).openapi({ type: 'integer', format: 'int64' })
 
@@ -31,7 +31,7 @@ export const adminTorrentSchema = z
 
 export type AdminTorrent = z.infer<typeof adminTorrentSchema>
 
-export const torrentCacheSettingsSchema = z
+export const torrentSettingsSchema = z
   .object({
     retentionDays: z
       .number()
@@ -42,11 +42,11 @@ export const torrentCacheSettingsSchema = z
       .nullable()
       .describe('Total cache size above which unheld torrents are evicted oldest first; null for no limit'),
   })
-  .openapi('TorrentCacheSettings')
+  .openapi('TorrentSettings')
 
-export type TorrentCacheSettings = z.infer<typeof torrentCacheSettingsSchema>
+export type TorrentSettings = z.infer<typeof torrentSettingsSchema>
 
-export const replaceTorrentCacheSettingsSchema = z.object({
+export const replaceTorrentSettingsSchema = z.object({
   retentionDays: z.number().int().min(1).max(3650),
   capacityBytes: z
     .number()
@@ -57,4 +57,4 @@ export const replaceTorrentCacheSettingsSchema = z.object({
     .openapi({ type: 'integer', format: 'int64' }),
 })
 
-export type ReplaceTorrentCacheSettingsInput = z.infer<typeof replaceTorrentCacheSettingsSchema>
+export type ReplaceTorrentSettingsInput = z.infer<typeof replaceTorrentSettingsSchema>

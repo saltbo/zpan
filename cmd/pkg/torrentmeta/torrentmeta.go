@@ -1,5 +1,5 @@
 // Package torrentmeta reads the info dictionary out of torrent metadata. The
-// torrent cache keys a torrent by the SHA-1 of its bencoded info dictionary, so
+// instance keys a torrent by the SHA-1 of its bencoded info dictionary, so
 // the dictionary is returned byte for byte as it appears in the file.
 package torrentmeta
 

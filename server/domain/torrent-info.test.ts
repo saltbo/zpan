@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildTorrent, fileBytes } from '../test/torrent-fixture'
 import { encodeBencode } from './bencode'
-import { isR2Storage, samplePieces } from './torrent-cache'
 import {
   parseMagnetInfoHash,
   parseTorrentInfo,
@@ -10,6 +9,7 @@ import {
   TorrentInfoError,
   torrentFileMime,
 } from './torrent-info'
+import { isR2Storage, samplePieces } from './torrents'
 
 describe('parseTorrentInfo', () => {
   it('reads a single-file torrent as one file named after the torrent', () => {
@@ -62,7 +62,7 @@ describe('parseMagnetInfoHash', () => {
   })
 })
 
-describe('torrent cache helpers', () => {
+describe('torrent helpers', () => {
   it('detects R2 storages by provider or endpoint', () => {
     expect(isR2Storage({ provider: 'cloudflare-r2', endpoint: 'https://s3.example.com' })).toBe(true)
     expect(isR2Storage({ provider: '', endpoint: 'https://abc.r2.cloudflarestorage.com' })).toBe(true)

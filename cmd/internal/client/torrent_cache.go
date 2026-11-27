@@ -103,43 +103,6 @@ func (c *Client) AbortTorrentFileUpload(ctx context.Context, token string, taskI
 	return expectStatus("DELETE", path, res.StatusCode(), res.Body, http.StatusNoContent)
 }
 
-func (c *Client) CreateTorrentSidecarUpload(ctx context.Context, token string, taskID string, n int, size int64) (TorrentUpload, error) {
-	path := "/api/downloads/tasks/" + taskID + "/torrent/sidecars/" + strconv.Itoa(n) + "/uploads"
-	data, err := jsonBody(map[string]int64{"size": size})
-	if err != nil {
-		return TorrentUpload{}, err
-	}
-	res, err := c.api.CreateTorrentSidecarUploadWithBodyWithResponse(ctx, taskID, n, "application/json", data, bearer(token))
-	if err != nil {
-		return TorrentUpload{}, err
-	}
-	var out TorrentUpload
-	return out, decodeStatus("POST", path, res.StatusCode(), res.Body, &out, http.StatusCreated)
-}
-
-func (c *Client) CompleteTorrentSidecarUpload(ctx context.Context, token string, taskID string, n int) error {
-	path := "/api/downloads/tasks/" + taskID + "/torrent/sidecars/" + strconv.Itoa(n) + "/completions"
-	res, err := c.api.CompleteTorrentSidecarUploadWithResponse(ctx, taskID, n, bearer(token))
-	if err != nil {
-		return err
-	}
-	return expectStatus("POST", path, res.StatusCode(), res.Body, http.StatusOK)
-}
-
-// PutTaskTorrentLayout stores the upload layout of a scraped cache download.
-func (c *Client) PutTaskTorrentLayout(ctx context.Context, token string, taskID string, layout any) error {
-	path := "/api/downloads/tasks/" + taskID + "/torrent/layout"
-	data, err := jsonBody(layout)
-	if err != nil {
-		return err
-	}
-	res, err := c.api.PutTaskTorrentLayoutWithBodyWithResponse(ctx, taskID, "application/json", data, bearer(token))
-	if err != nil {
-		return err
-	}
-	return expectStatus("PUT", path, res.StatusCode(), res.Body, http.StatusOK)
-}
-
 // CompleteTaskTorrent completes a cache download; the server finishes the task
 // by instant transfer and returns it.
 func (c *Client) CompleteTaskTorrent(ctx context.Context, token string, taskID string, files []TorrentFile) (DownloadTask, error) {

@@ -1,9 +1,9 @@
-// The admin Torrents page (docs/design/torrent-cache.md §9, §11): every cached
+// The admin Torrents page (docs/design/torrents.md §9, §11): every cached
 // torrent with its holders, evicting one by hand, and the eviction policy.
 
 import type { Deps } from '../deps'
 import { type AdminTorrentRecord, conflict, type KeysetPage, type KeysetPageOpts, msg, notFound } from '../ports'
-import { deleteClaimedTorrent, loadTorrentCachePolicy, TORRENT_CACHE_OPTION_KEYS } from './eviction'
+import { deleteClaimedTorrent, loadTorrentPolicy, TORRENT_OPTION_KEYS } from './eviction'
 
 export function listCachedTorrents(
   deps: Pick<Deps, 'torrents'>,
@@ -53,21 +53,21 @@ export async function evictCachedTorrent(
   await deps.storageUsage.reconcileStorages([torrent.storageId])
 }
 
-export interface TorrentCacheSettings {
+export interface TorrentSettings {
   retentionDays: number
   capacityBytes: number | null
 }
 
-export function getTorrentCacheSettings(deps: Pick<Deps, 'systemOptions'>): Promise<TorrentCacheSettings> {
-  return loadTorrentCachePolicy(deps)
+export function getTorrentSettings(deps: Pick<Deps, 'systemOptions'>): Promise<TorrentSettings> {
+  return loadTorrentPolicy(deps)
 }
 
-export async function replaceTorrentCacheSettings(
+export async function replaceTorrentSettings(
   deps: Pick<Deps, 'systemOptions'>,
-  input: TorrentCacheSettings,
-): Promise<TorrentCacheSettings> {
-  await deps.systemOptions.set(TORRENT_CACHE_OPTION_KEYS.retentionDays, String(input.retentionDays))
-  if (input.capacityBytes === null) await deps.systemOptions.delete(TORRENT_CACHE_OPTION_KEYS.capacityBytes)
-  else await deps.systemOptions.set(TORRENT_CACHE_OPTION_KEYS.capacityBytes, String(input.capacityBytes))
-  return loadTorrentCachePolicy(deps)
+  input: TorrentSettings,
+): Promise<TorrentSettings> {
+  await deps.systemOptions.set(TORRENT_OPTION_KEYS.retentionDays, String(input.retentionDays))
+  if (input.capacityBytes === null) await deps.systemOptions.delete(TORRENT_OPTION_KEYS.capacityBytes)
+  else await deps.systemOptions.set(TORRENT_OPTION_KEYS.capacityBytes, String(input.capacityBytes))
+  return loadTorrentPolicy(deps)
 }

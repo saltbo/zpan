@@ -37,10 +37,8 @@ func TestTorrentCacheCallsUseTheCacheAPI(t *testing.T) {
 			_, _ = w.Write([]byte(`{"outcome":"fill","infoHash":"abc","name":"Show","files":[{"fileIdx":0,"path":"a.mkv","size":4}]}`))
 		case strings.HasSuffix(r.URL.Path, "/torrent/completions"):
 			_, _ = w.Write([]byte(`{"id":"t1","status":{"state":"completed"}}`))
-		case strings.HasSuffix(r.URL.Path, "/torrent/layout"):
-			_, _ = w.Write([]byte(`{"entries":1}`))
 		default:
-			_, _ = w.Write([]byte(`{"fileIdx":0,"n":0,"size":4}`))
+			_, _ = w.Write([]byte(`{"fileIdx":0,"size":4}`))
 		}
 	}))
 	defer server.Close()
@@ -61,15 +59,6 @@ func TestTorrentCacheCallsUseTheCacheAPI(t *testing.T) {
 	if err := c.AbortTorrentFileUpload(ctx, "upload-token", "t1", 0, "up/1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.CreateTorrentSidecarUpload(ctx, "upload-token", "t1", 3, 4); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.CompleteTorrentSidecarUpload(ctx, "upload-token", "t1", 3); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.PutTaskTorrentLayout(ctx, "upload-token", "t1", map[string]any{"version": 1}); err != nil {
-		t.Fatal(err)
-	}
 	task, err := c.CompleteTaskTorrent(ctx, "upload-token", "t1", registration.Files)
 	if err != nil || task.State() != "completed" {
 		t.Fatalf("task = %#v, %v", task, err)
@@ -80,9 +69,6 @@ func TestTorrentCacheCallsUseTheCacheAPI(t *testing.T) {
 		"POST /api/downloads/tasks/t1/torrent/files/0/uploads",
 		"POST /api/downloads/tasks/t1/torrent/files/0/completions",
 		"DELETE /api/downloads/tasks/t1/torrent/files/0/uploads/up/1",
-		"POST /api/downloads/tasks/t1/torrent/sidecars/3/uploads",
-		"POST /api/downloads/tasks/t1/torrent/sidecars/3/completions",
-		"PUT /api/downloads/tasks/t1/torrent/layout",
 		"POST /api/downloads/tasks/t1/torrent/completions",
 	}
 	if strings.Join(calls, "\n") != strings.Join(want, "\n") {
@@ -94,11 +80,8 @@ func TestTorrentCacheCallsUseTheCacheAPI(t *testing.T) {
 	if parts := bodies[want[2]]["parts"].([]any); len(parts) != 1 {
 		t.Fatalf("completion body = %v", bodies[want[2]])
 	}
-	if bodies[want[4]]["size"] != float64(4) {
-		t.Fatalf("sidecar body = %v", bodies[want[4]])
-	}
-	if files := bodies[want[7]]["files"].([]any); len(files) != 1 {
-		t.Fatalf("complete body = %v", bodies[want[7]])
+	if files := bodies[want[4]]["files"].([]any); len(files) != 1 {
+		t.Fatalf("complete body = %v", bodies[want[4]])
 	}
 }
 

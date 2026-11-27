@@ -1,4 +1,4 @@
-import type { AdminTorrent, TorrentCacheSettings } from '@shared/schemas'
+import type { AdminTorrent, TorrentSettings } from '@shared/schemas'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -6,7 +6,7 @@ import type * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { evictCachedTorrent, getTorrentCacheSettings, listCachedTorrents, replaceTorrentCacheSettings } from '@/lib/api'
+import { evictCachedTorrent, getTorrentSettings, listCachedTorrents, replaceTorrentSettings } from '@/lib/api'
 import { Route } from './torrents'
 
 const navigate = vi.fn()
@@ -34,8 +34,8 @@ vi.mock('@/lib/api', async (importOriginal) => {
     ApiError: actual.ApiError,
     listCachedTorrents: vi.fn(),
     evictCachedTorrent: vi.fn(),
-    getTorrentCacheSettings: vi.fn(),
-    replaceTorrentCacheSettings: vi.fn(),
+    getTorrentSettings: vi.fn(),
+    replaceTorrentSettings: vi.fn(),
   }
 })
 
@@ -46,7 +46,7 @@ class TestResizeObserver {
 }
 
 // Server state behind the mocked API, so a remount reads what was saved.
-let savedSettings: TorrentCacheSettings
+let savedSettings: TorrentSettings
 
 function torrent(overrides: Partial<AdminTorrent> = {}): AdminTorrent {
   return {
@@ -84,7 +84,7 @@ function entitled(enabled: boolean) {
     edition: enabled ? 'pro' : 'community',
     licenseId: enabled ? 'license-1' : null,
     cloudDashboardUrl: null,
-    hasFeature: (feature) => enabled && feature === 'torrent_cache',
+    hasFeature: (feature) => enabled && feature === 'torrents',
     isLoading: false,
     isError: false,
   } as ReturnType<typeof useEntitlement>)
@@ -99,8 +99,8 @@ beforeEach(() => {
   search = {}
   entitled(true)
   savedSettings = { retentionDays: 30, capacityBytes: null }
-  vi.mocked(getTorrentCacheSettings).mockImplementation(async () => savedSettings)
-  vi.mocked(replaceTorrentCacheSettings).mockImplementation(async (input) => {
+  vi.mocked(getTorrentSettings).mockImplementation(async () => savedSettings)
+  vi.mocked(replaceTorrentSettings).mockImplementation(async (input) => {
     savedSettings = input
     return input
   })
@@ -114,11 +114,11 @@ afterEach(() => {
 })
 
 describe('Admin Torrents page', () => {
-  it('saves retention and capacity and shows them after a reload [spec: torrent-cache/admin-settings]', async () => {
+  it('saves retention and capacity and shows them after a reload [spec: torrents/admin-settings]', async () => {
     const user = userEvent.setup()
     const first = renderPage()
 
-    const summary = await screen.findByTestId('torrent-cache-settings-summary')
+    const summary = await screen.findByTestId('torrent-settings-summary')
     expect(summary.textContent).toContain('"days":30')
     expect(summary.textContent).toContain('admin.torrents.settings.noCapacity')
 
@@ -131,13 +131,13 @@ describe('Admin Torrents page', () => {
     await user.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() =>
-      expect(replaceTorrentCacheSettings).toHaveBeenCalledWith({ retentionDays: 7, capacityBytes: 2 * 1024 ** 4 }),
+      expect(replaceTorrentSettings).toHaveBeenCalledWith({ retentionDays: 7, capacityBytes: 2 * 1024 ** 4 }),
     )
 
     // Reload: a fresh mount reads the saved settings back from the server.
     first.unmount()
     renderPage()
-    const reloaded = await screen.findByTestId('torrent-cache-settings-summary')
+    const reloaded = await screen.findByTestId('torrent-settings-summary')
     expect(reloaded.textContent).toContain('"days":7')
     expect(reloaded.textContent).toContain('2.0 TB')
   })
@@ -195,13 +195,13 @@ describe('Admin Torrents page', () => {
     expect(await screen.findByRole('button', { name: 'common.retry' })).toBeTruthy()
   })
 
-  it('shows the locked state without the torrent_cache entitlement', async () => {
+  it('shows the locked state without the torrents entitlement', async () => {
     entitled(false)
     renderPage()
 
     expect(await screen.findByText('admin.torrents.upgradeTitle')).toBeTruthy()
     expect(listCachedTorrents).not.toHaveBeenCalled()
-    expect(getTorrentCacheSettings).not.toHaveBeenCalled()
+    expect(getTorrentSettings).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'admin.torrents.settings.open' })).toBeNull()
   })
 })

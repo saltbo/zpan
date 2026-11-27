@@ -1,20 +1,19 @@
-// Instant transfer (闪传): gives a workspace a cached torrent by writing drive file
-// rows whose objects are the cached keys, without copying any bytes
-// (docs/design/torrent-cache.md §4). The workspace is charged quota for the full
-// size; the storage's used bytes do not change, because no bytes landed.
+// Instant transfer (秒传): gives a workspace a torrent already on the instance
+// by writing drive rows whose objects are the torrent's bt/ keys, without
+// copying any bytes (docs/design/torrents.md §5). The workspace is charged
+// quota for the full size; the storage's used bytes do not change, because no
+// bytes landed.
 //
-// A torrent whose first download was scraped carries its upload layout
-// (layout.json), which the transfer replays under the target folder the way the
-// downloader uploads a plan (docs/design/media-library.md#upload-layout): folders
-// are reused by name, a taken video name is renamed (`X (1).mkv`), a sidecar
-// already at its name wins, and the `media` metadata is written once the
-// sidecars exist, with each image path resolved to its matter id. A torrent
-// without a layout is laid out as its own tree.
+// Every torrent_files row is written under the target folder at its
+// layout_path, the way the downloader uploads a scraped plan
+// (docs/design/media-library.md#upload-layout): folders are reused by name, a
+// taken video name is renamed (`X (1).mkv`), a sidecar already at its name
+// wins, and the `media` metadata is written once the sidecars exist, with each
+// sidecar reference resolved to the id of the matter now at it.
 
 import { DirType, ObjectStatus } from '@shared/constants'
-import { type MediaMetadata, mediaMetadataSchema, type TorrentLayout } from '@shared/schemas'
-import { normalizeTorrentFolder, type TorrentStatus, torrentTreeRoot } from '../../domain/torrent-cache'
-import { torrentFileMime } from '../../domain/torrent-info'
+import { type MediaMetadata, mediaMetadataSchema } from '@shared/schemas'
+import { normalizeTorrentFolder, type TorrentStatus } from '../../domain/torrents'
 import type { Deps } from '../deps'
 import {
   type ActorIdentity,
@@ -24,39 +23,13 @@ import {
   notFound,
   quotaExceeded,
   StorageQuotaExceededError,
-  type TorrentExtraObjectRecord,
-  type TorrentFileRecord,
-  type TorrentRecord,
+  type TorrentEntryRecord,
 } from '../ports'
 import { withStorageUsageReservation } from '../storage-usage'
-import { baseName, loadTorrentLayout, stem } from './layout'
 
 export type InstantTransferDeps = Pick<Deps, 'torrents' | 'matter' | 'quota' | 'storageUsage' | 'storages' | 's3'>
 
 export type InstantTransferOutcome = { ok: true; files: Matter[] } | { ok: false; error: AppError }
-
-// What a transfer writes, with paths relative to the target folder.
-interface PlannedFolder {
-  path: string
-  media?: Record<string, unknown>
-}
-
-interface PlannedFile {
-  path: string
-  size: number
-  mime: string
-  object: string
-  // A sidecar: an entry already at its name wins, and it is not a file of the torrent.
-  sidecar: boolean
-  // The video a sidecar is named after.
-  video?: string
-  media?: Record<string, unknown>
-}
-
-interface TransferPlan {
-  folders: PlannedFolder[]
-  files: PlannedFile[]
-}
 
 function joinPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
@@ -67,66 +40,19 @@ function parentOf(path: string): string {
   return slash < 0 ? '' : path.slice(0, slash)
 }
 
-function treePlan(torrent: TorrentRecord, files: readonly TorrentFileRecord[]): TransferPlan {
-  const root = torrentTreeRoot(torrent, files)
-  return {
-    folders: root ? [{ path: root }] : [],
-    files: files.map((file) => ({
-      path: root ? joinPath(root, file.path) : file.path,
-      size: file.size,
-      mime: file.mime,
-      object: file.objectKey,
-      sidecar: false,
-    })),
-  }
+function baseName(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1)
 }
 
-function layoutPlan(
-  layout: TorrentLayout,
-  files: readonly TorrentFileRecord[],
-  sidecars: ReadonlyMap<number, TorrentExtraObjectRecord>,
-): TransferPlan {
-  const byIdx = new Map(files.map((file) => [file.fileIdx, file]))
-  const plan: TransferPlan = { folders: [], files: [] }
-  for (const entry of layout.entries) {
-    if (entry.kind === 'folder') {
-      plan.folders.push({ path: entry.path, media: entry.media })
-      continue
-    }
-    if (entry.kind === 'torrent-file') {
-      const file = byIdx.get(entry.fileIdx) as TorrentFileRecord
-      plan.files.push({
-        path: entry.path,
-        size: file.size,
-        mime: torrentFileMime(entry.path),
-        object: file.objectKey,
-        sidecar: false,
-        media: entry.media,
-      })
-      continue
-    }
-    const sidecar = sidecars.get(entry.sidecar) as TorrentExtraObjectRecord
-    plan.files.push({
-      path: entry.path,
-      size: sidecar.size,
-      mime: torrentFileMime(entry.path),
-      object: sidecar.objectKey,
-      sidecar: true,
-      video: entry.video,
-    })
-  }
-  return plan
-}
-
-// The media with each image path replaced by the id of the matter now at it;
-// an image that did not land is left out. Null when the result is not valid
-// media.
+// The media with each image's entry id replaced by the id of the matter now at
+// it; an image that did not land is left out. Null when the result is not
+// valid media.
 function resolveMedia(media: Record<string, unknown>, ids: ReadonlyMap<string, string>): MediaMetadata | null {
   const resolved: Record<string, unknown> = { ...media }
   for (const field of ['poster', 'fanart', 'still']) {
     const ref = resolved[field]
     if (typeof ref !== 'string') continue
-    const id = ids.get(ref.toLowerCase())
+    const id = ids.get(ref)
     if (id) resolved[field] = id
     else delete resolved[field]
   }
@@ -144,8 +70,8 @@ export async function transferTorrent(
     now?: Date
     // The download task the transfer completes; its files record it.
     taskId?: string
-    // The download that filled the cache gets its files before verification
-    // passes (docs/design/torrent-cache.md §7); every other transfer needs ready.
+    // The download that filled the torrent gets its files before verification
+    // passes (docs/design/torrents.md §7); every other transfer needs ready.
     sourceTaskId?: string
   },
 ): Promise<InstantTransferOutcome> {
@@ -161,11 +87,16 @@ export async function transferTorrent(
   if (!(await deps.torrents.touch(torrent.id, statuses, params.now ?? new Date())))
     return { ok: false, error: notReady }
 
-  const files = await deps.torrents.listFiles(torrent.id)
-  const stored = await loadTorrentLayout(deps, torrent, files)
-  const plan = stored ? layoutPlan(stored.layout, files, stored.sidecars) : treePlan(torrent, files)
+  const entries = await deps.torrents.listEntries(torrent.id)
+  const folderEntries = entries.filter((entry) => entry.kind === 'folder')
+  // Files go before sidecars, so a sidecar never takes a video's name.
+  const objectEntries = entries
+    .filter(
+      (entry): entry is TorrentEntryRecord & { objectKey: string } => entry.kind !== 'folder' && !!entry.objectKey,
+    )
+    .sort((a, b) => Number(a.kind === 'sidecar') - Number(b.kind === 'sidecar'))
   const createdBy: ActorIdentity = { type: 'user', ref: params.userId, issuer: null }
-  const totalBytes = plan.files.reduce((sum, file) => sum + file.size, 0)
+  const totalBytes = objectEntries.reduce((sum, entry) => sum + entry.size, 0)
   const base = normalizeTorrentFolder(params.targetFolder)
   const owner = {
     orgId,
@@ -186,7 +117,7 @@ export async function transferTorrent(
         ctx.onRollback(() => deps.matter.purge(orgId, createdIds))
         // Folder path from the workspace root (lowercase) → its drive path and id.
         const folders = new Map<string, { path: string; id: string; created: boolean }>()
-        // Layout path (lowercase) → id of the matter now at it.
+        // Entry id → id of the matter now at it.
         const ids = new Map<string, string>()
         const full = (path: string) => (path ? joinPath(base, path) : base)
 
@@ -223,62 +154,52 @@ export async function transferTorrent(
 
         // Every folder is settled before any file is written.
         await ensureFolder(base)
-        for (const folder of plan.folders) await ensureFolder(full(folder.path))
-        for (const file of plan.files) await ensureFolder(full(parentOf(file.path)))
+        for (const folder of folderEntries) await ensureFolder(full(folder.layoutPath))
+        for (const entry of objectEntries) await ensureFolder(full(parentOf(entry.layoutPath)))
 
         const matters: Matter[] = []
-        const finalNames = new Map<string, string>()
-        const createdFiles = new Set<string>()
+        const created = new Set<string>()
         let unusedBytes = 0
-        // Sidecars go last: they are named after the name their video was given.
-        const ordered = [...plan.files.filter((file) => !file.sidecar), ...plan.files.filter((file) => file.sidecar)]
-        for (const file of ordered) {
-          const parent = await ensureFolder(full(parentOf(file.path)))
-          const key = file.path.toLowerCase()
-          let name = baseName(file.path)
-          if (file.sidecar && file.video) {
-            const videoName = finalNames.get(file.video.toLowerCase()) ?? baseName(file.video)
-            name = stem(videoName) + name.slice(stem(baseName(file.video)).length)
-          }
-          if (file.sidecar) {
+        for (const entry of objectEntries) {
+          const parent = await ensureFolder(full(parentOf(entry.layoutPath)))
+          const name = baseName(entry.layoutPath)
+          if (entry.kind === 'sidecar') {
             const existing = await deps.matter.findActiveConflict(orgId, parent, name)
             if (existing && existing.dirtype === DirType.FILE) {
-              ids.set(key, existing.id)
-              unusedBytes += file.size
+              ids.set(entry.id, existing.id)
+              unusedBytes += entry.size
               continue
             }
           }
           const matter = await deps.matter.create({
             ...owner,
             name,
-            type: file.mime,
-            size: file.size,
+            type: entry.mime,
+            size: entry.size,
             dirtype: DirType.FILE,
             parent,
-            object: file.object,
+            object: entry.objectKey,
             onConflict: 'rename',
           })
           createdIds.push(matter.id)
-          createdFiles.add(key)
-          ids.set(key, matter.id)
-          finalNames.set(key, matter.name)
-          if (!file.sidecar) matters.push(matter)
+          created.add(entry.id)
+          ids.set(entry.id, matter.id)
+          if (entry.kind === 'file') matters.push(matter)
         }
 
         // Media goes on once the sidecars it references exist. A reused show
         // folder keeps the media an earlier transfer or upload gave it.
-        for (const folder of plan.folders) {
+        for (const folder of folderEntries) {
           if (!folder.media) continue
           const media = resolveMedia(folder.media, ids)
-          const target = folders.get(full(folder.path).toLowerCase())
+          const target = folders.get(full(folder.layoutPath).toLowerCase())
           if (!media || !target) continue
           await deps.matter.setMediaMetadata(orgId, target.id, media, { onlyIfAbsent: !target.created })
         }
-        for (const file of plan.files) {
-          const key = file.path.toLowerCase()
-          if (!file.media || !createdFiles.has(key)) continue
-          const media = resolveMedia(file.media, ids)
-          const id = ids.get(key)
+        for (const entry of objectEntries) {
+          if (!entry.media || !created.has(entry.id)) continue
+          const media = resolveMedia(entry.media, ids)
+          const id = ids.get(entry.id)
           if (media && id) await deps.matter.setMediaMetadata(orgId, id, media, { onlyIfAbsent: false })
         }
         return { matters, unusedBytes }

@@ -1,4 +1,4 @@
-// Builds real v1 torrents for torrent cache tests: file bytes, the bencoded info
+// Builds real v1 torrents for Torrents tests: file bytes, the bencoded info
 // dictionary with SHA-1 piece hashes, its infoHash, and a magnet link.
 
 import { createHash } from 'node:crypto'

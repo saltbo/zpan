@@ -88,12 +88,12 @@ export interface DownloadTaskRecord {
   deletedAt: Date | null
   infoHash: string | null
   torrentId: string | null
-  torrentCacheRole: TorrentCacheRole | null
+  torrentRole: TorrentRole | null
 }
 
-// How a download task uses the torrent cache: 'fill' while its downloader uploads
-// the torrent into the cache, 'join' while it waits for another task's download.
-export type TorrentCacheRole = 'fill' | 'join'
+// How a download task uses Torrents: 'fill' for the task whose download is the
+// torrent's first, 'join' while it waits for another task's download.
+export type TorrentRole = 'fill' | 'join'
 
 export interface CreateDownloaderRecordInput {
   id: string
@@ -225,13 +225,8 @@ export interface DownloadTaskRepo {
   /** Active task whose target is `folderPath` or a descendant of it. */
   findActiveTargetWithin(orgId: string, folderPath: string): Promise<DownloadTaskRecord | null>
   setFields(id: string, fields: UpdateDownloadTaskFields): Promise<void>
-  /** Assigns a queued task; `torrentCacheRole` 'fill' assigns it in cache mode, null in drive mode. */
-  claimQueued(
-    id: string,
-    downloaderId: string,
-    now: Date,
-    options?: { torrentCacheRole?: 'fill' | null },
-  ): Promise<boolean>
+  /** Assigns a queued task; `torrentRole` 'fill' assigns it in cache mode, null in drive mode. */
+  claimQueued(id: string, downloaderId: string, now: Date, options?: { torrentRole?: 'fill' | null }): Promise<boolean>
   /** A user's live tasks of the given source types in a workspace, newest first, with their total. */
   listByCreator(params: {
     orgId: string
@@ -248,7 +243,7 @@ export interface DownloadTaskRepo {
     excludeStatuses: readonly string[]
   }): Promise<DownloadTaskRecord | null>
   /** Tasks attached to a torrent in the given role and statuses. */
-  listByTorrent(torrentId: string, role: TorrentCacheRole, statuses: string[]): Promise<DownloadTaskRecord[]>
+  listByTorrent(torrentId: string, role: TorrentRole, statuses: string[]): Promise<DownloadTaskRecord[]>
   /** Queued tasks joined to a torrent that is no longer pending: not verifying, nor downloading by a live filler. */
   listSettledJoins(limit: number): Promise<DownloadTaskRecord[]>
   delete(id: string, now: Date): Promise<void>
@@ -268,11 +263,11 @@ export interface DownloadTaskRepo {
 export interface UpdateDownloadTaskFields {
   // Appends a scrape_skipped event with this reason; not a column.
   scrapeSkippedReason?: string
-  // Appends a torrent cache event; not a column.
-  torrentCacheEvent?: 'cache_hit' | 'cache_joined'
+  // Appends a torrent event; not a column.
+  torrentEvent?: 'cache_hit' | 'cache_joined'
   infoHash?: string | null
   torrentId?: string | null
-  torrentCacheRole?: TorrentCacheRole | null
+  torrentRole?: TorrentRole | null
   targetFolder?: string
   status?: string
   assignedDownloaderId?: string | null

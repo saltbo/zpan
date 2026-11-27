@@ -1,27 +1,27 @@
 import { describe, expect, it } from 'vitest'
 import {
-  isTorrentCacheKey,
+  isTorrentKey,
   normalizeTorrentFolder,
   selectTorrentsToEvict,
-  torrentFileObjectKey,
+  torrentEntryObjectKey,
   torrentInfoHashOfKey,
   torrentKeyRange,
   torrentTreeRoot,
-} from './torrent-cache'
+} from './torrents'
 
 const DAY = 24 * 60 * 60 * 1000
 const now = new Date('2026-06-01T00:00:00Z')
 const daysAgo = (days: number) => new Date(now.getTime() - days * DAY)
 
-describe('torrent cache keys', () => {
+describe('torrent keys', () => {
   it('recognizes only keys under bt/', () => {
-    expect(isTorrentCacheKey(torrentFileObjectKey('ab', 3))).toBe(true)
-    expect(isTorrentCacheKey('org/user/20260101/token.mkv')).toBe(false)
-    expect(isTorrentCacheKey('ih/org/img.png')).toBe(false)
+    expect(isTorrentKey(torrentEntryObjectKey('ab', 'e1'))).toBe(true)
+    expect(isTorrentKey('org/user/20260101/token.mkv')).toBe(false)
+    expect(isTorrentKey('ih/org/img.png')).toBe(false)
   })
 
-  it('reads the infoHash out of a cache key', () => {
-    expect(torrentInfoHashOfKey(torrentFileObjectKey('ab', 3))).toBe('ab')
+  it('reads the infoHash out of a bt/ key', () => {
+    expect(torrentInfoHashOfKey(torrentEntryObjectKey('ab', 'e1'))).toBe('ab')
     expect(torrentInfoHashOfKey('org/user/20260101/token.mkv')).toBeNull()
     expect(torrentInfoHashOfKey('bt/')).toBeNull()
   })
@@ -30,7 +30,7 @@ describe('torrent cache keys', () => {
     const { from, to } = torrentKeyRange('ab')
     const inRange = (key: string) => key >= from && key < to
     expect(inRange('bt/ab/0')).toBe(true)
-    expect(inRange('bt/ab/layout.json')).toBe(true)
+    expect(inRange('bt/ab/info')).toBe(true)
     expect(inRange('bt/abc/0')).toBe(false)
     expect(inRange('bt/aa/0')).toBe(false)
   })
@@ -63,12 +63,12 @@ describe('selectTorrentsToEvict', () => {
     expect(selected.map((c) => c.id)).toEqual(['old'])
   })
 
-  it('keeps evicting oldest first while the cache exceeds its capacity', () => {
+  it('keeps evicting oldest first while the instance exceeds its capacity', () => {
     const selected = selectTorrentsToEvict(candidates, { now, retentionDays: 30, capacityBytes: 150, totalBytes: 300 })
     expect(selected.map((c) => c.id)).toEqual(['old', 'middle'])
   })
 
-  it('selects nothing while every torrent is recent and the cache fits', () => {
+  it('selects nothing while every torrent is recent and the torrents fit', () => {
     expect(selectTorrentsToEvict(candidates, { now, retentionDays: 60, capacityBytes: 1000, totalBytes: 300 })).toEqual(
       [],
     )

@@ -1,4 +1,4 @@
-import type { TorrentCacheSettings } from '@shared/schemas'
+import type { TorrentSettings } from '@shared/schemas'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -7,7 +7,7 @@ import { AdminFormDrawer, AdminFormField, AdminSwitchField } from '@/components/
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { replaceTorrentCacheSettings } from '@/lib/api'
+import { replaceTorrentSettings } from '@/lib/api'
 import { formLevelError, serverFieldError } from '@/lib/form-errors'
 
 const CAPACITY_UNITS = { GB: 1024 ** 3, TB: 1024 ** 4 } as const
@@ -17,7 +17,7 @@ const SERVER_FIELDS = { retentionDays: 'retentionDays', capacityBytes: 'capacity
 
 type Form = { retentionDays: string; limitCapacity: boolean; capacity: string; unit: CapacityUnit }
 
-function formFromSettings(settings: TorrentCacheSettings): Form {
+function formFromSettings(settings: TorrentSettings): Form {
   const bytes = settings.capacityBytes
   if (bytes === null)
     return { retentionDays: String(settings.retentionDays), limitCapacity: false, capacity: '', unit: 'TB' }
@@ -35,14 +35,14 @@ function isWholeNumberIn(value: string, min: number, max: number): boolean {
   return value.trim() !== '' && Number.isInteger(n) && n >= min && n <= max
 }
 
-export function TorrentCacheSettingsDrawer({
+export function TorrentSettingsDrawer({
   open,
   onOpenChange,
   settings,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  settings: TorrentCacheSettings
+  settings: TorrentSettings
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -50,9 +50,9 @@ export function TorrentCacheSettingsDrawer({
   const [form, setForm] = useState<Form>(initial)
 
   const mutation = useMutation({
-    mutationFn: (input: TorrentCacheSettings) => replaceTorrentCacheSettings(input),
+    mutationFn: (input: TorrentSettings) => replaceTorrentSettings(input),
     onSuccess: (saved) => {
-      queryClient.setQueryData(['admin', 'torrent-cache-settings'], saved)
+      queryClient.setQueryData(['admin', 'torrent-settings'], saved)
       onOpenChange(false)
       toast.success(t('admin.torrents.settings.saved'))
     },
@@ -113,7 +113,7 @@ export function TorrentCacheSettingsDrawer({
       }
     >
       <AdminFormField
-        id="torrentCacheRetentionDays"
+        id="torrentRetentionDays"
         label={t('admin.torrents.settings.retention')}
         help={t('admin.torrents.settings.retentionHelp')}
         required
@@ -123,7 +123,7 @@ export function TorrentCacheSettingsDrawer({
       >
         <div className="flex h-9 w-48 items-center overflow-hidden rounded-md border border-input shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 dark:bg-input/30">
           <Input
-            id="torrentCacheRetentionDays"
+            id="torrentRetentionDays"
             type="number"
             min={1}
             max={3650}
@@ -138,7 +138,7 @@ export function TorrentCacheSettingsDrawer({
       </AdminFormField>
 
       <AdminSwitchField
-        id="torrentCacheLimitCapacity"
+        id="torrentLimitCapacity"
         label={t('admin.torrents.settings.limitCapacity')}
         help={t('admin.torrents.settings.limitCapacityHelp')}
         checked={form.limitCapacity}
@@ -146,14 +146,14 @@ export function TorrentCacheSettingsDrawer({
       />
 
       <AdminFormField
-        id="torrentCacheCapacity"
+        id="torrentCapacity"
         label={t('admin.torrents.settings.capacity')}
         required={form.limitCapacity}
         error={serverError?.field === 'capacity' ? serverError.message : form.capacity ? capacityError : undefined}
       >
         <div className="flex h-9 w-48 items-center overflow-hidden rounded-md border border-input shadow-xs focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 has-disabled:pointer-events-none has-disabled:opacity-50 dark:bg-input/30">
           <Input
-            id="torrentCacheCapacity"
+            id="torrentCapacity"
             type="number"
             min={0}
             step="any"

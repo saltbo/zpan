@@ -1,4 +1,4 @@
-// The StremThru Store API shapes ZPan answers with (docs/design/torrent-cache.md §8).
+// The StremThru Store API shapes ZPan answers with (docs/design/torrents.md §8).
 // Addons such as MediaFusion and Comet speak this protocol, so names, statuses,
 // and error codes follow StremThru rather than ZPan's own API.
 

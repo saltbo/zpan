@@ -4,13 +4,13 @@ import { S3Service } from '../../adapters/gateways/s3.js'
 import { torrentFileMime } from '../../domain/torrent-info.js'
 import { authedHeaders, createTestApp } from '../../test/setup.js'
 import { buildTorrent, fileBytes, type TorrentFixture } from '../../test/torrent-fixture.js'
-import { serveTaskFromCache } from './fill.js'
+import { serveTaskFromTorrents } from './fill.js'
 import { transferTorrent } from './instant-transfer.js'
 import { processTorrentVerify, verifyPieceRange } from './verify.js'
 
 // Four 16 KiB pieces per message, so full verification continues over messages.
-vi.mock('../../domain/torrent-cache', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../domain/torrent-cache')>()),
+vi.mock('../../domain/torrents', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../domain/torrents')>()),
   TORRENT_VERIFY_BATCH_BYTES: 64 * 1024,
 }))
 
@@ -54,13 +54,17 @@ async function personalWorkspace(db: TestApp['db'], email: string) {
   return row
 }
 
-// A torrent whose files were uploaded into the cache, waiting for verification.
+// The object key of a torrent's file entry.
+async function fileKey(deps: TestApp['deps'], torrentId: string, fileIdx: number): Promise<string> {
+  const file = (await deps.torrents.listFiles(torrentId)).find((item) => item.fileIdx === fileIdx)
+  if (!file) throw new Error(`No file ${fileIdx}`)
+  return file.objectKey
+}
+
+// A torrent whose files were uploaded under bt/, waiting for verification.
 async function uploadedTorrent(deps: TestApp['deps'], storageId: string, torrent: TorrentFixture) {
   objects.set(`bt/${torrent.infoHash}/info`, torrent.info)
-  for (const file of torrent.files.filter((item) => !item.padding)) {
-    objects.set(`bt/${torrent.infoHash}/${file.fileIdx}`, file.bytes)
-  }
-  return deps.torrents.create({
+  const row = await deps.torrents.create({
     infoHash: torrent.infoHash,
     storageId,
     name: torrent.name,
@@ -75,6 +79,10 @@ async function uploadedTorrent(deps: TestApp['deps'], storageId: string, torrent
         mime: torrentFileMime(file.path),
       })),
   })
+  for (const file of torrent.files.filter((item) => !item.padding)) {
+    objects.set(await fileKey(deps, row.id, file.fileIdx), file.bytes)
+  }
+  return row
 }
 
 async function runVerify(deps: TestApp['deps'], owner: { orgId: string; userId: string }, torrentId: string) {
@@ -114,7 +122,7 @@ function torrentWithPieces(name: string) {
 }
 
 describe('torrent_verify', () => {
-  it('shares a torrent only after its pieces verify [spec: torrent-cache/verify-pieces]', async () => {
+  it('shares a torrent only after its pieces verify [spec: torrents/verify-pieces]', async () => {
     const { app, db, deps } = await createTestApp()
     await authedHeaders(app, 'verify-owner@example.com')
     await authedHeaders(app, 'verify-other@example.com')
@@ -137,7 +145,7 @@ describe('torrent_verify', () => {
     const badRow = await uploadedTorrent(deps, 'r2-storage', bad)
     const altered = new Uint8Array(bad.files[2].bytes)
     altered[altered.length - 1] ^= 0xff
-    objects.set(`bt/${bad.infoHash}/2`, altered)
+    objects.set(await fileKey(deps, badRow.id, 2), altered)
     // A task from another workspace waits for it.
     const now = new Date()
     await deps.downloadTasks.insert({
@@ -156,7 +164,7 @@ describe('torrent_verify', () => {
       infoHash: bad.infoHash,
       now,
     })
-    expect(await serveTaskFromCache(deps, await deps.downloadTasks.getRecord(other.orgId, 'joined-task'))).toBe(
+    expect(await serveTaskFromTorrents(deps, await deps.downloadTasks.getRecord(other.orgId, 'joined-task'))).toBe(
       'joined',
     )
 
@@ -176,7 +184,7 @@ describe('torrent_verify', () => {
     // finds nothing to serve, and a transfer is refused.
     expect(await deps.downloadTasks.getRecord(other.orgId, 'joined-task')).toMatchObject({
       status: 'failed',
-      errorMessage: 'The cached download failed verification',
+      errorMessage: 'The torrent failed verification',
     })
     const transfer = await transferTorrent(deps, {
       torrentId: badRow.id,
@@ -243,14 +251,22 @@ describe('torrent_verify', () => {
       secretKey: 's',
       forcePathStyle: false,
     }
-    objects.set(`bt/${torrent.infoHash}/0`, torrent.files[0].bytes)
+    const keys = new Map([
+      [0, `bt/${torrent.infoHash}/a`],
+      [1, `bt/${torrent.infoHash}/b`],
+    ])
+    objects.set(`bt/${torrent.infoHash}/a`, torrent.files[0].bytes)
     // b is missing: piece 1 spans a and b.
-    expect(await verifyPieceRange(deps, storage, torrent.infoHash, info, 0, info.pieceCount)).toBe(1)
+    expect(await verifyPieceRange(deps, storage, keys, info, 0, info.pieceCount)).toBe(1)
+    // b has no entry.
+    expect(await verifyPieceRange(deps, storage, new Map([[0, keys.get(0) as string]]), info, 0, info.pieceCount)).toBe(
+      1,
+    )
     // b is short.
-    objects.set(`bt/${torrent.infoHash}/1`, torrent.files[1].bytes.slice(0, 5000))
-    expect(await verifyPieceRange(deps, storage, torrent.infoHash, info, 0, info.pieceCount)).toBe(1)
-    objects.set(`bt/${torrent.infoHash}/1`, torrent.files[1].bytes)
-    expect(await verifyPieceRange(deps, storage, torrent.infoHash, info, 0, info.pieceCount)).toBeNull()
+    objects.set(`bt/${torrent.infoHash}/b`, torrent.files[1].bytes.slice(0, 5000))
+    expect(await verifyPieceRange(deps, storage, keys, info, 0, info.pieceCount)).toBe(1)
+    objects.set(`bt/${torrent.infoHash}/b`, torrent.files[1].bytes)
+    expect(await verifyPieceRange(deps, storage, keys, info, 0, info.pieceCount)).toBeNull()
   })
 
   it('returns the first insert of an infoHash to a concurrent second one', async () => {

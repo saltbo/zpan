@@ -68,12 +68,13 @@ async function activeRows(db: TestApp['db'], orgId: string) {
 }
 
 describe('transferTorrent', () => {
-  it('writes the torrent tree as references to the cached objects without growing storage usage [spec: torrent-cache/instant-transfer]', async () => {
+  it('writes the torrent tree as references to its objects without growing storage usage [spec: torrents/instant-transfer]', async () => {
     const { db, deps } = await createTestApp()
     await seedStorage(db)
     await seedWorkspace(db, 'org-a', 10_000)
     await seedWorkspace(db, 'org-b', 10_000)
     const torrent = await readyTorrent(deps)
+    const keys = (await deps.torrents.listFiles(torrent.id)).map((file) => file.objectKey)
     expect(await storageUsed(db)).toBe(640)
     // An existing torrent folder is reused by name, not duplicated.
     await deps.matter.create({
@@ -103,7 +104,7 @@ describe('transferTorrent', () => {
         name: 'Show.S01E01.mkv',
         parent: 'Media/Show S01',
         dirtype: 0,
-        object: `bt/${'ab'.repeat(20)}/0`,
+        object: keys[0],
         storageId: STORAGE_ID,
         size: 600,
       },
@@ -112,7 +113,7 @@ describe('transferTorrent', () => {
         name: 'Show.S01E01.srt',
         parent: 'Media/Show S01/Subs',
         dirtype: 0,
-        object: `bt/${'ab'.repeat(20)}/1`,
+        object: keys[1],
         storageId: STORAGE_ID,
         size: 40,
       },
@@ -141,7 +142,7 @@ describe('transferTorrent', () => {
     expect(await storageUsed(db)).toBe(640)
   })
 
-  it('fails with the quota error and creates nothing when the torrent does not fit [spec: torrent-cache/transfer-over-quota]', async () => {
+  it('fails with the quota error and creates nothing when the torrent does not fit [spec: torrents/transfer-over-quota]', async () => {
     const { db, deps } = await createTestApp()
     await seedStorage(db)
     await seedWorkspace(db, 'org-small', 500)
@@ -187,5 +188,135 @@ describe('transferTorrent', () => {
       ok: false,
       error: { httpStatus: 404 },
     })
+  })
+
+  it('replays every entry at its layout path, with media naming the files it wrote [spec: torrents/layout-replay]', async () => {
+    const { db, deps } = await createTestApp()
+    await seedStorage(db)
+    await seedWorkspace(db, 'org-a', 10_000)
+    await seedWorkspace(db, 'org-b', 10_000)
+    const show = 'Show (2019)'
+    const season = `${show}/Season 01`
+    const torrent = await deps.torrents.create({
+      infoHash: 'ef'.repeat(20),
+      storageId: STORAGE_ID,
+      name: 'Show.S01.1080p',
+      private: false,
+      status: 'ready',
+      verified: 'full',
+      files: [
+        {
+          fileIdx: 0,
+          path: 'Show.S01E01.1080p.mkv',
+          layoutPath: `${season}/Show.S01E01.1080p.mkv`,
+          size: 600,
+          mime: 'video/x-matroska',
+        },
+        {
+          fileIdx: 1,
+          path: 'Show.S01E02.1080p.mkv',
+          layoutPath: `${season}/Show.S01E02.1080p.mkv`,
+          size: 500,
+          mime: 'video/x-matroska',
+        },
+      ],
+    })
+    const [e01] = await deps.torrents.listFiles(torrent.id)
+    // The scraper's folders and sidecars, with media naming sidecars by entry id.
+    const entry = async (
+      id: string,
+      kind: 'folder' | 'sidecar',
+      layoutPath: string,
+      size = 0,
+      media: Record<string, unknown> | null = null,
+    ) => {
+      const object = kind === 'sidecar' ? `bt/${torrent.infoHash}/${id}` : null
+      await db.run(sql`
+        INSERT INTO torrent_files (id, torrent_id, kind, layout_path, size, mime, storage_id, object_key, media)
+        VALUES (${id}, ${torrent.id}, ${kind}, ${layoutPath}, ${size}, 'image/jpeg', ${STORAGE_ID}, ${object},
+          ${media ? JSON.stringify(media) : null})
+      `)
+    }
+    await entry('poster', 'sidecar', `${show}/poster.jpg`, 30)
+    await entry('thumb', 'sidecar', `${season}/Show.S01E01.1080p-thumb.jpg`, 20)
+    await entry('show', 'folder', show, 0, {
+      kind: 'tvshow',
+      tmdb: { id: 1399, type: 'tv' },
+      title: 'Show',
+      year: 2019,
+      poster: 'poster',
+    })
+    await entry('season', 'folder', season)
+    const episode = { kind: 'episode', tmdb: { id: 1399, type: 'tv' }, season: 1, episode: 1, still: 'thumb' }
+    await db.run(sql`UPDATE torrent_files SET media = ${JSON.stringify(episode)} WHERE id = ${e01.id}`)
+
+    expect(
+      (
+        await transferTorrent(deps, {
+          torrentId: torrent.id,
+          orgId: 'org-a',
+          userId: USER_ID,
+          targetFolder: 'Downloads',
+        })
+      ).ok,
+    ).toBe(true)
+
+    const rows = await db.all<{ id: string; path: string; object: string; metadata: string | null }>(sql`
+      SELECT id, parent || '/' || name AS path, object, metadata FROM matters
+      WHERE org_id = 'org-a' AND status = 'active' AND purged_at IS NULL ORDER BY path
+    `)
+    const pathOf = new Map(rows.map((row) => [row.id, row.path]))
+    const tree = rows.map((row) => {
+      const media = row.metadata ? (JSON.parse(row.metadata) as { media?: Record<string, string> }).media : undefined
+      const image = media?.poster ?? media?.still
+      return { path: row.path, object: row.object, ...(image ? { image: pathOf.get(image) } : {}) }
+    })
+    const bt = `bt/${torrent.infoHash}`
+    expect(tree).toEqual([
+      { path: '/Downloads', object: '' },
+      { path: `Downloads/${show}`, object: '', image: `Downloads/${show}/poster.jpg` },
+      { path: `Downloads/${season}`, object: '' },
+      { path: `Downloads/${season}/Show.S01E01.1080p-thumb.jpg`, object: `${bt}/thumb` },
+      {
+        path: `Downloads/${season}/Show.S01E01.1080p.mkv`,
+        object: e01.objectKey,
+        image: `Downloads/${season}/Show.S01E01.1080p-thumb.jpg`,
+      },
+      { path: `Downloads/${season}/Show.S01E02.1080p.mkv`, object: expect.stringMatching(`^${bt}/`) },
+      { path: `Downloads/${show}/poster.jpg`, object: `${bt}/poster` },
+    ])
+    expect(await orgUsed(db, 'org-a')).toBe(600 + 500 + 30 + 20)
+
+    // A sidecar already at its name wins and is not charged; a taken video name
+    // is renamed.
+    await deps.matter.create({
+      orgId: 'org-b',
+      name: show,
+      type: 'folder',
+      dirtype: 1,
+      object: '',
+      storageId: STORAGE_ID,
+      status: 'active',
+    })
+    await deps.matter.create({
+      orgId: 'org-b',
+      name: 'poster.jpg',
+      type: 'image/jpeg',
+      size: 7,
+      dirtype: 0,
+      parent: show,
+      object: 'org-b/own/poster.jpg',
+      storageId: STORAGE_ID,
+      status: 'active',
+    })
+    await deps.storageUsage.reconcile('org-b', [STORAGE_ID])
+    expect(
+      (await transferTorrent(deps, { torrentId: torrent.id, orgId: 'org-b', userId: USER_ID, targetFolder: '' })).ok,
+    ).toBe(true)
+    const posters = await db.all<{ object: string }>(sql`
+      SELECT object FROM matters WHERE org_id = 'org-b' AND name = 'poster.jpg' AND purged_at IS NULL
+    `)
+    expect(posters).toEqual([{ object: 'org-b/own/poster.jpg' }])
+    expect(await orgUsed(db, 'org-b')).toBe(7 + 600 + 500 + 20)
   })
 })

@@ -1,20 +1,19 @@
-// The torrent_verify background job, check 3 of docs/design/torrent-cache.md §7:
-// the cached bytes are read back from the storage and every piece's SHA-1 is
+// The torrent_verify background job, check 3 of docs/design/torrents.md §7:
+// the torrent's bytes are read back from the storage and every piece's SHA-1 is
 // compared with the info dictionary. Files are concatenated in dictionary order,
 // because pieces span file boundaries; padding files are read as zeros. R2
 // torrents are verified in full, over piece ranges continued in follow-up
 // messages; other storages verify a random sample of 32 pieces.
 
 import type { TorrentVerifyJobRequest } from '@shared/schemas'
+import { parseTorrentInfo, pieceHash, pieceRangeSegments, pieceSize, type TorrentInfo } from '../../domain/torrent-info'
 import {
   isR2Storage,
   samplePieces,
   TORRENT_VERIFY_BATCH_BYTES,
   TORRENT_VERIFY_SAMPLE_PIECES,
-  torrentFileObjectKey,
   torrentInfoObjectKey,
-} from '../../domain/torrent-cache'
-import { parseTorrentInfo, pieceHash, pieceRangeSegments, pieceSize, type TorrentInfo } from '../../domain/torrent-info'
+} from '../../domain/torrents'
 import type { Deps } from '../deps'
 import type { BackgroundJobMessage, S3StorageCredentials, Sha1Hasher } from '../ports'
 import { completeJoinedTasks, failJoinedTasks, type TorrentFillDeps } from './fill'
@@ -26,11 +25,11 @@ type VerifyMessage = BackgroundJobMessage<TorrentVerifyJobRequest>
 const ZERO_CHUNK = new Uint8Array(64 * 1024)
 
 // Hashes pieces [from, to) and returns the first one that does not match, or
-// null when all match.
+// null when all match. `objectKeys` maps each file index to its object.
 export async function verifyPieceRange(
   deps: Pick<Deps, 's3' | 'pieceHasher'>,
   storage: S3StorageCredentials,
-  infoHash: string,
+  objectKeys: ReadonlyMap<number, string>,
   info: TorrentInfo,
   from: number,
   to: number,
@@ -68,9 +67,11 @@ export async function verifyPieceRange(
       continue
     }
     const range = `bytes=${segment.start}-${segment.start + segment.length - 1}`
+    const key = objectKeys.get(segment.fileIdx)
+    if (!key) return piece
     let stream: ReadableStream<Uint8Array>
     try {
-      stream = await deps.s3.getObjectStream(storage, torrentFileObjectKey(infoHash, segment.fileIdx), range)
+      stream = await deps.s3.getObjectStream(storage, key, range)
     } catch {
       return piece
     }
@@ -119,13 +120,15 @@ export async function processTorrentVerify(deps: TorrentVerifyDeps, message: Ver
     if (!storage) throw new Error('Torrent storage not found')
     const info = parseTorrentInfo(await deps.s3.getObjectBytes(storage, torrentInfoObjectKey(torrent.infoHash)))
     const full = !request.sample && isR2Storage(storage)
+    const files = await deps.torrents.listFiles(torrent.id)
+    const objectKeys = new Map(files.map((file) => [file.fileIdx, file.objectKey]))
 
     let mismatch: number | null = null
     if (full) {
       const from = request.resume?.nextPiece ?? 0
       const batch = Math.max(1, Math.floor(TORRENT_VERIFY_BATCH_BYTES / info.pieceLength))
       const to = Math.min(info.pieceCount, from + batch)
-      mismatch = await verifyPieceRange(deps, storage, torrent.infoHash, info, from, to)
+      mismatch = await verifyPieceRange(deps, storage, objectKeys, info, from, to)
       if (mismatch === null && to < info.pieceCount) {
         await deps.backgroundJobs.update(orgId, jobId, {
           progress: { fileCount: to, processedBytes: Math.min(to * info.pieceLength, info.totalLength) },
@@ -135,7 +138,7 @@ export async function processTorrentVerify(deps: TorrentVerifyDeps, message: Ver
       }
     } else {
       for (const piece of samplePieces(info.pieceCount, TORRENT_VERIFY_SAMPLE_PIECES)) {
-        mismatch = await verifyPieceRange(deps, storage, torrent.infoHash, info, piece, piece + 1)
+        mismatch = await verifyPieceRange(deps, storage, objectKeys, info, piece, piece + 1)
         if (mismatch !== null) break
       }
     }
@@ -145,7 +148,7 @@ export async function processTorrentVerify(deps: TorrentVerifyDeps, message: Ver
       await deps.torrents.transition(torrent.id, ['verifying'], 'invalid', { now })
       await failJoinedTasks(deps, torrent, now)
       console.error(
-        `torrent_cache.verify.invalid torrent=${torrent.id} piece=${mismatch} downloader=${torrent.sourceDownloaderId ?? ''}`,
+        `torrents.verify.invalid torrent=${torrent.id} piece=${mismatch} downloader=${torrent.sourceDownloaderId ?? ''}`,
       )
       await deps.backgroundJobs.update(orgId, jobId, {
         status: 'failed',

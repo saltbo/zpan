@@ -8,23 +8,20 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/saltbo/zpan/internal/client"
-	"github.com/saltbo/zpan/pkg/mediascrape"
 	"github.com/saltbo/zpan/pkg/system"
 	"github.com/saltbo/zpan/pkg/torrentmeta"
 )
 
-// A task assigned in cache mode fills the instance-wide torrent cache
-// (docs/design/torrent-cache.md §6). Once the engine has the torrent's metadata
-// the downloader registers its info dictionary; the server answers whether to
-// fill the cache, drop the task because the torrent is cached or being
-// downloaded elsewhere, or upload into the drive as before. A fill uploads each
-// torrent file to its fileIdx, each sidecar the scraper wrote, and the upload
-// plan as the layout, then completes the torrent, and the server finishes the
-// task by instant transfer.
+// A task assigned as a torrent's fill uploads the torrent once for the whole
+// instance (docs/design/torrents.md §4). Once the engine has the torrent's
+// metadata the downloader registers its info dictionary; the server answers
+// whether to fill the torrent, drop the task because the torrent is on the
+// instance or being downloaded elsewhere, or upload into the drive as before. A
+// fill uploads each torrent file by its fileIdx, then completes the torrent, and
+// the server finishes the task by instant transfer.
 
 // torrentCacheAPI is the part of the API a downloader fills the cache through.
 type torrentCacheAPI interface {
@@ -32,15 +29,12 @@ type torrentCacheAPI interface {
 	CreateTorrentFileUpload(ctx context.Context, token string, taskID string, fileIdx int) (client.TorrentUpload, error)
 	AbortTorrentFileUpload(ctx context.Context, token string, taskID string, fileIdx int, uploadID string) error
 	CompleteTorrentFileUpload(ctx context.Context, token string, taskID string, fileIdx int, uploadID *string, parts []client.CompletedObjectUploadPart) error
-	CreateTorrentSidecarUpload(ctx context.Context, token string, taskID string, n int, size int64) (client.TorrentUpload, error)
-	CompleteTorrentSidecarUpload(ctx context.Context, token string, taskID string, n int) error
-	PutTaskTorrentLayout(ctx context.Context, token string, taskID string, layout any) error
 	CompleteTaskTorrent(ctx context.Context, token string, taskID string, files []client.TorrentFile) (client.DownloadTask, error)
 }
 
 // errTaskSettledByCache stops a download whose torrent the cache already holds
 // or another download is filling: the server settled the task.
-var errTaskSettledByCache = errors.New("task settled by the torrent cache")
+var errTaskSettledByCache = errors.New("task settled by the server's torrent")
 
 const registerRetryInterval = 5 * time.Second
 
@@ -70,7 +64,7 @@ type metadataError struct{ err error }
 func (e *metadataError) Error() string { return e.err.Error() }
 func (e *metadataError) Unwrap() error { return e.err }
 
-// torrentCache is the cache state of one running task.
+// torrentCache is the fill state of one running task.
 type torrentCache struct {
 	registration *client.TorrentRegistration
 	lastAttempt  time.Time
@@ -138,12 +132,12 @@ func (w *TaskRunner) registerTorrent(ctx context.Context, log *slog.Logger, task
 		return err
 	})
 	if client.IsStatus(err, http.StatusBadRequest) {
-		log.Warn("torrent cache refused the torrent; uploading into the drive", "error", err)
+		log.Warn("the server will not fill the torrent; uploading into the drive", "error", err)
 		state.useDrive()
 		return nil
 	}
 	if client.IsConflict(err) {
-		log.Warn("the server no longer has this task filling the torrent cache; stopping it", "error", err)
+		log.Warn("the server no longer has this task filling the torrent; stopping it", "error", err)
 		state.registration = &client.TorrentRegistration{Outcome: outcomeReleased}
 		return nil
 	}
@@ -201,44 +195,37 @@ func (w *TaskRunner) registerAfterDownload(ctx context.Context, log *slog.Logger
 // the cache.
 func (w *TaskRunner) dropSettledTask(ctx context.Context, log *slog.Logger, task client.DownloadTask, state *torrentCache) {
 	if err := w.cleanupTerminalTask(ctx, task); err != nil {
-		log.Warn("failed to remove local download of a task settled by the torrent cache", "error", err)
+		log.Warn("failed to remove local download of a task settled by the server's torrent", "error", err)
 	}
-	log.Info("task settled by the torrent cache", "outcome", state.registration.Outcome)
+	log.Info("task settled by the server's torrent", "outcome", state.registration.Outcome)
 }
 
-// uploadToCache uploads a finished download into the torrent cache and
+// uploadToCache uploads a finished download as the torrent's fill and
 // completes it. It returns notices for the task activity.
 func (u *Uploader) uploadToCache(ctx context.Context, log *slog.Logger, task client.DownloadTask, result Result, registration client.TorrentRegistration) ([]string, error) {
 	api, ok := u.api.(torrentCacheAPI)
 	if !ok {
-		return nil, errors.New("API client cannot fill the torrent cache")
+		return nil, errors.New("API client cannot fill torrents")
 	}
 	locals, err := torrentLocalFiles(result, registration)
 	if err != nil {
 		return nil, err
 	}
-	var plan *cacheLayout
 	var notices []string
 	if result.Plan != nil {
-		plan = layoutFromPlan(*result.Plan, locals)
+		// Until one upload path carries the scrape (docs/design/torrents.md §14),
+		// a torrent keeps its own tree.
+		notices = append(notices, "the scraped layout was not kept with the torrent")
 	}
 	progress := &uploadProgress{lastAt: time.Now()}
 	for _, file := range registration.Files {
 		progress.totalBytes += file.Size
-	}
-	if plan != nil {
-		for _, sidecar := range plan.sidecars {
-			progress.totalBytes += sidecar.size
-		}
 	}
 	token := task.UploadToken()
 	for _, file := range registration.Files {
 		if err := u.uploadTorrentFile(ctx, log, api, task, file, locals[file.FileIdx], progress); err != nil {
 			return nil, err
 		}
-	}
-	if plan != nil {
-		notices = append(notices, u.uploadLayout(ctx, log, api, task, *plan, progress)...)
 	}
 	err = callAPI(ctx, log, "complete task torrent", func(ctx context.Context) error {
 		_, err := api.CompleteTaskTorrent(ctx, token, task.ID, registration.Files)
@@ -318,7 +305,7 @@ func (u *Uploader) putPart(ctx context.Context, log *slog.Logger, task client.Do
 		if attempt >= partAttempts || ctx.Err() != nil {
 			return "", err
 		}
-		log.Warn("retrying torrent cache part upload", "part", part.PartNumber, "attempt", attempt, "error", err)
+		log.Warn("retrying torrent part upload", "part", part.PartNumber, "attempt", attempt, "error", err)
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
@@ -326,52 +313,6 @@ func (u *Uploader) putPart(ctx context.Context, log *slog.Logger, task client.Do
 		}
 		delay *= 2
 	}
-}
-
-// uploadLayout uploads the plan's sidecars and then the layout that names
-// them. A failure leaves the torrent without a layout, laid out as its own
-// tree, and is a notice for the task activity.
-func (u *Uploader) uploadLayout(ctx context.Context, log *slog.Logger, api torrentCacheAPI, task client.DownloadTask, plan cacheLayout, progress *uploadProgress) []string {
-	token := task.UploadToken()
-	for _, sidecar := range plan.sidecars {
-		var upload client.TorrentUpload
-		err := callAPI(ctx, log, "create torrent sidecar upload", func(ctx context.Context) error {
-			var err error
-			upload, err = api.CreateTorrentSidecarUpload(ctx, token, task.ID, sidecar.n, sidecar.size)
-			return err
-		})
-		if err == nil {
-			_, err = u.putParts(ctx, log, task, sidecar.localPath, upload, progress)
-		}
-		if err == nil {
-			err = callAPI(ctx, log, "complete torrent sidecar upload", func(ctx context.Context) error {
-				return api.CompleteTorrentSidecarUpload(ctx, token, task.ID, sidecar.n)
-			})
-		}
-		if err != nil {
-			log.Warn("failed to upload sidecar into the torrent cache", "path", sidecar.path, "error", err)
-			return []string{fmt.Sprintf("the scraped layout was not cached: %s: %v", sidecar.path, err)}
-		}
-	}
-	put := func(layout torrentLayout) error {
-		return callAPI(ctx, log, "put task torrent layout", func(ctx context.Context) error {
-			return api.PutTaskTorrentLayout(ctx, token, task.ID, layout)
-		})
-	}
-	err := put(plan.layout)
-	if client.IsStatus(err, http.StatusBadRequest) && plan.layout.hasMedia() {
-		// Media the server cannot take should not cost the folders and sidecars.
-		log.Warn("torrent cache refused the layout's media; caching it without media", "error", err)
-		bare := plan.layout.withoutMedia()
-		if err = put(bare); err == nil {
-			return []string{"media metadata was not cached: the server refused it"}
-		}
-	}
-	if err != nil {
-		log.Warn("failed to cache the scraped layout", "error", err)
-		return []string{fmt.Sprintf("the scraped layout was not cached: %v", err)}
-	}
-	return nil
 }
 
 // torrentLocalFiles finds each torrent file in the finished download by its
@@ -467,189 +408,4 @@ func filesUnder(root string, files []client.TorrentFile) (map[int]string, string
 func isFileOfSize(path string, size int64) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular() && info.Size() == size
-}
-
-// torrentLayout is the upload layout the server stores as layout.json.
-type torrentLayout struct {
-	Version int           `json:"version"`
-	Entries []layoutEntry `json:"entries"`
-}
-
-type layoutEntry struct {
-	Kind    string `json:"kind"`
-	Path    string `json:"path"`
-	FileIdx *int   `json:"fileIdx,omitempty"`
-	Sidecar *int   `json:"sidecar,omitempty"`
-	Video   string `json:"video,omitempty"`
-	Media   any    `json:"media,omitempty"`
-}
-
-func (l torrentLayout) hasMedia() bool {
-	for _, entry := range l.Entries {
-		if entry.Media != nil {
-			return true
-		}
-	}
-	return false
-}
-
-func (l torrentLayout) withoutMedia() torrentLayout {
-	bare := torrentLayout{Version: l.Version, Entries: make([]layoutEntry, len(l.Entries))}
-	for i, entry := range l.Entries {
-		entry.Media = nil
-		bare.Entries[i] = entry
-	}
-	return bare
-}
-
-type layoutSidecar struct {
-	n         int
-	path      string
-	localPath string
-	size      int64
-}
-
-type cacheLayout struct {
-	layout   torrentLayout
-	sidecars []layoutSidecar
-}
-
-// layoutFromPlan turns an upload plan into the cache's layout: plan paths
-// under the plan's folder, the downloaded files by fileIdx, every other file of
-// the plan as a numbered sidecar, and the media the drive upload would have
-// set, with image references written as layout paths.
-func layoutFromPlan(plan UploadPlan, locals map[int]string) *cacheLayout {
-	fileIdx := make(map[string]int, len(locals))
-	for idx, local := range locals {
-		fileIdx[filepath.Clean(local)] = idx
-	}
-	layoutPath := func(p string) string { return joinObjectPath(plan.Folder, p) }
-
-	dirs := map[string]bool{"": true}
-	for _, file := range plan.Files {
-		for dir := planDir(file.Path); dir != "" && !dirs[dir]; dir = planDir(dir) {
-			dirs[dir] = true
-		}
-	}
-	sortedDirs := make([]string, 0, len(dirs))
-	for dir := range dirs {
-		sortedDirs = append(sortedDirs, dir)
-	}
-	sort.Strings(sortedDirs)
-
-	out := &cacheLayout{layout: torrentLayout{Version: 1}}
-	folderAt := map[string]int{}
-	for _, dir := range sortedDirs {
-		folderAt[dir] = len(out.layout.Entries)
-		out.layout.Entries = append(out.layout.Entries, layoutEntry{Kind: "folder", Path: layoutPath(dir)})
-	}
-	entryAt := map[string]int{}
-	for _, file := range plan.Files {
-		entry := layoutEntry{Path: layoutPath(file.Path)}
-		if idx, ok := fileIdx[filepath.Clean(file.LocalPath)]; ok && file.Sidecar == nil && !file.Keep {
-			entry.Kind = "torrent-file"
-			entry.FileIdx = &idx
-		} else {
-			n := len(out.sidecars)
-			entry.Kind = "sidecar"
-			entry.Sidecar = &n
-			if file.Sidecar != nil {
-				entry.Video = layoutPath(file.Sidecar.Video)
-			}
-			out.sidecars = append(out.sidecars, layoutSidecar{n: n, path: file.Path, localPath: file.LocalPath, size: file.Size})
-		}
-		entryAt[file.Path] = len(out.layout.Entries)
-		out.layout.Entries = append(out.layout.Entries, entry)
-	}
-
-	media := planMedia(plan)
-	for planPath, value := range media.videos {
-		if at, ok := entryAt[planPath]; ok && out.layout.Entries[at].Kind == "torrent-file" {
-			out.layout.Entries[at].Media = value
-		}
-	}
-	if media.show != nil {
-		out.layout.Entries[folderAt[""]].Media = media.show
-	}
-	return out
-}
-
-type plannedMedia struct {
-	videos map[string]any
-	show   *tvShowMedia
-}
-
-// planMedia reads the plan's .nfo sidecars the way writeMedia does, with each
-// image named by its layout path instead of a matter id.
-func planMedia(plan UploadPlan) plannedMedia {
-	out := plannedMedia{videos: map[string]any{}}
-	layoutPath := func(p string) string { return joinObjectPath(plan.Folder, p) }
-	sidecars := map[string]map[string]string{}
-	var showNFO *PlannedFile
-	planned := map[string]bool{}
-	for i, file := range plan.Files {
-		planned[file.Path] = true
-		if file.Path == mediascrape.TVShowNFOName {
-			showNFO = &plan.Files[i]
-		}
-		if file.Sidecar == nil {
-			continue
-		}
-		if sidecars[file.Sidecar.Video] == nil {
-			sidecars[file.Sidecar.Video] = map[string]string{}
-		}
-		sidecars[file.Sidecar.Video][file.Sidecar.Suffix] = file.Path
-	}
-	image := func(video string, suffix string) string {
-		if p, ok := sidecars[video][suffix]; ok {
-			return layoutPath(p)
-		}
-		return ""
-	}
-	seriesID := 0
-	if showNFO != nil {
-		if data, err := readNFO(showNFO.LocalPath); err == nil {
-			seriesID = mediascrape.ReadNFOIdentity(string(data)).TMDBID
-		}
-	}
-	for _, file := range plan.Files {
-		nfo, ok := sidecars[file.Path][mediascrape.SuffixNFO]
-		if !file.Video || !ok {
-			continue
-		}
-		local := ""
-		for _, candidate := range plan.Files {
-			if candidate.Path == nfo {
-				local = candidate.LocalPath
-			}
-		}
-		value, err := readVideoMedia(local, seriesID)
-		if err != nil {
-			continue
-		}
-		switch media := value.(type) {
-		case movieMedia:
-			media.Poster = image(file.Path, mediascrape.SuffixPoster)
-			media.Fanart = image(file.Path, mediascrape.SuffixFanart)
-			out.videos[file.Path] = media
-		case episodeMedia:
-			media.Still = image(file.Path, mediascrape.SuffixThumb)
-			out.videos[file.Path] = media
-		}
-	}
-	if showNFO == nil {
-		return out
-	}
-	show, err := readShowMedia(showNFO.LocalPath)
-	if err != nil {
-		return out
-	}
-	if planned[mediascrape.ShowPosterName] {
-		show.Poster = layoutPath(mediascrape.ShowPosterName)
-	}
-	if planned[mediascrape.ShowFanartName] {
-		show.Fanart = layoutPath(mediascrape.ShowFanartName)
-	}
-	out.show = &show
-	return out
 }

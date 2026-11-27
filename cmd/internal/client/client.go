@@ -73,7 +73,7 @@ func (t DownloadTask) UploadToken() string {
 	return t.Status.Assignment.UploadToken
 }
 
-// TorrentCache reports whether the task fills the torrent cache.
+// TorrentCache reports whether the task is assigned as a torrent's fill.
 func (t DownloadTask) TorrentCache() bool {
 	return t.Status.Assignment != nil && t.Status.Assignment.TorrentCache
 }
@@ -117,8 +117,8 @@ type DownloadTaskAssignment struct {
 	DownloaderID string `json:"downloaderId"`
 	AssignedAt   string `json:"assignedAt"`
 	UploadToken  string `json:"uploadToken,omitempty"`
-	// TorrentCache is set when the task is assigned in cache mode: its files go
-	// up through the torrent cache API instead of the object API.
+	// TorrentCache is set when the task is assigned as a torrent's fill: its files go
+	// up through the torrent upload API instead of the object API.
 	TorrentCache bool `json:"torrentCache,omitempty"`
 }
 

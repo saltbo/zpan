@@ -1,4 +1,4 @@
-// Reading a BitTorrent v1 info dictionary (BEP 3) for the torrent cache: its
+// Reading a BitTorrent v1 info dictionary (BEP 3) for Torrents: its
 // files in dictionary order, padding files (BEP 47), and the piece layout that
 // verification walks. Pieces span file boundaries, so a piece is described as the
 // file segments it covers, with padding segments read as zeros.

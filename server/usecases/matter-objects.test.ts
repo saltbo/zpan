@@ -1,12 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  assertMatterContentWritable,
-  chargedStorageId,
-  duplicateMatterObject,
-  releaseMatterObject,
-  releaseMatterObjects,
-} from './matter-objects'
-import { AppError, type S3Gateway, type StorageRecord } from './ports'
+import { chargedStorageId, duplicateMatterObject, releaseMatterObject, releaseMatterObjects } from './matter-objects'
+import type { S3Gateway, StorageRecord } from './ports'
 
 const storageA = { id: 'a' } as StorageRecord
 const storageB = { id: 'b' } as StorageRecord
@@ -84,10 +78,8 @@ describe('duplicateMatterObject', () => {
   })
 })
 
-describe('content writes and charging', () => {
-  it('rejects content writes to cached files and charges their copies to no storage', () => {
-    expect(() => assertMatterContentWritable('bt/ab/0')).toThrow(AppError)
-    expect(() => assertMatterContentWritable('org/u/a.mkv')).not.toThrow()
+describe('charging', () => {
+  it('charges copies of referencing files to no storage', () => {
     expect(chargedStorageId({ object: 'bt/ab/0', storageId: 'a' })).toBeNull()
     expect(chargedStorageId({ object: 'org/u/a.mkv', storageId: 'a' })).toBe('a')
   })

@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../../adapters/gateways/s3.js'
 import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../../test/setup.js'
-import { transferTorrent } from '../../usecases/torrent-cache/instant-transfer.js'
+import { transferTorrent } from '../../usecases/torrents/instant-transfer.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>
 
@@ -23,7 +23,7 @@ beforeEach(() => {
         },
       }) as unknown as ReturnType<S3Service['createClient']>,
   )
-  vi.spyOn(S3Service.prototype, 'listTorrentCacheKeys').mockResolvedValue([])
+  vi.spyOn(S3Service.prototype, 'listTorrentKeys').mockResolvedValue([])
 })
 
 async function setup() {
@@ -95,7 +95,7 @@ type Page = {
 }
 
 describe('Admin torrents API', () => {
-  it('lists cached torrents with holders, status, verification and last access, page by page [spec: torrent-cache/admin-list]', async () => {
+  it('lists cached torrents with holders, status, verification and last access, page by page [spec: torrents/admin-list]', async () => {
     const { app, db, deps, admin } = await setup()
     const now = Date.now()
     await db.run(sql`
@@ -154,7 +154,7 @@ describe('Admin torrents API', () => {
     expect(page2.nextPageToken).toBeNull()
   })
 
-  it('evicts a torrent nobody holds and refuses a held one [spec: torrent-cache/admin-evict]', async () => {
+  it('evicts a torrent nobody holds and refuses a held one [spec: torrents/admin-evict]', async () => {
     const { app, db, deps, admin } = await setup()
     const held = await cachedTorrent(deps, 'a1'.repeat(20))
     const unheld = await cachedTorrent(deps, 'c3'.repeat(20))
@@ -171,13 +171,14 @@ describe('Admin torrents API', () => {
       ).ok,
     ).toBe(true)
 
+    const unheldKeys = (await deps.torrents.listFiles(unheld.id)).map((file) => file.objectKey)
     const evicted = await app.request(`/api/site/torrents/${unheld.id}`, { method: 'DELETE', headers: admin })
     expect(evicted.status).toBe(204)
     expect(await deps.torrents.get(unheld.id)).toBeNull()
     expect(await deps.torrents.listFiles(unheld.id)).toEqual([])
     const deleted = s3Commands.join('\n')
-    expect(deleted).toContain(`bt/${'c3'.repeat(20)}/0`)
-    expect(deleted).toContain(`bt/${'c3'.repeat(20)}/1`)
+    expect(unheldKeys).toHaveLength(2)
+    for (const key of unheldKeys) expect(deleted).toContain(key)
     expect(deleted).toContain(`bt/${'c3'.repeat(20)}/info`)
     expect(deleted).not.toContain('a1a1')
     const [storage] = await db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${STORAGE_ID}`)
@@ -210,27 +211,27 @@ describe('Admin torrents API', () => {
     const { app, admin } = await setup()
     const headers = { ...admin, 'Content-Type': 'application/json' }
 
-    const defaults = await app.request('/api/site/settings/torrent-cache', { headers: admin })
+    const defaults = await app.request('/api/site/settings/torrents', { headers: admin })
     expect(await defaults.json()).toEqual({ retentionDays: 30, capacityBytes: null })
 
-    const saved = await app.request('/api/site/settings/torrent-cache', {
+    const saved = await app.request('/api/site/settings/torrents', {
       method: 'PUT',
       headers,
       body: JSON.stringify({ retentionDays: 7, capacityBytes: 2 * 1024 ** 4 }),
     })
     expect(saved.status).toBe(200)
     expect(await saved.json()).toEqual({ retentionDays: 7, capacityBytes: 2 * 1024 ** 4 })
-    const reread = await app.request('/api/site/settings/torrent-cache', { headers: admin })
+    const reread = await app.request('/api/site/settings/torrents', { headers: admin })
     expect(await reread.json()).toEqual({ retentionDays: 7, capacityBytes: 2 * 1024 ** 4 })
 
-    const cleared = await app.request('/api/site/settings/torrent-cache', {
+    const cleared = await app.request('/api/site/settings/torrents', {
       method: 'PUT',
       headers,
       body: JSON.stringify({ retentionDays: 14, capacityBytes: null }),
     })
     expect(await cleared.json()).toEqual({ retentionDays: 14, capacityBytes: null })
 
-    const invalid = await app.request('/api/site/settings/torrent-cache', {
+    const invalid = await app.request('/api/site/settings/torrents', {
       method: 'PUT',
       headers,
       body: JSON.stringify({ retentionDays: 0, capacityBytes: null }),
@@ -245,8 +246,8 @@ describe('Admin torrents API', () => {
 
     const list = await app.request('/api/site/torrents', { headers: member })
     const evict = await app.request(`/api/site/torrents/${torrent.id}`, { method: 'DELETE', headers: member })
-    const settings = await app.request('/api/site/settings/torrent-cache', { headers: member })
-    const save = await app.request('/api/site/settings/torrent-cache', {
+    const settings = await app.request('/api/site/settings/torrents', { headers: member })
+    const save = await app.request('/api/site/settings/torrents', {
       method: 'PUT',
       headers: { ...member, 'Content-Type': 'application/json' },
       body: JSON.stringify({ retentionDays: 1, capacityBytes: null }),
@@ -256,12 +257,12 @@ describe('Admin torrents API', () => {
     expect(await deps.torrents.get(torrent.id)).not.toBeNull()
   })
 
-  it('answers 402 without the torrent_cache entitlement', async () => {
+  it('answers 402 without the torrents entitlement', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)
 
     const list = await app.request('/api/site/torrents', { headers: admin })
-    const settings = await app.request('/api/site/settings/torrent-cache', { headers: admin })
+    const settings = await app.request('/api/site/settings/torrents', { headers: admin })
 
     expect(list.status).toBe(402)
     expect(settings.status).toBe(402)

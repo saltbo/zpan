@@ -1,4 +1,4 @@
-// The StremThru Store API over the torrent cache (docs/design/torrent-cache.md
+// The StremThru Store API over Torrents (docs/design/torrents.md
 // §8, §10, §12). A `stremthru` API key names one user in one workspace; addons
 // check which infoHashes are cached, add torrents (served by instant transfer
 // when cached), list and remove them, and generate playback links. Removing a
@@ -25,7 +25,7 @@ import {
   torzSource,
   torzStatus,
 } from '../../domain/stremthru'
-import { isTorrentCacheKey, TORRENT_CACHE_PREFIX, torrentTreeRoot } from '../../domain/torrent-cache'
+import { DEFAULT_TORRENT_FOLDER, isTorrentKey, TORRENT_PREFIX, torrentTreeRoot } from '../../domain/torrents'
 import type { Database } from '../../platform/interface'
 import type { Deps } from '../deps'
 import { createDownloadTask, performDownloadTaskAction } from '../downloads/downloads'
@@ -43,7 +43,6 @@ import {
 import { loadBindingState } from '../site/licensing'
 import { confirmDownloadTraffic, meterDownloadTraffic, reverseDownloadTraffic } from '../store/traffic-metering'
 import { createTrafficEventId, recordDownloadIssued } from '../transfer-activity'
-import { getTorrentFolder } from './config'
 
 const TORRENT_SOURCE_TYPES = ['magnet', 'torrent_url'] as const
 const WRITE_ROLES = ['owner', 'admin', 'editor']
@@ -89,7 +88,7 @@ export type TorzListItem = Omit<Torz, 'files' | 'magnet'>
 
 // Resolves the key to its user and workspace. A missing, unknown, or revoked key
 // is UNAUTHORIZED; a key of another template or a user who can no longer write
-// to the workspace is FORBIDDEN; an instance without the torrent_cache
+// to the workspace is FORBIDDEN; an instance without the torrents
 // entitlement is PAYMENT_REQUIRED.
 export async function authenticateStoreCaller(
   deps: Pick<Deps, 'apiKeys' | 'userAdmin' | 'org' | 'licenseBinding' | 'licenseCloudBaseUrl'>,
@@ -113,8 +112,8 @@ export async function authenticateStoreCaller(
   const role = await deps.org.getMemberRole(orgId, userId)
   const canWrite = role ? WRITE_ROLES.includes(role) : (await deps.org.findPersonalOrg(userId)) === orgId
   if (!canWrite) throw new StremThruError('FORBIDDEN', 'The key no longer has access to its workspace')
-  if (!hasFeature('torrent_cache', await loadBindingState(deps))) {
-    throw new StremThruError('PAYMENT_REQUIRED', 'The torrent cache needs a Pro or Business license')
+  if (!hasFeature('torrents', await loadBindingState(deps))) {
+    throw new StremThruError('PAYMENT_REQUIRED', 'Torrents need a Pro or Business license')
   }
   return { keyId: key.id, userId, orgId }
 }
@@ -241,8 +240,9 @@ async function reusableTask(deps: Deps, caller: StoreCaller, infoHash: string): 
   return files.every((file) => held.has(file.objectKey)) ? task : null
 }
 
-// Adds a magnet or .torrent link as a download task into the workspace torrent
-// folder. A ready torrent completes at once by instant transfer.
+// Adds a magnet or .torrent link as a download task into the workspace's Media
+// folder, until StremThru adds land in the Torrents list (docs/design/torrents.md
+// §14). A ready torrent completes at once by instant transfer.
 export async function addTorz(deps: Deps, caller: StoreCaller, link: string | undefined): Promise<Torz> {
   const source = link ? torzSource(link) : null
   if (!source) throw new StremThruError('BAD_REQUEST', 'A magnet link or torrent URL is required')
@@ -251,7 +251,7 @@ export async function addTorz(deps: Deps, caller: StoreCaller, link: string | un
     const existing = await reusableTask(deps, caller, infoHash)
     if (existing) return toTorz(deps, existing)
   }
-  const targetFolder = await getTorrentFolder(deps, caller.orgId)
+  const targetFolder = DEFAULT_TORRENT_FOLDER
   const task = await withStoreErrors(() =>
     createDownloadTask(
       deps,
@@ -377,7 +377,7 @@ async function rootFolder(deps: Deps, orgId: string, parent: string, name: strin
 }
 
 async function holdsOnlyTorrentFiles(deps: Deps, orgId: string, path: string, infoHash: string): Promise<boolean> {
-  const prefix = `${TORRENT_CACHE_PREFIX}${infoHash}/`
+  const prefix = `${TORRENT_PREFIX}${infoHash}/`
   const children = await deps.matter.list(orgId, { parent: path, pageSize: TREE_PAGE_SIZE })
   if (children.nextBoundary) return false
   const nested = await deps.matter.listActiveDescendants(orgId, path)
@@ -409,7 +409,7 @@ export async function generateTorzLink(deps: Deps, params: GenerateLinkParams): 
     matter.status !== 'active' ||
     matter.trashedAt != null ||
     matter.purgedAt != null ||
-    !isTorrentCacheKey(matter.object)
+    !isTorrentKey(matter.object)
   ) {
     throw new StremThruError('NOT_FOUND', 'File not found')
   }
@@ -475,7 +475,7 @@ export async function generateTorzLink(deps: Deps, params: GenerateLinkParams): 
 }
 
 async function touchTorrent(deps: Pick<Deps, 'torrents'>, object: string, now: Date): Promise<void> {
-  const infoHash = object.slice(TORRENT_CACHE_PREFIX.length).split('/')[0]
+  const infoHash = object.slice(TORRENT_PREFIX.length).split('/')[0]
   const torrent = infoHash ? await deps.torrents.getByInfoHash(infoHash) : null
   if (torrent) await deps.torrents.touch(torrent.id, ['ready', 'verifying'], now)
 }

@@ -136,7 +136,7 @@ func (m *Manager) Capabilities() []string {
 }
 
 // TorrentCacheCapability is reported in the heartbeat by a downloader that can
-// fill the torrent cache.
+// fill torrents (docs/design/torrents.md §4).
 const TorrentCacheCapability = "torrent-cache"
 
 // SupportsTorrentCache reports whether the engine that runs magnet tasks can

@@ -13,12 +13,12 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { attachmentContentDisposition } from '@shared/content-disposition'
-import { isTorrentCacheKey } from '../../domain/torrent-cache'
+import { isTorrentKey } from '../../domain/torrents'
 import {
   type S3Gateway,
   S3ObjectNotFoundError,
   type S3StorageCredentials,
-  TorrentCacheDeletionRefusedError,
+  TorrentDeletionRefusedError,
 } from '../../usecases/ports'
 
 const DEFAULT_EXPIRES_IN = 3600
@@ -408,31 +408,31 @@ export class S3Service implements S3Gateway {
     return { ETag: result.ETag ?? `"part-${partNumber}"`, PartNumber: partNumber }
   }
 
-  // Cached torrent bytes are held by many drive files; only eviction may delete
-  // them, through evictTorrentCacheObjects.
+  // Torrent bytes under bt/ are held by many drive files; only eviction may delete
+  // them, through evictTorrentObjects.
   async deleteObject(storage: S3StorageCredentials, key: string): Promise<void> {
-    if (isTorrentCacheKey(key)) throw new TorrentCacheDeletionRefusedError(key)
+    if (isTorrentKey(key)) throw new TorrentDeletionRefusedError(key)
     await this.sendDelete(storage, key)
   }
 
   async deleteObjects(storage: S3StorageCredentials, keys: string[]): Promise<void> {
-    const cached = keys.find(isTorrentCacheKey)
-    if (cached) throw new TorrentCacheDeletionRefusedError(cached)
+    const cached = keys.find(isTorrentKey)
+    if (cached) throw new TorrentDeletionRefusedError(cached)
     // DeleteObjectsCommand returns XML which requires DOMParser to parse.
     // Cloudflare Workers doesn't have DOMParser, so we delete one-by-one.
     await Promise.all(keys.map((key) => this.deleteObject(storage, key)))
   }
 
-  async evictTorrentCacheObjects(storage: S3StorageCredentials, keys: string[]): Promise<void> {
-    const other = keys.find((key) => !isTorrentCacheKey(key))
-    if (other) throw new Error(`Not a torrent cache key: ${other}`)
+  async evictTorrentObjects(storage: S3StorageCredentials, keys: string[]): Promise<void> {
+    const other = keys.find((key) => !isTorrentKey(key))
+    if (other) throw new Error(`Not a torrent key: ${other}`)
     await Promise.all(keys.map((key) => this.sendDelete(storage, key)))
   }
 
   // ListObjectsV2 answers XML, and the SDK's XML parser needs DOMParser, which
   // Cloudflare Workers lacks; so the listing is a presigned GET read by hand.
-  async listTorrentCacheKeys(storage: S3StorageCredentials, prefix: string): Promise<string[]> {
-    if (!isTorrentCacheKey(prefix)) throw new Error(`Not a torrent cache prefix: ${prefix}`)
+  async listTorrentKeys(storage: S3StorageCredentials, prefix: string): Promise<string[]> {
+    if (!isTorrentKey(prefix)) throw new Error(`Not a torrent prefix: ${prefix}`)
     const client = this.createClient(storage)
     const keys: string[] = []
     let token: string | undefined

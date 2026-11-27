@@ -1,61 +1,44 @@
-// Object-key rules for the instance-wide torrent cache (docs/design/torrent-cache.md).
-// Cached bytes live under the reserved prefix `bt/`; a drive file whose object is
-// under it is a reference to the cache, not an owner of the bytes.
+// Object-key rules for Torrents (docs/design/torrents.md). Everything a torrent
+// download stores lives once under the reserved prefix `bt/<infoHash>/`; a drive
+// file whose object is under it references those bytes and does not own them.
 
-import { isTorrentCacheKey, TORRENT_CACHE_PREFIX } from '@shared/constants'
+import { isTorrentKey, TORRENT_PREFIX } from '@shared/constants'
 
-export { isTorrentCacheKey, TORRENT_CACHE_PREFIX }
+export { isTorrentKey, TORRENT_PREFIX }
 
 export const TORRENT_STATUSES = ['downloading', 'verifying', 'ready', 'invalid', 'evicting'] as const
 export type TorrentStatus = (typeof TORRENT_STATUSES)[number]
 
+// Where a StremThru add lands until Torrents lists (docs/design/torrents.md §14).
 export const DEFAULT_TORRENT_FOLDER = 'Media'
-export const DEFAULT_TORRENT_CACHE_RETENTION_DAYS = 30
+export const DEFAULT_TORRENT_RETENTION_DAYS = 30
 
-// The infoHash of the torrent a cache key belongs to, or null for any other key.
+// The infoHash of the torrent a `bt/` key belongs to, or null for any other key.
 export function torrentInfoHashOfKey(key: string): string | null {
-  if (!isTorrentCacheKey(key)) return null
-  const infoHash = key.slice(TORRENT_CACHE_PREFIX.length).split('/')[0]
+  if (!isTorrentKey(key)) return null
+  const infoHash = key.slice(TORRENT_PREFIX.length).split('/')[0]
   return infoHash || null
 }
 
-export function torrentFileObjectKey(infoHash: string, fileIdx: number): string {
-  return `${TORRENT_CACHE_PREFIX}${infoHash}/${fileIdx}`
+// The object of a torrent's file or sidecar entry.
+export function torrentEntryObjectKey(infoHash: string, entryId: string): string {
+  return `${TORRENT_PREFIX}${infoHash}/${entryId}`
 }
 
 export function torrentInfoObjectKey(infoHash: string): string {
-  return `${TORRENT_CACHE_PREFIX}${infoHash}/info`
+  return `${TORRENT_PREFIX}${infoHash}/info`
 }
 
-export const TORRENT_LAYOUT_NAME = 'layout.json'
-
-export function torrentLayoutObjectKey(infoHash: string): string {
-  return torrentExtraObjectKey(infoHash, TORRENT_LAYOUT_NAME)
-}
-
-// A scraper sidecar a cache download stored beside the torrent's files.
-export function torrentSidecarName(n: number): string {
-  return `x/${n}`
-}
-
-// Every object of one torrent lives under this prefix; its sidecars under x/.
+// Every object of one torrent lives under this prefix.
 export function torrentObjectPrefix(infoHash: string): string {
-  return `${TORRENT_CACHE_PREFIX}${infoHash}/`
-}
-
-export function torrentSidecarPrefix(infoHash: string): string {
-  return `${torrentObjectPrefix(infoHash)}x/`
-}
-
-export function torrentExtraObjectKey(infoHash: string, name: string): string {
-  return `${TORRENT_CACHE_PREFIX}${infoHash}/${name}`
+  return `${TORRENT_PREFIX}${infoHash}/`
 }
 
 // The half-open key range [from, to) holding every object of one torrent, so
 // references are counted through the (storage_id, object) index. '0' is the
 // character right after '/'.
 export function torrentKeyRange(infoHash: string): { from: string; to: string } {
-  return { from: `${TORRENT_CACHE_PREFIX}${infoHash}/`, to: `${TORRENT_CACHE_PREFIX}${infoHash}0` }
+  return { from: `${TORRENT_PREFIX}${infoHash}/`, to: `${TORRENT_PREFIX}${infoHash}0` }
 }
 
 // Where a torrent's own tree lands under a target folder: a folder named after
@@ -65,8 +48,14 @@ export function torrentTreeRoot(torrent: { name: string }, files: ReadonlyArray<
   return files.length === 1 && files[0].path === torrent.name ? null : torrent.name
 }
 
+// Where an unscraped download lays out each file of the torrent, relative to
+// the task folder: the torrent's own tree under its root.
+export function torrentTreeLayoutPath(root: string | null, path: string): string {
+  return root ? `${root}/${path}` : path
+}
+
 // Torrents nobody holds, oldest access first, are evicted while either their
-// last access is older than the retention or the cache is over capacity.
+// last access is older than the retention or the instance is over its capacity.
 export function selectTorrentsToEvict<T extends { size: number; lastAccessedAt: Date }>(
   candidates: readonly T[],
   options: { now: Date; retentionDays: number; capacityBytes: number | null; totalBytes: number },
@@ -94,7 +83,7 @@ export function normalizeTorrentFolder(folder: string): string {
 }
 
 // Reading R2 back from Workers has no egress fee, so R2-backed torrents are
-// verified in full; other storages verify a sample (docs/design/torrent-cache.md §7).
+// verified in full; other storages verify a sample (docs/design/torrents.md §7).
 export function isR2Storage(storage: { provider?: string | null; endpoint: string }): boolean {
   if (/(^|[^a-z])r2([^a-z]|$)/i.test(storage.provider ?? '')) return true
   try {

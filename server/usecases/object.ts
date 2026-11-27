@@ -29,7 +29,7 @@ import { assertTaskUploadAllowed } from './downloads/task-upload-guard'
 import {
   chargedStorageId,
   duplicateMatterObject,
-  isTorrentCacheReference,
+  isTorrentReference,
   releaseMatterObject,
   releaseMatterObjects,
 } from './matter-objects'
@@ -1281,9 +1281,7 @@ async function saveFile(
     { quota: deps.quota, storageUsage: deps.storageUsage },
     {
       orgId: targetOrgId,
-      storageId: isTorrentCacheReference(sourceMatter.object, sourceStorage.id, targetStorage.id)
-        ? null
-        : targetStorage.id,
+      storageId: isTorrentReference(sourceMatter.object, sourceStorage.id, targetStorage.id) ? null : targetStorage.id,
       bytes,
       teamQuotaEnabled,
     },

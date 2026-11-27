@@ -6,7 +6,7 @@ import type {
   AdminSiteInvitationsRoute,
   AdminStatsRoute,
   AdminTeamsRoute,
-  AdminTorrentCacheSettingsRoute,
+  AdminTorrentSettingsRoute,
   AdminTorrentsRoute,
   AnnouncementsRoute,
   AuthedSharesRoute,
@@ -38,7 +38,6 @@ import type {
   StorageUsageRoute,
   SystemRoute,
   TeamsRoute,
-  TorrentCacheConfigRoute,
   TrashRoute,
   UserQuotasRoute,
   UsersRoute,
@@ -92,14 +91,13 @@ export const publicSharesApi = hc<PublicSharesRoute>('/api/shares', opts)
 export const authedSharesApi = hc<AuthedSharesRoute>('/api/shares', opts)
 
 export const ihostConfigApi = hc<IhostConfigRoute>('/api/image-hosting/config', opts)
-export const torrentCacheConfigApi = hc<TorrentCacheConfigRoute>('/api/torrent-cache/config', opts)
 export const ihostApi = hc<IhostRoute>('/api/image-hosting', opts)
 export const licensingApi = hc<LicensingRoute>('/api/site/licensing', opts)
 export const licensingAdminApi = hc<LicensingAdminRoute>('/api/site/licensing', opts)
 export const brandingAdminApi = hc<BrandingAdminRoute>('/api/site/settings/branding', opts)
 export const adminAuditApi = hc<AdminAuditRoute>('/api/site/audit-events', opts)
 export const adminTorrentsApi = hc<AdminTorrentsRoute>('/api/site/torrents', opts)
-export const adminTorrentCacheSettingsApi = hc<AdminTorrentCacheSettingsRoute>('/api/site/settings/torrent-cache', opts)
+export const adminTorrentSettingsApi = hc<AdminTorrentSettingsRoute>('/api/site/settings/torrents', opts)
 export const adminOverviewApi = hc<AdminOverviewRoute>('/api/site/analytics', opts)
 export const siteStatsApi = hc<AdminStatsRoute>('/api/site/analytics', opts)
 export const publicSiteInvitations = hc<PublicSiteInvitationsRoute>('/api/site/invitations', opts)

@@ -13,17 +13,13 @@
 // frame it), and the handler wraps it in a Response.
 
 import { DirType, ObjectStatus } from '@shared/constants'
+import { isTorrentKey } from '../domain/torrents'
 import { joinMatterPath } from '../domain/webdav'
 import { assertObjectKeyOwner, buildObjectKey, fileExt } from '../lib/path-template'
 import type { Database } from '../platform/interface'
 import type { Deps } from './deps'
 import { assertFolderNotUsedByDownload } from './downloads/download-folders'
-import {
-  assertMatterContentWritable,
-  chargedStorageId,
-  duplicateMatterObject,
-  releaseMatterObject,
-} from './matter-objects'
+import { chargedStorageId, duplicateMatterObject, releaseMatterObject } from './matter-objects'
 import {
   type ActorIdentity,
   type ApiKeyAuth,
@@ -321,14 +317,16 @@ export async function putWebDavFile(
 ): Promise<PutWebDavOutcome> {
   const { orgId, userId, target, fileName, parent, contentType, contentLength, body } = params
   assertObjectKeyOwner({ orgId, uid: userId })
-  if (target.matter) assertMatterContentWritable(target.matter.object)
   let startedAt = performance.now()
   const storage = target.matter ? await deps.storages.get(target.matter.storageId) : await deps.storages.select()
   params.onTiming?.('storage', performance.now() - startedAt)
   if (!storage) return { ok: false, reason: 'no_storage' }
 
+  // A file that references a torrent's bytes (bt/) gets an object of its own;
+  // bt/ objects are never overwritten (docs/design/torrents.md §6).
+  const references = !!target.matter && isTorrentKey(target.matter.object)
   const objectKey =
-    target.matter?.object && contentLength !== null
+    target.matter?.object && contentLength !== null && !references
       ? target.matter.object
       : buildObjectKey({ uid: userId, orgId, rawExt: fileExt(fileName) })
 
@@ -383,6 +381,9 @@ export async function putWebDavFile(
       return result
     },
   )
+  // The storage never counted the referenced object, so its usage is recounted
+  // with the new object's bytes.
+  if (references) await deps.storageUsage.reconcile(orgId, [storage.id])
   return {
     ok: true,
     status: persisted.status,

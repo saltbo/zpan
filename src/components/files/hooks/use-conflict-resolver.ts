@@ -27,10 +27,9 @@ export function useConflictResolver() {
   const stickyStrategyRef = useRef<ConflictStrategy | 'cancelled' | null>(null)
 
   const prompt = useCallback((request: ConflictRequest): Promise<PromptResult> => {
-    // Honor the user's prior "apply to all" decision without re-prompting,
-    // except a 'replace' that the existing file does not allow.
+    // Honor the user's prior "apply to all" decision without re-prompting.
     const sticky = stickyStrategyRef.current
-    if (sticky && !(sticky === 'replace' && request.readOnly)) {
+    if (sticky) {
       if (sticky === 'cancelled') return Promise.resolve({ cancelled: true, applyToAll: true })
       return Promise.resolve({ strategy: sticky, applyToAll: true })
     }
@@ -101,12 +100,7 @@ export async function withConflictRetry<T>(
     } catch (e) {
       if (!isNameConflictError(e)) throw e
       if (attempt === MAX_CONFLICT_RETRIES) throw e
-      const res = await prompt({
-        kind,
-        name: e.metadata?.conflictingName,
-        showApplyToAll: opts.showApplyToAll,
-        ...(e.metadata?.conflictingReadOnly === 'true' ? { readOnly: true } : {}),
-      })
+      const res = await prompt({ kind, name: e.metadata?.conflictingName, showApplyToAll: opts.showApplyToAll })
       if ('cancelled' in res) return undefined
       strategy = res.strategy
     }

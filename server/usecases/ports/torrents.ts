@@ -1,4 +1,4 @@
-import type { TorrentStatus } from '../../domain/torrent-cache'
+import type { TorrentStatus } from '../../domain/torrents'
 import type { Matter } from './matter'
 import type { KeysetPage, KeysetPageOpts } from './pagination'
 
@@ -19,26 +19,35 @@ export interface TorrentRecord {
   updatedAt: Date
 }
 
-export interface TorrentFileRecord {
+export type TorrentEntryKind = 'file' | 'sidecar' | 'folder'
+
+// One entry of a torrent as its first download uploaded it
+// (docs/design/torrents.md §3): a file of the torrent, a scraper sidecar, or a
+// folder the scraper placed files in.
+export interface TorrentEntryRecord {
+  id: string
   torrentId: string
-  fileIdx: number
-  path: string
+  kind: TorrentEntryKind
+  // file: position in the info dictionary and path inside the torrent.
+  fileIdx: number | null
+  path: string | null
+  // Where the first download put it, relative to the task folder.
+  layoutPath: string
   size: number
   mime: string
   storageId: string
-  objectKey: string
+  // bt/<infoHash>/<id> for files and sidecars, null for folders.
+  objectKey: string | null
+  media: Record<string, unknown> | null
   uploadedAt: Date | null
 }
 
-// A sidecar (x/<n>) or the upload layout (layout.json) stored beside a
-// torrent's files.
-export interface TorrentExtraObjectRecord {
-  torrentId: string
-  name: string
-  size: number
-  storageId: string
+// A file of the torrent's own tree.
+export interface TorrentFileRecord extends TorrentEntryRecord {
+  kind: 'file'
+  fileIdx: number
+  path: string
   objectKey: string
-  uploadedAt: Date
 }
 
 export interface CreateTorrentInput {
@@ -50,7 +59,9 @@ export interface CreateTorrentInput {
   verified?: 'full' | 'sampled' | null
   sourceTaskId?: string | null
   sourceDownloaderId?: string | null
-  files: Array<{ fileIdx: number; path: string; size: number; mime: string }>
+  // The torrent's files. `layoutPath` defaults to the file's place in the
+  // torrent's own tree (under a folder named after the torrent).
+  files: Array<{ fileIdx: number; path: string; layoutPath?: string; size: number; mime: string }>
   now?: Date
 }
 
@@ -63,7 +74,7 @@ export interface EvictionCandidate {
   lastAccessedAt: Date
 }
 
-// A cached torrent as the admin Torrents page lists it.
+// A torrent as the admin Torrents page lists it.
 export interface AdminTorrentRecord extends TorrentRecord {
   // Drive files, live or in trash, that reference the torrent.
   holders: number
@@ -74,13 +85,13 @@ export interface TorrentRepo {
   create(input: CreateTorrentInput): Promise<TorrentRecord>
   get(id: string): Promise<TorrentRecord | null>
   getByInfoHash(infoHash: string): Promise<TorrentRecord | null>
-  // Torrents for the infoHashes that are cached, in no particular order.
+  // Torrents for the infoHashes on the instance, in no particular order.
   listByInfoHashes(infoHashes: readonly string[]): Promise<TorrentRecord[]>
-  // Files for several torrents at once.
+  // Files of several torrents at once, by file index.
   listFilesOf(torrentIds: readonly string[]): Promise<TorrentFileRecord[]>
   // A workspace's live (not trashed) drive files that reference the torrent.
   listWorkspaceReferences(orgId: string, torrent: Pick<TorrentRecord, 'infoHash' | 'storageId'>): Promise<Matter[]>
-  // Inserts the torrent unless its infoHash is already cached; the unique
+  // Inserts the torrent unless its infoHash is already on the instance; the unique
   // info_hash makes a concurrent second insert return the first one.
   createIfAbsent(input: CreateTorrentInput): Promise<{ created: boolean; torrent: TorrentRecord }>
   // Hands a downloading torrent to the download that now fills it.
@@ -95,35 +106,27 @@ export interface TorrentRepo {
   // Records an access on a torrent in one of the statuses; false otherwise.
   touch(id: string, statuses: readonly TorrentStatus[], now: Date): Promise<boolean>
   markFileUploaded(torrentId: string, fileIdx: number, now: Date): Promise<void>
+  // The torrent's own tree: its file entries by file index.
   listFiles(torrentId: string): Promise<TorrentFileRecord[]>
-  // Records a sidecar or the layout stored beside the torrent, replacing an
-  // earlier upload of the same name.
-  saveExtraObject(input: Omit<TorrentExtraObjectRecord, 'objectKey'> & { infoHash: string }): Promise<void>
-  listExtraObjects(torrentId: string): Promise<TorrentExtraObjectRecord[]>
-  getExtraObject(torrentId: string, name: string): Promise<TorrentExtraObjectRecord | null>
-  deleteExtraObjects(torrentId: string): Promise<void>
+  // Every entry of the torrent, files, sidecars, and folders, by layout path.
+  listEntries(torrentId: string): Promise<TorrentEntryRecord[]>
   // Torrents in a final state that no matter row (purged_at IS NULL) references,
   // oldest access first.
   listEvictionCandidates(limit: number): Promise<EvictionCandidate[]>
-  // Sum of total_size over every cached torrent.
+  // Sum of total_size over every torrent.
   totalSize(): Promise<number>
   // Claims a torrent for eviction in one statement that re-counts its references
   // and checks that it was not accessed since it was listed. False when it lost.
   claimForEviction(candidate: EvictionCandidate): Promise<boolean>
-  // Deletes the torrent row, its file rows, and its extra object rows.
+  // Deletes the torrent row and its entry rows.
   delete(id: string): Promise<void>
-  // Every cached torrent, newest first, with its holder count.
+  // Every torrent, newest first, with its holder count.
   listForAdmin(opts: KeysetPageOpts): Promise<KeysetPage<AdminTorrentRecord>>
   // Drive files, live or in trash, that reference the torrent.
   countHolders(id: string): Promise<number>
 }
 
-export interface TorrentCacheConfigRepo {
-  getFolder(orgId: string): Promise<string | null>
-  setFolder(orgId: string, folder: string): Promise<void>
-}
-
-// The playback link last issued to a user for a held file (docs/design/torrent-cache.md §10).
+// The playback link last issued to a user for a held file (docs/design/torrents.md §10).
 export interface IssuedLink {
   url: string
   expiresAt: Date

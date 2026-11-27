@@ -1,7 +1,7 @@
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type { Storage } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { type S3StorageCredentials, TorrentCacheDeletionRefusedError } from '../../usecases/ports'
+import { type S3StorageCredentials, TorrentDeletionRefusedError } from '../../usecases/ports'
 import { S3Service } from './s3.js'
 
 const mockSend = vi.fn()
@@ -505,18 +505,18 @@ describe('S3Service', () => {
     })
   })
 
-  describe('torrent cache keys', () => {
-    it('refuses to delete cached torrent objects outside eviction [spec: torrent-cache/only-eviction-deletes]', async () => {
+  describe('torrent keys', () => {
+    it('refuses to delete cached torrent objects outside eviction [spec: torrents/only-eviction-deletes]', async () => {
       mockSend.mockClear()
       mockSend.mockResolvedValue({ $metadata: {} })
 
-      await expect(service.deleteObject(storage, 'bt/abc/0')).rejects.toBeInstanceOf(TorrentCacheDeletionRefusedError)
+      await expect(service.deleteObject(storage, 'bt/abc/0')).rejects.toBeInstanceOf(TorrentDeletionRefusedError)
       await expect(service.deleteObjects(storage, ['org/u/a.jpg', 'bt/abc/1'])).rejects.toBeInstanceOf(
-        TorrentCacheDeletionRefusedError,
+        TorrentDeletionRefusedError,
       )
       expect(mockSend).not.toHaveBeenCalled()
 
-      await service.evictTorrentCacheObjects(storage, ['bt/abc/0', 'bt/abc/info'])
+      await service.evictTorrentObjects(storage, ['bt/abc/0', 'bt/abc/info'])
       expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'bt/abc/0' } }),
       )
@@ -525,15 +525,13 @@ describe('S3Service', () => {
       )
     })
 
-    it('evicts nothing but torrent cache keys', async () => {
+    it('evicts nothing but torrent keys', async () => {
       mockSend.mockClear()
-      await expect(service.evictTorrentCacheObjects(storage, ['org/u/a.jpg'])).rejects.toThrow(
-        'Not a torrent cache key',
-      )
+      await expect(service.evictTorrentObjects(storage, ['org/u/a.jpg'])).rejects.toThrow('Not a torrent key')
       expect(mockSend).not.toHaveBeenCalled()
     })
 
-    it('lists every key under a torrent cache prefix across pages', async () => {
+    it('lists every key under a torrent prefix across pages', async () => {
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
       vi.mocked(getSignedUrl).mockClear()
       const fetchMock = vi
@@ -550,7 +548,7 @@ describe('S3Service', () => {
         )
       vi.stubGlobal('fetch', fetchMock)
 
-      await expect(service.listTorrentCacheKeys(storage, 'bt/abc/x/')).resolves.toEqual([
+      await expect(service.listTorrentKeys(storage, 'bt/abc/x/')).resolves.toEqual([
         'bt/abc/x/0',
         'bt/abc/x/a&b',
         'bt/abc/x/10',
@@ -562,10 +560,10 @@ describe('S3Service', () => {
       ])
     })
 
-    it('lists nothing but torrent cache prefixes and reports a failed listing', async () => {
-      await expect(service.listTorrentCacheKeys(storage, 'org/')).rejects.toThrow('Not a torrent cache prefix')
+    it('lists nothing but torrent prefixes and reports a failed listing', async () => {
+      await expect(service.listTorrentKeys(storage, 'org/')).rejects.toThrow('Not a torrent prefix')
       vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response('denied', { status: 403 })))
-      await expect(service.listTorrentCacheKeys(storage, 'bt/abc/')).rejects.toThrow('S3 listing failed: 403')
+      await expect(service.listTorrentKeys(storage, 'bt/abc/')).rejects.toThrow('S3 listing failed: 403')
     })
 
     it('tells a missing object apart from a failed read', async () => {

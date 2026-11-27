@@ -47,12 +47,11 @@ import { licensing, licensingAdmin } from './http/site/licensing'
 import { siteSettings } from './http/site/settings'
 import storages from './http/site/storages'
 import system from './http/site/system'
-import { adminTorrentCacheSettings, adminTorrents } from './http/site/torrents'
+import { adminTorrentSettings, adminTorrents } from './http/site/torrents'
 import storageUsage from './http/storage-usage'
 import { cloudStore, cloudStoreWebhooks } from './http/store'
 import stremthru from './http/stremthru'
 import { adminTeams, publicTeams, teams } from './http/teams'
-import { torrentCacheConfig } from './http/torrent-cache'
 import trash from './http/trash'
 import { users } from './http/users'
 import webdav from './http/webdav'
@@ -400,12 +399,11 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/downloads/downloaders', downloaderTasksRoute)
   app.route('/api/image-hosting', ihost)
   app.route('/api/image-hosting/config', ihostConfig)
-  app.route('/api/torrent-cache/config', torrentCacheConfig)
   app.route('/api/site/licensing', licensingAdmin)
   app.route('/api/site/settings/branding', brandingAdmin)
   app.route('/api/site/audit-events', adminAudit)
   app.route('/api/site/torrents', adminTorrents)
-  app.route('/api/site/settings/torrent-cache', adminTorrentCacheSettings)
+  app.route('/api/site/settings/torrents', adminTorrentSettings)
   app.route('/api/site/analytics', adminOverview)
   app.route('/api/site/analytics', adminStats)
   app.route('/api/downloads/downloaders', downloaders)
@@ -525,14 +523,13 @@ export type DownloaderSelfRoute = typeof downloaderSelfRoute
 export type DownloaderTasksRoute = typeof downloaderTasksRoute
 export type IhostRoute = typeof ihost
 export type IhostConfigRoute = typeof ihostConfig
-export type TorrentCacheConfigRoute = typeof torrentCacheConfig
 export type AnnouncementsRoute = typeof announcements
 export type LicensingRoute = typeof licensing
 export type LicensingAdminRoute = typeof licensingAdmin
 export type BrandingAdminRoute = typeof brandingAdmin
 export type AdminAuditRoute = typeof adminAudit
 export type AdminTorrentsRoute = typeof adminTorrents
-export type AdminTorrentCacheSettingsRoute = typeof adminTorrentCacheSettings
+export type AdminTorrentSettingsRoute = typeof adminTorrentSettings
 export type AdminOverviewRoute = typeof adminOverview
 export type AdminStatsRoute = typeof adminStats
 export type StorageUsageRoute = typeof storageUsage

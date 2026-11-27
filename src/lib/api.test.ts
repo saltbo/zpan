@@ -66,7 +66,6 @@ import {
   getOAuthConsentContext,
   getObject,
   getObjectCreator,
-  getObjectTorrent,
   getProfile,
   getSession,
   getShare,
@@ -78,8 +77,7 @@ import {
   getStorage,
   getStorageUsage,
   getTeam,
-  getTorrentCacheConfig,
-  getTorrentCacheSettings,
+  getTorrentSettings,
   getTrashObject,
   getUnreadCount,
   getUserQuota,
@@ -134,8 +132,7 @@ import {
   redeemCloudGiftCard,
   refreshLicense,
   replaceStorage,
-  replaceTorrentCacheConfig,
-  replaceTorrentCacheSettings,
+  replaceTorrentSettings,
   resendSiteInvitation,
   resetBrandingField,
   restoreObject,
@@ -323,25 +320,6 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
 
       await expect(getObjectCreator('missing')).rejects.toThrow('not found')
-    })
-  })
-
-  describe('getObjectTorrent', () => {
-    it('fetches the cached torrent of a file', async () => {
-      const torrent = { infoHash: 'ab'.repeat(20), name: 'Big Buck Bunny', status: 'ready', verified: 'full' }
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(torrent))
-
-      await expect(getObjectTorrent('id1')).resolves.toEqual(torrent)
-
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toBe('/api/objects/id1/torrent')
-      expect(init.method).toBe('GET')
-    })
-
-    it('throws ApiError when the file is not a cached torrent file', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
-
-      await expect(getObjectTorrent('plain')).rejects.toBeInstanceOf(ApiError)
     })
   })
 
@@ -3357,45 +3335,6 @@ describe('api', () => {
     })
   })
 
-  describe('getTorrentCacheConfig', () => {
-    it('calls GET /api/torrent-cache/config and returns the workspace torrent folder', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ folder: 'Media' }))
-
-      const result = await getTorrentCacheConfig()
-
-      expect(result).toEqual({ folder: 'Media' })
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/torrent-cache/config')
-      expect(init.method ?? 'GET').toBe('GET')
-    })
-
-    it('throws ApiError on 401', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
-
-      await expect(getTorrentCacheConfig()).rejects.toBeInstanceOf(ApiError)
-    })
-  })
-
-  describe('replaceTorrentCacheConfig', () => {
-    it('calls PUT /api/torrent-cache/config with the folder and returns the saved settings', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ folder: 'Movies/Incoming' }))
-
-      const result = await replaceTorrentCacheConfig({ folder: 'Movies/Incoming' })
-
-      expect(result).toEqual({ folder: 'Movies/Incoming' })
-      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/torrent-cache/config')
-      expect(init.method).toBe('PUT')
-      expect(JSON.parse(init.body as string)).toEqual({ folder: 'Movies/Incoming' })
-    })
-
-    it('throws ApiError on 403 (insufficient role)', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
-
-      await expect(replaceTorrentCacheConfig({ folder: 'Media' })).rejects.toBeInstanceOf(ApiError)
-    })
-  })
-
   describe('listCachedTorrents', () => {
     const torrent = {
       id: 't-1',
@@ -3452,35 +3391,35 @@ describe('api', () => {
     })
   })
 
-  describe('getTorrentCacheSettings', () => {
-    it('calls GET /api/site/settings/torrent-cache and returns the settings', async () => {
+  describe('getTorrentSettings', () => {
+    it('calls GET /api/site/settings/torrents and returns the settings', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ retentionDays: 30, capacityBytes: null }))
 
-      const result = await getTorrentCacheSettings()
+      const result = await getTorrentSettings()
 
       expect(result).toEqual({ retentionDays: 30, capacityBytes: null })
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site/settings/torrent-cache')
+      expect(url).toContain('/api/site/settings/torrents')
       expect(init.method ?? 'GET').toBe('GET')
     })
 
     it('throws ApiError on 403', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
 
-      await expect(getTorrentCacheSettings()).rejects.toBeInstanceOf(ApiError)
+      await expect(getTorrentSettings()).rejects.toBeInstanceOf(ApiError)
     })
   })
 
-  describe('replaceTorrentCacheSettings', () => {
-    it('calls PUT /api/site/settings/torrent-cache with the settings', async () => {
+  describe('replaceTorrentSettings', () => {
+    it('calls PUT /api/site/settings/torrents with the settings', async () => {
       const settings = { retentionDays: 7, capacityBytes: 1024 ** 4 }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(settings))
 
-      const result = await replaceTorrentCacheSettings(settings)
+      const result = await replaceTorrentSettings(settings)
 
       expect(result).toEqual(settings)
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
-      expect(url).toContain('/api/site/settings/torrent-cache')
+      expect(url).toContain('/api/site/settings/torrents')
       expect(init.method).toBe('PUT')
       expect(JSON.parse(init.body as string)).toEqual(settings)
     })
@@ -3488,9 +3427,7 @@ describe('api', () => {
     it('throws ApiError on 400', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Invalid' }, false, 400))
 
-      await expect(replaceTorrentCacheSettings({ retentionDays: 0, capacityBytes: null })).rejects.toBeInstanceOf(
-        ApiError,
-      )
+      await expect(replaceTorrentSettings({ retentionDays: 0, capacityBytes: null })).rejects.toBeInstanceOf(ApiError)
     })
   })
 
