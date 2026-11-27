@@ -117,6 +117,7 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
           exclude: ['**/*.integration.test.ts'],
+          setupFiles: ['./src/test/auth-client-cleanup.ts'],
         },
       },
       {

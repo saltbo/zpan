@@ -35,6 +35,7 @@ import { Route as AuthenticatedAdminAuditRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authenticated/admin/dashboard'
 import { Route as AuthenticatedAdminDownloadersRouteImport } from './routes/_authenticated/admin/downloaders'
 import { Route as AuthenticatedAdminLicensingRouteImport } from './routes/_authenticated/admin/licensing'
+import { Route as AuthenticatedAdminTorrentsRouteImport } from './routes/_authenticated/admin/torrents'
 import { Route as AuthenticatedDownloadsIndexRouteImport } from './routes/_authenticated/downloads/index'
 import { Route as AuthenticatedFilesIndexRouteImport } from './routes/_authenticated/files/index'
 import { Route as AuthenticatedImageHostIndexRouteImport } from './routes/_authenticated/image-host/index'
@@ -201,6 +202,12 @@ const AuthenticatedAdminLicensingRoute =
   AuthenticatedAdminLicensingRouteImport.update({
     id: '/licensing',
     path: '/licensing',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminTorrentsRoute =
+  AuthenticatedAdminTorrentsRouteImport.update({
+    id: '/torrents',
+    path: '/torrents',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
 const AuthenticatedDownloadsIndexRoute =
@@ -422,6 +429,7 @@ export interface FileRoutesByFullPath {
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
+  '/admin/torrents': typeof AuthenticatedAdminTorrentsRoute
   '/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
   '/settings/oauth-apps': typeof AuthenticatedSettingsOauthAppsRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -478,6 +486,7 @@ export interface FileRoutesByTo {
   '/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/admin/licensing': typeof AuthenticatedAdminLicensingRoute
+  '/admin/torrents': typeof AuthenticatedAdminTorrentsRoute
   '/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
   '/settings/oauth-apps': typeof AuthenticatedSettingsOauthAppsRoute
   '/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -540,6 +549,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/dashboard': typeof AuthenticatedAdminDashboardRoute
   '/_authenticated/admin/downloaders': typeof AuthenticatedAdminDownloadersRoute
   '/_authenticated/admin/licensing': typeof AuthenticatedAdminLicensingRoute
+  '/_authenticated/admin/torrents': typeof AuthenticatedAdminTorrentsRoute
   '/_authenticated/settings/api-keys': typeof AuthenticatedSettingsApiKeysRoute
   '/_authenticated/settings/oauth-apps': typeof AuthenticatedSettingsOauthAppsRoute
   '/_authenticated/settings/password': typeof AuthenticatedSettingsPasswordRoute
@@ -601,6 +611,7 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/downloaders'
     | '/admin/licensing'
+    | '/admin/torrents'
     | '/settings/api-keys'
     | '/settings/oauth-apps'
     | '/settings/password'
@@ -657,6 +668,7 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/downloaders'
     | '/admin/licensing'
+    | '/admin/torrents'
     | '/settings/api-keys'
     | '/settings/oauth-apps'
     | '/settings/password'
@@ -718,6 +730,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/dashboard'
     | '/_authenticated/admin/downloaders'
     | '/_authenticated/admin/licensing'
+    | '/_authenticated/admin/torrents'
     | '/_authenticated/settings/api-keys'
     | '/_authenticated/settings/oauth-apps'
     | '/_authenticated/settings/password'
@@ -945,6 +958,13 @@ declare module '@tanstack/react-router' {
       path: '/licensing'
       fullPath: '/admin/licensing'
       preLoaderRoute: typeof AuthenticatedAdminLicensingRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/torrents': {
+      id: '/_authenticated/admin/torrents'
+      path: '/torrents'
+      fullPath: '/admin/torrents'
+      preLoaderRoute: typeof AuthenticatedAdminTorrentsRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
     '/_authenticated/downloads/': {
@@ -1207,6 +1227,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminDashboardRoute: typeof AuthenticatedAdminDashboardRoute
   AuthenticatedAdminDownloadersRoute: typeof AuthenticatedAdminDownloadersRoute
   AuthenticatedAdminLicensingRoute: typeof AuthenticatedAdminLicensingRoute
+  AuthenticatedAdminTorrentsRoute: typeof AuthenticatedAdminTorrentsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
   AuthenticatedAdminSettingsEmailRoute: typeof AuthenticatedAdminSettingsEmailRoute
   AuthenticatedAdminSettingsOauthRoute: typeof AuthenticatedAdminSettingsOauthRoute
@@ -1227,6 +1248,7 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminDashboardRoute: AuthenticatedAdminDashboardRoute,
     AuthenticatedAdminDownloadersRoute: AuthenticatedAdminDownloadersRoute,
     AuthenticatedAdminLicensingRoute: AuthenticatedAdminLicensingRoute,
+    AuthenticatedAdminTorrentsRoute: AuthenticatedAdminTorrentsRoute,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
     AuthenticatedAdminSettingsEmailRoute: AuthenticatedAdminSettingsEmailRoute,
     AuthenticatedAdminSettingsOauthRoute: AuthenticatedAdminSettingsOauthRoute,

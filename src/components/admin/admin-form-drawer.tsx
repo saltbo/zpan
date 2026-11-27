@@ -29,6 +29,8 @@ interface AdminFormDrawerProps extends ComponentProps<typeof Sheet> {
   width?: AdminFormDrawerWidth
   children: ReactNode
   footer?: ReactNode
+  // An error that belongs to the whole form, shown above the footer's submit button.
+  error?: ReactNode
   className?: string
   bodyClassName?: string
   footerClassName?: string
@@ -42,6 +44,7 @@ export function AdminFormDrawer({
   width = 'normal',
   children,
   footer,
+  error,
   className,
   bodyClassName,
   footerClassName,
@@ -57,6 +60,11 @@ export function AdminFormDrawer({
     event.preventDefault()
   }
   const body = <div className={cn('min-h-0 flex-1 overflow-y-auto px-4', bodyClassName)}>{children}</div>
+  const errorContent = error ? (
+    <p role="alert" className="shrink-0 px-4 pt-3 text-sm text-destructive">
+      {error}
+    </p>
+  ) : null
   const footerContent = footer ? (
     <SheetFooter className={cn('shrink-0 flex-row items-center justify-end border-t bg-background', footerClassName)}>
       {footer}
@@ -77,11 +85,13 @@ export function AdminFormDrawer({
         {formProps ? (
           <form {...formProps} className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', formProps.className)}>
             {body}
+            {errorContent}
             {footerContent}
           </form>
         ) : (
           <>
             {body}
+            {errorContent}
             {footerContent}
           </>
         )}

@@ -148,6 +148,7 @@
     "husky": "^9.1.7",
     "jsdom": "^29.0.2",
     "lint-staged": "^16.4.0",
+    "nanostores": "1.5.5",
     "tailwindcss": "^4.3.3",
     "tsup": "^8.5.1",
     "tsx": "^4.23.13",

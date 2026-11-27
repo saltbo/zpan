@@ -2,6 +2,7 @@ import { type ApiKeyMetadata, ApiKeyTemplate } from '@shared/api-key-templates'
 import type { OAuthProviderConfig } from '@shared/oauth-providers'
 import type {
   ActorProfile,
+  AdminTorrent,
   AllowedImageMime,
   AnnouncementInput,
   CloudCreditBalanceResponse,
@@ -32,12 +33,14 @@ import type {
   RedeemGiftCardResponse,
   ReplaceStorageInput,
   ReplaceTorrentCacheConfigInput,
+  ReplaceTorrentCacheSettingsInput,
   ShareObjectItem,
   ShareObjectsResponse,
   ShareReadmeResponse,
   SiteConfig,
   SiteSettings,
   TorrentCacheConfig,
+  TorrentCacheSettings,
   TvShowMediaMetadata,
   UpdateDownloaderCreditBillingInput,
   UpdateDownloaderInput,
@@ -111,6 +114,8 @@ import {
   adminQuotas,
   adminSiteInvitations,
   adminTeams,
+  adminTorrentCacheSettingsApi,
+  adminTorrentsApi,
   announcementsApi,
   authedSharesApi,
   authProviders,
@@ -1209,6 +1214,24 @@ export function getTorrentCacheConfig() {
 
 export function replaceTorrentCacheConfig(input: ReplaceTorrentCacheConfigInput) {
   return unwrap<TorrentCacheConfig>(torrentCacheConfigApi.index.$put({ json: input }))
+}
+
+// Admin torrent cache: every cached torrent, eviction, retention and capacity.
+
+export function listCachedTorrents(opts: CursorPageRequest = {}) {
+  return unwrap<CursorPage<AdminTorrent>>(adminTorrentsApi.index.$get({ query: cursorQuery(opts) }))
+}
+
+export function evictCachedTorrent(id: string) {
+  return discard(adminTorrentsApi[':id'].$delete({ param: { id } }))
+}
+
+export function getTorrentCacheSettings() {
+  return unwrap<TorrentCacheSettings>(adminTorrentCacheSettingsApi.index.$get())
+}
+
+export function replaceTorrentCacheSettings(input: ReplaceTorrentCacheSettingsInput) {
+  return unwrap<TorrentCacheSettings>(adminTorrentCacheSettingsApi.index.$put({ json: input }))
 }
 
 export function deleteIhostConfig() {

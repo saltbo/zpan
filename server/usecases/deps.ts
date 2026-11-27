@@ -36,6 +36,7 @@ import type {
   OAuthGateway,
   ObjectUploadSessionRepo,
   OrgRepo,
+  PieceHasherGateway,
   ProfileRepo,
   QuotaRepo,
   RemoteDownloadUsageRepo,
@@ -94,6 +95,7 @@ export interface Deps {
   memberCount: MemberCountRepo
   notifications: NotificationRepo
   objectUploadSessions: ObjectUploadSessionRepo
+  pieceHasher: PieceHasherGateway
   org: OrgRepo
   profiles: ProfileRepo
   quota: QuotaRepo

@@ -1,4 +1,5 @@
 import type { TorrentStatus } from '../../domain/torrent-cache'
+import type { KeysetPage, KeysetPageOpts } from './pagination'
 
 export interface TorrentRecord {
   id: string
@@ -25,6 +26,7 @@ export interface TorrentFileRecord {
   mime: string
   storageId: string
   objectKey: string
+  uploadedAt: Date | null
 }
 
 export interface CreateTorrentInput {
@@ -49,14 +51,33 @@ export interface EvictionCandidate {
   lastAccessedAt: Date
 }
 
+// A cached torrent as the admin Torrents page lists it.
+export interface AdminTorrentRecord extends TorrentRecord {
+  // Drive files, live or in trash, that reference the torrent.
+  holders: number
+  sourceDownloaderName: string | null
+}
+
 export interface TorrentRepo {
   create(input: CreateTorrentInput): Promise<TorrentRecord>
   get(id: string): Promise<TorrentRecord | null>
   getByInfoHash(infoHash: string): Promise<TorrentRecord | null>
+  // Inserts the torrent unless its infoHash is already cached; the unique
+  // info_hash makes a concurrent second insert return the first one.
+  createIfAbsent(input: CreateTorrentInput): Promise<{ created: boolean; torrent: TorrentRecord }>
+  // Hands a downloading torrent to the download that now fills it.
+  setSource(id: string, source: { taskId: string; downloaderId: string }, now: Date): Promise<void>
+  // Moves a torrent between statuses; false when it was not in one of `from`.
+  transition(
+    id: string,
+    from: readonly TorrentStatus[],
+    to: TorrentStatus,
+    fields?: { verified?: 'full' | 'sampled' | null; now?: Date },
+  ): Promise<boolean>
+  // Records an access on a torrent in one of the statuses; false otherwise.
+  touch(id: string, statuses: readonly TorrentStatus[], now: Date): Promise<boolean>
+  markFileUploaded(torrentId: string, fileIdx: number, now: Date): Promise<void>
   listFiles(torrentId: string): Promise<TorrentFileRecord[]>
-  // Records an access on a ready torrent. False when the torrent is not ready,
-  // such as when eviction has claimed it.
-  touchReady(id: string, now: Date): Promise<boolean>
   // Torrents in a final state that no matter row (purged_at IS NULL) references,
   // oldest access first.
   listEvictionCandidates(limit: number): Promise<EvictionCandidate[]>
@@ -67,6 +88,10 @@ export interface TorrentRepo {
   claimForEviction(candidate: EvictionCandidate): Promise<boolean>
   // Deletes the torrent row and its file rows.
   delete(id: string): Promise<void>
+  // Every cached torrent, newest first, with its holder count.
+  listForAdmin(opts: KeysetPageOpts): Promise<KeysetPage<AdminTorrentRecord>>
+  // Drive files, live or in trash, that reference the torrent.
+  countHolders(id: string): Promise<number>
 }
 
 export interface TorrentCacheConfigRepo {

@@ -15,6 +15,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { getImageDomainProvider, saveImageDomainProvider, testImageDomainProvider } from '@/lib/api'
+import { formLevelError, type ServerFieldMap, serverFieldError } from '@/lib/form-errors'
 
 const queryKey = ['admin', 'image-domain-provider'] as const
 type Provider = 'cloudflare_saas' | 'manual'
@@ -30,6 +31,17 @@ type FormState = {
   originHostname: string
   cnameTarget: string
   records: string
+}
+
+const SERVER_FIELDS: ServerFieldMap<keyof FormState> = {
+  provider: 'provider',
+  'cloudflare.apiToken': 'apiToken',
+  'cloudflare.zoneId': 'zoneId',
+  'cloudflare.routingMode': 'routingMode',
+  'cloudflare.workerName': 'workerName',
+  'cloudflare.originHostname': 'originHostname',
+  'cloudflare.cnameTarget': 'cnameTarget',
+  'manual.records': 'records',
 }
 
 const emptyForm: FormState = {
@@ -144,8 +156,18 @@ export function ImageDomainProviderSection() {
       setOpen(false)
       toast.success(t('admin.imageDomains.saved'))
     },
-    onError: (error) => toast.error(error.message),
   })
+  const fieldError = serverFieldError(saveMutation.error, SERVER_FIELDS)
+  const errorFor = (field: keyof FormState) => (fieldError?.field === field ? fieldError.message : undefined)
+  const formError = formLevelError(saveMutation.error, SERVER_FIELDS)
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next)
+    if (!next) {
+      setForm(toForm(data))
+      saveMutation.reset()
+    }
+  }
 
   const testMutation = useMutation({
     mutationFn: testImageDomainProvider,
@@ -229,10 +251,7 @@ export function ImageDomainProviderSection() {
 
       <AdminFormDrawer
         open={open}
-        onOpenChange={(next) => {
-          setOpen(next)
-          if (!next) setForm(toForm(data))
-        }}
+        onOpenChange={handleOpenChange}
         title={t('admin.imageDomains.title')}
         description={t('admin.imageDomains.drawerDescription')}
         bodyClassName="grid auto-rows-min content-start gap-4"
@@ -242,9 +261,10 @@ export function ImageDomainProviderSection() {
             saveMutation.mutate()
           },
         }}
+        error={formError}
         footer={
           <>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={saveMutation.isPending}>
@@ -264,7 +284,12 @@ export function ImageDomainProviderSection() {
           />
         </div>
 
-        <AdminFormField id="imageDomainProvider" label={t('admin.imageDomains.provider')} required>
+        <AdminFormField
+          id="imageDomainProvider"
+          error={errorFor('provider')}
+          label={t('admin.imageDomains.provider')}
+          required
+        >
           <Select
             value={form.provider}
             onValueChange={(provider: Provider) => setForm((current) => ({ ...current, provider }))}
@@ -293,6 +318,7 @@ export function ImageDomainProviderSection() {
             </div>
             <AdminFormField
               id="cfApiToken"
+              error={errorFor('apiToken')}
               label={t('admin.imageDomains.apiToken')}
               help={t('admin.imageDomains.apiTokenHelp')}
               required
@@ -304,14 +330,19 @@ export function ImageDomainProviderSection() {
                 onChange={(event) => setForm((current) => ({ ...current, apiToken: event.target.value }))}
               />
             </AdminFormField>
-            <AdminFormField id="cfZoneId" label={t('admin.imageDomains.zoneId')} required>
+            <AdminFormField id="cfZoneId" error={errorFor('zoneId')} label={t('admin.imageDomains.zoneId')} required>
               <Input
                 id="cfZoneId"
                 value={form.zoneId}
                 onChange={(event) => setForm((current) => ({ ...current, zoneId: event.target.value }))}
               />
             </AdminFormField>
-            <AdminFormField id="cfRoutingMode" label={t('admin.imageDomains.routingMode')} required>
+            <AdminFormField
+              id="cfRoutingMode"
+              error={errorFor('routingMode')}
+              label={t('admin.imageDomains.routingMode')}
+              required
+            >
               <Select
                 value={form.routingMode}
                 onValueChange={(routingMode: RoutingMode) => setForm((current) => ({ ...current, routingMode }))}
@@ -328,6 +359,7 @@ export function ImageDomainProviderSection() {
             {form.routingMode === 'worker' ? (
               <AdminFormField
                 id="cfWorkerName"
+                error={errorFor('workerName')}
                 label={t('admin.imageDomains.workerName')}
                 help={t('admin.imageDomains.workerNameHelp')}
                 required
@@ -341,6 +373,7 @@ export function ImageDomainProviderSection() {
             ) : (
               <AdminFormField
                 id="cfOriginHostname"
+                error={errorFor('originHostname')}
                 label={t('admin.imageDomains.originHostname')}
                 help={t('admin.imageDomains.originHostnameHelp')}
                 required
@@ -353,7 +386,12 @@ export function ImageDomainProviderSection() {
                 />
               </AdminFormField>
             )}
-            <AdminFormField id="cfCnameTarget" label={t('admin.imageDomains.cnameTarget')} required>
+            <AdminFormField
+              id="cfCnameTarget"
+              error={errorFor('cnameTarget')}
+              label={t('admin.imageDomains.cnameTarget')}
+              required
+            >
               <Input
                 id="cfCnameTarget"
                 placeholder="ssl.example.com"
@@ -365,6 +403,7 @@ export function ImageDomainProviderSection() {
         ) : (
           <AdminFormField
             id="manualDnsRecords"
+            error={errorFor('records')}
             label={t('admin.imageDomains.records')}
             help={t('admin.imageDomains.recordsHelp')}
             required

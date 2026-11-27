@@ -14,6 +14,17 @@ export {
   adminOverviewSchema,
 } from './admin-analytics'
 export type {
+  AdminTorrent,
+  ReplaceTorrentCacheSettingsInput,
+  TorrentCacheSettings,
+} from './admin-torrents'
+export {
+  ADMIN_TORRENT_STATUSES,
+  adminTorrentSchema,
+  replaceTorrentCacheSettingsSchema,
+  torrentCacheSettingsSchema,
+} from './admin-torrents'
+export type {
   AnnouncementInput,
   AnnouncementStatus,
   ListAdminAnnouncementsQuery,
@@ -306,8 +317,27 @@ export {
   replaceStorageSchema,
   updateStorageEgressBillingSchema,
 } from './storage'
-export type { ReplaceTorrentCacheConfigInput, TorrentCacheConfig } from './torrent-cache'
-export { replaceTorrentCacheConfigSchema, torrentCacheConfigSchema } from './torrent-cache'
+export type {
+  CompleteTaskTorrentInput,
+  CompleteTorrentFileUploadInput,
+  RegisterTaskTorrentInput,
+  ReplaceTorrentCacheConfigInput,
+  TaskTorrentRegistration,
+  TorrentCacheConfig,
+  TorrentFileUpload,
+  TorrentVerifyJobRequest,
+} from './torrent-cache'
+export {
+  completeTaskTorrentSchema,
+  completeTorrentFileUploadSchema,
+  registerTaskTorrentSchema,
+  replaceTorrentCacheConfigSchema,
+  taskTorrentRegistrationSchema,
+  torrentCacheConfigSchema,
+  torrentCacheFileSchema,
+  torrentFileUploadSchema,
+  torrentVerifyJobRequestSchema,
+} from './torrent-cache'
 
 export const signInSchema = z.object({
   email: z.string().email(),
