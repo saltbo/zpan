@@ -63,7 +63,7 @@ async function openRevokeConfirm() {
 
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', TestResizeObserver)
-  vi.mocked(listSiteInvitations).mockResolvedValue({ items: [invitation], total: 1 })
+  vi.mocked(listSiteInvitations).mockResolvedValue({ items: [invitation], nextPageToken: null })
   vi.mocked(revokeSiteInvitation).mockResolvedValue(undefined as never)
 })
 
@@ -119,5 +119,35 @@ describe('SiteInvitationsDialog errors', () => {
     const message = await screen.findByText('Configure email delivery before sending invitations')
     expect(message.closest('[role="alert"]')).not.toBeNull()
     expect(toast.error).not.toHaveBeenCalled()
+  })
+})
+
+describe('SiteInvitationsDialog pagination', () => {
+  const second: SiteInvitation = { ...invitation, id: 'inv-2', email: 'second@example.com' }
+
+  beforeEach(() => {
+    vi.mocked(listSiteInvitations).mockImplementation(async (opts) =>
+      opts?.pageToken === 'tok-2'
+        ? { items: [second], nextPageToken: null }
+        : { items: [invitation], nextPageToken: 'tok-2' },
+    )
+  })
+
+  it('requests the next page with the previous token and returns with Previous', async () => {
+    renderDialog()
+    expect(await screen.findByText('guest@example.com')).toBeTruthy()
+    expect(listSiteInvitations).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 20 })
+    expect((screen.getByRole('button', { name: 'common.previousPage' }) as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.nextPage' }))
+    expect(await screen.findByText('second@example.com')).toBeTruthy()
+    expect(listSiteInvitations).toHaveBeenLastCalledWith({ pageToken: 'tok-2', pageSize: 20 })
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'common.nextPage' }) as HTMLButtonElement).disabled).toBe(true),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.previousPage' }))
+    expect(await screen.findByText('guest@example.com')).toBeTruthy()
+    expect(screen.queryByText('second@example.com')).toBeNull()
   })
 })

@@ -113,6 +113,7 @@ import {
   listTeams,
   listTrash,
   listUserEntitlements,
+  listUsers,
   markAllNotificationsRead,
   markNotificationRead,
   patchStorage,
@@ -308,15 +309,33 @@ describe('api', () => {
 
   describe('site invitations api', () => {
     it('lists site invitations with pagination', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
-      await listSiteInvitations(2, 10)
+      await listSiteInvitations({ pageToken: 'tok-2', pageSize: 10 })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/site/invitations?')
-      expect(url).toContain('page=2')
+      expect(url).toContain('pageToken=tok-2')
       expect(url).toContain('pageSize=10')
+      expect(url).not.toContain('page=')
       expect(init.method).toBe('GET')
+    })
+
+    it('defaults the site invitation page size and omits the page token', async () => {
+      const page = { items: [], nextPageToken: 'next' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(page))
+
+      await expect(listSiteInvitations()).resolves.toEqual(page)
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('pageSize=20')
+      expect(url).not.toContain('pageToken')
+    })
+
+    it('throws ApiError for a failed site invitation list', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(listSiteInvitations()).rejects.toBeInstanceOf(ApiError)
     })
 
     it('creates a site invitation', async () => {
@@ -1996,14 +2015,33 @@ describe('api', () => {
 
   describe('teams', () => {
     it('lists teams', async () => {
-      const payload = { items: [{ id: 'team-1', name: 'Alpha' }], total: 1 }
+      const payload = { items: [{ id: 'team-1', name: 'Alpha' }], nextPageToken: 'next' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listTeams()
 
       expect(result).toEqual(payload)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/teams?')
+      expect(url).toContain('pageSize=20')
+      expect(url).not.toContain('pageToken')
+      expect(init.method).toBe('GET')
+    })
+
+    it('lists a later page of teams with the page token and size', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
+
+      await listTeams({ pageToken: 'tok-2', pageSize: 50 })
+
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('/api/teams')
+      expect(url).toContain('pageToken=tok-2')
+      expect(url).toContain('pageSize=50')
+    })
+
+    it('throws ApiError when listing teams fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(listTeams()).rejects.toBeInstanceOf(ApiError)
     })
 
     it('gets a team detail', async () => {
@@ -2131,15 +2169,30 @@ describe('api', () => {
     })
 
     it('lists category items with the expected query', async () => {
-      const page = { items: [], total: 0, page: 2, pageSize: 10 }
+      const page = { items: [], nextPageToken: null }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(page))
-      await expect(listStorageUsageItems('trash', 2, 10, 'name', 'asc')).resolves.toEqual(page)
-      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      await expect(
+        listStorageUsageItems('trash', { pageToken: 'tok-2', pageSize: 10, sortBy: 'name', sortDir: 'asc' }),
+      ).resolves.toEqual(page)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/storage/items')
       expect(url).toContain('category=trash')
-      expect(url).toContain('page=2')
+      expect(url).toContain('pageToken=tok-2')
+      expect(url).toContain('pageSize=10')
+      expect(url).not.toContain('page=')
       expect(url).toContain('sortBy=name')
       expect(url).toContain('sortDir=asc')
+      expect(init.method).toBe('GET')
+    })
+
+    it('defaults category items to the first page sorted by size descending', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
+      await listStorageUsageItems('photos')
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('pageSize=20')
+      expect(url).toContain('sortBy=size')
+      expect(url).toContain('sortDir=desc')
+      expect(url).not.toContain('pageToken')
     })
 
     it('throws ApiError for usage and item failures', async () => {
@@ -4399,30 +4452,34 @@ describe('api', () => {
     }
 
     it('calls correct URL with defaults', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 20 }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
       await listAdminAuditLogs()
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
       expect(url).toContain('/api/site/audit-events')
-      expect(url).toContain('page=1')
       expect(url).toContain('pageSize=20')
+      expect(url).not.toContain('pageToken')
+      expect(url).not.toContain('page=')
     })
 
     it('includes optional filters in query', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 20 }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
-      await listAdminAuditLogs(2, 10, {
-        orgId: 'org-1',
-        userId: 'user-1',
-        action: 'upload',
-        targetType: 'file',
-        createdFrom: '2026-01-01T00:00:00.000Z',
-        createdTo: '2026-02-01T00:00:00.000Z',
-      })
+      await listAdminAuditLogs(
+        { pageToken: 'tok-2', pageSize: 10 },
+        {
+          orgId: 'org-1',
+          userId: 'user-1',
+          action: 'upload',
+          targetType: 'file',
+          createdFrom: '2026-01-01T00:00:00.000Z',
+          createdTo: '2026-02-01T00:00:00.000Z',
+        },
+      )
 
       const [url] = vi.mocked(fetch).mock.calls[0] as [string]
-      expect(url).toContain('page=2')
+      expect(url).toContain('pageToken=tok-2')
       expect(url).toContain('pageSize=10')
       expect(url).toContain('orgId=org-1')
       expect(url).toContain('userId=user-1')
@@ -4433,7 +4490,7 @@ describe('api', () => {
     })
 
     it('returns parsed paginated response', async () => {
-      const payload = { items: [auditEvent], total: 1, page: 1, pageSize: 20 }
+      const payload = { items: [auditEvent], nextPageToken: 'next' }
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
 
       const result = await listAdminAuditLogs()
@@ -4548,15 +4605,33 @@ describe('api', () => {
 
   describe('invite codes api', () => {
     it('lists invite codes with pagination', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0 }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
-      await listInviteCodes(3, 25)
+      await listInviteCodes({ pageToken: 'tok-3', pageSize: 25 })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/site/invite-codes?')
-      expect(url).toContain('page=3')
+      expect(url).toContain('pageToken=tok-3')
       expect(url).toContain('pageSize=25')
+      expect(url).not.toContain('page=')
       expect(init.method).toBe('GET')
+    })
+
+    it('defaults the invite code page size and omits the page token', async () => {
+      const page = { items: [], nextPageToken: 'next' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(page))
+
+      await expect(listInviteCodes()).resolves.toEqual(page)
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('pageSize=20')
+      expect(url).not.toContain('pageToken')
+    })
+
+    it('throws ApiError for a failed invite code list', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(listInviteCodes()).rejects.toBeInstanceOf(ApiError)
     })
 
     it('generates invite codes with count only', async () => {
@@ -4596,17 +4671,62 @@ describe('api', () => {
     })
   })
 
+  describe('listUsers', () => {
+    it('lists users with the page token, page size, and trimmed search', async () => {
+      const page = { items: [], nextPageToken: 'next' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(page))
+
+      await expect(listUsers({ pageToken: 'tok-2', pageSize: 10, search: '  ann  ' })).resolves.toEqual(page)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/users?')
+      expect(url).toContain('pageToken=tok-2')
+      expect(url).toContain('pageSize=10')
+      expect(url).toContain('q=ann')
+      expect(url).not.toContain('page=')
+      expect(init.method).toBe('GET')
+    })
+
+    it('defaults the page size and omits a blank search and the page token', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
+
+      await listUsers({ search: '   ' })
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('pageSize=20')
+      expect(url).not.toContain('q=')
+      expect(url).not.toContain('pageToken')
+    })
+
+    it('throws ApiError on failure', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'forbidden' }, false, 403))
+
+      await expect(listUsers()).rejects.toBeInstanceOf(ApiError)
+    })
+  })
+
   describe('listTeamActivities', () => {
     it('fetches team activity with pagination', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], total: 0, page: 1, pageSize: 20 }))
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
 
-      await listTeamActivities('team-1', 2, 15)
+      await listTeamActivities('team-1', { pageToken: 'tok-2', pageSize: 15 })
 
       const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
       expect(url).toContain('/api/teams/team-1/activity?')
-      expect(url).toContain('page=2')
+      expect(url).toContain('pageToken=tok-2')
       expect(url).toContain('pageSize=15')
+      expect(url).not.toContain('page=')
       expect(init.method).toBe('GET')
+    })
+
+    it('defaults the team activity page size and omits the page token', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
+
+      await listTeamActivities('team-1')
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string]
+      expect(url).toContain('pageSize=20')
+      expect(url).not.toContain('pageToken')
     })
 
     it('throws ApiError on failure', async () => {

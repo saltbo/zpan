@@ -107,7 +107,7 @@ export type AdminUser = {
   createdAt: number
 }
 
-// Normalize a better-auth user record (from admin listUsers / getUser) into our
+// Normalize a better-auth user record (from admin getUser) into our
 // flat AdminUser DTO. The param is an inline structural subset of better-auth's
 // user — just the fields we read — so this stays the only hand-written user type.
 function toAdminUser(u: {
@@ -130,27 +130,6 @@ function toAdminUser(u: {
     banned: Boolean(u.banned),
     createdAt: new Date(u.createdAt).getTime(),
   }
-}
-
-export async function adminListUsers(params: {
-  limit: number
-  offset: number
-  search?: string
-}): Promise<{ users: AdminUser[]; total: number }> {
-  const query: Record<string, unknown> = {
-    limit: params.limit,
-    offset: params.offset,
-    sortBy: 'createdAt',
-    sortDirection: 'desc',
-  }
-  if (params.search?.trim()) {
-    query.searchField = 'email'
-    query.searchOperator = 'contains'
-    query.searchValue = params.search.trim()
-  }
-  // biome-ignore lint/suspicious/noExplicitAny: better-auth's inferred query type is narrower than this dynamic shape
-  const data = unwrapAuthFetch(await authClient.admin.listUsers({ query: query as any }))
-  return { users: data.users.map(toAdminUser), total: data.total }
 }
 
 export async function adminGetUser(userId: string): Promise<AdminUser> {

@@ -1,10 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, Copy, Ticket, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
 import { ConfirmActionDialog } from '@/components/admin/confirm-action-dialog'
+import { CursorPagination } from '@/components/list/cursor-pagination'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,9 +13,11 @@ import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/c
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useCursorPager } from '@/hooks/use-cursor-pager'
 import { deleteInviteCode, generateInviteCodes, type InviteCode, listInviteCodes } from '@/lib/api'
 
 const inviteCodesQueryKey = ['admin', 'invite-codes'] as const
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
 type CodeStatus = 'used' | 'expired' | 'available'
 
@@ -64,15 +67,19 @@ export function InviteCodesSection() {
   const [count, setCount] = useState(10)
   const [expiresInDays, setExpiresInDays] = useState('')
   const [pendingDelete, setPendingDelete] = useState<InviteCode | null>(null)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0])
+  const pager = useCursorPager(String(pageSize))
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: inviteCodesQueryKey,
-    queryFn: () => listInviteCodes(1, 100),
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
+    queryKey: [...inviteCodesQueryKey, pageSize, pager.pageToken],
+    queryFn: () => listInviteCodes({ pageToken: pager.pageToken, pageSize }),
+    placeholderData: keepPreviousData,
   })
 
   const generateMutation = useMutation({
     mutationFn: () => generateInviteCodes(count, expiresInDays ? Number(expiresInDays) : undefined),
     onSuccess: () => {
+      pager.reset()
       queryClient.invalidateQueries({ queryKey: inviteCodesQueryKey })
       toast.success(t('admin.auth.codesGenerated'))
       setDrawerOpen(false)
@@ -98,7 +105,7 @@ export function InviteCodesSection() {
   }
 
   const codes = data?.items ?? []
-  const availableCount = codes.filter((code) => codeStatus(code) === 'available').length
+  const hasCodes = codes.length > 0 || pager.hasPrevious
   const generateButton = (
     <Button size="sm" onClick={() => setDrawerOpen(true)}>
       {t('admin.auth.generateCodes')}
@@ -115,14 +122,9 @@ export function InviteCodesSection() {
           <div className="min-w-0 space-y-1">
             <CardTitle className="text-sm leading-5">{t('admin.auth.inviteCodesSection')}</CardTitle>
             <CardDescription className="max-w-2xl leading-5">{t('admin.auth.inviteCodesDescription')}</CardDescription>
-            {codes.length > 0 && (
-              <p className="text-sm text-muted-foreground">
-                {t('admin.auth.inviteCodesAvailable', { count: availableCount })}
-              </p>
-            )}
           </div>
         </div>
-        {codes.length > 0 && <div className="flex shrink-0 items-center">{generateButton}</div>}
+        {hasCodes && <div className="flex shrink-0 items-center">{generateButton}</div>}
       </CardContent>
 
       <CardContent className="border-t border-border/70 p-4">
@@ -138,7 +140,7 @@ export function InviteCodesSection() {
               </Button>
             </AlertDescription>
           </Alert>
-        ) : codes.length === 0 ? (
+        ) : !hasCodes ? (
           <div className="flex flex-col items-center gap-2 py-6 text-center">
             <p className="text-sm font-medium">{t('admin.auth.noInviteCodes')}</p>
             <p className="text-sm text-muted-foreground">{t('admin.auth.noInviteCodesHint')}</p>
@@ -198,6 +200,20 @@ export function InviteCodesSection() {
               })}
             </TableBody>
           </Table>
+        )}
+        {hasCodes && !isError && (
+          <div className="mt-4">
+            <CursorPagination
+              pageSize={pageSize}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              hasPrevious={pager.hasPrevious}
+              nextPageToken={data?.nextPageToken}
+              disabled={isFetching}
+              onPageSizeChange={setPageSize}
+              onPrevious={pager.previous}
+              onNext={pager.next}
+            />
+          </div>
         )}
       </CardContent>
 

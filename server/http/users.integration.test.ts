@@ -754,3 +754,151 @@ describe('GET /api/users/:username', () => {
     ])
   })
 })
+
+describe('GET /api/users (admin list)', () => {
+  type UserPage = {
+    items: Array<{ id: string; name: string; email: string; username: string | null; createdAt: string }>
+    nextPageToken: string | null
+  }
+
+  async function listPage(
+    app: ReturnType<typeof import('../app')['createApp']>,
+    headers: Record<string, string>,
+    params: Record<string, string>,
+  ) {
+    const res = await app.request(`/api/users?${new URLSearchParams(params)}`, { headers })
+    return { res, body: (await res.clone().json()) as UserPage }
+  }
+
+  it('returns 401 without a session', async () => {
+    const { app } = await createTestApp()
+    const res = await app.request('/api/users')
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 403 for a non-admin user', async () => {
+    const { app } = await createTestApp()
+    await adminHeaders(app)
+    const headers = await authedHeaders(app, 'plain@example.com')
+    const res = await app.request('/api/users', { headers })
+    expect(res.status).toBe(403)
+  })
+
+  it('returns every user exactly once across cursor pages, newest first', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    for (const n of [1, 2, 3, 4, 5]) await signUpUser(app, `member${n}@example.com`, `Member ${n}`)
+    // Force ties on createdAt so the id tie-breaker is exercised.
+    await db.run(sql`UPDATE user SET created_at = 1700000000 WHERE email LIKE 'member%'`)
+
+    const ids: string[] = []
+    const sizes: number[] = []
+    let token: string | null = null
+    for (let i = 0; i < 6; i++) {
+      const params: Record<string, string> = { pageSize: '2' }
+      if (token) params.pageToken = token
+      const { res, body } = await listPage(app, headers, params)
+      expect(res.status).toBe(200)
+      sizes.push(body.items.length)
+      ids.push(...body.items.map((item) => item.id))
+      token = body.nextPageToken
+      if (!token) break
+    }
+    expect(sizes).toEqual([2, 2, 2])
+    expect(new Set(ids).size).toBe(6)
+    // The admin signed up first with a fresh timestamp, so it leads; the tied members follow by id desc.
+    const { body: all } = await listPage(app, headers, { pageSize: '100' })
+    expect(all.nextPageToken).toBeNull()
+    expect(all.items.map((item) => item.id)).toEqual(ids)
+    expect(all.items[0].email).toBe('admin@example.com')
+    const tied = all.items.slice(1).map((item) => item.id)
+    expect(tied).toEqual([...tied].sort().reverse())
+  })
+
+  it('searches name, email, and username case-insensitively [spec: list-pagination/user-search]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'ann@example.com', 'Annabel Lee')
+    await signUpUser(app, 'bob@example.com', 'Robert')
+    await signUpUser(app, 'cat@example.com', 'Cat')
+    await db.run(sql`UPDATE user SET username = 'Zebra_Fan' WHERE email = 'cat@example.com'`)
+
+    const byName = await listPage(app, headers, { q: 'ANNABEL' })
+    expect(byName.body.items.map((u) => u.email)).toEqual(['ann@example.com'])
+    const byEmail = await listPage(app, headers, { q: 'BOB@EXAMPLE' })
+    expect(byEmail.body.items.map((u) => u.email)).toEqual(['bob@example.com'])
+    const byUsername = await listPage(app, headers, { q: 'zebra' })
+    expect(byUsername.body.items.map((u) => u.email)).toEqual(['cat@example.com'])
+    const none = await listPage(app, headers, { q: 'nobody-matches-this' })
+    expect(none.body).toEqual({ items: [], nextPageToken: null })
+  })
+
+  it('treats LIKE wildcards in the search term as literal characters', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await signUpUser(app, 'u1@example.com', 'a_b')
+    await signUpUser(app, 'u2@example.com', 'axb')
+    await signUpUser(app, 'u3@example.com', '100% sure')
+    await signUpUser(app, 'u4@example.com', '100 sure')
+
+    const underscore = await listPage(app, headers, { q: 'a_b' })
+    expect(underscore.body.items.map((u) => u.name)).toEqual(['a_b'])
+    const percent = await listPage(app, headers, { q: '100%' })
+    expect(percent.body.items.map((u) => u.name)).toEqual(['100% sure'])
+    const wildcardOnly = await listPage(app, headers, { q: '%' })
+    expect(wildcardOnly.body.items.map((u) => u.name)).toEqual(['100% sure'])
+  })
+
+  it('pages the search result with the same filter', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    for (const n of [1, 2, 3]) await signUpUser(app, `team${n}@example.com`, `Teammate ${n}`)
+    await signUpUser(app, 'other@example.com', 'Someone else')
+
+    const first = await listPage(app, headers, { q: 'teammate', pageSize: '2' })
+    expect(first.body.items).toHaveLength(2)
+    expect(first.body.nextPageToken).toBeTruthy()
+    const second = await listPage(app, headers, {
+      q: 'teammate',
+      pageSize: '2',
+      pageToken: first.body.nextPageToken as string,
+    })
+    expect(second.body.items).toHaveLength(1)
+    expect(second.body.nextPageToken).toBeNull()
+    const names = [...first.body.items, ...second.body.items].map((u) => u.name).sort()
+    expect(names).toEqual(['Teammate 1', 'Teammate 2', 'Teammate 3'])
+  })
+
+  it('rejects a tampered page token with 400 INVALID_PAGE_TOKEN', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    for (const n of [1, 2]) await signUpUser(app, `t${n}@example.com`, `T ${n}`)
+    const first = await listPage(app, headers, { pageSize: '1' })
+    const { res } = await listPage(app, headers, { pageSize: '1', pageToken: `${first.body.nextPageToken}x` })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: { details: [{ reason: 'INVALID_PAGE_TOKEN' }] } })
+
+    const garbage = await listPage(app, headers, { pageToken: 'garbage' })
+    expect(garbage.res.status).toBe(400)
+  })
+
+  it('rejects a token reused with a different search or page size', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    for (const n of [1, 2, 3]) await signUpUser(app, `s${n}@example.com`, `Sample ${n}`)
+    const first = await listPage(app, headers, { q: 'sample', pageSize: '1' })
+    const token = first.body.nextPageToken as string
+    expect(token).toBeTruthy()
+
+    const otherSearch = await listPage(app, headers, { q: 'other', pageSize: '1', pageToken: token })
+    expect(otherSearch.res.status).toBe(400)
+    const noSearch = await listPage(app, headers, { pageSize: '1', pageToken: token })
+    expect(noSearch.res.status).toBe(400)
+    const otherSize = await listPage(app, headers, { q: 'sample', pageSize: '2', pageToken: token })
+    expect(otherSize.res.status).toBe(400)
+    expect(await otherSize.res.json()).toMatchObject({ error: { details: [{ reason: 'INVALID_PAGE_TOKEN' }] } })
+
+    const same = await listPage(app, headers, { q: 'sample', pageSize: '1', pageToken: token })
+    expect(same.res.status).toBe(200)
+  })
+})

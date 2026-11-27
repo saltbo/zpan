@@ -15,9 +15,12 @@
 
 import type { Platform } from '../platform/interface'
 import {
+  type AdminUserListItem,
   AVATAR_PREFIX,
   type EntitlementResult,
   type ImageUpload,
+  type KeysetPage,
+  type KeysetPageOpts,
   type ProfileRepo,
   type PublicUser,
   type QuotaEntitlementItem,
@@ -39,6 +42,13 @@ export type ListUserEntitlementsOutcome =
   | RepoFailure
 
 export type EntitlementOutcome = { ok: true; result: EntitlementResult } | RepoFailure
+
+export function listUsers(
+  deps: Pick<UserDeps, 'userAdmin'>,
+  opts: KeysetPageOpts & { search?: string },
+): Promise<KeysetPage<AdminUserListItem>> {
+  return deps.userAdmin.listUsers(opts)
+}
 
 export function listUserEntitlements(
   deps: Pick<UserDeps, 'userAdmin'>,

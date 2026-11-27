@@ -1,11 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, ClipboardCopy, Loader2, MailPlus, RotateCw, ShieldX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
 import { ConfirmActionDialog } from '@/components/admin/confirm-action-dialog'
+import { CursorPagination } from '@/components/list/cursor-pagination'
 import { useClipboard } from '@/hooks/use-clipboard'
+import { useCursorPager } from '@/hooks/use-cursor-pager'
 import {
   type ApiError,
   createSiteInvitation,
@@ -22,7 +24,7 @@ interface SiteInvitationsDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-const pageSize = 20
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
 function buildInviteLink(token: string): string {
   return `${window.location.origin}/sign-up?invite=${encodeURIComponent(token)}`
@@ -51,12 +53,14 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
   const queryClient = useQueryClient()
   const { copy } = useClipboard()
   const [email, setEmail] = useState('')
-  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0])
+  const pager = useCursorPager(String(pageSize))
   const [pendingRevoke, setPendingRevoke] = useState<{ id: string; email: string } | null>(null)
 
   const invitationsQuery = useQuery({
-    queryKey: ['admin', 'site-invitations', page, pageSize],
-    queryFn: () => listSiteInvitations(page, pageSize),
+    queryKey: ['admin', 'site-invitations', pageSize, pager.pageToken],
+    queryFn: () => listSiteInvitations({ pageToken: pager.pageToken, pageSize }),
+    placeholderData: keepPreviousData,
     enabled: open,
   })
 
@@ -95,8 +99,6 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
   })
 
   const items = invitationsQuery.data?.items ?? []
-  const total = invitationsQuery.data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const isBusy = createMutation.isPending || resendMutation.isPending || revokeMutation.isPending
 
   const pendingCount = useMemo(() => items.filter((item) => item.status === 'pending').length, [items])
@@ -123,7 +125,7 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
           onOpenChange(nextOpen)
           if (!nextOpen) {
             setEmail('')
-            setPage(1)
+            pager.reset()
             createMutation.reset()
             resendMutation.reset()
           }
@@ -133,28 +135,17 @@ export function SiteInvitationsDialog({ open, onOpenChange }: SiteInvitationsDia
         description={t('admin.users.inviteDialogDescription', { count: pendingCount })}
         bodyClassName="space-y-6"
         footer={
-          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="text-sm text-muted-foreground">
-              {t('admin.users.pageInfo', { page, total: totalPages })}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((current) => current - 1)}
-              >
-                {t('admin.users.prevPage')}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((current) => current + 1)}
-              >
-                {t('admin.users.nextPage')}
-              </Button>
-            </div>
+          <div className="w-full">
+            <CursorPagination
+              pageSize={pageSize}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              hasPrevious={pager.hasPrevious}
+              nextPageToken={invitationsQuery.data?.nextPageToken}
+              disabled={invitationsQuery.isFetching}
+              onPageSizeChange={setPageSize}
+              onPrevious={pager.previous}
+              onNext={pager.next}
+            />
           </div>
         }
       >

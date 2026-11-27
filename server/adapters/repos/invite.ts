@@ -1,8 +1,9 @@
-import { and, count, desc, eq, getTableColumns, gt, isNull, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull, or } from 'drizzle-orm'
 import { generateId, generateToken } from '../../../shared/ids'
 import { inviteCodes } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import type { InviteCodeRecord, InviteRepo } from '../../usecases/ports'
+import { afterCreatedAtId, keysetPage } from './keyset'
 
 export function createInviteRepo(db: Database): InviteRepo {
   return {
@@ -52,22 +53,15 @@ export function createInviteRepo(db: Database): InviteRepo {
       return updated.length > 0 ? 'ok' : 'already_used'
     },
 
-    async list(page, pageSize) {
+    async list({ pageSize, after }) {
       const rows = await db
-        .select({
-          ...getTableColumns(inviteCodes),
-          pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
-        })
+        .select()
         .from(inviteCodes)
-        .orderBy(desc(inviteCodes.createdAt))
-        .limit(pageSize)
-        .offset((page - 1) * pageSize)
-      let total = Number(rows[0]?.pageTotal ?? 0)
-      if (rows.length === 0 && page > 1) {
-        const totalResult = await db.select({ count: count() }).from(inviteCodes)
-        total = totalResult[0]?.count ?? 0
-      }
-      return { items: rows.map(({ pageTotal: _, ...row }) => row), total }
+        .where(afterCreatedAtId(inviteCodes.createdAt, inviteCodes.id, after))
+        .orderBy(desc(inviteCodes.createdAt), desc(inviteCodes.id))
+        .limit(pageSize + 1)
+      const page = keysetPage(rows, pageSize, (row) => ({ createdAt: row.createdAt, id: row.id }))
+      return { items: page.rows, nextBoundary: page.next }
     },
 
     async delete(codeId) {

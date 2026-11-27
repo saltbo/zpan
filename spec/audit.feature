@@ -69,10 +69,11 @@ Feature: Audit log
     Then only events on that target type are returned
 
   @audit/pagination @api
-  Scenario: The audit log paginates
+  Scenario: The audit log pages through a cursor
     Given more events than one page
-    When an admin requests a page
-    Then the correct page and pageSize are returned
+    When an admin requests a page and then follows its next page token
+    Then each page holds at most pageSize events, newest first, with none repeated or skipped
+    And the last page has no next page token
 
   @audit/actor-info @api
   Scenario: Events carry actor and org display info

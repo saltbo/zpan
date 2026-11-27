@@ -12,8 +12,6 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
   File,
   FileText,
   FolderOpen,
@@ -27,6 +25,7 @@ import {
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { CursorPagination } from '@/components/list/cursor-pagination'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -40,6 +39,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useCursorPager } from '@/hooks/use-cursor-pager'
 import { deleteIhostImage, deleteObject, listStorageUsageItems, purgeTrashObject } from '@/lib/api'
 import { formatDate, formatSize } from '@/lib/format'
 import { runSequentialOperation, type SequentialOperationFailure } from '@/lib/sequential-operation'
@@ -56,7 +56,7 @@ export const STORAGE_CATEGORY_META: Record<StorageUsageCategory, { color: string
   trash: { color: '#ef4444', icon: Trash2 },
 }
 
-const PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
 const SKELETON_ROWS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven'] as const
 
 export function StorageCleanupDialog({
@@ -74,22 +74,21 @@ export function StorageCleanupDialog({
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0])
   const [sortBy, setSortBy] = useState<StorageUsageSortField>('size')
   const [sortDir, setSortDir] = useState<StorageUsageSortDirection>('desc')
+  const pager = useCursorPager(`${category}:${pageSize}:${sortBy}:${sortDir}`)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [pendingDeleteItems, setPendingDeleteItems] = useState<StorageUsageItem[]>([])
   const [deleteProgress, setDeleteProgress] = useState({ completed: 0, total: 0 })
   const [deleteErrors, setDeleteErrors] = useState<Array<SequentialOperationFailure<StorageUsageItem>>>([])
 
   const itemsQuery = useQuery({
-    queryKey: ['storage-usage', 'items', category, page, PAGE_SIZE, sortBy, sortDir],
-    queryFn: () => listStorageUsageItems(category!, page, PAGE_SIZE, sortBy, sortDir),
+    queryKey: ['storage-usage', 'items', category, pageSize, sortBy, sortDir, pager.pageToken],
+    queryFn: () => listStorageUsageItems(category!, { pageToken: pager.pageToken, pageSize, sortBy, sortDir }),
     enabled: category !== null,
   })
   const items = itemsQuery.data?.items ?? []
-  const total = itemsQuery.data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const activeBreakdown = breakdowns.find((row) => row.category === category)
   const selectedItems = useMemo(() => items.filter((item) => selectedIds.has(item.id)), [items, selectedIds])
   const selectedBytes = selectedItems.reduce((sum, item) => sum + item.size, 0)
@@ -114,7 +113,7 @@ export function StorageCleanupDialog({
         queryClient.invalidateQueries({ queryKey: ['objects'] }),
         queryClient.invalidateQueries({ queryKey: ['ihost'] }),
       ])
-      setPage(1)
+      pager.reset()
       if (result.failed.length > 0) {
         setDeleteErrors(result.failed)
         setPendingDeleteItems(result.failed.map((failure) => failure.item))
@@ -136,13 +135,12 @@ export function StorageCleanupDialog({
   }
 
   function changeCategory(nextCategory: StorageUsageCategory) {
-    setPage(1)
     resetSelection()
     onCategoryChange(nextCategory)
   }
 
-  function changePage(nextPage: number) {
-    setPage(nextPage)
+  function changePage(move: () => void) {
+    move()
     setSelectedIds(new Set())
   }
 
@@ -150,7 +148,6 @@ export function StorageCleanupDialog({
     const nextDirection = sortBy === field ? (sortDir === 'asc' ? 'desc' : 'asc') : field === 'name' ? 'asc' : 'desc'
     setSortBy(field)
     setSortDir(nextDirection)
-    setPage(1)
     setSelectedIds(new Set())
   }
 
@@ -165,7 +162,7 @@ export function StorageCleanupDialog({
 
   function handleOpenChange(open: boolean) {
     if (!open && !deleteMutation.isPending) {
-      setPage(1)
+      pager.reset()
       resetSelection()
       onOpenChange(false)
     }
@@ -386,39 +383,17 @@ export function StorageCleanupDialog({
               )}
             </div>
 
-            <div className="flex min-h-11 items-center justify-between gap-3 border-t px-4 text-xs">
-              <span className="text-muted-foreground tabular-nums">
-                {t('storage.pageItems', {
-                  start: total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1,
-                  end: Math.min(page * PAGE_SIZE, total),
-                  total,
-                })}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  className="size-7"
-                  aria-label={t('storage.previousPage')}
-                  disabled={page <= 1 || itemsQuery.isLoading}
-                  onClick={() => changePage(page - 1)}
-                >
-                  <ChevronLeft />
-                </Button>
-                <span className="min-w-12 text-center tabular-nums text-muted-foreground">
-                  {page} / {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  className="size-7"
-                  aria-label={t('storage.nextPage')}
-                  disabled={page >= totalPages || itemsQuery.isLoading}
-                  onClick={() => changePage(page + 1)}
-                >
-                  <ChevronRight />
-                </Button>
-              </div>
+            <div className="border-t px-4 py-2">
+              <CursorPagination
+                pageSize={pageSize}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                hasPrevious={pager.hasPrevious}
+                nextPageToken={itemsQuery.data?.nextPageToken}
+                disabled={itemsQuery.isFetching}
+                onPageSizeChange={(size) => changePage(() => setPageSize(size))}
+                onPrevious={() => changePage(pager.previous)}
+                onNext={(token) => changePage(() => pager.next(token))}
+              />
             </div>
           </div>
         </DialogContent>

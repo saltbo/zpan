@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { opaqueIdSchema, opaqueTokenSchema, pageQuerySchema, pageSchema } from '@shared/schemas'
+import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema, opaqueTokenSchema } from '@shared/schemas'
 import type { Env } from '../../middleware/platform'
 import { notFound, unauthorized } from '../../usecases/ports'
 import {
@@ -11,6 +11,12 @@ import {
   revokeSiteInvitation,
 } from '../../usecases/site/invitation'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from '../page-token'
 
 // SiteInvitation is already wire-shaped (ISO string timestamps) — no DTO mapper.
 const siteInvitationSchema = z
@@ -31,7 +37,7 @@ const siteInvitationSchema = z
   })
   .openapi('SiteInvitation')
 
-const siteInvitationListSchema = pageSchema(siteInvitationSchema, 'SiteInvitationList')
+const siteInvitationListSchema = cursorPageSchema(siteInvitationSchema, 'SiteInvitationList')
 
 const createSchema = z.object({ email: z.string().email() })
 
@@ -43,8 +49,11 @@ const listRoute = authRoute(
     tags: ['Invitations'],
     method: 'get',
     path: '/',
-    request: { query: pageQuerySchema },
-    responses: { 200: jsonContent(siteInvitationListSchema, 'Invitations') },
+    request: { query: cursorPageQuerySchema },
+    responses: {
+      200: jsonContent(siteInvitationListSchema, 'Invitations'),
+      400: errorResponse('Invalid page token'),
+    },
   },
 )
 
@@ -119,9 +128,20 @@ const getByTokenRoute = authRoute(
 
 export const adminSiteInvitations = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {
-    const { page, pageSize } = c.req.valid('query')
-    const result = await listSiteInvitations(c.get('deps'), page, pageSize)
-    return c.json({ ...result, page, pageSize }, 200)
+    const { pageSize, pageToken } = c.req.valid('query')
+    const page = {
+      query: await pageQueryFingerprint({ resource: 'site-invitations', pageSize }),
+      codec: createdAtIdCursorCodec,
+    }
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, page)
+    const result = await listSiteInvitations(c.get('deps'), { pageSize, after })
+    return c.json(
+      {
+        items: result.items,
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, page),
+      },
+      200,
+    )
   })
   .openapi(createRouteDoc, async (c) => {
     const userId = c.get('userId')

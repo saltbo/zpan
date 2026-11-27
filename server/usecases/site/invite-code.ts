@@ -4,7 +4,15 @@
 // logging — so the http handlers only validate input, call these functions, and
 // serialize the result.
 
-import { type AppError, conflict, type InviteCodeRecord, type InviteRepo, notFound } from '../ports'
+import {
+  type AppError,
+  conflict,
+  type InviteCodeRecord,
+  type InviteRepo,
+  type KeysetPage,
+  type KeysetPageOpts,
+  notFound,
+} from '../ports'
 
 export type InviteCodeDeps = {
   invites: InviteRepo
@@ -14,9 +22,9 @@ export type DeleteInviteCodeOutcome = { ok: true } | { ok: false; error: AppErro
 
 export function listInviteCodes(
   deps: Pick<InviteCodeDeps, 'invites'>,
-  params: { page: number; pageSize: number },
-): Promise<{ items: InviteCodeRecord[]; total: number }> {
-  return deps.invites.list(params.page, params.pageSize)
+  params: KeysetPageOpts,
+): Promise<KeysetPage<InviteCodeRecord>> {
+  return deps.invites.list(params)
 }
 
 export function validateInviteCode(

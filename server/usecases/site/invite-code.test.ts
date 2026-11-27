@@ -23,7 +23,7 @@ function makeDeps(invites: Partial<InviteRepo> = {}) {
     generate: async () => [sampleCode],
     validate: async () => ({ valid: true }),
     redeem: async () => 'ok',
-    list: async () => ({ items: [], total: 0 }),
+    list: async () => ({ items: [], nextBoundary: null }),
     delete: async () => 'ok',
     ...invites,
   }
@@ -37,12 +37,13 @@ beforeEach(() => vi.clearAllMocks())
 
 describe('invite-code usecase', () => {
   describe('listInviteCodes', () => {
-    it('forwards page and pageSize to the repo and returns its result', async () => {
-      const list = vi.fn(async () => ({ items: [sampleCode], total: 1 }))
+    it('forwards the page size and boundary to the repo and returns its result', async () => {
+      const list = vi.fn(async () => ({ items: [sampleCode], nextBoundary: null }))
       const { deps } = makeDeps({ list })
-      const out = await listInviteCodes(deps, { page: 2, pageSize: 5 })
-      expect(out).toEqual({ items: [sampleCode], total: 1 })
-      expect(list).toHaveBeenCalledWith(2, 5)
+      const after = { createdAt: new Date(1000), id: 'code-0' }
+      const out = await listInviteCodes(deps, { pageSize: 5, after })
+      expect(out).toEqual({ items: [sampleCode], nextBoundary: null })
+      expect(list).toHaveBeenCalledWith({ pageSize: 5, after })
     })
   })
 

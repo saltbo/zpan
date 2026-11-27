@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { opaqueIdSchema, opaqueTokenSchema, pageQuerySchema, pageSchema } from '@shared/schemas'
+import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema, opaqueTokenSchema, pageSchema } from '@shared/schemas'
 import type { Env } from '../middleware/platform'
 import {
   type AuditEventWithUser,
@@ -39,6 +39,12 @@ import {
   toQuotaEntitlementDTO,
 } from './entitlements'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from './page-token'
 
 const inviteLinkInfoSchema = z
   .object({
@@ -96,7 +102,7 @@ function toAuditEventDTO(e: AuditEventWithUser): z.infer<typeof activityEventSch
   return { ...e, createdAt: e.createdAt.toISOString() }
 }
 
-const activityPageSchema = pageSchema(activityEventSchema, 'ActivityPage')
+const activityPageSchema = cursorPageSchema(activityEventSchema, 'ActivityPage')
 
 const teamSummarySchema = z
   .object({
@@ -112,7 +118,7 @@ const teamSummarySchema = z
   })
   .openapi('TeamSummary')
 
-const teamListSchema = pageSchema(teamSummarySchema, 'TeamList')
+const teamListSchema = cursorPageSchema(teamSummarySchema, 'TeamList')
 
 const createLinkSchema = z.object({
   role: z.enum(['editor', 'viewer']).default('viewer'),
@@ -234,10 +240,11 @@ const activityRoute = authRoute(
     path: '/{teamId}/activity',
     request: {
       params: z.object({ teamId: opaqueIdSchema }),
-      query: pageQuerySchema,
+      query: cursorPageQuerySchema,
     },
     responses: {
       200: jsonContent(activityPageSchema, 'Activity'),
+      400: errorResponse('Invalid page token'),
       403: errorResponse('Forbidden'),
     },
   },
@@ -316,15 +323,23 @@ export const teams = teamsApp
     throw conflict('Already a member of this team')
   })
   .openapi(activityRoute, async (c) => {
-    const { page, pageSize } = c.req.valid('query')
-    const result = await listActivity(c.get('deps'), {
-      teamId: c.req.valid('param').teamId,
-      userId: c.get('userId')!,
-      page,
-      pageSize,
-    })
+    const { pageSize, pageToken } = c.req.valid('query')
+    const teamId = c.req.valid('param').teamId
+    const userId = c.get('userId')!
+    const page = {
+      query: await pageQueryFingerprint({ resource: 'team-activity', teamId, userId, pageSize }),
+      codec: createdAtIdCursorCodec,
+    }
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, page)
+    const result = await listActivity(c.get('deps'), { teamId, userId, pageSize, after })
     if (!result.ok) throw forbidden()
-    return c.json({ items: result.result.items.map(toAuditEventDTO), total: result.result.total, page, pageSize }, 200)
+    return c.json(
+      {
+        items: result.result.items.map(toAuditEventDTO),
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.result.nextBoundary, page),
+      },
+      200,
+    )
   })
   .openapi(setLogoRoute, async (c) => {
     const teamId = c.req.valid('param').teamId
@@ -362,7 +377,8 @@ const listTeamsRoute = authRoute(
     tags: ['Teams'],
     method: 'get',
     path: '/',
-    responses: { 200: jsonContent(teamListSchema, 'Teams') },
+    request: { query: cursorPageQuerySchema },
+    responses: { 200: jsonContent(teamListSchema, 'Teams'), 400: errorResponse('Invalid page token') },
   },
 )
 
@@ -455,8 +471,14 @@ const revokeEntitlementRoute = authRoute(
 
 export const adminTeams = new OpenAPIHono<Env>()
   .openapi(listTeamsRoute, async (c) => {
-    const { items } = await listTeams(c.get('deps'))
-    return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
+    const { pageSize, pageToken } = c.req.valid('query')
+    const page = { query: await pageQueryFingerprint({ resource: 'teams', pageSize }), codec: createdAtIdCursorCodec }
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, page)
+    const result = await listTeams(c.get('deps'), { pageSize, after })
+    return c.json(
+      { items: result.items, nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, page) },
+      200,
+    )
   })
   .openapi(getTeamRoute, async (c) => {
     const team = await getTeam(c.get('deps'), c.req.valid('param').teamId)

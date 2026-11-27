@@ -11,6 +11,8 @@ import {
   badRequest,
   conflict,
   type EmailGateway,
+  type KeysetPage,
+  type KeysetPageOpts,
   notFound,
   type SiteInvitationRepo,
   textMessage,
@@ -73,10 +75,9 @@ async function sendSiteInvitationEmail(
 
 export function listSiteInvitations(
   deps: Pick<SiteInvitationDeps, 'siteInvitations'>,
-  page: number,
-  pageSize: number,
-): Promise<{ items: SiteInvitation[]; total: number }> {
-  return deps.siteInvitations.listSiteInvitations(page, pageSize)
+  opts: KeysetPageOpts,
+): Promise<KeysetPage<SiteInvitation>> {
+  return deps.siteInvitations.listSiteInvitations(opts)
 }
 
 export async function createSiteInvitation(

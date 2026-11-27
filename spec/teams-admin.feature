@@ -11,8 +11,9 @@ Feature: Team administration
   @teams-admin/list @api
   Scenario: Admins list team orgs
     Given team and personal orgs
-    When an admin lists teams
-    Then only team orgs are returned with usage, members, and owner
+    When an admin lists teams and follows each next page token
+    Then only team orgs are returned, newest first, with usage, members, and owner
+    And personal orgs never take a slot in a page
 
   @teams-admin/detail @api
   Scenario: Admins read a team's detail

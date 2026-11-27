@@ -375,9 +375,8 @@ describe('GET /api/teams/:teamId/activity — happy path', () => {
 
     const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
-    expect(body.items).toEqual([])
-    expect(body.total).toBe(0)
+    const body = (await res.json()) as { items: unknown[]; nextPageToken: string | null }
+    expect(body).toEqual({ items: [], nextPageToken: null })
   })
 
   it('returns activity items with user info when events exist [spec: teams/activity-feed]', async () => {
@@ -397,9 +396,9 @@ describe('GET /api/teams/:teamId/activity — happy path', () => {
         user: { id: string; name: string; image: string | null }
         actor: { name: string; image: string | null; resolved: boolean }
       }>
-      total: number
+      nextPageToken: string | null
     }
-    expect(body.total).toBe(1)
+    expect(body.nextPageToken).toBeNull()
     expect(body.items).toHaveLength(1)
     expect(body.items[0].id).toBe('evt-1')
     expect(body.items[0].targetName).toBe('document.pdf')
@@ -461,81 +460,69 @@ describe('GET /api/teams/:teamId/activity — happy path', () => {
 // ─── Pagination ────────────────────────────────────────────────────────────────
 
 describe('GET /api/teams/:teamId/activity — pagination', () => {
-  it('returns default page=1 and pageSize=20 in response', async () => {
+  it('returns every event and no next page token when they fit in one page', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
+    const userId = await getUserId(db)
+    await insertAuditEvent(db, { id: 'evt-one', orgId, userId })
 
     const res = await app.request(`/api/teams/${orgId}/activity`, { headers })
-    const body = (await res.json()) as { page: number; pageSize: number }
-    expect(body.page).toBe(1)
-    expect(body.pageSize).toBe(20)
+    const body = (await res.json()) as { items: unknown[]; nextPageToken: string | null }
+    expect(body.items).toHaveLength(1)
+    expect(body.nextPageToken).toBeNull()
   })
 
-  it('respects explicit page and pageSize query params [spec: teams/activity-pagination]', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    const orgId = await getOrgId(db)
-
-    const res = await app.request(`/api/teams/${orgId}/activity?page=2&pageSize=5`, { headers })
-    const body = (await res.json()) as { page: number; pageSize: number }
-    expect(body.page).toBe(2)
-    expect(body.pageSize).toBe(5)
-  })
-
-  it('returns correct total count regardless of page', async () => {
+  it('pages through a cursor with none repeated or skipped [spec: teams/activity-pagination]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
     const userId = await getUserId(db)
 
     const now = Date.now()
-    for (let i = 1; i <= 7; i++) {
-      await insertAuditEvent(db, { id: `evt-total-${i}`, orgId, userId, createdAt: now + i })
-    }
-
-    const res = await app.request(`/api/teams/${orgId}/activity?page=1&pageSize=3`, { headers })
-    const body = (await res.json()) as { items: unknown[]; total: number }
-    expect(body.total).toBe(7)
-    expect(body.items).toHaveLength(3)
-  })
-
-  it('returns correct items on second page', async () => {
-    const { app, db } = await createTestApp()
-    const headers = await authedHeaders(app)
-    const orgId = await getOrgId(db)
-    const userId = await getUserId(db)
-
-    const now = Date.now()
+    // Events 1 and 2 share a timestamp, so the id tie-breaker decides their order.
     for (let i = 1; i <= 5; i++) {
-      await insertAuditEvent(db, {
-        id: `evt-page-${i}`,
-        orgId,
-        userId,
-        targetName: `file-${i}.pdf`,
-        createdAt: now + i,
-      })
+      await insertAuditEvent(db, { id: `evt-page-${i}`, orgId, userId, createdAt: now + Math.max(i, 2) })
     }
 
-    // Page 2 with pageSize 3 should yield 2 items (the oldest two)
-    const res = await app.request(`/api/teams/${orgId}/activity?page=2&pageSize=3`, { headers })
-    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
-    expect(body.total).toBe(5)
-    expect(body.items).toHaveLength(2)
+    const ids: string[] = []
+    const sizes: number[] = []
+    let token: string | null = null
+    for (let i = 0; i < 5; i++) {
+      const query = new URLSearchParams({ pageSize: '2' })
+      if (token) query.set('pageToken', token)
+      const res = await app.request(`/api/teams/${orgId}/activity?${query}`, { headers })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { items: Array<{ id: string }>; nextPageToken: string | null }
+      sizes.push(body.items.length)
+      ids.push(...body.items.map((item) => item.id))
+      token = body.nextPageToken
+      if (!token) break
+    }
+    expect(sizes).toEqual([2, 2, 1])
+    expect(ids).toEqual(['evt-page-5', 'evt-page-4', 'evt-page-3', 'evt-page-2', 'evt-page-1'])
   })
 
-  it('returns empty items when page is beyond total results', async () => {
+  it('rejects a tampered token, and a token reused with another page size', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
     const orgId = await getOrgId(db)
     const userId = await getUserId(db)
+    for (let i = 1; i <= 3; i++) await insertAuditEvent(db, { id: `evt-tok-${i}`, orgId, userId })
 
-    await insertAuditEvent(db, { id: 'evt-single', orgId, userId })
+    const first = await app.request(`/api/teams/${orgId}/activity?pageSize=2`, { headers })
+    const { nextPageToken } = (await first.json()) as { nextPageToken: string }
+    expect(nextPageToken).toBeTruthy()
 
-    const res = await app.request(`/api/teams/${orgId}/activity?page=99&pageSize=20`, { headers })
-    const body = (await res.json()) as { items: unknown[]; total: number }
-    expect(body.total).toBe(1)
-    expect(body.items).toHaveLength(0)
+    const tampered = await app.request(`/api/teams/${orgId}/activity?pageSize=2&pageToken=${nextPageToken}x`, {
+      headers,
+    })
+    expect(tampered.status).toBe(400)
+    const resized = await app.request(`/api/teams/${orgId}/activity?pageSize=1&pageToken=${nextPageToken}`, {
+      headers,
+    })
+    expect(resized.status).toBe(400)
+    expect(await resized.json()).toMatchObject({ error: { details: [{ reason: 'INVALID_PAGE_TOKEN' }] } })
   })
 })
 
@@ -633,8 +620,8 @@ describe('GET /api/teams/:teamId/activity — isolation', () => {
     await insertAuditEvent(db, { id: 'evt-org2', orgId: orgId2, userId: userId2, targetName: 'user2-file.pdf' })
 
     const res = await app.request(`/api/teams/${orgId1}/activity`, { headers: headers1 })
-    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<{ id: string }> }
+    expect(body.items).toHaveLength(1)
     expect(body.items[0].id).toBe('evt-org1')
   })
 
@@ -883,11 +870,11 @@ async function adminHeaders(app: TestApp) {
 
 async function seedTeam(
   db: TestDb,
-  opts: { id: string; name: string; quota?: number; ownerId?: string; memberIds?: string[] },
+  opts: { id: string; name: string; quota?: number; ownerId?: string; memberIds?: string[]; createdAt?: number },
 ) {
   await db.run(sql`
-    INSERT INTO organization (id, name, slug, metadata)
-    VALUES (${opts.id}, ${opts.name}, ${opts.id}, '{"type":"team"}')
+    INSERT INTO organization (id, name, slug, metadata, created_at)
+    VALUES (${opts.id}, ${opts.name}, ${opts.id}, '{"type":"team"}', ${opts.createdAt ?? Date.now()})
   `)
   await db.run(sql`
     INSERT INTO org_quotas (id, org_id, quota, used, traffic_quota, traffic_used, traffic_period)
@@ -944,7 +931,7 @@ describe('Admin Teams API', () => {
 
     const res = await app.request('/api/teams', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
+    const body = (await res.json()) as { items: Array<Record<string, unknown>>; nextPageToken: string | null }
 
     const personalRows = await db.all<{ id: string }>(sql`
       SELECT o.id
@@ -955,7 +942,8 @@ describe('Admin Teams API', () => {
       LIMIT 1
     `)
     expect(body.items.map((t) => t.id)).not.toContain(personalRows[0].id)
-    expect(body.total).toBe(2)
+    expect(body.items).toHaveLength(2)
+    expect(body.nextPageToken).toBeNull()
 
     const alpha = body.items.find((t) => t.id === 'team-a')!
     expect(alpha.quotaTotal).toBe(20971520)
@@ -966,6 +954,46 @@ describe('Admin Teams API', () => {
     expect(beta.quotaTotal).toBe(0)
     expect(beta.memberCount).toBe(0)
     expect(beta.ownerName).toBeNull()
+  })
+
+  it('pages teams newest first and personal orgs never take a slot [spec: teams-admin/list]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const base = Date.now() + 1_000_000
+    for (let i = 1; i <= 5; i++) {
+      await seedTeam(db, { id: `team-p${i}`, name: `Team ${i}`, createdAt: base + i * 1000 })
+    }
+    // Newer than every team, so a post-filter would let them fill the first page.
+    await db.run(sql`
+      INSERT INTO organization (id, name, slug, metadata, created_at)
+      VALUES ('personal-newest-slug', 'Slug personal', 'personal-newest', NULL, ${base + 10_000}),
+             ('personal-newest-meta', 'Meta personal', 'meta-personal', '{"type":"personal"}', ${base + 11_000})
+    `)
+
+    const ids: string[] = []
+    const sizes: number[] = []
+    let token: string | null = null
+    for (let i = 0; i < 6; i++) {
+      const query = new URLSearchParams({ pageSize: '2' })
+      if (token) query.set('pageToken', token)
+      const res = await app.request(`/api/teams?${query}`, { headers })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { items: Array<{ id: string }>; nextPageToken: string | null }
+      sizes.push(body.items.length)
+      ids.push(...body.items.map((item) => item.id))
+      token = body.nextPageToken
+      if (!token) break
+    }
+    expect(sizes).toEqual([2, 2, 1])
+    expect(ids).toEqual(['team-p5', 'team-p4', 'team-p3', 'team-p2', 'team-p1'])
+  })
+
+  it('rejects an invalid page token on the team list', async () => {
+    const { app } = await createTestApp()
+    const headers = await adminHeaders(app)
+    const res = await app.request('/api/teams?pageToken=garbage', { headers })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: { details: [{ reason: 'INVALID_PAGE_TOKEN' }] } })
   })
 
   it('returns a single team detail [spec: teams-admin/detail]', async () => {

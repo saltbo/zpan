@@ -2143,6 +2143,27 @@ func (e StorageUsageBreakdownsCategory) Valid() bool {
 	}
 }
 
+// Defines values for StorageUsageItemSource.
+const (
+	StorageUsageItemSourceFiles        StorageUsageItemSource = "files"
+	StorageUsageItemSourceImageHosting StorageUsageItemSource = "image_hosting"
+	StorageUsageItemSourceTrash        StorageUsageItemSource = "trash"
+)
+
+// Valid indicates whether the value is a known member of the StorageUsageItemSource enum.
+func (e StorageUsageItemSource) Valid() bool {
+	switch e {
+	case StorageUsageItemSourceFiles:
+		return true
+	case StorageUsageItemSourceImageHosting:
+		return true
+	case StorageUsageItemSourceTrash:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WebDavVerificationStatus.
 const (
 	WebDavVerificationStatusDisabled   WebDavVerificationStatus = "disabled"
@@ -4054,27 +4075,6 @@ func (e ListStorageUsageItemsParamsSortDir) Valid() bool {
 	}
 }
 
-// Defines values for ListStorageUsageItems200JSONResponseBodyItemsSource.
-const (
-	ListStorageUsageItems200JSONResponseBodyItemsSourceFiles        ListStorageUsageItems200JSONResponseBodyItemsSource = "files"
-	ListStorageUsageItems200JSONResponseBodyItemsSourceImageHosting ListStorageUsageItems200JSONResponseBodyItemsSource = "image_hosting"
-	ListStorageUsageItems200JSONResponseBodyItemsSourceTrash        ListStorageUsageItems200JSONResponseBodyItemsSource = "trash"
-)
-
-// Valid indicates whether the value is a known member of the ListStorageUsageItems200JSONResponseBodyItemsSource enum.
-func (e ListStorageUsageItems200JSONResponseBodyItemsSource) Valid() bool {
-	switch e {
-	case ListStorageUsageItems200JSONResponseBodyItemsSourceFiles:
-		return true
-	case ListStorageUsageItems200JSONResponseBodyItemsSourceImageHosting:
-		return true
-	case ListStorageUsageItems200JSONResponseBodyItemsSourceTrash:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for PurchaseStorageCapacity200JSONResponseBodyStatus.
 const (
 	Delivered PurchaseStorageCapacity200JSONResponseBodyStatus = "delivered"
@@ -4206,10 +4206,8 @@ func (e GrantUserEntitlementJSONBodyResourceType) Valid() bool {
 
 // ActivityPage defines model for ActivityPage.
 type ActivityPage struct {
-	Items    []AuditEvent `json:"items"`
-	Page     int          `json:"page"`
-	PageSize int          `json:"pageSize"`
-	Total    int          `json:"total"`
+	Items         []AuditEvent `json:"items"`
+	NextPageToken *string      `json:"nextPageToken"`
 }
 
 // ActorAttribution defines model for ActorAttribution.
@@ -5042,6 +5040,24 @@ type AdminDashboard struct {
 // AdminDashboardDownloadersItemsStatus defines model for AdminDashboard.Downloaders.Items.Status.
 type AdminDashboardDownloadersItemsStatus string
 
+// AdminUser defines model for AdminUser.
+type AdminUser struct {
+	Banned    bool    `json:"banned"`
+	CreatedAt string  `json:"createdAt"`
+	Email     string  `json:"email"`
+	Id        string  `json:"id"`
+	Image     *string `json:"image"`
+	Name      string  `json:"name"`
+	Role      *string `json:"role"`
+	Username  *string `json:"username"`
+}
+
+// AdminUserPage defines model for AdminUserPage.
+type AdminUserPage struct {
+	Items         []AdminUser `json:"items"`
+	NextPageToken *string     `json:"nextPageToken"`
+}
+
 // AdminUserQuota defines model for AdminUserQuota.
 type AdminUserQuota struct {
 	HasPersonalOrg bool `json:"hasPersonalOrg"`
@@ -5102,10 +5118,8 @@ type AuditEventActorType string
 
 // AuditEventPage defines model for AuditEventPage.
 type AuditEventPage struct {
-	Items    []AuditEvent `json:"items"`
-	Page     int          `json:"page"`
-	PageSize int          `json:"pageSize"`
-	Total    int          `json:"total"`
+	Items         []AuditEvent `json:"items"`
+	NextPageToken *string      `json:"nextPageToken"`
 }
 
 // AuthProvider defines model for AuthProvider.
@@ -5885,10 +5899,8 @@ type InviteCode struct {
 
 // InviteCodeList defines model for InviteCodeList.
 type InviteCodeList struct {
-	Items    []InviteCode `json:"items"`
-	Page     int          `json:"page"`
-	PageSize int          `json:"pageSize"`
-	Total    int          `json:"total"`
+	Items         []InviteCode `json:"items"`
+	NextPageToken *string      `json:"nextPageToken"`
 }
 
 // LicenseBindingState defines model for LicenseBindingState.
@@ -6345,10 +6357,8 @@ type SiteInvitation struct {
 
 // SiteInvitationList defines model for SiteInvitationList.
 type SiteInvitationList struct {
-	Items    []SiteInvitation `json:"items"`
-	Page     int              `json:"page"`
-	PageSize int              `json:"pageSize"`
-	Total    int              `json:"total"`
+	Items         []SiteInvitation `json:"items"`
+	NextPageToken *string          `json:"nextPageToken"`
 }
 
 // SiteQuotaSettings defines model for SiteQuotaSettings.
@@ -6459,6 +6469,27 @@ type StorageUsage struct {
 // StorageUsageBreakdownsCategory defines model for StorageUsage.Breakdowns.Category.
 type StorageUsageBreakdownsCategory string
 
+// StorageUsageItem defines model for StorageUsageItem.
+type StorageUsageItem struct {
+	Id         string                 `json:"id"`
+	Name       string                 `json:"name"`
+	ParentPath string                 `json:"parentPath"`
+	Path       string                 `json:"path"`
+	Size       int                    `json:"size"`
+	Source     StorageUsageItemSource `json:"source"`
+	Type       string                 `json:"type"`
+	UpdatedAt  string                 `json:"updatedAt"`
+}
+
+// StorageUsageItemSource defines model for StorageUsageItem.Source.
+type StorageUsageItemSource string
+
+// StorageUsageItemPage defines model for StorageUsageItemPage.
+type StorageUsageItemPage struct {
+	Items         []StorageUsageItem `json:"items"`
+	NextPageToken *string            `json:"nextPageToken"`
+}
+
 // TeamInvitationList defines model for TeamInvitationList.
 type TeamInvitationList struct {
 	Items    []PendingInvitation `json:"items"`
@@ -6483,10 +6514,8 @@ type TeamInviteLinkInfo struct {
 
 // TeamList defines model for TeamList.
 type TeamList struct {
-	Items    []TeamSummary `json:"items"`
-	Page     int           `json:"page"`
-	PageSize int           `json:"pageSize"`
-	Total    int           `json:"total"`
+	Items         []TeamSummary `json:"items"`
+	NextPageToken *string       `json:"nextPageToken"`
 }
 
 // TeamSummary defines model for TeamSummary.
@@ -7427,8 +7456,8 @@ type UpdateAnnouncementJSONBodyStatus string
 
 // ListAuditEventsParams defines parameters for ListAuditEvents.
 type ListAuditEventsParams struct {
-	Page        *int       `form:"page,omitempty" json:"page,omitempty"`
 	PageSize    *int       `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken   *string    `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 	OrgId       *string    `form:"orgId,omitempty" json:"orgId,omitempty"`
 	UserId      *string    `form:"userId,omitempty" json:"userId,omitempty"`
 	Action      *string    `form:"action,omitempty" json:"action,omitempty"`
@@ -7457,8 +7486,8 @@ type GetChangelogParams struct {
 
 // ListSiteInvitationsParams defines parameters for ListSiteInvitations.
 type ListSiteInvitationsParams struct {
-	Page     *int `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 }
 
 // CreateSiteInvitationJSONBody defines parameters for CreateSiteInvitation.
@@ -7468,8 +7497,8 @@ type CreateSiteInvitationJSONBody struct {
 
 // ListInviteCodesParams defines parameters for ListInviteCodes.
 type ListInviteCodesParams struct {
-	Page     *int `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 }
 
 // GenerateInviteCodesJSONBody defines parameters for GenerateInviteCodes.
@@ -7553,11 +7582,11 @@ type UpdateStorageEgressBillingJSONBody struct {
 
 // ListStorageUsageItemsParams defines parameters for ListStorageUsageItems.
 type ListStorageUsageItemsParams struct {
-	Category ListStorageUsageItemsParamsCategory `form:"category" json:"category"`
-	Page     *int                                `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int                                `form:"pageSize,omitempty" json:"pageSize,omitempty"`
-	SortBy   *ListStorageUsageItemsParamsSortBy  `form:"sortBy,omitempty" json:"sortBy,omitempty"`
-	SortDir  *ListStorageUsageItemsParamsSortDir `form:"sortDir,omitempty" json:"sortDir,omitempty"`
+	PageSize  *int                                `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string                             `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+	Category  ListStorageUsageItemsParamsCategory `form:"category" json:"category"`
+	SortBy    *ListStorageUsageItemsParamsSortBy  `form:"sortBy,omitempty" json:"sortBy,omitempty"`
+	SortDir   *ListStorageUsageItemsParamsSortDir `form:"sortDir,omitempty" json:"sortDir,omitempty"`
 }
 
 // ListStorageUsageItemsParamsCategory defines parameters for ListStorageUsageItems.
@@ -7568,9 +7597,6 @@ type ListStorageUsageItemsParamsSortBy string
 
 // ListStorageUsageItemsParamsSortDir defines parameters for ListStorageUsageItems.
 type ListStorageUsageItemsParamsSortDir string
-
-// ListStorageUsageItems200JSONResponseBodyItemsSource defines parameters for ListStorageUsageItems.
-type ListStorageUsageItems200JSONResponseBodyItemsSource string
 
 // PurchaseStorageCapacityJSONBody defines parameters for PurchaseStorageCapacity.
 type PurchaseStorageCapacityJSONBody struct {
@@ -7622,10 +7648,16 @@ type CancelOrderJSONBody struct {
 // CancelOrderJSONBodyStatus defines parameters for CancelOrder.
 type CancelOrderJSONBodyStatus string
 
+// ListTeamsParams defines parameters for ListTeams.
+type ListTeamsParams struct {
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+}
+
 // ListTeamActivityParams defines parameters for ListTeamActivity.
 type ListTeamActivityParams struct {
-	Page     *int `form:"page,omitempty" json:"page,omitempty"`
-	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 }
 
 // GrantTeamEntitlementJSONBody defines parameters for GrantTeamEntitlement.
@@ -7676,6 +7708,13 @@ type RestoreObjectJSONBody struct {
 
 // RestoreObjectJSONBodyOnConflict defines parameters for RestoreObject.
 type RestoreObjectJSONBodyOnConflict string
+
+// ListUsersParams defines parameters for ListUsers.
+type ListUsersParams struct {
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+	Q         *string `form:"q,omitempty" json:"q,omitempty"`
+}
 
 // GrantUserEntitlementJSONBody defines parameters for GrantUserEntitlement.
 type GrantUserEntitlementJSONBody struct {
@@ -11556,7 +11595,7 @@ type ClientInterface interface {
 	ListStoreTargets(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListTeams request
-	ListTeams(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ListTeams(ctx context.Context, params *ListTeamsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTeamInviteLink request
 	GetTeamInviteLink(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -11615,6 +11654,9 @@ type ClientInterface interface {
 	RestoreObjectWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	RestoreObject(ctx context.Context, id string, body RestoreObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListUsers request
+	ListUsers(ctx context.Context, params *ListUsersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteMyAvatar request
 	DeleteMyAvatar(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -13973,8 +14015,8 @@ func (c *Client) ListStoreTargets(ctx context.Context, reqEditors ...RequestEdit
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListTeams(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListTeamsRequest(c.Server)
+func (c *Client) ListTeams(ctx context.Context, params *ListTeamsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListTeamsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -14227,6 +14269,18 @@ func (c *Client) RestoreObjectWithBody(ctx context.Context, id string, contentTy
 
 func (c *Client) RestoreObject(ctx context.Context, id string, body RestoreObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRestoreObjectRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListUsers(ctx context.Context, params *ListUsersParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListUsersRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -18389,9 +18443,9 @@ func NewListAuditEventsRequest(server string, params *ListAuditEventsParams) (*h
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if params.Page != nil {
+		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -18401,9 +18455,9 @@ func NewListAuditEventsRequest(server string, params *ListAuditEventsParams) (*h
 
 		}
 
-		if params.PageSize != nil {
+		if params.PageToken != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -18716,9 +18770,9 @@ func NewListSiteInvitationsRequest(server string, params *ListSiteInvitationsPar
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if params.Page != nil {
+		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -18728,9 +18782,9 @@ func NewListSiteInvitationsRequest(server string, params *ListSiteInvitationsPar
 
 		}
 
-		if params.PageSize != nil {
+		if params.PageToken != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -18924,9 +18978,9 @@ func NewListInviteCodesRequest(server string, params *ListInviteCodesParams) (*h
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if params.Page != nil {
+		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -18936,9 +18990,9 @@ func NewListInviteCodesRequest(server string, params *ListInviteCodesParams) (*h
 
 		}
 
-		if params.PageSize != nil {
+		if params.PageToken != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -20092,26 +20146,6 @@ func NewListStorageUsageItemsRequest(server string, params *ListStorageUsageItem
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "category", params.Category, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if params.Page != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
 		if params.PageSize != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
@@ -20122,6 +20156,26 @@ func NewListStorageUsageItemsRequest(server string, params *ListStorageUsageItem
 				}
 			}
 
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "category", params.Category, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
 		}
 
 		if params.SortBy != nil {
@@ -20654,7 +20708,7 @@ func NewListStoreTargetsRequest(server string) (*http.Request, error) {
 }
 
 // NewListTeamsRequest generates requests for ListTeams
-func NewListTeamsRequest(server string) (*http.Request, error) {
+func NewListTeamsRequest(server string, params *ListTeamsParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -20670,6 +20724,45 @@ func NewListTeamsRequest(server string) (*http.Request, error) {
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -20783,9 +20876,9 @@ func NewListTeamActivityRequest(server string, teamId string, params *ListTeamAc
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
-		if params.Page != nil {
+		if params.PageSize != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "page", *params.Page, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -20795,9 +20888,9 @@ func NewListTeamActivityRequest(server string, teamId string, params *ListTeamAc
 
 		}
 
-		if params.PageSize != nil {
+		if params.PageToken != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -21370,6 +21463,84 @@ func NewRestoreObjectRequestWithBody(server string, id string, contentType strin
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListUsersRequest generates requests for ListUsers
+func NewListUsersRequest(server string, params *ListUsersParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/users")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Q != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "q", *params.Q, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -22246,7 +22417,7 @@ type ClientWithResponsesInterface interface {
 	ListStoreTargetsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListStoreTargetsResponse, error)
 
 	// ListTeamsWithResponse request
-	ListTeamsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListTeamsResponse, error)
+	ListTeamsWithResponse(ctx context.Context, params *ListTeamsParams, reqEditors ...RequestEditorFn) (*ListTeamsResponse, error)
 
 	// GetTeamInviteLinkWithResponse request
 	GetTeamInviteLinkWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*GetTeamInviteLinkResponse, error)
@@ -22305,6 +22476,9 @@ type ClientWithResponsesInterface interface {
 	RestoreObjectWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RestoreObjectResponse, error)
 
 	RestoreObjectWithResponse(ctx context.Context, id string, body RestoreObjectJSONRequestBody, reqEditors ...RequestEditorFn) (*RestoreObjectResponse, error)
+
+	// ListUsersWithResponse request
+	ListUsersWithResponse(ctx context.Context, params *ListUsersParams, reqEditors ...RequestEditorFn) (*ListUsersResponse, error)
 
 	// DeleteMyAvatarWithResponse request
 	DeleteMyAvatarWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteMyAvatarResponse, error)
@@ -25399,6 +25573,7 @@ type ListSiteInvitationsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *SiteInvitationList
+	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -25557,6 +25732,7 @@ type ListInviteCodesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *InviteCodeList
+	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -26587,21 +26763,8 @@ func (r GetStorageUsageResponse) ContentType() string {
 type ListStorageUsageItemsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Items []struct {
-			Id         string                                              `json:"id"`
-			Name       string                                              `json:"name"`
-			ParentPath string                                              `json:"parentPath"`
-			Path       string                                              `json:"path"`
-			Size       int                                                 `json:"size"`
-			Source     ListStorageUsageItems200JSONResponseBodyItemsSource `json:"source"`
-			Type       string                                              `json:"type"`
-			UpdatedAt  string                                              `json:"updatedAt"`
-		} `json:"items"`
-		Page     int `json:"page"`
-		PageSize int `json:"pageSize"`
-		Total    int `json:"total"`
-	}
+	JSON200      *StorageUsageItemPage
+	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27097,6 +27260,7 @@ type ListTeamsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *TeamList
+	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27189,6 +27353,7 @@ type ListTeamActivityResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ActivityPage
+	JSON400      *Error
 	JSON403      *Error
 }
 
@@ -27628,6 +27793,37 @@ func (r RestoreObjectResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RestoreObjectResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListUsersResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AdminUserPage
+	JSON400      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListUsersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListUsersResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListUsersResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -29582,8 +29778,8 @@ func (c *ClientWithResponses) ListStoreTargetsWithResponse(ctx context.Context, 
 }
 
 // ListTeamsWithResponse request returning *ListTeamsResponse
-func (c *ClientWithResponses) ListTeamsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListTeamsResponse, error) {
-	rsp, err := c.ListTeams(ctx, reqEditors...)
+func (c *ClientWithResponses) ListTeamsWithResponse(ctx context.Context, params *ListTeamsParams, reqEditors ...RequestEditorFn) (*ListTeamsResponse, error) {
+	rsp, err := c.ListTeams(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -29772,6 +29968,15 @@ func (c *ClientWithResponses) RestoreObjectWithResponse(ctx context.Context, id 
 		return nil, err
 	}
 	return ParseRestoreObjectResponse(rsp)
+}
+
+// ListUsersWithResponse request returning *ListUsersResponse
+func (c *ClientWithResponses) ListUsersWithResponse(ctx context.Context, params *ListUsersParams, reqEditors ...RequestEditorFn) (*ListUsersResponse, error) {
+	rsp, err := c.ListUsers(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListUsersResponse(rsp)
 }
 
 // DeleteMyAvatarWithResponse request returning *DeleteMyAvatarResponse
@@ -33570,6 +33775,13 @@ func ParseListSiteInvitationsResponse(rsp *http.Response) (*ListSiteInvitationsR
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	}
 
 	return response, nil
@@ -33755,6 +33967,13 @@ func ParseListInviteCodesResponse(rsp *http.Response) (*ListInviteCodesResponse,
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 
@@ -34799,25 +35018,18 @@ func ParseListStorageUsageItemsResponse(rsp *http.Response) (*ListStorageUsageIt
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Items []struct {
-				Id         string                                              `json:"id"`
-				Name       string                                              `json:"name"`
-				ParentPath string                                              `json:"parentPath"`
-				Path       string                                              `json:"path"`
-				Size       int                                                 `json:"size"`
-				Source     ListStorageUsageItems200JSONResponseBodyItemsSource `json:"source"`
-				Type       string                                              `json:"type"`
-				UpdatedAt  string                                              `json:"updatedAt"`
-			} `json:"items"`
-			Page     int `json:"page"`
-			PageSize int `json:"pageSize"`
-			Total    int `json:"total"`
-		}
+		var dest StorageUsageItemPage
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 
@@ -35510,6 +35722,13 @@ func ParseListTeamsResponse(rsp *http.Response) (*ListTeamsResponse, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	}
 
 	return response, nil
@@ -35601,6 +35820,13 @@ func ParseListTeamActivityResponse(rsp *http.Response) (*ListTeamActivityRespons
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
 		var dest Error
@@ -36118,6 +36344,39 @@ func ParseRestoreObjectResponse(rsp *http.Response) (*RestoreObjectResponse, err
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListUsersResponse parses an HTTP response from a ListUsersWithResponse call
+func ParseListUsersResponse(rsp *http.Response) (*ListUsersResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListUsersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdminUserPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 

@@ -29,11 +29,6 @@ const ADMIN_USERS_KEYS = [
   'admin.users.batchEnable',
   'admin.users.batchStatusUpdated',
   'admin.users.noUsers',
-  'admin.users.prevPage',
-  'admin.users.nextPage',
-  'admin.users.pageInfo',
-  'admin.users.pageSize',
-  'admin.users.pageSizeOption',
   'admin.users.roleAdmin',
   'admin.users.roleMember',
   'admin.users.inviteUser',
@@ -67,8 +62,6 @@ const INTERPOLATED_KEYS: Record<string, string[]> = {
   'admin.users.selectedUsers': ['{{count}}'],
   'admin.users.selectUser': ['{{name}}'],
   'admin.users.batchStatusUpdated': ['{{count}}'],
-  'admin.users.pageInfo': ['{{page}}', '{{total}}'],
-  'admin.users.pageSizeOption': ['{{count}}'],
   'admin.users.inviteDialogDescription': ['{{count}}'],
 }
 
@@ -139,14 +132,6 @@ describe('admin.users locale keys — English values contract', () => {
     expect(enLocale['admin.users.noUsers']).toBe('No users found')
   })
 
-  it('admin.users.prevPage is "Previous"', () => {
-    expect(enLocale['admin.users.prevPage']).toBe('Previous')
-  })
-
-  it('admin.users.nextPage is "Next"', () => {
-    expect(enLocale['admin.users.nextPage']).toBe('Next')
-  })
-
   it('admin.users.searchPlaceholder is "Search by name, username, or email"', () => {
     expect(enLocale['admin.users.searchPlaceholder']).toBe('Search by name, username, or email')
   })
@@ -187,17 +172,5 @@ describe('admin.users locale keys — i18n runtime translation', () => {
     const { default: i18n } = await import('./index')
     await i18n.changeLanguage('zh')
     expect(i18n.t('admin.users.disabled')).toBe('已禁用')
-  })
-
-  it('interpolates admin.users.pageInfo with page and total in English', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('en')
-    expect(i18n.t('admin.users.pageInfo', { page: 2, total: 5 })).toBe('Page 2 of 5')
-  })
-
-  it('interpolates admin.users.pageInfo with page and total in Chinese', async () => {
-    const { default: i18n } = await import('./index')
-    await i18n.changeLanguage('zh')
-    expect(i18n.t('admin.users.pageInfo', { page: 2, total: 5 })).toBe('第 2 页，共 5 页')
   })
 })

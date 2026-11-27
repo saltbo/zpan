@@ -63,7 +63,7 @@ Feature: Teams
     Then items are ordered newest first
 
   @teams/activity-pagination @api
-  Scenario: The activity feed paginates
+  Scenario: The activity feed pages through a cursor
     Given more activity events than one page
-    When a member requests a page
-    Then the requested page and pageSize are honored
+    When a member requests a page and then follows its next page token
+    Then each page holds at most pageSize events, newest first, with none repeated or skipped

@@ -207,11 +207,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
 
     const res = await app.request('/api/site/audit-events?action=does_not_exist', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: unknown[]; total: number; page: number; pageSize: number }
-    expect(body.items).toEqual([])
-    expect(body.total).toBe(0)
-    expect(body.page).toBe(1)
-    expect(body.pageSize).toBe(20)
+    const body = (await res.json()) as { items: unknown[]; nextPageToken: string | null }
+    expect(body).toEqual({ items: [], nextPageToken: null })
   })
 
   it('lists events across multiple orgs, newest first [spec: audit/list-newest-first]', async () => {
@@ -250,8 +247,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
 
     const res = await app.request('/api/site/audit-events?targetType=file', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
-    expect(body.total).toBe(2)
+    const body = (await res.json()) as { items: Array<{ id: string }> }
+    expect(body.items).toHaveLength(2)
     // newest first
     expect(body.items[0].id).toBe('evt-b')
     expect(body.items[1].id).toBe('evt-a')
@@ -290,8 +287,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
 
     const res = await app.request('/api/site/audit-events?orgId=OrgX', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<{ orgId: string }>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<{ orgId: string }> }
+    expect(body.items).toHaveLength(1)
     expect(body.items[0].orgId).toBe('OrgX')
   })
 
@@ -327,8 +324,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     ])
 
     const res = await app.request('/api/site/audit-events?userId=alice', { headers })
-    const body = (await res.json()) as { items: Array<{ userId: string }>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<{ userId: string }> }
+    expect(body.items).toHaveLength(1)
     expect(body.items[0].userId).toBe('alice')
   })
 
@@ -364,8 +361,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     ])
 
     const res = await app.request('/api/site/audit-events?action=upload', { headers })
-    const body = (await res.json()) as { items: Array<{ action: string }>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<{ action: string }> }
+    expect(body.items).toHaveLength(1)
     expect(body.items[0].action).toBe('upload')
   })
 
@@ -428,8 +425,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
       createdTo: '2026-03-01T00:00:00.000Z',
     })
     const res = await app.request(`/api/site/audit-events?${query}`, { headers })
-    const body = (await res.json()) as { items: Array<{ id: string }>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<{ id: string }> }
+    expect(body.items).toHaveLength(1)
     expect(body.items.map((item) => item.id)).toEqual(['evt-range-match'])
   })
 
@@ -480,20 +477,20 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     ])
 
     const res = await app.request('/api/site/audit-events?targetType=folder', { headers })
-    const body = (await res.json()) as { items: Array<{ targetType: string }>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<{ targetType: string }> }
+    expect(body.items).toHaveLength(1)
     expect(body.items[0].targetType).toBe('folder')
   })
 
-  it('respects pagination params and returns correct page/pageSize [spec: audit/pagination]', async () => {
+  it('pages through a cursor with none repeated or skipped [spec: audit/pagination]', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)
     const headers = await adminHeaders(app)
 
     const { auditEvents } = await import('../../db/schema.js')
-    // Insert 3 events
+    // Five events, two sharing a timestamp so the id tie-breaker is exercised.
     await db.insert(auditEvents).values(
-      [1, 2, 3].map((i) => ({
+      [1, 2, 3, 4, 5].map((i) => ({
         id: `pg-evt-${i}`,
         orgId: 'OrgPg',
         userId: 'u1',
@@ -502,21 +499,67 @@ describe('GET /api/site/audit-events — licensed admin', () => {
         targetId: null,
         targetName: `file-${i}.pdf`,
         metadata: null,
-        createdAt: new Date(Date.now() - i * 1000),
+        createdAt: new Date(1_700_000_000_000 - Math.floor(i / 2) * 1000),
       })),
     )
 
-    const res = await app.request('/api/site/audit-events?page=2&pageSize=2&orgId=OrgPg', { headers })
-    const body = (await res.json()) as {
-      items: Array<{ id: string }>
-      total: number
-      page: number
-      pageSize: number
+    type Page = { items: Array<{ id: string }>; nextPageToken: string | null }
+    const seen: string[] = []
+    const sizes: number[] = []
+    let token: string | null = null
+    for (let i = 0; i < 5; i++) {
+      const query = new URLSearchParams({ pageSize: '2', orgId: 'OrgPg' })
+      if (token) query.set('pageToken', token)
+      const res = await app.request(`/api/site/audit-events?${query}`, { headers })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as Page
+      sizes.push(body.items.length)
+      seen.push(...body.items.map((item) => item.id))
+      token = body.nextPageToken
+      if (!token) break
     }
-    expect(body.total).toBe(3)
-    expect(body.page).toBe(2)
-    expect(body.pageSize).toBe(2)
-    expect(body.items).toHaveLength(1)
+
+    expect(sizes).toEqual([2, 2, 1])
+    expect(token).toBeNull()
+    expect([...seen].sort()).toEqual(['pg-evt-1', 'pg-evt-2', 'pg-evt-3', 'pg-evt-4', 'pg-evt-5'])
+    // newest first; each tied pair is ordered by id descending
+    expect(seen).toEqual(['pg-evt-1', 'pg-evt-3', 'pg-evt-2', 'pg-evt-5', 'pg-evt-4'])
+  })
+
+  it('rejects a tampered page token and one reused with another filter [spec: audit/pagination]', async () => {
+    const { app, db } = await createTestApp()
+    await seedProLicense(db)
+    const headers = await adminHeaders(app)
+    const { auditEvents } = await import('../../db/schema.js')
+    await db.insert(auditEvents).values(
+      [1, 2, 3].map((i) => ({
+        id: `tk-evt-${i}`,
+        orgId: 'OrgTk',
+        userId: 'u1',
+        action: 'upload',
+        targetType: 'file',
+        targetId: null,
+        targetName: `file-${i}.pdf`,
+        metadata: null,
+        createdAt: new Date(1_700_000_000_000 - i * 1000),
+      })),
+    )
+
+    const first = await app.request('/api/site/audit-events?pageSize=2&orgId=OrgTk', { headers })
+    const { nextPageToken } = (await first.json()) as { nextPageToken: string }
+    expect(nextPageToken).toBeTruthy()
+
+    const tampered = await app.request(`/api/site/audit-events?pageSize=2&orgId=OrgTk&pageToken=${nextPageToken}x`, {
+      headers,
+    })
+    expect(tampered.status).toBe(400)
+    expect(await tampered.json()).toMatchObject({ error: { details: [{ reason: 'INVALID_PAGE_TOKEN' }] } })
+
+    const otherFilter = await app.request(`/api/site/audit-events?pageSize=2&orgId=Other&pageToken=${nextPageToken}`, {
+      headers,
+    })
+    expect(otherFilter.status).toBe(400)
+    expect(await otherFilter.json()).toMatchObject({ error: { details: [{ reason: 'INVALID_PAGE_TOKEN' }] } })
   })
 
   it('response items include actor display info and orgName [spec: audit/actor-info]', async () => {
@@ -547,8 +590,8 @@ describe('GET /api/site/audit-events — licensed admin', () => {
     })
 
     const res = await app.request('/api/site/audit-events?action=upload', { headers })
-    const body = (await res.json()) as { items: Array<Record<string, unknown>>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<Record<string, unknown>> }
+    expect(body.items).toHaveLength(1)
     const item = body.items[0]
     expect(item).toHaveProperty('user')
     expect((item.user as Record<string, unknown>).name).toBeTruthy()
