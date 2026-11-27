@@ -167,6 +167,8 @@ export {
   errorResponseSchema,
 } from './errors'
 export { base62IdSchema, imageTokenSchema, opaqueIdSchema, opaqueTokenSchema, shareTokenSchema } from './id'
+export type { InviteCode, InviteCodeListItem } from './invite-code'
+export { inviteCodeListItemSchema, inviteCodeRedeemerSchema, inviteCodeSchema } from './invite-code'
 export type {
   EpisodeMediaMetadata,
   MatterMetadata,

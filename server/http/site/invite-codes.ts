@@ -1,6 +1,14 @@
 import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema, opaqueTokenSchema } from '@shared/schemas'
+import {
+  cursorPageQuerySchema,
+  cursorPageSchema,
+  type InviteCode,
+  type InviteCodeListItem as InviteCodeListItemDTO,
+  inviteCodeListItemSchema,
+  inviteCodeSchema,
+  opaqueIdSchema,
+} from '@shared/schemas'
 import { type InviteCodeListItem, type InviteCodeRecord, unauthorized } from '../../usecases/ports'
 import {
   deleteInviteCode,
@@ -17,36 +25,7 @@ import {
 } from '../page-token'
 import { createRouter } from '../router'
 
-const inviteCodeSchema = z
-  .object({
-    id: opaqueIdSchema,
-    code: opaqueTokenSchema,
-    createdBy: opaqueIdSchema,
-    usedBy: opaqueIdSchema.nullable(),
-    usedAt: z.string().nullable(),
-    expiresAt: z.string().nullable(),
-    createdAt: z.string(),
-  })
-  .openapi('InviteCode')
-
-const inviteCodeRedeemerSchema = z
-  .object({
-    name: z.string().openapi({ description: "The redeeming user's display name" }),
-    email: z.string().openapi({ description: "The redeeming user's email address" }),
-  })
-  .openapi('InviteCodeRedeemer')
-
-const inviteCodeListItemSchema = inviteCodeSchema
-  .extend({
-    usedByUser: inviteCodeRedeemerSchema.optional().openapi({
-      description: 'The user who redeemed the code. Omitted when the code is unused or that user was deleted.',
-    }),
-  })
-  .openapi('InviteCodeListItem')
-
-type InviteCodeDTO = z.infer<typeof inviteCodeSchema>
-
-function toInviteCodeDTO(r: InviteCodeRecord): InviteCodeDTO {
+function toInviteCodeDTO(r: InviteCodeRecord): InviteCode {
   return {
     id: r.id,
     code: r.code,
@@ -58,7 +37,7 @@ function toInviteCodeDTO(r: InviteCodeRecord): InviteCodeDTO {
   }
 }
 
-function toInviteCodeListItemDTO(r: InviteCodeListItem): z.infer<typeof inviteCodeListItemSchema> {
+function toInviteCodeListItemDTO(r: InviteCodeListItem): InviteCodeListItemDTO {
   const dto = toInviteCodeDTO(r)
   return r.usedByUser ? { ...dto, usedByUser: r.usedByUser } : dto
 }

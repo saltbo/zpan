@@ -210,7 +210,7 @@ function AboutPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" style={{ backgroundColor: '#1A73E8' }} asChild>
+            <Button className="w-full" asChild>
               <a href={cloudUrl} target="_blank" rel="noopener noreferrer">
                 {authorized ? <BadgeCheck className="mr-2 h-4 w-4" /> : <ExternalLink className="mr-2 h-4 w-4" />}
                 {t(authorized ? 'admin.about.cloud.viewCert' : 'admin.about.cloud.cta')}

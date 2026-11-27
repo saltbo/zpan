@@ -30,7 +30,7 @@ export function ProUpgradePrompt({
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
         {action ? (
-          <Button asChild style={{ backgroundColor: '#1A73E8' }}>
+          <Button asChild>
             <a href={action.href}>{action.label}</a>
           </Button>
         ) : (

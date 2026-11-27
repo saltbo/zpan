@@ -1,3 +1,4 @@
+import type { InviteCodeListItem } from '@shared/schemas'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleAlert, Copy, Ticket, Trash2 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
@@ -14,14 +15,14 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
-import { deleteInviteCode, generateInviteCodes, type InviteCode, listInviteCodes } from '@/lib/api'
+import { deleteInviteCode, generateInviteCodes, listInviteCodes } from '@/lib/api'
 
 const inviteCodesQueryKey = ['admin', 'invite-codes'] as const
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
 type CodeStatus = 'used' | 'expired' | 'available'
 
-function codeStatus(code: InviteCode): CodeStatus {
+function codeStatus(code: InviteCodeListItem): CodeStatus {
   if (code.usedBy) return 'used'
   if (code.expiresAt && new Date(code.expiresAt) < new Date()) return 'expired'
   return 'available'
@@ -37,7 +38,7 @@ function StatusBadge({ status }: { status: CodeStatus }) {
   return <Badge variant={status === 'available' ? 'outline' : 'secondary'}>{labels[status]}</Badge>
 }
 
-function UsedByCell({ code }: { code: InviteCode }) {
+function UsedByCell({ code }: { code: InviteCodeListItem }) {
   const { t } = useTranslation()
   const className = 'hidden max-w-48 text-sm lg:table-cell'
   if (code.usedByUser) {
@@ -88,7 +89,7 @@ export function InviteCodesSection() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [count, setCount] = useState(10)
   const [expiresInDays, setExpiresInDays] = useState('')
-  const [pendingDelete, setPendingDelete] = useState<InviteCode | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<InviteCodeListItem | null>(null)
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0])
   const pager = useCursorPager(String(pageSize))
 
