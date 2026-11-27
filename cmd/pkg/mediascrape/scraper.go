@@ -315,7 +315,8 @@ func isVideo(rel string) bool {
 
 // matchMovie settles a video's TMDB movie id: an .nfo in the download, then
 // an id the source carries, then a search. A video neither name classifies is
-// matched only through an .nfo. It returns 0 for no match.
+// searched by its title only under the stricter yearless rule. It returns 0
+// for no match.
 func (s *Scraper) matchMovie(ctx context.Context, download Download, v video, files map[string]localFile) (int, error) {
 	dir := path.Dir(v.file.rel)
 	for _, name := range []string{baseName(path.Base(v.file.rel)) + SuffixNFO, movieNFOName} {
@@ -347,10 +348,38 @@ func (s *Scraper) matchMovie(ctx context.Context, download Download, v video, fi
 			return id, nil
 		}
 	}
-	if v.info.Kind != KindMovie {
+	if v.info.Kind == KindMovie {
+		return s.search(ctx, v.info, s.tmdb.SearchMovies)
+	}
+	return s.searchYearless(ctx, TitleAndYear(v.info.Title).Title)
+}
+
+// searchYearless looks up a title that came without a year in the configured
+// language and in English, matching only per ChooseYearlessMatch.
+func (s *Scraper) searchYearless(ctx context.Context, title string) (int, error) {
+	if NormalizeTitle(title) == "" {
 		return 0, nil
 	}
-	return s.search(ctx, v.info, s.tmdb.SearchMovies)
+	for _, language := range s.searchLanguages() {
+		hits, err := s.tmdb.SearchMovies(ctx, title, 0, language)
+		if err != nil {
+			return 0, tmdbFailure(err)
+		}
+		if best, ok := ChooseYearlessMatch(title, hits); ok {
+			return best.ID, nil
+		}
+		if len(hits) == 0 {
+			break
+		}
+	}
+	return 0, nil
+}
+
+func (s *Scraper) searchLanguages() []string {
+	if s.language == fallbackLanguage {
+		return []string{s.language}
+	}
+	return []string{s.language, fallbackLanguage}
 }
 
 func readIdentity(file string) (NFOIdentity, error) {
@@ -376,10 +405,7 @@ func (s *Scraper) search(ctx context.Context, info Info, find searchFunc) (int, 
 	if NormalizeTitle(info.Title) == "" {
 		return 0, nil
 	}
-	languages := []string{s.language}
-	if s.language != fallbackLanguage {
-		languages = append(languages, fallbackLanguage)
-	}
+	languages := s.searchLanguages()
 	years := []int{0}
 	if info.Year != 0 {
 		years = []int{info.Year, 0}

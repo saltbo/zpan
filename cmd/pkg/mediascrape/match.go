@@ -9,15 +9,24 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// How a parsed title is matched to a TMDB search result, with the same rules
-// as the server (server/domain/tmdb.ts). Titles are compared after
-// normalization, so punctuation, case, accents, `&` versus "and", and a leading
-// English article do not matter, and a result whose year is more than one off
-// never matches.
+// How a parsed title is matched to a TMDB search result. Titles are compared
+// after normalization, so punctuation, case, accents, `&` versus "and", and a
+// leading English article do not matter, and a result whose year is more than
+// one off never matches.
 
 // TitleMatchThreshold is the Dice similarity of normalized titles at or above
 // which a search result can match.
 const TitleMatchThreshold = 0.85
+
+// A name without a year is matched only to a well-known film that has the
+// title to itself: at least YearlessMinVotes TMDB votes, and at least
+// YearlessPopularityLead times as popular as any other result with a
+// comparable title. A home video named after a common word, or a title shared
+// by a remake and its original, stays unscraped.
+const (
+	YearlessMinVotes       = 100
+	YearlessPopularityLead = 10.0
+)
 
 // SearchHit is one TMDB search result. Year is 0 when TMDB has no date.
 type SearchHit struct {
@@ -25,6 +34,8 @@ type SearchHit struct {
 	Title         string
 	OriginalTitle string
 	Year          int
+	Popularity    float64
+	VoteCount     int
 }
 
 var (
@@ -121,25 +132,33 @@ func TitleSimilarity(a, b string) float64 {
 	return float64(2*shared) / float64(len(left)-1+len(right)-1)
 }
 
+// similarity is how well a result matches a parsed title: the best Dice
+// similarity of its localized or original title among those ending in the
+// same sequel number, or 0.
+func similarity(title string, hit SearchHit) float64 {
+	sequel, hasSequel := sequelNumber(title)
+	best := 0.0
+	for _, candidate := range []string{hit.Title, hit.OriginalTitle} {
+		number, has := sequelNumber(candidate)
+		if has != hasSequel || number != sequel {
+			continue
+		}
+		if s := TitleSimilarity(title, candidate); s > best {
+			best = s
+		}
+	}
+	return best
+}
+
 // ChooseMatch picks the best result for a parsed title: the most similar
 // title (localized or original) that ends in the same sequel number, then the
 // closest year, then TMDB's own order. A result more than a year off the
 // parsed year never matches; a missing year on either side is neutral.
 func ChooseMatch(title string, year int, hits []SearchHit) (SearchHit, bool) {
-	sequel, hasSequel := sequelNumber(title)
 	var best SearchHit
 	bestSimilarity, bestDistance := -1.0, 0
 	for _, hit := range hits {
-		similarity := 0.0
-		for _, candidate := range []string{hit.Title, hit.OriginalTitle} {
-			number, has := sequelNumber(candidate)
-			if has != hasSequel || number != sequel {
-				continue
-			}
-			if s := TitleSimilarity(title, candidate); s > similarity {
-				similarity = s
-			}
-		}
+		similarity := similarity(title, hit)
 		if similarity < TitleMatchThreshold {
 			continue
 		}
@@ -155,6 +174,38 @@ func ChooseMatch(title string, year int, hits []SearchHit) (SearchHit, bool) {
 		}
 	}
 	return best, bestSimilarity >= 0
+}
+
+// ChooseYearlessMatch picks the result for a name that carries no year. Of
+// the results ChooseMatch would consider, the most popular one matches when
+// its normalized title equals the parsed one, it has at least
+// YearlessMinVotes votes, and it is at least YearlessPopularityLead times as
+// popular as the next one. Anything less is ambiguous and matches nothing.
+func ChooseYearlessMatch(title string, hits []SearchHit) (SearchHit, bool) {
+	var leader SearchHit
+	found, leaderSimilarity, runnerUp := false, 0.0, 0.0
+	for _, hit := range hits {
+		similarity := similarity(title, hit)
+		if similarity < TitleMatchThreshold {
+			continue
+		}
+		switch {
+		case !found:
+			leader, leaderSimilarity, found = hit, similarity, true
+		case hit.Popularity > leader.Popularity:
+			runnerUp = leader.Popularity
+			leader, leaderSimilarity = hit, similarity
+		case hit.Popularity > runnerUp:
+			runnerUp = hit.Popularity
+		}
+	}
+	if !found || leaderSimilarity != 1 || leader.VoteCount < YearlessMinVotes {
+		return SearchHit{}, false
+	}
+	if leader.Popularity < YearlessPopularityLead*runnerUp {
+		return SearchHit{}, false
+	}
+	return leader, true
 }
 
 func abs(value int) int {

@@ -89,10 +89,12 @@ func sleepContext(ctx context.Context, delay time.Duration) error {
 
 type searchResponse struct {
 	Results []struct {
-		ID            int    `json:"id"`
-		Title         string `json:"title"`
-		OriginalTitle string `json:"original_title"`
-		ReleaseDate   string `json:"release_date"`
+		ID            int     `json:"id"`
+		Title         string  `json:"title"`
+		OriginalTitle string  `json:"original_title"`
+		ReleaseDate   string  `json:"release_date"`
+		Popularity    float64 `json:"popularity"`
+		VoteCount     int     `json:"vote_count"`
 	} `json:"results"`
 }
 
@@ -113,6 +115,8 @@ func (t *TMDB) SearchMovies(ctx context.Context, title string, year int, languag
 			Title:         result.Title,
 			OriginalTitle: result.OriginalTitle,
 			Year:          yearOf(result.ReleaseDate),
+			Popularity:    result.Popularity,
+			VoteCount:     result.VoteCount,
 		})
 	}
 	return hits, nil

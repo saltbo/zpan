@@ -74,3 +74,10 @@ Feature: Download scraping
     When its TMDB movie is settled
     Then a .nfo in the download is used first, then a source id, then a search in the configured language and English
     And a search result matches only with title similarity of at least 0.85, the same sequel number, and a year within one
+
+  @download-scraping/yearless-match @domain
+  Scenario: A name without a year matches only a well-known film that has the title to itself
+    Given a downloaded video whose name and release name carry no year, such as Sintel/Sintel.mp4
+    When its TMDB movie is settled by search
+    Then the most popular result with a comparable title matches when its title is the same, it has at least 100 TMDB votes, and it is at least 10 times as popular as the next comparable result
+    And otherwise the download is uploaded unscraped

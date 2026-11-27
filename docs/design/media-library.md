@@ -379,9 +379,15 @@ root folder as the outermost folder, and settles its TMDB id in this order:
    video's own name parses as `unknown`, the task's release name is parsed
    instead.
 
-A video neither name classifies (such as `holiday-clip.mov`) is matched only
-through a `.nfo` or a source id, because a search for a title like that
-matches unrelated films. A sample (a video whose base name ends in `sample`,
+A video neither name classifies, because it carries no year (such as
+`Sintel.mp4` or `holiday-clip.mov`), is searched by its own name without a
+year, under a stricter rule, because a loose search for a name like that
+matches unrelated films. Of the results with a comparable title (the rule
+below, without the year), the most popular one matches only when its
+normalized title equals the name, it has at least 100 TMDB votes, and it is at
+least 10 times as popular as the next one. So `Sintel` and `Avatar` match,
+while `Dune` (the 2021 film and the 1984 one) and a home video named after an
+obscure film stay unscraped. A sample (a video whose base name ends in `sample`,
 or one in a `Sample` folder) is not a video for matching; it uploads as an
 ordinary file. Every video of the download must match the same movie, or
 every episode the same show, or the download is uploaded unscraped, and so

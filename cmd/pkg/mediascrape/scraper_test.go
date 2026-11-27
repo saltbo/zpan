@@ -316,6 +316,46 @@ func TestScrapeSourceIDs(t *testing.T) {
 	}
 }
 
+// [spec: download-scraping/yearless-match]
+func TestScrapeYearlessName(t *testing.T) {
+	cases := []struct {
+		label   string
+		results []map[string]any
+		folder  string
+	}{
+		{"a well-known title", []map[string]any{
+			{"id": 45745, "title": "Sintel", "original_title": "Sintel", "release_date": "2010-09-30", "popularity": 2.05, "vote_count": 183},
+		}, "Sintel (2010)"},
+		{"an ambiguous title", []map[string]any{
+			{"id": 45745, "title": "Sintel", "original_title": "Sintel", "release_date": "2010-09-30", "popularity": 2.05, "vote_count": 183},
+			{"id": 99, "title": "Sintel", "original_title": "Sintel", "release_date": "2024-01-01", "popularity": 1.5, "vote_count": 3},
+		}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.label, func(t *testing.T) {
+			f := newFakeTMDB(t)
+			f.search = func(query, year, language string) []map[string]any {
+				if query != "Sintel" || year != "" {
+					t.Errorf("searched %q year %q", query, year)
+				}
+				return tc.results
+			}
+			root := writeTree(t, map[string]string{"Sintel/Sintel.mp4": "v"})
+			plan, err := newTestScraper(f, "en-US").Scrape(context.Background(), Download{Path: filepath.Join(root, "Sintel"), IsDir: true, Name: "Sintel"}, t.TempDir())
+			if tc.folder == "" {
+				var skipped *SkipError
+				if !errors.As(err, &skipped) || !strings.Contains(skipped.Reason, `no TMDB movie matches "Sintel.mp4"`) {
+					t.Fatalf("err = %v, want an unmatched skip", err)
+				}
+				return
+			}
+			if err != nil || plan.Folder != tc.folder {
+				t.Fatalf("plan %q, %v", plan.Folder, err)
+			}
+		})
+	}
+}
+
 // [spec: download-scraping/existing-sidecars-win]
 func TestScrapeKeepsTheDownloadsOwnSidecar(t *testing.T) {
 	f := newFakeTMDB(t)
