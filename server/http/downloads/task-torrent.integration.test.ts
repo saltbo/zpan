@@ -6,6 +6,7 @@ import { encodeBencode } from '../../domain/bencode.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../../test/setup.js'
 import { buildTorrent, fileBytes, type TorrentFixture } from '../../test/torrent-fixture.js'
 import { createDownloader } from '../../usecases/downloads/downloads.js'
+import { S3ObjectNotFoundError } from '../../usecases/ports.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>
 
@@ -45,8 +46,14 @@ function installMemoryS3() {
   })
   vi.spyOn(S3Service.prototype, 'getObjectBytes').mockImplementation(async (_s, key) => {
     const bytes = objects.get(key)
-    if (!bytes) throw new Error('NoSuchKey')
+    if (!bytes) throw new S3ObjectNotFoundError(key)
     return bytes
+  })
+  vi.spyOn(S3Service.prototype, 'listTorrentCacheKeys').mockImplementation(async (_s, prefix) =>
+    [...objects.keys()].filter((key) => key.startsWith(prefix)).sort(),
+  )
+  vi.spyOn(S3Service.prototype, 'evictTorrentCacheObjects').mockImplementation(async (_s, keys) => {
+    for (const key of keys) objects.delete(key)
   })
   vi.spyOn(S3Service.prototype, 'getObjectStream').mockImplementation(async (_s, key, range) => {
     const bytes = objects.get(key)
@@ -611,6 +618,25 @@ describe('torrent cache fill edge cases', () => {
       parts: plan.parts.map((part) => ({ partNumber: part.partNumber, etag: 'e' })),
     })
     expect(done.status).toBe(200)
+
+    // A multipart upload whose parts failed is aborted, deleting its parts.
+    const aborted: string[] = []
+    vi.spyOn(S3Service.prototype, 'abortMultipartUpload').mockImplementation(async (_s, key, uploadId) => {
+      aborted.push(`${key} ${uploadId}`)
+      multipart.delete(uploadId)
+    })
+    const retry = (await (
+      await ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/files/0/uploads`, { method: 'POST', headers })
+    ).json()) as { uploadId: string }
+    const abort = await ctx.app.request(
+      `/api/downloads/tasks/${task.id}/torrent/files/0/uploads/${encodeURIComponent(retry.uploadId)}`,
+      { method: 'DELETE', headers },
+    )
+    expect(abort.status).toBe(204)
+    // The memory bucket names an upload after its key, so the id holds a slash.
+    const key = retry.uploadId.replace(/^mp:/, '')
+    expect(key).toMatch(/^bt\/[0-9a-f]{40}\/0$/)
+    expect(aborted).toEqual([`${key} ${retry.uploadId}`])
   })
 
   it('fails a submit that the cached torrent does not fit into', async () => {
@@ -655,5 +681,530 @@ describe('torrent cache fill edge cases', () => {
       state: 'failed',
       error: { message: 'The cached download failed verification' },
     })
+  })
+})
+
+// ─── Sidecars and the upload layout ──────────────────────────────────────────
+
+const SHOW = 'Show (2019)'
+const SEASON = `${SHOW}/Season 01`
+const E01 = `${SEASON}/Show.S01E01.1080p.mkv`
+const E02 = `${SEASON}/Show.S01E02.1080p.mkv`
+
+function scrapedTorrent() {
+  return buildTorrent('Show.S01.1080p', [
+    { path: 'Show.S01E01.1080p.mkv', bytes: fileBytes(40_000, 3) },
+    { path: '.pad/24000', bytes: new Uint8Array(24_000), padding: true },
+    { path: 'Show.S01E02.1080p.mkv', bytes: fileBytes(20_000, 4) },
+  ])
+}
+
+// The sidecars the scraper wrote, by number, and where the plan put them.
+const SIDECARS = [
+  { n: 0, path: `${SHOW}/tvshow.nfo`, bytes: new TextEncoder().encode('<tvshow/>') },
+  { n: 1, path: `${SHOW}/poster.jpg`, bytes: fileBytes(300, 5) },
+  { n: 2, path: `${SEASON}/Show.S01E01.1080p.nfo`, bytes: new TextEncoder().encode('<episodedetails/>'), video: E01 },
+  { n: 3, path: `${SEASON}/Show.S01E01.1080p-thumb.jpg`, bytes: fileBytes(200, 6), video: E01 },
+]
+
+const SIDECAR_BYTES = SIDECARS.reduce((sum, sidecar) => sum + sidecar.bytes.length, 0)
+
+const LAYOUT = {
+  version: 1,
+  entries: [
+    {
+      kind: 'folder',
+      path: SHOW,
+      media: {
+        kind: 'tvshow',
+        tmdb: { id: 1399, type: 'tv' },
+        title: 'Show',
+        year: 2019,
+        poster: `${SHOW}/poster.jpg`,
+      },
+    },
+    { kind: 'folder', path: SEASON },
+    {
+      kind: 'torrent-file',
+      path: E01,
+      fileIdx: 0,
+      media: {
+        kind: 'episode',
+        tmdb: { id: 1399, type: 'tv' },
+        season: 1,
+        episode: 1,
+        title: 'Pilot',
+        still: SIDECARS[3].path,
+      },
+    },
+    { kind: 'torrent-file', path: E02, fileIdx: 2 },
+    ...SIDECARS.map((sidecar) => ({
+      kind: 'sidecar',
+      path: sidecar.path,
+      sidecar: sidecar.n,
+      ...(sidecar.video ? { video: sidecar.video } : {}),
+    })),
+  ],
+}
+
+async function uploadSidecars(app: TestApp['app'], task: DownloadTask, sidecars = SIDECARS) {
+  const headers = bearer(task.status.assignment?.uploadToken as string)
+  for (const sidecar of sidecars) {
+    const start = await app.request(`/api/downloads/tasks/${task.id}/torrent/sidecars/${sidecar.n}/uploads`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ size: sidecar.bytes.length }),
+    })
+    expect(start.status).toBe(201)
+    const plan = (await start.json()) as { parts: Array<{ url: string }> }
+    upload(plan.parts[0].url, sidecar.bytes)
+    const done = await app.request(`/api/downloads/tasks/${task.id}/torrent/sidecars/${sidecar.n}/completions`, {
+      method: 'POST',
+      headers,
+    })
+    expect(done.status).toBe(200)
+  }
+}
+
+function putLayout(app: TestApp['app'], task: DownloadTask, layout: unknown) {
+  return app.request(`/api/downloads/tasks/${task.id}/torrent/layout`, {
+    method: 'PUT',
+    headers: bearer(task.status.assignment?.uploadToken as string),
+    body: JSON.stringify(layout),
+  })
+}
+
+// The drive under a folder: every live entry with its media, image references
+// shown as the path of the matter they name.
+async function tree(db: TestApp['db'], orgId: string, root: string) {
+  const rows = await db.all<{ id: string; name: string; parent: string; object: string; metadata: string | null }>(sql`
+    SELECT id, name, parent, object, metadata FROM matters
+    WHERE org_id = ${orgId} AND purged_at IS NULL AND trashed_at IS NULL
+      AND (parent = ${root} OR parent LIKE ${`${root}/%`})
+    ORDER BY parent, name
+  `)
+  const pathOf = new Map(rows.map((row) => [row.id, `${row.parent}/${row.name}`]))
+  return rows.map((row) => {
+    const media = row.metadata ? (JSON.parse(row.metadata) as { media?: Record<string, unknown> }).media : undefined
+    const resolved = media
+      ? Object.fromEntries(
+          Object.entries(media).map(([key, value]) =>
+            ['poster', 'fanart', 'still'].includes(key)
+              ? [key, pathOf.get(value as string) ?? 'missing']
+              : [key, value],
+          ),
+        )
+      : undefined
+    return { path: `${row.parent}/${row.name}`, object: row.object, ...(resolved ? { media: resolved } : {}) }
+  })
+}
+
+async function fillScraped(ctx: TestApp, task: DownloadTask, torrent: TorrentFixture) {
+  expect((await register(ctx.app, task, torrent.infoBase64)).body.outcome).toBe('fill')
+  await uploadSidecars(ctx.app, task)
+  expect((await putLayout(ctx.app, task, LAYOUT)).status).toBe(200)
+  // fillCache registers again (continuing the same fill) and uploads the files.
+  return fillCache(ctx.app, task, torrent)
+}
+
+describe('torrent cache layout', () => {
+  it('replays the scraped layout for every holder [spec: torrent-cache/layout-replay]', async () => {
+    const { ctx, a, b } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = scrapedTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet, 'Downloads')
+    const completed = await fillScraped(ctx, (await poll())[0], torrent)
+    expect(completed.status.state).toBe('completed')
+    await waitForTorrent(ctx.db, torrent.infoHash, 'ready')
+
+    const bt = `bt/${torrent.infoHash}`
+    const expected = (root: string) => [
+      {
+        path: `${root}/${SHOW}`,
+        object: '',
+        media: {
+          kind: 'tvshow',
+          tmdb: { id: 1399, type: 'tv' },
+          title: 'Show',
+          year: 2019,
+          poster: `${root}/${SHOW}/poster.jpg`,
+        },
+      },
+      { path: `${root}/${SHOW}/Season 01`, object: '' },
+      { path: `${root}/${SHOW}/poster.jpg`, object: `${bt}/x/1` },
+      { path: `${root}/${SHOW}/tvshow.nfo`, object: `${bt}/x/0` },
+      { path: `${root}/${SIDECARS[3].path}`, object: `${bt}/x/3` },
+      {
+        path: `${root}/${E01}`,
+        object: `${bt}/0`,
+        media: {
+          kind: 'episode',
+          tmdb: { id: 1399, type: 'tv' },
+          season: 1,
+          episode: 1,
+          title: 'Pilot',
+          still: `${root}/${SIDECARS[3].path}`,
+        },
+      },
+      { path: `${root}/${SIDECARS[2].path}`, object: `${bt}/x/2` },
+      { path: `${root}/${E02}`, object: `${bt}/2` },
+    ]
+    // The first requester finishes through the same replay.
+    expect(await tree(ctx.db, a.orgId, 'Downloads')).toEqual(expected('Downloads'))
+
+    const task = await submit(ctx.app, b.headers, torrent.magnet, 'Media')
+    expect(task.status.state).toBe('completed')
+    expect(await tree(ctx.db, b.orgId, 'Media')).toEqual(expected('Media'))
+
+    // The TV view lists the show with its episode, as it does after an upload.
+    const shows = await ctx.app.request('/api/media/shows', { headers: b.headers })
+    expect(shows.status).toBe(200)
+    const page = (await shows.json()) as { items: Array<{ id: string; media: { title: string } }> }
+    expect(page.items.map((item) => item.media.title)).toEqual(['Show'])
+    const episodes = await ctx.app.request(`/api/media/shows/${page.items[0].id}/episodes`, { headers: b.headers })
+    expect(episodes.status).toBe(200)
+    const list = (await episodes.json()) as { items: Array<{ media: { episode: number } }> }
+    expect(list.items.map((item) => item.media.episode)).toEqual([1])
+
+    // Quota covers the files and sidecars; the storage counts the cached
+    // objects once, layout included.
+    const fileBytes = 60_000
+    const [quota] = await ctx.db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${b.orgId}`)
+    expect(quota.used).toBe(fileBytes + SIDECAR_BYTES)
+    const layoutBytes = (objects.get(`${bt}/layout.json`) as Uint8Array).length
+    const [storage] = await ctx.db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${STORAGE_ID}`)
+    expect(storage.used).toBe(fileBytes + SIDECAR_BYTES + layoutBytes)
+  })
+
+  it('reuses folders, keeps existing sidecars and media, and renames a taken video name', async () => {
+    const { ctx, a, b } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = scrapedTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    await fillScraped(ctx, (await poll())[0], torrent)
+    await waitForTorrent(ctx.db, torrent.infoHash, 'ready')
+
+    // Workspace b already holds the show folder with its own media and
+    // tvshow.nfo, and a file at the first episode's name.
+    const folder = async (name: string, parent: string) => {
+      const res = await ctx.app.request('/api/objects', {
+        method: 'POST',
+        headers: b.headers,
+        body: JSON.stringify({ name, type: 'folder', parent, dirtype: 1 }),
+      })
+      expect(res.status).toBe(201)
+      return ((await res.json()) as { id: string }).id
+    }
+    await folder('Media', '')
+    const show = await folder(SHOW, 'Media')
+    await folder('Season 01', `Media/${SHOW}`)
+    const existingMedia = { kind: 'tvshow', tmdb: { id: 7, type: 'tv' }, title: 'Earlier' }
+    await ctx.db.run(sql`UPDATE matters SET metadata = ${JSON.stringify({ media: existingMedia })} WHERE id = ${show}`)
+    const placeFile = async (name: string, parent: string) => {
+      const res = await ctx.app.request('/api/objects', {
+        method: 'POST',
+        headers: b.headers,
+        body: JSON.stringify({ name, type: 'application/octet-stream', size: 1, parent }),
+      })
+      expect(res.status).toBe(201)
+      const id = ((await res.json()) as { id: string }).id
+      await ctx.db.run(sql`UPDATE matters SET status = 'active' WHERE id = ${id}`)
+      return id
+    }
+    const nfo = await placeFile('tvshow.nfo', `Media/${SHOW}`)
+    await placeFile('Show.S01E01.1080p.mkv', `Media/${SEASON}`)
+
+    const task = await submit(ctx.app, b.headers, torrent.magnet, 'Media')
+    expect(task.status.state).toBe('completed')
+    const entries = await tree(ctx.db, b.orgId, 'Media')
+    const paths = entries.map((entry) => entry.path)
+    // One show folder, one season folder: both reused.
+    expect(paths.filter((path) => path === `Media/${SHOW}`)).toHaveLength(1)
+    expect(paths.filter((path) => path === `Media/${SEASON}`)).toHaveLength(1)
+    expect(entries.find((entry) => entry.path === `Media/${SHOW}`)?.media).toEqual(existingMedia)
+    // The existing tvshow.nfo wins.
+    const [kept] = await ctx.db.all<{ id: string; object: string }>(sql`
+      SELECT id, object FROM matters WHERE org_id = ${b.orgId} AND parent = ${`Media/${SHOW}`} AND name = 'tvshow.nfo'
+    `)
+    expect(kept.id).toBe(nfo)
+    expect(kept.object.startsWith('bt/')).toBe(false)
+    // The taken video name is renamed, and its sidecars follow the new name.
+    expect(entries.find((entry) => entry.path === `Media/${SEASON}/Show.S01E01.1080p (1).mkv`)).toMatchObject({
+      object: `bt/${torrent.infoHash}/0`,
+      media: { kind: 'episode', still: `Media/${SEASON}/Show.S01E01.1080p (1)-thumb.jpg` },
+    })
+    expect(paths).toContain(`Media/${SEASON}/Show.S01E01.1080p (1).nfo`)
+  })
+
+  it('refuses layouts that name files or sidecars the cache does not hold', async () => {
+    const { ctx, a } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = scrapedTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    const [task] = await poll()
+    expect((await register(ctx.app, task, torrent.infoBase64)).body.outcome).toBe('fill')
+    await uploadSidecars(ctx.app, task, SIDECARS.slice(0, 1))
+
+    const invalid = async (entries: unknown[]) => {
+      const res = await putLayout(ctx.app, task, { version: 1, entries })
+      expect(res.status).toBe(400)
+      return res
+    }
+    // A padding file, a missing file, a sidecar never uploaded.
+    expect(await (await invalid([{ kind: 'torrent-file', path: 'Show/pad', fileIdx: 1 }])).json()).toMatchObject({
+      error: { details: [{ reason: 'TORRENT_LAYOUT_INVALID' }] },
+    })
+    await invalid([{ kind: 'torrent-file', path: 'Show/x.mkv', fileIdx: 9 }])
+    await invalid([{ kind: 'sidecar', path: 'Show/poster.jpg', sidecar: 1 }])
+    // The same file twice, a path twice, a file holding another entry.
+    await invalid([
+      { kind: 'torrent-file', path: 'a.mkv', fileIdx: 0 },
+      { kind: 'torrent-file', path: 'b.mkv', fileIdx: 0 },
+    ])
+    await invalid([
+      { kind: 'torrent-file', path: 'a.mkv', fileIdx: 0 },
+      { kind: 'sidecar', path: 'A.mkv', sidecar: 0 },
+    ])
+    await invalid([
+      { kind: 'torrent-file', path: 'a.mkv', fileIdx: 0 },
+      { kind: 'sidecar', path: 'a.mkv/x.nfo', sidecar: 0 },
+    ])
+    // A sidecar named after something that is not its video, an image that is no sidecar.
+    await invalid([
+      { kind: 'torrent-file', path: 'a.mkv', fileIdx: 0 },
+      { kind: 'sidecar', path: 'b.nfo', sidecar: 0, video: 'a.mkv' },
+    ])
+    await invalid([{ kind: 'sidecar', path: 'b.nfo', sidecar: 0, video: 'missing.mkv' }])
+    await invalid([
+      {
+        kind: 'torrent-file',
+        path: 'a.mkv',
+        fileIdx: 0,
+        media: { kind: 'movie', tmdb: { id: 1, type: 'movie' }, title: 'A', poster: 'a.mkv' },
+      },
+    ])
+    // Path segments must be clean.
+    await invalid([{ kind: 'torrent-file', path: '../a.mkv', fileIdx: 0 }])
+
+    // Sidecars refuse oversized declarations and completions without an upload.
+    const headers = bearer(task.status.assignment?.uploadToken as string)
+    const big = await ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/sidecars/5/uploads`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ size: 64 * 1024 * 1024 }),
+    })
+    expect(big.status).toBe(400)
+    const notUploaded = await ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/sidecars/5/completions`, {
+      method: 'POST',
+      headers,
+    })
+    expect(notUploaded.status).toBe(400)
+  })
+
+  it('evicts sidecars and the layout with the torrent, and a takeover starts without them', async () => {
+    const { ctx, a } = await setup()
+    const evicted: string[] = []
+    vi.spyOn(S3Service.prototype, 'evictTorrentCacheObjects').mockImplementation(async (_s, keys) => {
+      for (const key of keys) {
+        evicted.push(key)
+        objects.delete(key)
+      }
+    })
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = scrapedTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    const [first] = await poll()
+    expect((await register(ctx.app, first, torrent.infoBase64)).body.outcome).toBe('fill')
+    await uploadSidecars(ctx.app, first)
+    expect((await putLayout(ctx.app, first, LAYOUT)).status).toBe(200)
+
+    // The first download stops; a new one takes the torrent over and clears
+    // what the first one stored beside the files.
+    await ctx.deps.downloadTasks.setFields(first.id, {
+      status: 'failed',
+      finishedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await submit(ctx.app, a.headers, torrent.magnet, 'Again')
+    const takeover = (await poll()).find((task) => task.id !== first.id) as DownloadTask
+    expect((await register(ctx.app, takeover, torrent.infoBase64)).body.outcome).toBe('fill')
+    const bt = `bt/${torrent.infoHash}`
+    expect(evicted.sort()).toEqual([`${bt}/layout.json`, `${bt}/x/0`, `${bt}/x/1`, `${bt}/x/2`, `${bt}/x/3`])
+    expect(await ctx.db.all(sql`SELECT name FROM torrent_extra_objects`)).toEqual([])
+
+    // Without a layout, the takeover lays the torrent out as its own tree.
+    await uploadSidecars(ctx.app, takeover, SIDECARS.slice(1, 2))
+    await fillCache(ctx.app, takeover, torrent)
+    expect((await tree(ctx.db, a.orgId, 'Again')).map((entry) => entry.path)).toEqual([
+      'Again/Show.S01.1080p',
+      'Again/Show.S01.1080p/Show.S01E01.1080p.mkv',
+      'Again/Show.S01.1080p/Show.S01E02.1080p.mkv',
+    ])
+    await waitForTorrent(ctx.db, torrent.infoHash, 'ready')
+
+    // Eviction deletes the files, the remaining sidecar, and the extra rows.
+    evicted.length = 0
+    await ctx.db.run(sql`UPDATE matters SET purged_at = ${Date.now()} WHERE object LIKE 'bt/%'`)
+    await ctx.db.run(sql`UPDATE torrents SET last_accessed_at = 0`)
+    const { evictTorrentCache } = await import('../../usecases/torrent-cache/eviction.js')
+    expect(await evictTorrentCache(ctx.deps)).toBe(1)
+    expect(evicted.sort()).toEqual([`${bt}/0`, `${bt}/2`, `${bt}/info`, `${bt}/layout.json`, `${bt}/x/1`])
+    expect(await ctx.db.all(sql`SELECT name FROM torrent_extra_objects`)).toEqual([])
+    const [storage] = await ctx.db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${STORAGE_ID}`)
+    expect(storage.used).toBe(0)
+  })
+})
+
+describe('torrent cache layout fallback', () => {
+  it('lays out the torrent as its own tree when the stored layout cannot be read', async () => {
+    const { ctx, a, b } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = scrapedTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    await fillScraped(ctx, (await poll())[0], torrent)
+    await waitForTorrent(ctx.db, torrent.infoHash, 'ready')
+
+    objects.set(`bt/${torrent.infoHash}/layout.json`, new TextEncoder().encode('{not json'))
+    expect((await submit(ctx.app, b.headers, torrent.magnet, 'Media')).status.state).toBe('completed')
+    expect((await tree(ctx.db, b.orgId, 'Media')).map((entry) => entry.path)).toEqual([
+      'Media/Show.S01.1080p',
+      'Media/Show.S01.1080p/Show.S01E01.1080p.mkv',
+      'Media/Show.S01.1080p/Show.S01E02.1080p.mkv',
+    ])
+  })
+})
+
+describe('torrent cache layout hardening', () => {
+  it('lays out the raw tree only when the layout object is gone, and fails a transfer when the read fails', async () => {
+    const { ctx, a, b } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = scrapedTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    await fillScraped(ctx, (await poll())[0], torrent)
+    await waitForTorrent(ctx.db, torrent.infoHash, 'ready')
+    const layoutKey = `bt/${torrent.infoHash}/layout.json`
+
+    // A transient read failure is not a verdict on the layout: nothing is laid out.
+    const read = vi.mocked(S3Service.prototype.getObjectBytes)
+    const original = read.getMockImplementation()
+    read.mockImplementation(async (storage, key, range) => {
+      if (key === layoutKey) throw new Error('S3 object read failed: 503')
+      return (original as NonNullable<typeof original>)(storage, key, range)
+    })
+    const failed = await ctx.app.request('/api/downloads/tasks', {
+      method: 'POST',
+      headers: b.headers,
+      body: JSON.stringify({ source: { type: 'magnet', uri: torrent.magnet }, targetFolder: 'Media' }),
+    })
+    expect(failed.status).toBeGreaterThanOrEqual(500)
+    expect(await tree(ctx.db, b.orgId, 'Media')).toEqual([])
+
+    // Once the read works, the same transfer replays the layout.
+    read.mockImplementation(original as NonNullable<typeof original>)
+    expect((await submit(ctx.app, b.headers, torrent.magnet, 'Media')).status.state).toBe('completed')
+    expect((await tree(ctx.db, b.orgId, 'Media')).map((entry) => entry.path)).toContain(`Media/${E01}`)
+
+    // A layout object that no longer exists does degrade to the raw tree.
+    objects.delete(layoutKey)
+    expect((await submit(ctx.app, b.headers, torrent.magnet, 'Raw')).status.state).toBe('completed')
+    expect((await tree(ctx.db, b.orgId, 'Raw')).map((entry) => entry.path)).toEqual([
+      'Raw/Show.S01.1080p',
+      'Raw/Show.S01.1080p/Show.S01E01.1080p.mkv',
+      'Raw/Show.S01.1080p/Show.S01E02.1080p.mkv',
+    ])
+  })
+
+  it('refuses a layout body over 8 MiB', async () => {
+    const { ctx, a } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = scrapedTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    const [task] = await poll()
+    expect((await register(ctx.app, task, torrent.infoBase64)).body.outcome).toBe('fill')
+    const path = 'a'.repeat(4000)
+    const entries = Array.from({ length: 2200 }, (_, i) => ({ kind: 'folder', path: `${path}/${i}` }))
+    const res = await putLayout(ctx.app, task, { version: 1, entries })
+    expect(res.status).toBe(413)
+    expect(objects.has(`bt/${torrent.infoHash}/layout.json`)).toBe(false)
+  })
+
+  it('deletes an oversized sidecar, and eviction removes objects no row records', async () => {
+    const { ctx, a } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = scrapedTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    const [task] = await poll()
+    expect((await register(ctx.app, task, torrent.infoBase64)).body.outcome).toBe('fill')
+    const bt = `bt/${torrent.infoHash}`
+
+    // The declared size was small, but the PUT stored more than the cap.
+    const headers = bearer(task.status.assignment?.uploadToken as string)
+    const start = await ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/sidecars/7/uploads`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ size: 10 }),
+    })
+    expect(start.status).toBe(201)
+    upload(((await start.json()) as { parts: Array<{ url: string }> }).parts[0].url, new Uint8Array(33 * 1024 * 1024))
+    const done = await ctx.app.request(`/api/downloads/tasks/${task.id}/torrent/sidecars/7/completions`, {
+      method: 'POST',
+      headers,
+    })
+    expect(done.status).toBe(400)
+    expect(objects.has(`${bt}/x/7`)).toBe(false)
+
+    await fillCache(ctx.app, task, torrent)
+    await waitForTorrent(ctx.db, torrent.infoHash, 'ready')
+    // A late presigned PUT lands after the download stopped; no row records it.
+    objects.set(`${bt}/x/8`, new Uint8Array(5))
+    await ctx.db.run(sql`UPDATE matters SET purged_at = ${Date.now()} WHERE object LIKE 'bt/%'`)
+    await ctx.db.run(sql`UPDATE torrents SET last_accessed_at = 0`)
+    const { evictTorrentCache } = await import('../../usecases/torrent-cache/eviction.js')
+    expect(await evictTorrentCache(ctx.deps)).toBe(1)
+    expect([...objects.keys()].filter((key) => key.startsWith(`${bt}/`))).toEqual([])
+  })
+
+  it('retries a takeover whose clear failed, and recounts storage usage without the cleared objects', async () => {
+    const { ctx, a } = await setup()
+    const poll = await downloader(ctx, a.userId, ['magnet', 'torrent', 'torrent-cache'])
+    const torrent = scrapedTorrent()
+    await submit(ctx.app, a.headers, torrent.magnet)
+    const [first] = await poll()
+    expect((await register(ctx.app, first, torrent.infoBase64)).body.outcome).toBe('fill')
+    await uploadSidecars(ctx.app, first)
+    expect((await putLayout(ctx.app, first, LAYOUT)).status).toBe(200)
+    await ctx.deps.storageUsage.reconcileStorages([STORAGE_ID])
+    const used = async () =>
+      (await ctx.db.all<{ used: number }>(sql`SELECT used FROM storages WHERE id = ${STORAGE_ID}`))[0].used
+    const layoutBytes = objects.get(`bt/${torrent.infoHash}/layout.json`)?.length ?? 0
+    const fileBytesTotal = torrent.files.filter((file) => !file.padding).reduce((sum, f) => sum + f.bytes.length, 0)
+    expect(await used()).toBe(fileBytesTotal + SIDECAR_BYTES + layoutBytes)
+
+    await ctx.deps.downloadTasks.setFields(first.id, {
+      status: 'failed',
+      finishedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await submit(ctx.app, a.headers, torrent.magnet, 'Again')
+    const takeover = (await poll()).find((task) => task.id !== first.id) as DownloadTask
+
+    // The clear fails once: the torrent still names the stopped download.
+    const evict = vi.mocked(S3Service.prototype.evictTorrentCacheObjects)
+    const original = evict.getMockImplementation() as NonNullable<ReturnType<typeof evict.getMockImplementation>>
+    evict.mockImplementationOnce(async () => {
+      throw new Error('S3 delete failed: 503')
+    })
+    expect((await register(ctx.app, takeover, torrent.infoBase64)).status).toBeGreaterThanOrEqual(500)
+    const [source] = await ctx.db.all<{ source_task_id: string }>(
+      sql`SELECT source_task_id FROM torrents WHERE info_hash = ${torrent.infoHash}`,
+    )
+    expect(source.source_task_id).toBe(first.id)
+
+    // The retry takes over and clears what the first download stored.
+    evict.mockImplementation(original)
+    expect((await register(ctx.app, takeover, torrent.infoBase64)).body.outcome).toBe('fill')
+    expect(await ctx.db.all(sql`SELECT name FROM torrent_extra_objects`)).toEqual([])
+    expect([...objects.keys()].filter((key) => key.includes('/x/') || key.endsWith('layout.json'))).toEqual([])
+    expect(await used()).toBe(fileBytesTotal)
   })
 })

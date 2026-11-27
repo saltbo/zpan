@@ -30,6 +30,17 @@ export interface TorrentFileRecord {
   uploadedAt: Date | null
 }
 
+// A sidecar (x/<n>) or the upload layout (layout.json) stored beside a
+// torrent's files.
+export interface TorrentExtraObjectRecord {
+  torrentId: string
+  name: string
+  size: number
+  storageId: string
+  objectKey: string
+  uploadedAt: Date
+}
+
 export interface CreateTorrentInput {
   infoHash: string
   storageId: string
@@ -85,6 +96,12 @@ export interface TorrentRepo {
   touch(id: string, statuses: readonly TorrentStatus[], now: Date): Promise<boolean>
   markFileUploaded(torrentId: string, fileIdx: number, now: Date): Promise<void>
   listFiles(torrentId: string): Promise<TorrentFileRecord[]>
+  // Records a sidecar or the layout stored beside the torrent, replacing an
+  // earlier upload of the same name.
+  saveExtraObject(input: Omit<TorrentExtraObjectRecord, 'objectKey'> & { infoHash: string }): Promise<void>
+  listExtraObjects(torrentId: string): Promise<TorrentExtraObjectRecord[]>
+  getExtraObject(torrentId: string, name: string): Promise<TorrentExtraObjectRecord | null>
+  deleteExtraObjects(torrentId: string): Promise<void>
   // Torrents in a final state that no matter row (purged_at IS NULL) references,
   // oldest access first.
   listEvictionCandidates(limit: number): Promise<EvictionCandidate[]>
@@ -93,7 +110,7 @@ export interface TorrentRepo {
   // Claims a torrent for eviction in one statement that re-counts its references
   // and checks that it was not accessed since it was listed. False when it lost.
   claimForEviction(candidate: EvictionCandidate): Promise<boolean>
-  // Deletes the torrent row and its file rows.
+  // Deletes the torrent row, its file rows, and its extra object rows.
   delete(id: string): Promise<void>
   // Every cached torrent, newest first, with its holder count.
   listForAdmin(opts: KeysetPageOpts): Promise<KeysetPage<AdminTorrentRecord>>

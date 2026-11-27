@@ -30,6 +30,7 @@ beforeEach(() => {
     s3Commands.push(`PutObjectCommand ${key}`)
     return 0
   })
+  vi.spyOn(S3Service.prototype, 'listTorrentCacheKeys').mockResolvedValue([])
 })
 
 function cacheCommands(): string[] {

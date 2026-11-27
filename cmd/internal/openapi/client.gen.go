@@ -2359,15 +2359,165 @@ func (e TaskTorrentRegistrationOutcome) Valid() bool {
 	}
 }
 
+// Defines values for TorrentLayoutVersion.
+const (
+	TorrentLayoutVersionN1 TorrentLayoutVersion = 1
+)
+
+// Valid indicates whether the value is a known member of the TorrentLayoutVersion enum.
+func (e TorrentLayoutVersion) Valid() bool {
+	switch e {
+	case TorrentLayoutVersionN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TorrentLayoutEpisodeMediaKind.
+const (
+	TorrentLayoutEpisodeMediaKindEpisode TorrentLayoutEpisodeMediaKind = "episode"
+)
+
+// Valid indicates whether the value is a known member of the TorrentLayoutEpisodeMediaKind enum.
+func (e TorrentLayoutEpisodeMediaKind) Valid() bool {
+	switch e {
+	case TorrentLayoutEpisodeMediaKindEpisode:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TorrentLayoutEpisodeMediaTmdbType.
+const (
+	TorrentLayoutEpisodeMediaTmdbTypeTv TorrentLayoutEpisodeMediaTmdbType = "tv"
+)
+
+// Valid indicates whether the value is a known member of the TorrentLayoutEpisodeMediaTmdbType enum.
+func (e TorrentLayoutEpisodeMediaTmdbType) Valid() bool {
+	switch e {
+	case TorrentLayoutEpisodeMediaTmdbTypeTv:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TorrentLayoutFolderKind.
+const (
+	Folder TorrentLayoutFolderKind = "folder"
+)
+
+// Valid indicates whether the value is a known member of the TorrentLayoutFolderKind enum.
+func (e TorrentLayoutFolderKind) Valid() bool {
+	switch e {
+	case Folder:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TorrentLayoutFolderMediaKind.
+const (
+	TorrentLayoutFolderMediaKindTvshow TorrentLayoutFolderMediaKind = "tvshow"
+)
+
+// Valid indicates whether the value is a known member of the TorrentLayoutFolderMediaKind enum.
+func (e TorrentLayoutFolderMediaKind) Valid() bool {
+	switch e {
+	case TorrentLayoutFolderMediaKindTvshow:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TorrentLayoutFolderMediaTmdbType.
+const (
+	TorrentLayoutFolderMediaTmdbTypeTv TorrentLayoutFolderMediaTmdbType = "tv"
+)
+
+// Valid indicates whether the value is a known member of the TorrentLayoutFolderMediaTmdbType enum.
+func (e TorrentLayoutFolderMediaTmdbType) Valid() bool {
+	switch e {
+	case TorrentLayoutFolderMediaTmdbTypeTv:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TorrentLayoutMovieMediaKind.
+const (
+	TorrentLayoutMovieMediaKindMovie TorrentLayoutMovieMediaKind = "movie"
+)
+
+// Valid indicates whether the value is a known member of the TorrentLayoutMovieMediaKind enum.
+func (e TorrentLayoutMovieMediaKind) Valid() bool {
+	switch e {
+	case TorrentLayoutMovieMediaKindMovie:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TorrentLayoutMovieMediaTmdbType.
+const (
+	TorrentLayoutMovieMediaTmdbTypeMovie TorrentLayoutMovieMediaTmdbType = "movie"
+)
+
+// Valid indicates whether the value is a known member of the TorrentLayoutMovieMediaTmdbType enum.
+func (e TorrentLayoutMovieMediaTmdbType) Valid() bool {
+	switch e {
+	case TorrentLayoutMovieMediaTmdbTypeMovie:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TorrentLayoutSidecarKind.
+const (
+	Sidecar TorrentLayoutSidecarKind = "sidecar"
+)
+
+// Valid indicates whether the value is a known member of the TorrentLayoutSidecarKind enum.
+func (e TorrentLayoutSidecarKind) Valid() bool {
+	switch e {
+	case Sidecar:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TorrentLayoutTorrentFileKind.
+const (
+	TorrentFile TorrentLayoutTorrentFileKind = "torrent-file"
+)
+
+// Valid indicates whether the value is a known member of the TorrentLayoutTorrentFileKind enum.
+func (e TorrentLayoutTorrentFileKind) Valid() bool {
+	switch e {
+	case TorrentFile:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TvShowMediaMetadataKind.
 const (
-	Tvshow TvShowMediaMetadataKind = "tvshow"
+	TvShowMediaMetadataKindTvshow TvShowMediaMetadataKind = "tvshow"
 )
 
 // Valid indicates whether the value is a known member of the TvShowMediaMetadataKind enum.
 func (e TvShowMediaMetadataKind) Valid() bool {
 	switch e {
-	case Tvshow:
+	case TvShowMediaMetadataKindTvshow:
 		return true
 	default:
 		return false
@@ -4416,13 +4566,13 @@ func (e CreateTeamInviteLinkJSONBodyRole) Valid() bool {
 
 // Defines values for JoinTeam200JSONResponseBodyOk.
 const (
-	JoinTeam200JSONResponseBodyOkTrue JoinTeam200JSONResponseBodyOk = true
+	True JoinTeam200JSONResponseBodyOk = true
 )
 
 // Valid indicates whether the value is a known member of the JoinTeam200JSONResponseBodyOk enum.
 func (e JoinTeam200JSONResponseBodyOk) Valid() bool {
 	switch e {
-	case JoinTeam200JSONResponseBodyOkTrue:
+	case True:
 		return true
 	default:
 		return false
@@ -7042,6 +7192,145 @@ type TorrentFileUpload struct {
 	UploadId *string `json:"uploadId"`
 }
 
+// TorrentLayout defines model for TorrentLayout.
+type TorrentLayout struct {
+	Entries []TorrentLayout_Entries_Item `json:"entries"`
+	Version TorrentLayoutVersion         `json:"version"`
+}
+
+// TorrentLayout_Entries_Item defines model for TorrentLayout.entries.Item.
+type TorrentLayout_Entries_Item struct {
+	union json.RawMessage
+}
+
+// TorrentLayoutVersion defines model for TorrentLayout.Version.
+type TorrentLayoutVersion float32
+
+// TorrentLayoutEpisodeMedia defines model for TorrentLayoutEpisodeMedia.
+type TorrentLayoutEpisodeMedia struct {
+	Aired    *string                       `json:"aired,omitempty"`
+	Episode  int                           `json:"episode"`
+	Kind     TorrentLayoutEpisodeMediaKind `json:"kind"`
+	Overview *string                       `json:"overview,omitempty"`
+	Season   int                           `json:"season"`
+
+	// Still Layout path of the sidecar image
+	Still *string `json:"still,omitempty"`
+	Title *string `json:"title,omitempty"`
+
+	// Tmdb The series.
+	Tmdb struct {
+		Id   int                               `json:"id"`
+		Type TorrentLayoutEpisodeMediaTmdbType `json:"type"`
+	} `json:"tmdb"`
+}
+
+// TorrentLayoutEpisodeMediaKind defines model for TorrentLayoutEpisodeMedia.Kind.
+type TorrentLayoutEpisodeMediaKind string
+
+// TorrentLayoutEpisodeMediaTmdbType defines model for TorrentLayoutEpisodeMedia.Tmdb.Type.
+type TorrentLayoutEpisodeMediaTmdbType string
+
+// TorrentLayoutFolder defines model for TorrentLayoutFolder.
+type TorrentLayoutFolder struct {
+	Kind TorrentLayoutFolderKind `json:"kind"`
+
+	// Media A show folder's media
+	Media *struct {
+		// Fanart Layout path of the sidecar image
+		Fanart        *string                      `json:"fanart,omitempty"`
+		Genres        *[]string                    `json:"genres,omitempty"`
+		Kind          TorrentLayoutFolderMediaKind `json:"kind"`
+		OriginalTitle *string                      `json:"originalTitle,omitempty"`
+		Overview      *string                      `json:"overview,omitempty"`
+
+		// Poster Layout path of the sidecar image
+		Poster *string `json:"poster,omitempty"`
+		Title  string  `json:"title"`
+		Tmdb   struct {
+			Id   int                              `json:"id"`
+			Type TorrentLayoutFolderMediaTmdbType `json:"type"`
+		} `json:"tmdb"`
+		Year *int `json:"year,omitempty"`
+	} `json:"media,omitempty"`
+	Path string `json:"path"`
+}
+
+// TorrentLayoutFolderKind defines model for TorrentLayoutFolder.Kind.
+type TorrentLayoutFolderKind string
+
+// TorrentLayoutFolderMediaKind defines model for TorrentLayoutFolder.Media.Kind.
+type TorrentLayoutFolderMediaKind string
+
+// TorrentLayoutFolderMediaTmdbType defines model for TorrentLayoutFolder.Media.Tmdb.Type.
+type TorrentLayoutFolderMediaTmdbType string
+
+// TorrentLayoutMovieMedia defines model for TorrentLayoutMovieMedia.
+type TorrentLayoutMovieMedia struct {
+	// Fanart Layout path of the sidecar image
+	Fanart        *string                     `json:"fanart,omitempty"`
+	Genres        *[]string                   `json:"genres,omitempty"`
+	Kind          TorrentLayoutMovieMediaKind `json:"kind"`
+	OriginalTitle *string                     `json:"originalTitle,omitempty"`
+	Overview      *string                     `json:"overview,omitempty"`
+
+	// Poster Layout path of the sidecar image
+	Poster *string `json:"poster,omitempty"`
+
+	// Runtime Minutes.
+	Runtime *int   `json:"runtime,omitempty"`
+	Title   string `json:"title"`
+	Tmdb    struct {
+		Id   int                             `json:"id"`
+		Type TorrentLayoutMovieMediaTmdbType `json:"type"`
+	} `json:"tmdb"`
+	Year *int `json:"year,omitempty"`
+}
+
+// TorrentLayoutMovieMediaKind defines model for TorrentLayoutMovieMedia.Kind.
+type TorrentLayoutMovieMediaKind string
+
+// TorrentLayoutMovieMediaTmdbType defines model for TorrentLayoutMovieMedia.Tmdb.Type.
+type TorrentLayoutMovieMediaTmdbType string
+
+// TorrentLayoutSidecar defines model for TorrentLayoutSidecar.
+type TorrentLayoutSidecar struct {
+	Kind TorrentLayoutSidecarKind `json:"kind"`
+
+	// Path Where the sidecar goes; an entry already at its name wins
+	Path string `json:"path"`
+
+	// Sidecar The uploaded sidecar, stored as bt/<infoHash>/x/<n>
+	Sidecar int `json:"sidecar"`
+
+	// Video Layout path of the video it is named after: it takes the name that video was given
+	Video *string `json:"video,omitempty"`
+}
+
+// TorrentLayoutSidecarKind defines model for TorrentLayoutSidecar.Kind.
+type TorrentLayoutSidecarKind string
+
+// TorrentLayoutTorrentFile defines model for TorrentLayoutTorrentFile.
+type TorrentLayoutTorrentFile struct {
+	// FileIdx Position of the file in the info dictionary
+	FileIdx int                          `json:"fileIdx"`
+	Kind    TorrentLayoutTorrentFileKind `json:"kind"`
+
+	// Media A movie's or an episode's media
+	Media *TorrentLayoutTorrentFile_Media `json:"media,omitempty"`
+
+	// Path Where the file goes; a taken name is renamed, as `X (1).mkv`
+	Path string `json:"path"`
+}
+
+// TorrentLayoutTorrentFileKind defines model for TorrentLayoutTorrentFile.Kind.
+type TorrentLayoutTorrentFileKind string
+
+// TorrentLayoutTorrentFile_Media A movie's or an episode's media
+type TorrentLayoutTorrentFile_Media struct {
+	union json.RawMessage
+}
+
 // TransferResult defines model for TransferResult.
 type TransferResult struct {
 	Saved   []Matter `json:"saved"`
@@ -7658,6 +7947,11 @@ type CompleteTorrentFileUploadJSONBody struct {
 		PartNumber int    `json:"partNumber"`
 	} `json:"parts,omitempty"`
 	UploadId *string `json:"uploadId,omitempty"`
+}
+
+// CreateTorrentSidecarUploadJSONBody defines parameters for CreateTorrentSidecarUpload.
+type CreateTorrentSidecarUploadJSONBody struct {
+	Size int64 `json:"size"`
 }
 
 // UpdateImageHostingConfigJSONBody defines parameters for UpdateImageHostingConfig.
@@ -8387,6 +8681,12 @@ type CompleteTaskTorrentJSONRequestBody CompleteTaskTorrentJSONBody
 
 // CompleteTorrentFileUploadJSONRequestBody defines body for CompleteTorrentFileUpload for application/json ContentType.
 type CompleteTorrentFileUploadJSONRequestBody CompleteTorrentFileUploadJSONBody
+
+// PutTaskTorrentLayoutJSONRequestBody defines body for PutTaskTorrentLayout for application/json ContentType.
+type PutTaskTorrentLayoutJSONRequestBody = TorrentLayout
+
+// CreateTorrentSidecarUploadJSONRequestBody defines body for CreateTorrentSidecarUpload for application/json ContentType.
+type CreateTorrentSidecarUploadJSONRequestBody CreateTorrentSidecarUploadJSONBody
 
 // UpdateImageHostingConfigJSONRequestBody defines body for UpdateImageHostingConfig for application/json ContentType.
 type UpdateImageHostingConfigJSONRequestBody UpdateImageHostingConfigJSONBody
@@ -11213,6 +11513,214 @@ func (t *PublicCaptcha) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsTorrentLayoutFolder returns the union data inside the TorrentLayout_Entries_Item as a TorrentLayoutFolder
+func (t TorrentLayout_Entries_Item) AsTorrentLayoutFolder() (TorrentLayoutFolder, error) {
+	var body TorrentLayoutFolder
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTorrentLayoutFolder overwrites any union data inside the TorrentLayout_Entries_Item as the provided TorrentLayoutFolder
+func (t *TorrentLayout_Entries_Item) FromTorrentLayoutFolder(v TorrentLayoutFolder) error {
+	v.Kind = "folder"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTorrentLayoutFolder performs a merge with any union data inside the TorrentLayout_Entries_Item, using the provided TorrentLayoutFolder
+func (t *TorrentLayout_Entries_Item) MergeTorrentLayoutFolder(v TorrentLayoutFolder) error {
+	v.Kind = "folder"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTorrentLayoutTorrentFile returns the union data inside the TorrentLayout_Entries_Item as a TorrentLayoutTorrentFile
+func (t TorrentLayout_Entries_Item) AsTorrentLayoutTorrentFile() (TorrentLayoutTorrentFile, error) {
+	var body TorrentLayoutTorrentFile
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTorrentLayoutTorrentFile overwrites any union data inside the TorrentLayout_Entries_Item as the provided TorrentLayoutTorrentFile
+func (t *TorrentLayout_Entries_Item) FromTorrentLayoutTorrentFile(v TorrentLayoutTorrentFile) error {
+	v.Kind = "torrent-file"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTorrentLayoutTorrentFile performs a merge with any union data inside the TorrentLayout_Entries_Item, using the provided TorrentLayoutTorrentFile
+func (t *TorrentLayout_Entries_Item) MergeTorrentLayoutTorrentFile(v TorrentLayoutTorrentFile) error {
+	v.Kind = "torrent-file"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTorrentLayoutSidecar returns the union data inside the TorrentLayout_Entries_Item as a TorrentLayoutSidecar
+func (t TorrentLayout_Entries_Item) AsTorrentLayoutSidecar() (TorrentLayoutSidecar, error) {
+	var body TorrentLayoutSidecar
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTorrentLayoutSidecar overwrites any union data inside the TorrentLayout_Entries_Item as the provided TorrentLayoutSidecar
+func (t *TorrentLayout_Entries_Item) FromTorrentLayoutSidecar(v TorrentLayoutSidecar) error {
+	v.Kind = "sidecar"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTorrentLayoutSidecar performs a merge with any union data inside the TorrentLayout_Entries_Item, using the provided TorrentLayoutSidecar
+func (t *TorrentLayout_Entries_Item) MergeTorrentLayoutSidecar(v TorrentLayoutSidecar) error {
+	v.Kind = "sidecar"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t TorrentLayout_Entries_Item) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t TorrentLayout_Entries_Item) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "folder":
+		return t.AsTorrentLayoutFolder()
+	case "sidecar":
+		return t.AsTorrentLayoutSidecar()
+	case "torrent-file":
+		return t.AsTorrentLayoutTorrentFile()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t TorrentLayout_Entries_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *TorrentLayout_Entries_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTorrentLayoutMovieMedia returns the union data inside the TorrentLayoutTorrentFile_Media as a TorrentLayoutMovieMedia
+func (t TorrentLayoutTorrentFile_Media) AsTorrentLayoutMovieMedia() (TorrentLayoutMovieMedia, error) {
+	var body TorrentLayoutMovieMedia
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTorrentLayoutMovieMedia overwrites any union data inside the TorrentLayoutTorrentFile_Media as the provided TorrentLayoutMovieMedia
+func (t *TorrentLayoutTorrentFile_Media) FromTorrentLayoutMovieMedia(v TorrentLayoutMovieMedia) error {
+	v.Kind = "movie"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTorrentLayoutMovieMedia performs a merge with any union data inside the TorrentLayoutTorrentFile_Media, using the provided TorrentLayoutMovieMedia
+func (t *TorrentLayoutTorrentFile_Media) MergeTorrentLayoutMovieMedia(v TorrentLayoutMovieMedia) error {
+	v.Kind = "movie"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTorrentLayoutEpisodeMedia returns the union data inside the TorrentLayoutTorrentFile_Media as a TorrentLayoutEpisodeMedia
+func (t TorrentLayoutTorrentFile_Media) AsTorrentLayoutEpisodeMedia() (TorrentLayoutEpisodeMedia, error) {
+	var body TorrentLayoutEpisodeMedia
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTorrentLayoutEpisodeMedia overwrites any union data inside the TorrentLayoutTorrentFile_Media as the provided TorrentLayoutEpisodeMedia
+func (t *TorrentLayoutTorrentFile_Media) FromTorrentLayoutEpisodeMedia(v TorrentLayoutEpisodeMedia) error {
+	v.Kind = "episode"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTorrentLayoutEpisodeMedia performs a merge with any union data inside the TorrentLayoutTorrentFile_Media, using the provided TorrentLayoutEpisodeMedia
+func (t *TorrentLayoutTorrentFile_Media) MergeTorrentLayoutEpisodeMedia(v TorrentLayoutEpisodeMedia) error {
+	v.Kind = "episode"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t TorrentLayoutTorrentFile_Media) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t TorrentLayoutTorrentFile_Media) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "episode":
+		return t.AsTorrentLayoutEpisodeMedia()
+	case "movie":
+		return t.AsTorrentLayoutMovieMedia()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t TorrentLayoutTorrentFile_Media) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *TorrentLayoutTorrentFile_Media) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsSmtpEmailSettings returns the union data inside the UpdateEmailSettings as a SmtpEmailSettings
 func (t UpdateEmailSettings) AsSmtpEmailSettings() (SmtpEmailSettings, error) {
 	var body SmtpEmailSettings
@@ -11936,6 +12444,22 @@ type ClientInterface interface {
 
 	// CreateTorrentFileUpload request
 	CreateTorrentFileUpload(ctx context.Context, id string, fileIdx int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AbortTorrentFileUpload request
+	AbortTorrentFileUpload(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutTaskTorrentLayoutWithBody request with any body
+	PutTaskTorrentLayoutWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PutTaskTorrentLayout(ctx context.Context, id string, body PutTaskTorrentLayoutJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CompleteTorrentSidecarUpload request
+	CompleteTorrentSidecarUpload(ctx context.Context, id string, n int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateTorrentSidecarUploadWithBody request with any body
+	CreateTorrentSidecarUploadWithBody(ctx context.Context, id string, n int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateTorrentSidecarUpload(ctx context.Context, id string, n int, body CreateTorrentSidecarUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// StreamEvents request
 	StreamEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -13077,6 +13601,78 @@ func (c *Client) CompleteTorrentFileUpload(ctx context.Context, id string, fileI
 
 func (c *Client) CreateTorrentFileUpload(ctx context.Context, id string, fileIdx int, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateTorrentFileUploadRequest(c.Server, id, fileIdx)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) AbortTorrentFileUpload(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAbortTorrentFileUploadRequest(c.Server, id, fileIdx, uploadId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutTaskTorrentLayoutWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutTaskTorrentLayoutRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutTaskTorrentLayout(ctx context.Context, id string, body PutTaskTorrentLayoutJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutTaskTorrentLayoutRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CompleteTorrentSidecarUpload(ctx context.Context, id string, n int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCompleteTorrentSidecarUploadRequest(c.Server, id, n)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTorrentSidecarUploadWithBody(ctx context.Context, id string, n int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTorrentSidecarUploadRequestWithBody(c.Server, id, n, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateTorrentSidecarUpload(ctx context.Context, id string, n int, body CreateTorrentSidecarUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateTorrentSidecarUploadRequest(c.Server, id, n, body)
 	if err != nil {
 		return nil, err
 	}
@@ -16982,6 +17578,196 @@ func NewCreateTorrentFileUploadRequest(server string, id string, fileIdx int) (*
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewAbortTorrentFileUploadRequest generates requests for AbortTorrentFileUpload
+func NewAbortTorrentFileUploadRequest(server string, id string, fileIdx int, uploadId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "fileIdx", fileIdx, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "uploadId", uploadId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/files/%s/uploads/%s", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutTaskTorrentLayoutRequest calls the generic PutTaskTorrentLayout builder with application/json body
+func NewPutTaskTorrentLayoutRequest(server string, id string, body PutTaskTorrentLayoutJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPutTaskTorrentLayoutRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPutTaskTorrentLayoutRequestWithBody generates requests for PutTaskTorrentLayout with any type of body
+func NewPutTaskTorrentLayoutRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/layout", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCompleteTorrentSidecarUploadRequest generates requests for CompleteTorrentSidecarUpload
+func NewCompleteTorrentSidecarUploadRequest(server string, id string, n int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "n", n, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/sidecars/%s/completions", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateTorrentSidecarUploadRequest calls the generic CreateTorrentSidecarUpload builder with application/json body
+func NewCreateTorrentSidecarUploadRequest(server string, id string, n int, body CreateTorrentSidecarUploadJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateTorrentSidecarUploadRequestWithBody(server, id, n, "application/json", bodyReader)
+}
+
+// NewCreateTorrentSidecarUploadRequestWithBody generates requests for CreateTorrentSidecarUpload with any type of body
+func NewCreateTorrentSidecarUploadRequestWithBody(server string, id string, n int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "n", n, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/sidecars/%s/uploads", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -23838,6 +24624,22 @@ type ClientWithResponsesInterface interface {
 	// CreateTorrentFileUploadWithResponse request
 	CreateTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, reqEditors ...RequestEditorFn) (*CreateTorrentFileUploadResponse, error)
 
+	// AbortTorrentFileUploadWithResponse request
+	AbortTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*AbortTorrentFileUploadResponse, error)
+
+	// PutTaskTorrentLayoutWithBodyWithResponse request with any body
+	PutTaskTorrentLayoutWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutTaskTorrentLayoutResponse, error)
+
+	PutTaskTorrentLayoutWithResponse(ctx context.Context, id string, body PutTaskTorrentLayoutJSONRequestBody, reqEditors ...RequestEditorFn) (*PutTaskTorrentLayoutResponse, error)
+
+	// CompleteTorrentSidecarUploadWithResponse request
+	CompleteTorrentSidecarUploadWithResponse(ctx context.Context, id string, n int, reqEditors ...RequestEditorFn) (*CompleteTorrentSidecarUploadResponse, error)
+
+	// CreateTorrentSidecarUploadWithBodyWithResponse request with any body
+	CreateTorrentSidecarUploadWithBodyWithResponse(ctx context.Context, id string, n int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTorrentSidecarUploadResponse, error)
+
+	CreateTorrentSidecarUploadWithResponse(ctx context.Context, id string, n int, body CreateTorrentSidecarUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTorrentSidecarUploadResponse, error)
+
 	// StreamEventsWithResponse request
 	StreamEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error)
 
@@ -25513,6 +26315,151 @@ func (r CreateTorrentFileUploadResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateTorrentFileUploadResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AbortTorrentFileUploadResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r AbortTorrentFileUploadResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AbortTorrentFileUploadResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AbortTorrentFileUploadResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutTaskTorrentLayoutResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Entries int `json:"entries"`
+	}
+	JSON400 *Error
+	JSON401 *Error
+	JSON403 *Error
+	JSON404 *Error
+	JSON409 *Error
+	JSON413 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r PutTaskTorrentLayoutResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutTaskTorrentLayoutResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutTaskTorrentLayoutResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CompleteTorrentSidecarUploadResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		N    int `json:"n"`
+		Size int `json:"size"`
+	}
+	JSON400 *Error
+	JSON401 *Error
+	JSON403 *Error
+	JSON404 *Error
+	JSON409 *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CompleteTorrentSidecarUploadResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CompleteTorrentSidecarUploadResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CompleteTorrentSidecarUploadResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateTorrentSidecarUploadResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *TorrentFileUpload
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateTorrentSidecarUploadResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateTorrentSidecarUploadResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateTorrentSidecarUploadResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -30917,6 +31864,58 @@ func (c *ClientWithResponses) CreateTorrentFileUploadWithResponse(ctx context.Co
 	return ParseCreateTorrentFileUploadResponse(rsp)
 }
 
+// AbortTorrentFileUploadWithResponse request returning *AbortTorrentFileUploadResponse
+func (c *ClientWithResponses) AbortTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*AbortTorrentFileUploadResponse, error) {
+	rsp, err := c.AbortTorrentFileUpload(ctx, id, fileIdx, uploadId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAbortTorrentFileUploadResponse(rsp)
+}
+
+// PutTaskTorrentLayoutWithBodyWithResponse request with arbitrary body returning *PutTaskTorrentLayoutResponse
+func (c *ClientWithResponses) PutTaskTorrentLayoutWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutTaskTorrentLayoutResponse, error) {
+	rsp, err := c.PutTaskTorrentLayoutWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutTaskTorrentLayoutResponse(rsp)
+}
+
+func (c *ClientWithResponses) PutTaskTorrentLayoutWithResponse(ctx context.Context, id string, body PutTaskTorrentLayoutJSONRequestBody, reqEditors ...RequestEditorFn) (*PutTaskTorrentLayoutResponse, error) {
+	rsp, err := c.PutTaskTorrentLayout(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutTaskTorrentLayoutResponse(rsp)
+}
+
+// CompleteTorrentSidecarUploadWithResponse request returning *CompleteTorrentSidecarUploadResponse
+func (c *ClientWithResponses) CompleteTorrentSidecarUploadWithResponse(ctx context.Context, id string, n int, reqEditors ...RequestEditorFn) (*CompleteTorrentSidecarUploadResponse, error) {
+	rsp, err := c.CompleteTorrentSidecarUpload(ctx, id, n, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCompleteTorrentSidecarUploadResponse(rsp)
+}
+
+// CreateTorrentSidecarUploadWithBodyWithResponse request with arbitrary body returning *CreateTorrentSidecarUploadResponse
+func (c *ClientWithResponses) CreateTorrentSidecarUploadWithBodyWithResponse(ctx context.Context, id string, n int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTorrentSidecarUploadResponse, error) {
+	rsp, err := c.CreateTorrentSidecarUploadWithBody(ctx, id, n, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTorrentSidecarUploadResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateTorrentSidecarUploadWithResponse(ctx context.Context, id string, n int, body CreateTorrentSidecarUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTorrentSidecarUploadResponse, error) {
+	rsp, err := c.CreateTorrentSidecarUpload(ctx, id, n, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateTorrentSidecarUploadResponse(rsp)
+}
+
 // StreamEventsWithResponse request returning *StreamEventsResponse
 func (c *ClientWithResponses) StreamEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error) {
 	rsp, err := c.StreamEvents(ctx, reqEditors...)
@@ -34102,6 +35101,255 @@ func ParseCreateTorrentFileUploadResponse(rsp *http.Response) (*CreateTorrentFil
 	}
 
 	response := &CreateTorrentFileUploadResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TorrentFileUpload
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAbortTorrentFileUploadResponse parses an HTTP response from a AbortTorrentFileUploadWithResponse call
+func ParseAbortTorrentFileUploadResponse(rsp *http.Response) (*AbortTorrentFileUploadResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AbortTorrentFileUploadResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutTaskTorrentLayoutResponse parses an HTTP response from a PutTaskTorrentLayoutWithResponse call
+func ParsePutTaskTorrentLayoutResponse(rsp *http.Response) (*PutTaskTorrentLayoutResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutTaskTorrentLayoutResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Entries int `json:"entries"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCompleteTorrentSidecarUploadResponse parses an HTTP response from a CompleteTorrentSidecarUploadWithResponse call
+func ParseCompleteTorrentSidecarUploadResponse(rsp *http.Response) (*CompleteTorrentSidecarUploadResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CompleteTorrentSidecarUploadResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			N    int `json:"n"`
+			Size int `json:"size"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateTorrentSidecarUploadResponse parses an HTTP response from a CreateTorrentSidecarUploadWithResponse call
+func ParseCreateTorrentSidecarUploadResponse(rsp *http.Response) (*CreateTorrentSidecarUploadResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateTorrentSidecarUploadResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

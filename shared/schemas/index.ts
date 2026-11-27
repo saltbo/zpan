@@ -322,24 +322,33 @@ export {
 export type {
   CompleteTaskTorrentInput,
   CompleteTorrentFileUploadInput,
+  CreateTorrentSidecarUploadInput,
   ObjectTorrent,
   RegisterTaskTorrentInput,
   ReplaceTorrentCacheConfigInput,
   TaskTorrentRegistration,
   TorrentCacheConfig,
   TorrentFileUpload,
+  TorrentLayout,
+  TorrentLayoutEntry,
   TorrentVerifyJobRequest,
 } from './torrent-cache'
 export {
   completeTaskTorrentSchema,
   completeTorrentFileUploadSchema,
+  createTorrentSidecarUploadSchema,
   objectTorrentSchema,
   registerTaskTorrentSchema,
   replaceTorrentCacheConfigSchema,
+  TORRENT_LAYOUT_MAX_BYTES,
+  TORRENT_SIDECAR_MAX_BYTES,
+  TORRENT_SIDECAR_MAX_COUNT,
   taskTorrentRegistrationSchema,
   torrentCacheConfigSchema,
   torrentCacheFileSchema,
   torrentFileUploadSchema,
+  torrentLayoutEntrySchema,
+  torrentLayoutSchema,
   torrentVerifyJobRequestSchema,
 } from './torrent-cache'
 

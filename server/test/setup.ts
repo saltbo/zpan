@@ -367,6 +367,16 @@ const APP_SCHEMA_SQL = `
     PRIMARY KEY (torrent_id, file_idx)
   );
   CREATE UNIQUE INDEX IF NOT EXISTS torrent_files_storage_object_uniq ON torrent_files(storage_id, object_key);
+  CREATE TABLE IF NOT EXISTS torrent_extra_objects (
+    torrent_id TEXT NOT NULL REFERENCES torrents(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    storage_id TEXT NOT NULL,
+    object_key TEXT NOT NULL,
+    uploaded_at INTEGER NOT NULL,
+    PRIMARY KEY (torrent_id, name)
+  );
+  CREATE INDEX IF NOT EXISTS torrent_extra_objects_storage_idx ON torrent_extra_objects(storage_id);
   CREATE TABLE IF NOT EXISTS torrent_cache_configs (
     org_id TEXT PRIMARY KEY REFERENCES organization(id) ON DELETE CASCADE,
     folder TEXT NOT NULL,

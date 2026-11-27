@@ -7,7 +7,8 @@
 // reports the `torrent-cache` capability downloads it into the cache as a 'fill':
 // it registers the info dictionary (check 1), uploads every file to
 // bt/<infoHash>/<fileIdx> through presigned uploads, and completes the torrent
-// (check 2). Completion moves the torrent to verifying, queues torrent_verify
+// (check 2). When the download was scraped, its sidecars and upload layout go up
+// before completion (layout.ts). Completion moves the torrent to verifying, queues torrent_verify
 // (check 3), and gives the requester its files by instant transfer.
 
 import type { CompleteTorrentFileUploadInput, TaskTorrentRegistration, TorrentFileUpload } from '@shared/schemas'
@@ -24,6 +25,7 @@ import type { Deps } from '../deps'
 import { badRequest, conflict, type DownloadTaskRecord, forbidden, notFound, type TorrentRecord } from '../ports'
 import { loadBindingState } from '../site/licensing'
 import { transferTorrent } from './instant-transfer'
+import { clearTorrentExtras } from './layout'
 
 export const TORRENT_CACHE_CAPABILITY = 'torrent-cache'
 export const TORRENT_CACHE_INVALID_MESSAGE = 'The cached download failed verification'
@@ -107,6 +109,7 @@ export async function completeFromCache(
     orgId: task.orgId,
     userId: task.createdByUserId,
     targetFolder: task.targetFolder,
+    taskId: task.id,
     sourceTaskId: options.source ? task.id : undefined,
     now,
   })
@@ -289,7 +292,11 @@ export async function registerTaskTorrent(
     return registration('joined', infoHash, info)
   }
   if (torrent.status === 'downloading') {
-    // The download that started this torrent stopped; this one takes it over.
+    // The download that started this torrent stopped; this one takes it over
+    // and lays it out itself. The clear comes first: if it fails, the torrent
+    // still names the stopped download, so the retry takes over and clears again
+    // instead of continuing as this task's own fill over the old layout.
+    await clearTorrentExtras(deps, torrent)
     await deps.torrents.setSource(torrent.id, { taskId: task.id, downloaderId: params.downloaderId }, now)
     return startFill(deps, task, torrent, bytes, info, now)
   }
@@ -376,6 +383,16 @@ export async function completeTorrentFileUpload(
   }
   await deps.torrents.markFileUploaded(torrent.id, file.fileIdx, now)
   return { fileIdx: file.fileIdx, size: file.size }
+}
+
+// Abandons a multipart upload whose parts failed, so the bucket does not keep
+// its parts until a lifecycle rule (if any) removes them.
+export async function abortTorrentFileUpload(
+  deps: TorrentFillDeps,
+  params: { taskId: string; downloaderId: string; fileIdx: number; uploadId: string },
+): Promise<void> {
+  const { file, storage } = await fillTarget(deps, params)
+  await deps.s3.abortMultipartUpload(storage, file.objectKey, params.uploadId)
 }
 
 // ─── After verification ──────────────────────────────────────────────────────

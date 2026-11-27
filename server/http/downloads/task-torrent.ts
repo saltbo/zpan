@@ -8,22 +8,34 @@ import { AuthorizationScope } from '@shared/authorization'
 import {
   completeTaskTorrentSchema,
   completeTorrentFileUploadSchema,
+  createTorrentSidecarUploadSchema,
   downloadTaskSchema,
   opaqueIdSchema,
   registerTaskTorrentSchema,
+  TORRENT_LAYOUT_MAX_BYTES,
+  TORRENT_SIDECAR_MAX_COUNT,
   taskTorrentRegistrationSchema,
   torrentFileUploadSchema,
+  torrentLayoutSchema,
 } from '@shared/schemas'
+import { bodyLimit } from 'hono/body-limit'
+import { jsonError } from '../../middleware/error-handler'
 import type { AuthPrincipal } from '../../middleware/platform'
 import { backgroundJobsEnabled } from '../../platform/interface'
 import { getDownloadTask } from '../../usecases/downloads/downloads'
-import { forbidden } from '../../usecases/ports'
+import { forbidden, payloadTooLarge } from '../../usecases/ports'
 import { completeTaskTorrent } from '../../usecases/torrent-cache/complete'
 import {
+  abortTorrentFileUpload,
   completeTorrentFileUpload,
   createTorrentFileUpload,
   registerTaskTorrent,
 } from '../../usecases/torrent-cache/fill'
+import {
+  completeTorrentSidecarUpload,
+  createTorrentSidecarUpload,
+  putTaskTorrentLayout,
+} from '../../usecases/torrent-cache/layout-upload'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 import { createRouter } from '../router'
 
@@ -35,6 +47,15 @@ const policy = {
 
 const taskParams = z.object({ id: opaqueIdSchema })
 const fileParams = z.object({ id: opaqueIdSchema, fileIdx: z.coerce.number().int().min(0) })
+
+const sidecarParams = z.object({
+  id: opaqueIdSchema,
+  n: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(TORRENT_SIDECAR_MAX_COUNT - 1),
+})
 
 const errors = {
   400: errorResponse('Metadata or files do not match the torrent'),
@@ -66,6 +87,17 @@ const createFileUploadRoute = authRoute(policy, {
   responses: { 201: jsonContent(torrentFileUploadSchema, 'Presigned upload'), ...errors },
 })
 
+const abortFileUploadRoute = authRoute(policy, {
+  operationId: 'abortTorrentFileUpload',
+  summary: 'Abort a torrent file multipart upload',
+  description: 'Abandons a multipart upload whose parts could not be uploaded, deleting the parts already stored.',
+  tags: ['Download Tasks'],
+  method: 'delete',
+  path: '/{id}/torrent/files/{fileIdx}/uploads/{uploadId}',
+  request: { params: fileParams.extend({ uploadId: z.string().min(1).max(1024) }) },
+  responses: { 204: { description: 'Upload aborted' }, ...errors },
+})
+
 const completeFileUploadRoute = authRoute(policy, {
   operationId: 'completeTorrentFileUpload',
   summary: 'Complete a torrent file upload',
@@ -76,6 +108,53 @@ const completeFileUploadRoute = authRoute(policy, {
   responses: {
     200: jsonContent(z.object({ fileIdx: z.number().int(), size: z.number().int() }), 'Uploaded file'),
     ...errors,
+  },
+})
+
+const createSidecarUploadRoute = authRoute(policy, {
+  operationId: 'createTorrentSidecarUpload',
+  summary: 'Start uploading a sidecar into the cache',
+  description:
+    'Presigns a single PUT for a sidecar the scraper wrote (an .nfo or an image), stored as bt/<infoHash>/x/<n> beside the torrent.',
+  tags: ['Download Tasks'],
+  method: 'post',
+  path: '/{id}/torrent/sidecars/{n}/uploads',
+  request: { params: sidecarParams, ...jsonBody(createTorrentSidecarUploadSchema) },
+  responses: { 201: jsonContent(torrentFileUploadSchema, 'Presigned upload'), ...errors },
+})
+
+const completeSidecarUploadRoute = authRoute(policy, {
+  operationId: 'completeTorrentSidecarUpload',
+  summary: 'Complete a sidecar upload',
+  tags: ['Download Tasks'],
+  method: 'post',
+  path: '/{id}/torrent/sidecars/{n}/completions',
+  request: { params: sidecarParams },
+  responses: {
+    200: jsonContent(z.object({ n: z.number().int(), size: z.number().int() }), 'Uploaded sidecar'),
+    ...errors,
+  },
+})
+
+const putLayoutRoute = authRoute(policy, {
+  operationId: 'putTaskTorrentLayout',
+  summary: "Store a scraped cache download's upload layout",
+  description:
+    'Stores the upload plan as bt/<infoHash>/layout.json, which every instant transfer of the torrent replays. Every torrent file it names must be in the torrent and every sidecar uploaded.',
+  tags: ['Download Tasks'],
+  method: 'put',
+  path: '/{id}/torrent/layout',
+  middleware: [
+    bodyLimit({
+      maxSize: TORRENT_LAYOUT_MAX_BYTES,
+      onError: (c) => jsonError(c, payloadTooLarge('Layout is too large')),
+    }),
+  ] as const,
+  request: { params: taskParams, ...jsonBody(torrentLayoutSchema) },
+  responses: {
+    200: jsonContent(z.object({ entries: z.number().int() }), 'Stored layout'),
+    ...errors,
+    413: errorResponse('Layout is larger than 8 MiB'),
   },
 })
 
@@ -116,6 +195,28 @@ export const taskTorrentRoute = createRouter()
       await completeTorrentFileUpload(c.get('deps'), { ...uploader(c.get('principal'), id), fileIdx, input }),
       200,
     )
+  })
+  .openapi(abortFileUploadRoute, async (c) => {
+    const { id, fileIdx, uploadId } = c.req.valid('param')
+    await abortTorrentFileUpload(c.get('deps'), { ...uploader(c.get('principal'), id), fileIdx, uploadId })
+    return c.body(null, 204)
+  })
+  .openapi(createSidecarUploadRoute, async (c) => {
+    const { id, n } = c.req.valid('param')
+    const { size } = c.req.valid('json')
+    return c.json(
+      await createTorrentSidecarUpload(c.get('deps'), { ...uploader(c.get('principal'), id), n, size }),
+      201,
+    )
+  })
+  .openapi(completeSidecarUploadRoute, async (c) => {
+    const { id, n } = c.req.valid('param')
+    return c.json(await completeTorrentSidecarUpload(c.get('deps'), { ...uploader(c.get('principal'), id), n }), 200)
+  })
+  .openapi(putLayoutRoute, async (c) => {
+    const { id } = c.req.valid('param')
+    const layout = c.req.valid('json')
+    return c.json(await putTaskTorrentLayout(c.get('deps'), { ...uploader(c.get('principal'), id), layout }), 200)
   })
   .openapi(completeRoute, async (c) => {
     const { id } = c.req.valid('param')

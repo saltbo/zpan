@@ -23,6 +23,7 @@ beforeEach(() => {
         },
       }) as unknown as ReturnType<S3Service['createClient']>,
   )
+  vi.spyOn(S3Service.prototype, 'listTorrentCacheKeys').mockResolvedValue([])
 })
 
 async function setup() {

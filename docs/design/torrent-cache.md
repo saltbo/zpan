@@ -79,7 +79,19 @@ queried:
   `Show (2019)/Season 01/Show.S01E02.1080p.mkv`), whether it is a folder, a
   torrent file (by `fileIdx`), or a sidecar the scraper wrote (stored as
   `bt/<infoHash>/x/<n>`), and the `media` metadata set on it, with sidecar
-  references written as layout paths.
+  references written as layout paths. A sidecar named after a video names that
+  video's path, so it follows the video when the video is renamed. The schema is
+  `torrentLayoutSchema` in `shared/schemas/torrent-cache.ts`.
+
+`torrent_extra_objects` holds one row per sidecar and per layout, with its size,
+because the storage's used bytes count them and eviction deletes them with the
+torrent. Eviction also lists `bt/<infoHash>/`, so an object no row records (a
+sidecar refused as too large, or a presigned upload that landed after its
+download stopped) goes too. A download that takes over an abandoned torrent
+deletes them, and anything under `x/`, before it becomes the torrent's source,
+and lays the torrent out itself. A layout is at most 8 MiB. A transfer lays out
+the torrent's own tree when the layout is gone or cannot be replayed; a failed
+read fails the transfer so it is retried.
 
 `bt/` cannot collide with other keys: drive objects are
 `<orgId>/<uid>/<date>/<token>` and image-hosting objects are `ih/…`
@@ -124,9 +136,11 @@ Two counters move differently from an upload:
   cache objects are written and shrinks when they are evicted.
 
 `reconcile` in `server/adapters/repos/storage-usage.ts` computes
-`storages.used` as the sum of file rows in the storage. It must exclude rows
-under `bt/` and add the sizes of the storage's cached objects, or reconciling
-would count a cached file once per holder.
+`storages.used` as the sum of file rows in the storage. It excludes rows under
+`bt/` and adds the sizes of the storage's `torrent_files` and
+`torrent_extra_objects`, or reconciling would count a cached file once per
+holder. Quota is charged for the sidecars a transfer writes, and not for one it
+keeps because the name already held a file.
 
 A drive file that references the cache can be renamed, moved within the
 workspace, shared, trashed, and restored, because none of these touch the
@@ -179,7 +193,9 @@ through the object API, the downloader uploads each downloaded file to
 `bt/<infoHash>/<fileIdx>`, each overlay sidecar to `bt/<infoHash>/x/<n>`, and
 the info dictionary, through presigned multipart uploads the server issues for
 those keys. When scraping produced a plan, it uploads the plan, with the
-metadata it would have set, as `layout.json`. The requesting task finishes by instant transfer like
+metadata it would have set, as `layout.json`, after the sidecars: the server
+refuses a layout that names a file the torrent does not hold or a sidecar not
+yet uploaded. The requesting task finishes by instant transfer like
 every later one, so the first user's files are laid out exactly as everyone
 else's.
 
