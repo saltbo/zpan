@@ -98,10 +98,10 @@ function task(id: string, name: string): DownloadTask {
   }
 }
 
-function renderDownloadsPage(onRender: () => void) {
+function renderDownloadsPage(onRender: () => void, { retry = false }: { retry?: boolean } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry: false },
+      queries: { retry },
       mutations: { retry: false },
     },
   })
@@ -283,7 +283,8 @@ describe('DownloadsPage selected task in the URL', () => {
 
   it('drops a linked task that no longer exists and shows the first task [spec: list-state/downloads-missing-task]', async () => {
     routerSearch.reset(downloadsSearchSchema.parse({ status: 'failed', task: 'task-gone', tab: 'files' }))
-    renderDownloadsPage(() => {})
+    // The app's client retries failed queries; a missing task must not wait for them.
+    renderDownloadsPage(() => {}, { retry: true })
 
     await waitFor(() => expect(routerSearch.search).toEqual({ status: 'failed', tab: 'files' }))
     expect(routerSearch.navigate).toHaveBeenLastCalledWith(expect.objectContaining({ replace: true }))

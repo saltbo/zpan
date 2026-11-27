@@ -391,9 +391,10 @@ export function DownloadsPage() {
     queryKey: ['download-task', activeSelectedTaskId],
     queryFn: () => getDownloadTask(activeSelectedTaskId as string),
     enabled: activeSelectedTaskId !== null,
+    // A missing task stays missing; retrying only delays falling back to the list.
+    retry: (failureCount, error) => !isNotFound(error) && failureCount < 3,
   })
-  const linkedTaskMissing =
-    filters.task !== undefined && selectedTaskQuery.error instanceof ApiError && selectedTaskQuery.error.status === 404
+  const linkedTaskMissing = filters.task !== undefined && isNotFound(selectedTaskQuery.error)
 
   useEffect(() => {
     if (linkedTaskMissing) {
@@ -585,6 +586,10 @@ export function DownloadsPage() {
       </div>
     </div>
   )
+}
+
+function isNotFound(error: unknown) {
+  return error instanceof ApiError && error.status === 404
 }
 
 function DownloadFilters({
