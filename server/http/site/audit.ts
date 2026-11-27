@@ -1,7 +1,6 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema } from '@shared/schemas'
-import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import type { AdminAuditEventWithOrg } from '../../usecases/ports'
 import { badRequest } from '../../usecases/ports'
@@ -13,6 +12,7 @@ import {
   encodeNextPageToken,
   pageQueryFingerprint,
 } from '../page-token'
+import { createRouter } from '../router'
 
 const auditEventSchema = z
   .object({
@@ -65,7 +65,7 @@ const listRoute = authRoute(
   },
 )
 
-export const adminAudit = new OpenAPIHono<Env>().openapi(listRoute, async (c) => {
+export const adminAudit = createRouter().openapi(listRoute, async (c) => {
   const { pageSize, pageToken, orgId, userId, action, targetType, createdFrom, createdTo } = c.req.valid('query')
   const createdFromDate = createdFrom ? new Date(createdFrom) : undefined
   const createdToDate = createdTo ? new Date(createdTo) : undefined

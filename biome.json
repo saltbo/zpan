@@ -17,7 +17,7 @@
     ],
     "ignoreUnknown": true
   },
-  "plugins": ["./biome-plugins/no-hardcoded-ui-strings.grit"],
+  "plugins": ["./biome-plugins/no-hardcoded-ui-strings.grit", "./biome-plugins/use-create-router.grit"],
   "formatter": {
     "enabled": true,
     "indentStyle": "space",

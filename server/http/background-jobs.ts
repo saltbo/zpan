@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   createBackgroundJobRequestSchema,
@@ -6,7 +6,7 @@ import {
   listBackgroundJobsQuerySchema,
   opaqueIdSchema,
 } from '../../shared/schemas'
-import { authzActorIdentity, type Env } from '../middleware/platform'
+import { authzActorIdentity } from '../middleware/platform'
 import { backgroundJobsEnabled } from '../platform/interface'
 import {
   cancelBackgroundJob,
@@ -24,6 +24,7 @@ import {
   encodeNextPageToken,
   pageQueryFingerprint,
 } from './page-token'
+import { createRouter } from './router'
 
 // BackgroundJob is already wire-shaped (ISO string timestamps) — no DTO mapper.
 const backgroundJobProgressSchema = z.object({
@@ -169,7 +170,7 @@ const retryJobRoute = authRoute(
   },
 )
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 const backgroundJobs = app
   .openapi(listRoute, async (c) => {

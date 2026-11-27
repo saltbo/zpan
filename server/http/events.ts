@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { errorResponseSchema } from '@shared/schemas'
 import { createMiddleware } from 'hono/factory'
@@ -6,6 +6,7 @@ import type { Env } from '../middleware/platform'
 import { type EventsMessage, streamEvents } from '../usecases/events'
 import { forbidden, unauthorized } from '../usecases/ports'
 import { authRoute } from './openapi'
+import { createRouter } from './router'
 
 const encoder = new TextEncoder()
 
@@ -68,7 +69,7 @@ const eventStreamRoute = authRoute(
 // This handler owns only the wire: it builds the ReadableStream, encodes each
 // domain event the usecase emits as an SSE frame, and returns the Response. All
 // polling / fingerprint / change-detection lives in streamEvents (usecases/events.ts).
-export const events = new OpenAPIHono<Env>().openapi(eventStreamRoute, (c) => {
+export const events = createRouter().openapi(eventStreamRoute, (c) => {
   const deps = c.get('deps')
   // One controller, aborted from BOTH teardown paths. In Workers the request
   // signal and ReadableStream.cancel() are independent: passing c.req.raw.signal

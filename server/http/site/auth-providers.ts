@@ -1,8 +1,9 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import type { Env } from '../../middleware/platform'
 import { deleteAuthProvider, listAuthProviderSettings, upsertAuthProvider } from '../../usecases/site/auth-provider'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 
 // Full management shape. Public consumers receive the minimal provider projection
 // from configz instead.
@@ -106,7 +107,7 @@ function resolveAuthBaseUri(c: { get(key: 'platform'): Env['Variables']['platfor
 
 // Auth-provider management resource. Public enabled providers are projected by
 // /api/configz; every route here is admin-only.
-export const authProviders = new OpenAPIHono<Env>()
+export const authProviders = createRouter()
   .openapi(listRoute, async (c) => {
     const authOrigin = resolveAuthBaseUri(c)
     const { items, registeredApplications } = await listAuthProviderSettings(c.get('deps'), c.get('platform').db, {

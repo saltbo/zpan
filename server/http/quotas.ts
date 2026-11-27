@@ -1,10 +1,10 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { opaqueIdSchema, pageSchema } from '@shared/schemas'
-import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
 import { getUserQuota, listQuotaOverview } from '../usecases/quota'
 import { authRoute, errorResponse, jsonContent } from './openapi'
+import { createRouter } from './router'
 
 // Quota types are already wire-shaped (timestamps are ISO strings, not Date), so
 // the schemas match the usecase return types directly — no DTO mapper needed.
@@ -74,14 +74,14 @@ const getMyQuotaRoute = authRoute(
 
 // Quota overview across all orgs (personal + team), used by the admin dashboard.
 // Per-team entitlement management lives under /api/teams.
-const adminQuotas = new OpenAPIHono<Env>().openapi(listQuotaOverviewRoute, async (c) => {
+const adminQuotas = createRouter().openapi(listQuotaOverviewRoute, async (c) => {
   // The overview returns every space in one shot rather than paging, so the page
   // metadata mirrors the full result.
   const { items, total } = await listQuotaOverview(c.get('deps'))
   return c.json({ items, total, page: 1, pageSize: items.length }, 200)
 })
 
-const userQuotas = new OpenAPIHono<Env>().openapi(getMyQuotaRoute, async (c) => {
+const userQuotas = createRouter().openapi(getMyQuotaRoute, async (c) => {
   const quota = await getUserQuota(c.get('deps'), { userId: c.get('userId')!, orgId: c.get('orgId') ?? undefined })
   if (!quota) throw notFound('No organization found')
   return c.json(quota, 200)

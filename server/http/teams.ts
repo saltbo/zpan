@@ -1,7 +1,6 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema, opaqueTokenSchema, pageSchema } from '@shared/schemas'
-import type { Env } from '../middleware/platform'
 import {
   type AuditEventWithUser,
   badRequest,
@@ -45,6 +44,7 @@ import {
   encodeNextPageToken,
   pageQueryFingerprint,
 } from './page-token'
+import { createRouter } from './router'
 
 const inviteLinkInfoSchema = z
   .object({
@@ -173,7 +173,7 @@ const inviteLinkInfoRoute = authRoute(
   },
 )
 
-export const publicTeams = new OpenAPIHono<Env>().openapi(inviteLinkInfoRoute, async (c) => {
+export const publicTeams = createRouter().openapi(inviteLinkInfoRoute, async (c) => {
   const info = await getInviteLinkInfo(c.get('deps'), c.req.valid('param').token)
   if (!info) throw notFound('Invalid or expired invite link')
   return c.json(toInviteLinkInfoDTO(info), 200)
@@ -288,7 +288,7 @@ const deleteLogoRoute = authRoute(
   },
 )
 
-const teamsApp = new OpenAPIHono<Env>()
+const teamsApp = createRouter()
 
 export const teams = teamsApp
   .openapi(createInviteLinkRoute, async (c) => {
@@ -469,7 +469,7 @@ const revokeEntitlementRoute = authRoute(
   },
 )
 
-export const adminTeams = new OpenAPIHono<Env>()
+export const adminTeams = createRouter()
   .openapi(listTeamsRoute, async (c) => {
     const { pageSize, pageToken } = c.req.valid('query')
     const page = { query: await pageQueryFingerprint({ resource: 'teams', pageSize }), codec: createdAtIdCursorCodec }

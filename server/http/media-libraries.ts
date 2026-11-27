@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   createMediaLibraryRequestSchema,
@@ -28,6 +28,7 @@ import {
   encodeNextPageToken,
   pageQueryFingerprint,
 } from './page-token'
+import { createRouter } from './router'
 
 function toMediaLibraryDTO(library: MediaLibraryView): MediaLibrary {
   return {
@@ -160,7 +161,7 @@ const scrapeRoute = authRoute(
   },
 )
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 export const mediaLibraries = app
   .openapi(listRoute, async (c) => {

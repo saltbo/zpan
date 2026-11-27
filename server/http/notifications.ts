@@ -1,7 +1,6 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageSchema, listNotificationsQuerySchema, opaqueIdSchema } from '@shared/schemas'
-import type { Env } from '../middleware/platform'
 import {
   getUnreadCount,
   listNotifications,
@@ -16,6 +15,7 @@ import {
   encodeNextPageToken,
   pageQueryFingerprint,
 } from './page-token'
+import { createRouter } from './router'
 
 const notificationSchema = z
   .object({
@@ -108,7 +108,7 @@ const markAllReadRoute = authRoute(
   },
 )
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 export const notifications = app
   .openapi(listRoute, async (c) => {

@@ -1,9 +1,8 @@
-import { OpenAPIHono } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { adminOverviewSchema } from '@shared/schemas'
-import type { Env } from '../middleware/platform'
 import { getAdminOverview } from '../usecases/admin-overview'
 import { authRoute, jsonContent } from './openapi'
+import { createRouter } from './router'
 
 const route = authRoute(
   { scopes: [AuthorizationScope.SITE_ANALYTICS_READ], siteRole: 'admin' },
@@ -17,6 +16,6 @@ const route = authRoute(
   },
 )
 
-export const adminOverview = new OpenAPIHono<Env>().openapi(route, async (c) =>
+export const adminOverview = createRouter().openapi(route, async (c) =>
   c.json(await getAdminOverview(c.get('deps')), 200),
 )

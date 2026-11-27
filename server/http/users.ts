@@ -1,8 +1,7 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema } from '@shared/schemas'
 import { publicProfileSchema } from '@shared/schemas/profile'
-import type { Env } from '../middleware/platform'
 import {
   badRequest,
   forbidden,
@@ -38,6 +37,7 @@ import {
   encodeNextPageToken,
   pageQueryFingerprint,
 } from './page-token'
+import { createRouter } from './router'
 
 // Disabling and deleting users is served directly by better-auth's
 // /api/auth/admin/* endpoints and called from the frontend admin client. This
@@ -245,7 +245,7 @@ const revokeUserEntitlementRoute = authRoute(
   },
 )
 
-export const users = new OpenAPIHono<Env>()
+export const users = createRouter()
   .openapi(setAvatarRoute, async (c) => {
     const form = await c.req.formData().catch(() => null)
     if (!form) throw unsupportedMediaType('Expected multipart/form-data with a file field')

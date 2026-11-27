@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import {
@@ -8,11 +8,11 @@ import {
   oauthGrantListSchema,
   opaqueIdSchema,
 } from '@shared/schemas'
-import type { Env } from '../middleware/platform'
 import { getOAuthConsentContext } from '../usecases/oauth-consent'
 import { listOAuthGrants, revokeOAuthGrant } from '../usecases/oauth-grants'
 import { badRequest } from '../usecases/ports'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
+import { createRouter } from './router'
 
 const paramsSchema = z.object({ grantId: opaqueIdSchema })
 const consentContextQuerySchema = z.object({ oauthQuery: z.string().min(1) })
@@ -81,7 +81,7 @@ const revokeRoute = authRoute(
   },
 )
 
-export const oauthGrants = new OpenAPIHono<Env>()
+export const oauthGrants = createRouter()
   .openapi(consentContextRoute, async (c) => {
     const { oauthQuery } = c.req.valid('query')
     const context = await getOAuthConsentContext(c.get('deps'), {
