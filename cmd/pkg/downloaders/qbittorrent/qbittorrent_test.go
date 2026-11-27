@@ -283,6 +283,15 @@ func TestQBittorrentTrackersMapsTorrentTrackersAndLimits(t *testing.T) {
 	}
 }
 
+func TestQBittorrentTrackersLeaveOutUnknownCounts(t *testing.T) {
+	out := qbittorrentTrackers(context.Background(), nil, qbittorrent.Torrent{Trackers: []qbittorrent.TorrentTracker{
+		{Url: "udp://tracker/announce", NumPeers: -1, NumSeeds: -1, NumLeechers: 0},
+	}})
+	if out[0].Peers != nil || out[0].Seeds != nil || out[0].Leechers == nil || *out[0].Leechers != 0 {
+		t.Fatalf("unexpected tracker: %#v", out[0])
+	}
+}
+
 func TestQBittorrentTagHelpers(t *testing.T) {
 	if !torrentHasTag("one, ztid=task-1 ,two", qbittorrentTrackingTag("task-1")) {
 		t.Fatal("expected tracking tag match")

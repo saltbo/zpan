@@ -673,15 +673,12 @@ func qbittorrentTrackers(ctx context.Context, qbt *qbittorrent.Client, torrent q
 	}
 	out := make([]downloader.Tracker, 0, min(len(trackers), 20))
 	for _, tracker := range trackers {
-		peers := int64(tracker.NumPeers)
-		seeds := int64(tracker.NumSeeds)
-		leechers := int64(tracker.NumLeechers)
 		out = append(out, downloader.Tracker{
 			URL:      tracker.Url,
 			Status:   fmt.Sprint(tracker.Status),
-			Peers:    &peers,
-			Seeds:    &seeds,
-			Leechers: &leechers,
+			Peers:    trackerCount(tracker.NumPeers),
+			Seeds:    trackerCount(tracker.NumSeeds),
+			Leechers: trackerCount(tracker.NumLeechers),
 			Message:  tracker.Message,
 		})
 		if len(out) >= 20 {
@@ -689,6 +686,16 @@ func qbittorrentTrackers(ctx context.Context, qbt *qbittorrent.Client, torrent q
 		}
 	}
 	return out
+}
+
+// trackerCount is a tracker's count, or nil for the -1 qBittorrent reports
+// while it has not heard from the tracker.
+func trackerCount(value int) *int64 {
+	if value < 0 {
+		return nil
+	}
+	count := int64(value)
+	return &count
 }
 
 func qbittorrentPeers(ctx context.Context, qbt *qbittorrent.Client, hash string, geoIP geoip.Resolver) []downloader.Peer {
