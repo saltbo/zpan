@@ -17,6 +17,8 @@ interface ConfirmActionDialogProps {
   confirmLabel: string
   isPending: boolean
   onConfirm: () => void
+  // A rejected confirm, shown above the buttons (UX.md: an error of the whole form).
+  error?: string | null
 }
 
 // Confirms an action that cannot be undone from the UI (UX.md): the description names the object and the consequence.
@@ -28,6 +30,7 @@ export function ConfirmActionDialog({
   confirmLabel,
   isPending,
   onConfirm,
+  error,
 }: ConfirmActionDialogProps) {
   const { t } = useTranslation()
 
@@ -38,6 +41,11 @@ export function ConfirmActionDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             {t('common.cancel')}

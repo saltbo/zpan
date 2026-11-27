@@ -164,6 +164,23 @@ export function parseMagnetInfoHash(uri: string): string | null {
   return null
 }
 
+// The name a magnet link suggests (`dn`), shown until the torrent's metadata
+// arrives.
+export function parseMagnetDisplayName(uri: string): string | null {
+  const query = uri.replace(/^magnet:\?/i, '')
+  for (const part of query.split('&')) {
+    const eq = part.indexOf('=')
+    if (eq < 0 || part.slice(0, eq).toLowerCase() !== 'dn') continue
+    try {
+      const name = decodeURIComponent(part.slice(eq + 1).replace(/\+/g, ' ')).trim()
+      if (name) return name
+    } catch {
+      // A malformed escape leaves the name unknown.
+    }
+  }
+  return null
+}
+
 function base32ToHex(value: string): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
   let bits = ''

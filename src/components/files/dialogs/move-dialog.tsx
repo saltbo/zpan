@@ -17,6 +17,12 @@ interface MoveDialogProps {
   operation?: OperationProgressState | null
   onCancelOperation?: () => void
   onDismissOperation?: () => void
+  // The picker's title and confirm label, for picking a folder for something
+  // other than a move.
+  title?: string
+  confirmLabel?: string
+  // A rejected confirm, shown above the buttons (UX.md: an error of the whole form).
+  error?: string | null
 }
 
 function buildPath(parent: string, name: string): string {
@@ -32,6 +38,9 @@ export function MoveDialog({
   operation,
   onCancelOperation,
   onDismissOperation,
+  title,
+  confirmLabel,
+  error,
 }: MoveDialogProps) {
   const { t } = useTranslation()
   const [browsingPath, setBrowsingPath] = useState('')
@@ -82,7 +91,7 @@ export function MoveDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t('files.moveTo')}</DialogTitle>
+          <DialogTitle>{title ?? t('files.moveTo')}</DialogTitle>
         </DialogHeader>
 
         {operation ? (
@@ -136,12 +145,18 @@ export function MoveDialog({
               })}
             </div>
 
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
+
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 {t('common.cancel')}
               </Button>
               <Button onClick={handleConfirm} disabled={isPending}>
-                {isPending ? t('common.loading') : t('files.moveHere')}
+                {isPending ? t('common.loading') : (confirmLabel ?? t('files.moveHere'))}
               </Button>
             </DialogFooter>
           </>

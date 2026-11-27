@@ -54,6 +54,7 @@ import { adminTeams, publicTeams, teams } from './http/teams'
 import trash from './http/trash'
 import { users } from './http/users'
 import webdav from './http/webdav'
+import { workspaceTorrents } from './http/workspace-torrents'
 import { formatError } from './lib/errors'
 import { auditMiddleware } from './middleware/audit'
 import { authMiddleware } from './middleware/auth'
@@ -390,6 +391,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/notifications', notifications)
   app.route('/api/background-jobs', backgroundJobs)
   app.route('/api/media-libraries', mediaLibraries)
+  app.route('/api/torrents', workspaceTorrents)
   app.route('/api/media', media)
   app.route('/api/downloads/tasks', downloadTasks)
   app.route('/api/events', events)
@@ -527,6 +529,7 @@ export type LicensingAdminRoute = typeof licensingAdmin
 export type BrandingAdminRoute = typeof brandingAdmin
 export type AdminAuditRoute = typeof adminAudit
 export type AdminTorrentsRoute = typeof adminTorrents
+export type WorkspaceTorrentsRoute = typeof workspaceTorrents
 export type AdminTorrentSettingsRoute = typeof adminTorrentSettings
 export type AdminOverviewRoute = typeof adminOverview
 export type AdminStatsRoute = typeof adminStats

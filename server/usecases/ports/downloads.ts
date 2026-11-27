@@ -89,6 +89,9 @@ export interface DownloadTaskRecord {
   infoHash: string | null
   torrentId: string | null
   torrentRole: TorrentRole | null
+  // A StremThru add's task: it fills a torrent for Torrents lists alone and
+  // writes no drive rows (docs/design/torrents.md §4).
+  listOnly: boolean
 }
 
 // How a download task uses Torrents: 'fill' for the task whose download is the
@@ -169,6 +172,7 @@ export interface CreateDownloadTaskRecordInput {
   status: string
   assignedAt: Date | null
   infoHash?: string | null
+  listOnly?: boolean
   now: Date
 }
 
@@ -220,6 +224,10 @@ export interface DownloadTaskRepo {
   /** Raw record scoped to org; throws DownloadError('not_found') when missing. */
   getRecord(orgId: string, id: string): Promise<DownloadTaskRecord>
   findRecord(id: string): Promise<DownloadTaskRecord | null>
+  // Several tasks at once, in no particular order; missing or deleted ones are left out.
+  findRecords(ids: readonly string[]): Promise<DownloadTaskRecord[]>
+  // The infoHash a task of the workspace learned for a link, if any did.
+  findInfoHashBySourceUri(orgId: string, sourceUri: string): Promise<string | null>
   listPendingCleanup(downloaderId: string, limit: number): Promise<DownloadTask[]>
   completeCleanup(id: string, downloaderId: string, now: Date): Promise<DownloadTaskRecord>
   /** Active task whose target is `folderPath` or a descendant of it. */

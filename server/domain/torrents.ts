@@ -9,8 +9,6 @@ export { isTorrentKey, TORRENT_PREFIX }
 export const TORRENT_STATUSES = ['downloading', 'verifying', 'ready', 'invalid', 'evicting'] as const
 export type TorrentStatus = (typeof TORRENT_STATUSES)[number]
 
-// Where a StremThru add lands until Torrents lists (docs/design/torrents.md §14).
-export const DEFAULT_TORRENT_FOLDER = 'Media'
 export const DEFAULT_TORRENT_RETENTION_DAYS = 30
 
 // The infoHash of the torrent a `bt/` key belongs to, or null for any other key.

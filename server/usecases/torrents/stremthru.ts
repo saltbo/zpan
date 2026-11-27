@@ -1,11 +1,12 @@
-// The StremThru Store API over Torrents (docs/design/torrents.md
-// §8, §10, §12). A `stremthru` API key names one user in one workspace; addons
-// check which infoHashes are cached, add torrents (served by instant transfer
-// when cached), list and remove them, and generate playback links. Removing a
-// torrent trashes its files; only eviction ever deletes cached bytes.
+// The StremThru Store API over Torrents lists (docs/design/torrents.md §8, §10,
+// §12). A `stremthru` API key names one user in one workspace; addons check which
+// infoHashes are cached, add torrents to the workspace's Torrents list, list and
+// remove its entries, and generate playback links. An add writes no drive files:
+// a ready torrent lands in the list at once, one downloading waits for that
+// download, and otherwise a list-only download fills it. Removing an entry never
+// deletes bytes; only eviction does.
 
 import { ApiKeyTemplate } from '@shared/api-key-templates'
-import { DirType } from '@shared/constants'
 import { hasFeature } from '../../domain/licensing'
 import {
   decodeFileLink,
@@ -13,8 +14,6 @@ import {
   magnetFor,
   parseCheckHash,
   STREMTHRU_CHECK_MAX_HASHES,
-  STREMTHRU_LINK_REUSE_MIN_REMAINING_MS,
-  STREMTHRU_LINK_TTL_SECONDS,
   STREMTHRU_LIST_DEFAULT_LIMIT,
   STREMTHRU_LIST_MAX_LIMIT,
   StremThruError,
@@ -25,30 +24,30 @@ import {
   torzSource,
   torzStatus,
 } from '../../domain/stremthru'
-import { DEFAULT_TORRENT_FOLDER, isTorrentKey, TORRENT_PREFIX, torrentTreeRoot } from '../../domain/torrents'
+import { parseMagnetDisplayName } from '../../domain/torrent-info'
 import type { Database } from '../../platform/interface'
 import type { Deps } from '../deps'
-import { createDownloadTask, performDownloadTaskAction } from '../downloads/downloads'
-import { isWithinDownloadTarget } from '../object'
+import { createDownloadTask } from '../downloads/downloads'
 import {
   type ApiKeyAuth,
   ApiKeyRateLimitError,
   AppError,
   DownloadError,
-  type DownloadTaskRecord,
-  type Matter,
   type TorrentFileRecord,
-  type TorrentRecord,
+  type WorkspaceTorrentRecord,
 } from '../ports'
 import { loadBindingState } from '../site/licensing'
-import { confirmDownloadTraffic, meterDownloadTraffic, reverseDownloadTraffic } from '../store/traffic-metering'
-import { createTrafficEventId, recordDownloadIssued } from '../transfer-activity'
+import { TORRENT_INVALID_MESSAGE } from './entries'
+import { fillerActive } from './fill'
+import {
+  getWorkspaceTorrent,
+  issueTorrentFileLink,
+  listWorkspaceTorrentsByOffset,
+  removeWorkspaceTorrent,
+  type WorkspaceTorrentItem,
+} from './workspace-list'
 
-const TORRENT_SOURCE_TYPES = ['magnet', 'torrent_url'] as const
 const WRITE_ROLES = ['owner', 'admin', 'editor']
-const TERMINAL_STATUSES = ['completed', 'failed', 'canceled']
-const NOT_REUSABLE_STATUSES = ['failed', 'canceled', 'canceling']
-const TREE_PAGE_SIZE = 1000
 
 export interface StoreCaller {
   keyId: string
@@ -158,144 +157,148 @@ function groupFiles(files: readonly TorrentFileRecord[]): Map<string, TorrentFil
   return grouped
 }
 
-// ─── Torz items (the caller's torrent download tasks) ────────────────────────
+// ─── Torz items (the workspace's Torrents list) ──────────────────────────────
 
-async function torrentOf(deps: Pick<Deps, 'torrents'>, task: DownloadTaskRecord): Promise<TorrentRecord | null> {
-  if (task.torrentId) {
-    const torrent = await deps.torrents.get(task.torrentId)
-    if (torrent) return torrent
-  }
-  return task.infoHash ? deps.torrents.getByInfoHash(task.infoHash) : null
-}
-
-// The caller's drive files that hold the task's torrent, keyed by object key.
-async function heldFiles(
-  deps: Pick<Deps, 'torrents'>,
-  task: DownloadTaskRecord,
-  torrent: TorrentRecord,
-): Promise<Map<string, Matter>> {
-  const refs = await deps.torrents.listWorkspaceReferences(task.orgId, torrent)
-  const held = new Map<string, Matter>()
-  for (const ref of refs) {
-    // Only cached files have keys under bt/; a copy elsewhere belongs to another task.
-    if (isWithinDownloadTarget(ref.parent, task.targetFolder) && !held.has(ref.object)) held.set(ref.object, ref)
-  }
-  return held
-}
-
-async function toTorz(deps: Pick<Deps, 'torrents'>, task: DownloadTaskRecord): Promise<Torz> {
-  const torrent = await torrentOf(deps, task)
-  const hash = torrent?.infoHash ?? task.infoHash ?? ''
-  const status = torzStatus(task.status)
-  let files: StremThruFile[] = []
-  if (torrent && status === 'downloaded') {
-    const held = await heldFiles(deps, task, torrent)
-    files = (await deps.torrents.listFiles(torrent.id)).map((file) => {
-      const matter = held.get(file.objectKey)
-      return torzFile(file, matter ? encodeFileLink(matter.id) : undefined)
-    })
-  }
+function listItem({ view, state }: WorkspaceTorrentItem): TorzListItem {
+  const hash = view.torrent?.infoHash ?? view.infoHash ?? ''
   return {
-    id: task.id,
+    id: view.id,
     hash,
-    magnet: task.sourceType === 'magnet' ? task.sourceUri : hash ? magnetFor(hash) : '',
-    name: torrent?.name ?? task.displayName ?? hash,
-    size: torrent?.totalSize ?? 0,
-    status,
-    private: torrent?.private ?? false,
-    files,
-    added_at: task.createdAt.toISOString(),
+    name: view.torrent?.name ?? view.displayName ?? hash,
+    size: view.torrent?.totalSize ?? 0,
+    status: torzStatus(state.status),
+    private: view.torrent?.private ?? false,
+    added_at: view.createdAt.toISOString(),
   }
 }
 
-async function callerTask(deps: Pick<Deps, 'downloadTasks'>, caller: StoreCaller, id: string) {
-  const task = await deps.downloadTasks.findRecord(id)
-  if (
-    !task ||
-    task.orgId !== caller.orgId ||
-    task.createdByUserId !== caller.userId ||
-    task.deletedAt ||
-    !(TORRENT_SOURCE_TYPES as readonly string[]).includes(task.sourceType)
-  ) {
-    throw new StremThruError('NOT_FOUND', 'Torz not found')
-  }
-  return task
+function magnetOf(view: WorkspaceTorrentRecord, hash: string): string {
+  if (/^magnet:\?/i.test(view.sourceUri)) return view.sourceUri
+  return hash ? magnetFor(hash) : ''
 }
 
-// A completed task still counts as added while every file of its torrent is
-// held; otherwise adding the torrent again transfers it again.
-async function reusableTask(deps: Deps, caller: StoreCaller, infoHash: string): Promise<DownloadTaskRecord | null> {
-  const task = await deps.downloadTasks.findLatestByInfoHash({
-    orgId: caller.orgId,
-    userId: caller.userId,
-    infoHash,
-    excludeStatuses: NOT_REUSABLE_STATUSES,
+async function toTorz(deps: Deps, caller: StoreCaller, id: string): Promise<Torz> {
+  const detail = await getWorkspaceTorrent(deps, caller.orgId, id).catch((error) => {
+    throw toStremThruError(error)
   })
-  if (!task || !(TORRENT_SOURCE_TYPES as readonly string[]).includes(task.sourceType)) return null
-  if (task.status !== 'completed') return task
-  const torrent = await torrentOf(deps, task)
-  if (!torrent) return null
-  const held = await heldFiles(deps, task, torrent)
-  const files = await deps.torrents.listFiles(torrent.id)
-  return files.every((file) => held.has(file.objectKey)) ? task : null
+  const item = listItem(detail)
+  // Files carry links once they play.
+  const files = detail.playable
+    ? detail.files.map((file) => torzFile(file, encodeFileLink(detail.view.id, file.id)))
+    : []
+  return { ...item, magnet: magnetOf(detail.view, item.hash), files }
 }
 
-// Adds a magnet or .torrent link as a download task into the workspace's Media
-// folder, until StremThru adds land in the Torrents list (docs/design/torrents.md
-// §14). A ready torrent completes at once by instant transfer.
+// Adds a magnet or .torrent link to the workspace's Torrents list. An entry the
+// workspace already has is returned as it is, unless it failed, when it is
+// added anew.
 export async function addTorz(deps: Deps, caller: StoreCaller, link: string | undefined): Promise<Torz> {
   const source = link ? torzSource(link) : null
   if (!source) throw new StremThruError('BAD_REQUEST', 'A magnet link or torrent URL is required')
   const infoHash = source.type === 'magnet' ? parseCheckHash(source.uri) : null
-  if (infoHash) {
-    const existing = await reusableTask(deps, caller, infoHash)
-    if (existing) return toTorz(deps, existing)
+  // A torrent URL the workspace added before is matched by the link, resolved
+  // or not, because addons add the same links again and again. One whose entry
+  // merged into another is matched by the infoHash its task learned.
+  const knownHash = infoHash ?? (await deps.downloadTasks.findInfoHashBySourceUri(caller.orgId, source.uri)) ?? null
+  const existing =
+    (source.type === 'torrent_url' ? await deps.workspaceTorrents.findBySourceUri(caller.orgId, source.uri) : null) ??
+    (knownHash ? await deps.workspaceTorrents.findByInfoHash(caller.orgId, knownHash) : null)
+  if (existing) {
+    const detail = await getWorkspaceTorrent(deps, caller.orgId, existing.id)
+    if (detail.state.status !== 'failed') return toTorz(deps, caller, existing.id)
   }
-  const targetFolder = DEFAULT_TORRENT_FOLDER
-  const task = await withStoreErrors(() =>
-    createDownloadTask(
+  const id = await withStoreErrors(() => placeEntry(deps, caller, source, existing?.infoHash ?? knownHash, existing))
+  return toTorz(deps, caller, id)
+}
+
+// Steps 1–3 of docs/design/torrents.md §4 for a StremThru add: a ready torrent
+// lands in the list at once, one in progress makes the entry wait for it, and
+// otherwise a list-only task in the workspace downloads it.
+async function placeEntry(
+  deps: Deps,
+  caller: StoreCaller,
+  source: { type: 'magnet' | 'torrent_url'; uri: string },
+  infoHash: string | null,
+  existing: WorkspaceTorrentRecord | null,
+): Promise<string> {
+  const now = new Date()
+  const found = infoHash ? await deps.torrents.getByInfoHash(infoHash) : null
+  // A ready torrent is accessed now, before the entry holds it, so a capacity
+  // sweep that ranked it meanwhile loses its claim; one already claimed is
+  // treated as gone.
+  const touched = found?.status === 'ready' ? await deps.torrents.touch(found.id, ['ready'], now) : true
+  const torrent = found && found.status !== 'evicting' && touched ? found : null
+  const waits =
+    !!torrent &&
+    (torrent.status === 'ready' ||
+      torrent.status === 'verifying' ||
+      torrent.status === 'invalid' ||
+      (torrent.status === 'downloading' && (await fillerActive(deps, torrent))))
+  const status =
+    torrent?.status === 'ready'
+      ? 'ready'
+      : torrent?.status === 'invalid'
+        ? 'failed'
+        : torrent
+          ? 'downloading'
+          : 'resolving'
+  const error = torrent?.status === 'invalid' ? TORRENT_INVALID_MESSAGE : null
+
+  let entryId: string
+  if (existing) {
+    entryId = existing.id
+    await deps.workspaceTorrents.update(existing.id, {
+      torrentId: torrent?.id ?? existing.torrentId,
+      status,
+      error,
+      taskId: null,
+      updatedAt: now,
+    })
+  } else {
+    const { created, entry } = await deps.workspaceTorrents.insert({
+      orgId: caller.orgId,
+      torrentId: torrent?.id ?? null,
+      infoHash,
+      source: 'stremthru',
+      sourceUri: source.uri,
+      displayName: source.type === 'magnet' ? parseMagnetDisplayName(source.uri) : null,
+      taskId: null,
+      status,
+      error,
+      createdBy: { type: 'api_key', ref: caller.keyId, issuer: null },
+      now,
+    })
+    // A concurrent add of the same torrent placed it already.
+    if (!created) return entry.id
+    entryId = entry.id
+  }
+  if (waits) return entryId
+
+  try {
+    await createDownloadTask(
       deps,
       caller.orgId,
       caller.userId,
-      { source, targetFolder },
+      { source, targetFolder: '' },
       { type: 'api_key', ref: caller.keyId, issuer: null },
-    ),
-  )
-  return toTorz(deps, await deps.downloadTasks.getRecord(caller.orgId, task.id))
+      { listEntryId: entryId },
+    )
+  } catch (error) {
+    if (!existing) await deps.workspaceTorrents.delete(entryId)
+    throw error
+  }
+  return entryId
 }
 
 export async function listTorz(
-  deps: Pick<Deps, 'downloadTasks' | 'torrents'>,
+  deps: Deps,
   caller: StoreCaller,
   query: { limit?: string; offset?: string },
 ): Promise<{ items: TorzListItem[]; total_items: number }> {
   const limit = boundedInt(query.limit, STREMTHRU_LIST_DEFAULT_LIMIT, 1, STREMTHRU_LIST_MAX_LIMIT)
   const offset = boundedInt(query.offset, 0, 0, Number.MAX_SAFE_INTEGER)
-  const { items, total } = await deps.downloadTasks.listByCreator({
-    orgId: caller.orgId,
-    userId: caller.userId,
-    sourceTypes: TORRENT_SOURCE_TYPES,
-    limit,
-    offset,
-  })
-  const torrents = await deps.torrents.listByInfoHashes(items.flatMap((task) => (task.infoHash ? [task.infoHash] : [])))
-  const byHash = new Map(torrents.map((torrent) => [torrent.infoHash, torrent]))
-  return {
-    items: items.map((task) => {
-      const torrent = task.infoHash ? byHash.get(task.infoHash) : undefined
-      const hash = torrent?.infoHash ?? task.infoHash ?? ''
-      return {
-        id: task.id,
-        hash,
-        name: torrent?.name ?? task.displayName ?? hash,
-        size: torrent?.totalSize ?? 0,
-        status: torzStatus(task.status),
-        private: torrent?.private ?? false,
-        added_at: task.createdAt.toISOString(),
-      }
-    }),
-    total_items: total,
-  }
+  const { items, total } = await listWorkspaceTorrentsByOffset(deps, caller.orgId, { limit, offset })
+  return { items: items.map(listItem), total_items: total }
 }
 
 function boundedInt(value: string | undefined, fallback: number, min: number, max: number): number {
@@ -307,81 +310,14 @@ function boundedInt(value: string | undefined, fallback: number, min: number, ma
   return parsed
 }
 
-export async function getTorz(deps: Pick<Deps, 'downloadTasks' | 'torrents'>, caller: StoreCaller, id: string) {
-  return toTorz(deps, await callerTask(deps, caller, id))
+export async function getTorz(deps: Deps, caller: StoreCaller, id: string): Promise<Torz> {
+  return toTorz(deps, caller, id)
 }
 
-// Removes a torz: its files move to the workspace trash, so a removal the user
-// did not make by hand stays recoverable, and the task leaves the list. The
-// cached torrent stays; only eviction deletes it.
+// Removes the entry from the workspace's Torrents list.
 export async function removeTorz(deps: Deps, caller: StoreCaller, id: string): Promise<{ id: string }> {
-  const task = await callerTask(deps, caller, id)
-  if (!TERMINAL_STATUSES.includes(task.status)) {
-    await withStoreErrors(() => performDownloadTaskAction(deps, caller.orgId, id, 'cancel'))
-  }
-  const torrent = await torrentOf(deps, task)
-  if (torrent) await trashHeldFiles(deps, task, torrent)
-  const current = await deps.downloadTasks.getRecord(caller.orgId, id)
-  if (TERMINAL_STATUSES.includes(current.status)) {
-    await withStoreErrors(() => performDownloadTaskAction(deps, caller.orgId, id, 'delete'))
-  }
+  await withStoreErrors(() => removeWorkspaceTorrent(deps, caller.orgId, id))
   return { id }
-}
-
-// Trashes the task's files. A torrent folder holding nothing but this torrent's
-// files is trashed as a whole, so restoring it brings the tree back; files
-// elsewhere are trashed one by one.
-async function trashHeldFiles(deps: Deps, task: DownloadTaskRecord, torrent: TorrentRecord): Promise<void> {
-  const held = [...(await heldFiles(deps, task, torrent)).values()]
-  if (held.length === 0) return
-  const files = await deps.torrents.listFiles(torrent.id)
-  const loose: Matter[] = []
-  const byRoot = new Map<string, Matter[]>()
-  const target = normalizePath(task.targetFolder)
-  if (torrentTreeRoot(torrent, files)) {
-    for (const matter of held) {
-      const relative = normalizePath(matter.parent).slice(target ? target.length + 1 : 0)
-      const top = relative.split('/')[0]
-      if (!top) {
-        loose.push(matter)
-        continue
-      }
-      byRoot.set(top, [...(byRoot.get(top) ?? []), matter])
-    }
-  } else {
-    loose.push(...held)
-  }
-  for (const [top, matters] of byRoot) {
-    const folder = await rootFolder(deps, task.orgId, target, top)
-    if (folder && (await holdsOnlyTorrentFiles(deps, task.orgId, joinPath(target, top), torrent.infoHash))) {
-      await deps.matter.trash(task.orgId, folder.id)
-      continue
-    }
-    loose.push(...matters)
-  }
-  for (const matter of loose) await deps.matter.trash(task.orgId, matter.id)
-}
-
-function normalizePath(path: string): string {
-  return path.split('/').filter(Boolean).join('/')
-}
-
-function joinPath(parent: string, name: string): string {
-  return parent ? `${parent}/${name}` : name
-}
-
-// The folder at `parent/name`, which holds files and so exists.
-async function rootFolder(deps: Deps, orgId: string, parent: string, name: string): Promise<Matter | undefined> {
-  const { items } = await deps.matter.list(orgId, { parent, name, pageSize: 1 })
-  return items[0]
-}
-
-async function holdsOnlyTorrentFiles(deps: Deps, orgId: string, path: string, infoHash: string): Promise<boolean> {
-  const prefix = `${TORRENT_PREFIX}${infoHash}/`
-  const children = await deps.matter.list(orgId, { parent: path, pageSize: TREE_PAGE_SIZE })
-  if (children.nextBoundary) return false
-  const nested = await deps.matter.listActiveDescendants(orgId, path)
-  return [...children.items, ...nested].every((item) => item.dirtype !== DirType.FILE || item.object.startsWith(prefix))
 }
 
 // ─── Playback links (§10) ────────────────────────────────────────────────────
@@ -393,91 +329,31 @@ export interface GenerateLinkParams {
   now?: Date
 }
 
-// Resolves an opaque file link to the caller's drive file and returns a
-// presigned URL valid for 12 hours. The file's size is charged when a link is
-// issued; while the issued link has more than an hour left it is returned again
-// without another charge, because players reconnect and addons regenerate links.
+// Resolves an opaque file link within the caller's Torrents list and returns a
+// presigned URL valid for 12 hours.
 export async function generateTorzLink(deps: Deps, params: GenerateLinkParams): Promise<{ link: string }> {
   const { caller } = params
-  const now = params.now ?? new Date()
-  const matterId = params.link ? decodeFileLink(params.link) : null
-  if (!matterId) throw new StremThruError('BAD_REQUEST', 'Invalid file link')
-  const matter = await deps.matter.get(matterId, caller.orgId)
-  if (
-    !matter ||
-    matter.dirtype !== DirType.FILE ||
-    matter.status !== 'active' ||
-    matter.trashedAt != null ||
-    matter.purgedAt != null ||
-    !isTorrentKey(matter.object)
-  ) {
-    throw new StremThruError('NOT_FOUND', 'File not found')
-  }
-  await touchTorrent(deps, matter.object, now)
-
-  const issued = await deps.stremthruLinks.get(caller.userId, matter.id)
-  if (issued && issued.expiresAt.getTime() - now.getTime() > STREMTHRU_LINK_REUSE_MIN_REMAINING_MS) {
-    return { link: issued.url }
-  }
-
-  const storage = await deps.storages.get(matter.storageId)
-  if (!storage) throw new StremThruError('NOT_FOUND', 'File not found')
-  const bytes = matter.size ?? 0
-  const trafficEventId = createTrafficEventId()
-  const metered = await meterDownloadTraffic(deps, {
-    cloudBaseUrl: params.cloudBaseUrl,
-    orgId: caller.orgId,
-    bytes,
-    storage,
-    source: 'object_download',
-    sourceId: matter.id,
-    eventId: trafficEventId,
-  })
-  if (!metered.ok) {
+  const ref = params.link ? decodeFileLink(params.link) : null
+  if (!ref) throw new StremThruError('BAD_REQUEST', 'Invalid file link')
+  const issued = await withStoreErrors(() =>
+    issueTorrentFileLink(deps, {
+      orgId: caller.orgId,
+      userId: caller.userId,
+      actor: { actorType: 'api_key', actorRef: caller.keyId },
+      entryId: ref.entryId,
+      fileId: ref.fileId,
+      cloudBaseUrl: params.cloudBaseUrl,
+      source: 'stremthru',
+      now: params.now,
+    }),
+  )
+  if ('error' in issued) {
     throw new StremThruError(
       'PAYMENT_REQUIRED',
-      metered.reason === 'quota_exceeded' ? 'Traffic quota exceeded' : 'Insufficient credits',
+      issued.error.message === 'Traffic quota exceeded' ? 'Traffic quota exceeded' : 'Insufficient credits',
     )
   }
-
-  let url: string
-  try {
-    url = await deps.s3.presignDownload(storage, matter.object, matter.name, STREMTHRU_LINK_TTL_SECONDS)
-    await confirmDownloadTraffic(deps, { eventId: trafficEventId, now })
-  } catch (error) {
-    await reverseDownloadTraffic(deps, { orgId: caller.orgId, bytes, eventId: trafficEventId, now })
-    throw error
-  }
-  await deps.stremthruLinks.save({
-    userId: caller.userId,
-    orgId: caller.orgId,
-    matterId: matter.id,
-    url,
-    expiresAt: new Date(now.getTime() + STREMTHRU_LINK_TTL_SECONDS * 1000),
-    now,
-  })
-  await recordDownloadIssued(
-    deps,
-    { userId: caller.userId, actorType: 'api_key', actorRef: caller.keyId },
-    'object_download',
-    {
-      orgId: caller.orgId,
-      targetType: 'file',
-      targetId: matter.id,
-      targetName: matter.name,
-      bytes,
-      source: 'stremthru',
-      metadata: { storageId: storage.id },
-    },
-    trafficEventId,
-  )
-  return { link: url }
-}
-
-async function touchTorrent(deps: Pick<Deps, 'torrents'>, object: string, now: Date): Promise<void> {
-  const infoHash = object.slice(TORRENT_PREFIX.length).split('/')[0]
-  const torrent = infoHash ? await deps.torrents.getByInfoHash(infoHash) : null
-  if (torrent) await deps.torrents.touch(torrent.id, ['ready', 'verifying'], now)
+  return { link: issued.url }
 }
 
 // ─── Errors ──────────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 Feature: Torrents
   Each torrent is stored once per instance under bt/<infoHash>/ and given to any
   workspace by instant transfer, without copying bytes. Only eviction deletes it.
+  Every workspace has a Torrents list of the torrents it holds, next to Files.
 
   @torrents/instant-transfer @usecase
   Scenario: A torrent is transferred into a workspace without copying bytes
@@ -100,10 +101,46 @@ Feature: Torrents
     Then the torrent is reported cached with its files and the other is not
 
   @torrents/stremthru-add-and-play @api
-  Scenario: Adding a torrent on the instance through StremThru transfers it and yields a playable link
+  Scenario: Adding a torrent on the instance through StremThru lists it and yields a playable link
     Given a StremThru key and a ready torrent
     When an addon adds its magnet and generates a link for one of its files
-    Then the files appear in the workspace's Media folder and the link downloads that file
+    Then the torrent is in the workspace's Torrents list, no drive file is written, and the link downloads that file
+
+  @torrents/stremthru-add-lands-in-list @api
+  Scenario: A StremThru add of a torrent not on the instance downloads it for the list alone
+    Given a StremThru key and a magnet no workspace has downloaded
+    When an addon adds it and a downloader fills the torrent through the object API
+    Then the uploads are stored only under bt/ and in the torrent's files, the entry becomes ready, and the workspace drive stays empty
+
+  @torrents/remote-download-in-list @api
+  Scenario: A remote download lands in the drive and in the Torrents list
+    Given a ready torrent
+    When a workspace submits its magnet as a remote download
+    Then its files appear in the task's folder and the torrent appears in the workspace's Torrents list as a download entry
+
+  @torrents/save-to-drive @api
+  Scenario: Save to drive writes the torrent's layout into a chosen folder
+    Given a ready torrent in a workspace's Torrents list
+    When a member saves it to a folder of the drive
+    Then its folders, files and sidecars appear under that folder by layout path and the quota grows by their size
+
+  @torrents/stremthru-expiry @api
+  Scenario: A StremThru entry not played within the retention period expires
+    Given a StremThru entry last played 31 days ago whose torrent nobody else holds, and one played yesterday
+    When the sweep runs
+    Then the old entry is gone and its torrent evicted, while the recent entry and its torrent stay
+
+  @torrents/capacity-evicts-stremthru-held @api
+  Scenario: Over capacity, torrents held only by StremThru entries go after unheld ones
+    Given an instance over its torrent capacity with no unheld torrent, one torrent held by a drive file and two held only by StremThru entries
+    When the sweep runs
+    Then the least recently played StremThru torrent is evicted with its entries until the instance fits, and the drive-held one stays
+
+  @torrents/workspace-page @web
+  Scenario: The Torrents page lists a workspace's torrents and acts on them
+    Given a licensed workspace with torrents in its list
+    When a member opens Torrents in the left menu and opens a ready torrent
+    Then they see each entry's name, size, status, source and added time, the torrent's own files with play and download, Save to drive and Remove
 
   @torrents/stremthru-link-metered-once @api
   Scenario: Regenerating a link within its lifetime is charged once
@@ -111,11 +148,11 @@ Feature: Torrents
     When the addon generates it again an hour later
     Then the same link is returned and traffic is charged once
 
-  @torrents/stremthru-remove-trashes @api
-  Scenario: Removing a torrent through StremThru moves its files to the trash
+  @torrents/stremthru-remove @api
+  Scenario: Removing a torrent through StremThru takes it off the Torrents list
     Given a torrent added through StremThru
     When the addon removes it
-    Then its files are in the workspace trash and the torrent remains on the instance
+    Then it is gone from the list, the torrent remains on the instance, and no new link is issued for it
 
   @torrents/stremthru-auth @api
   Scenario: StremThru requests need a valid key and a licensed instance

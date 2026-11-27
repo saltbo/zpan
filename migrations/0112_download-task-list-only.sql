@@ -1,0 +1,1 @@
+ALTER TABLE `download_tasks` ADD `list_only` integer DEFAULT false NOT NULL;

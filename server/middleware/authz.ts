@@ -1,19 +1,11 @@
 import type { AuthorizationScope } from '@shared/authorization'
+import { type TeamRole, teamRoleAtLeast } from '@shared/team-roles'
 import type { Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { recordAuditEffect } from '../lib/audit'
 import { forbidden, unauthorized } from '../usecases/ports'
 import { type AuthzContext, anonymousAuthzContext, type Env, workspaceOrgId } from './platform'
 
-const ROLE_LEVELS: Record<string, number> = {
-  owner: 3,
-  admin: 3,
-  editor: 2,
-  viewer: 1,
-  member: 1,
-}
-
-export type TeamRole = 'viewer' | 'editor' | 'owner'
 export type RequiredAuthorizationScopes = readonly [AuthorizationScope, ...AuthorizationScope[]]
 
 export type ScopedAuthorizationPolicy = {
@@ -105,9 +97,7 @@ async function evaluateRole(
 
   const role = await deps.getMemberRole(orgId, userId)
   if (role !== null) {
-    return (ROLE_LEVELS[role] ?? 0) >= ROLE_LEVELS[minTeamRole]
-      ? allow(orgId)
-      : deny(context, 403, 'insufficient_role', declaration)
+    return teamRoleAtLeast(role, minTeamRole) ? allow(orgId) : deny(context, 403, 'insufficient_role', declaration)
   }
 
   const personalOrgId = await deps.findPersonalOrg(userId)

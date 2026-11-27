@@ -178,7 +178,7 @@ export async function listObjects(
 const SINGLE_UPLOAD_MAX_BYTES = 64 * 1024 * 1024 // 64 MiB
 const DEFAULT_MULTIPART_PART_SIZE_BYTES = 64 * 1024 * 1024 // 64 MiB
 const MAX_UPLOAD_PARTS = 10_000
-const MAX_OBJECT_BYTES = 5 * 1024 * 1024 * 1024 * 1024 // 5 TiB
+export const MAX_OBJECT_BYTES = 5 * 1024 * 1024 * 1024 * 1024 // 5 TiB
 export const UPLOAD_PRESIGNED_URL_TTL_SECONDS = 15 * 60
 
 export type CreateObjectOutcome =
@@ -333,7 +333,7 @@ export async function getObjectCreator(
 // Decides the S3 mechanism, presigns every URL up front, and records the upload
 // session. The chosen onConflict is stored on the session so completion can apply
 // a deferred 'replace' (createMatter keeps the incumbent until bytes land).
-async function prepareUpload(
+export async function prepareUpload(
   deps: Pick<Deps, 's3' | 'objectUploadSessions'>,
   params: {
     orgId: string
@@ -450,11 +450,11 @@ function uploadWorkflow(objectId: string, sessionId: string): ObjectUploadInstru
   }
 }
 
-function signedUploadHeaders(contentType?: string): Record<string, string> {
+export function signedUploadHeaders(contentType?: string): Record<string, string> {
   return contentType ? { 'content-type': contentType } : {}
 }
 
-function uploadPartCount(size: number, partSize: number): number {
+export function uploadPartCount(size: number, partSize: number): number {
   if (partSize <= 0) return 1
   return Math.max(1, Math.ceil(size / partSize))
 }
@@ -463,7 +463,7 @@ function normalizeETag(etag: string): string {
   return etag.trim().replace(/^"+|"+$/g, '')
 }
 
-function validateCompletionParts(
+export function validateCompletionParts(
   parts: CompleteObjectUploadInput['parts'],
   requiredPartCount: number,
 ): Array<{ partNumber: number; etag: string }> {

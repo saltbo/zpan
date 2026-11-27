@@ -44,6 +44,8 @@ export const AuthorizationScope = {
   ANNOUNCEMENTS_UPDATE: 'announcements:update',
   ANNOUNCEMENTS_DELETE: 'announcements:delete',
   AUDIT_EVENTS_READ: 'audit-events:read',
+  WORKSPACE_TORRENTS_READ: 'workspace-torrents:read',
+  WORKSPACE_TORRENTS_DELETE: 'workspace-torrents:delete',
   TORRENTS_READ: 'torrents:read',
   TORRENTS_DELETE: 'torrents:delete',
   TORRENT_SETTINGS_READ: 'torrent-settings:read',

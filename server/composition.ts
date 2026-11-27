@@ -58,6 +58,7 @@ import { createStremThruLinkRepo, createTorrentRepo } from './adapters/repos/tor
 import { createUserAdminRepo } from './adapters/repos/user-admin'
 import { createWebDavPathRepo } from './adapters/repos/webdav-path'
 import { createWebDavStateRepo } from './adapters/repos/webdav-state'
+import { createWorkspaceTorrentRepo } from './adapters/repos/workspace-torrents'
 import { createX402CapacityPurchaseRepo } from './adapters/repos/x402-capacity-purchase'
 import { createZipPlanRepo } from './adapters/repos/zip'
 import type { Platform } from './platform/interface'
@@ -136,6 +137,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     teams: createTeamRepo(db),
     teamInvites: createTeamInviteRepo(db),
     torrents: createTorrentRepo(db),
+    workspaceTorrents: createWorkspaceTorrentRepo(db),
     stremthruLinks: createStremThruLinkRepo(db),
     userAdmin: createUserAdminRepo(db),
     webdavPath: createWebDavPathRepo(db, cache),

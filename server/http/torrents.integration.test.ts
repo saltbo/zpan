@@ -300,3 +300,90 @@ describe('torrent eviction', () => {
     expect(await storageUsed(db)).toBe(60)
   })
 })
+
+describe('Torrents list expiry and capacity', () => {
+  async function stremThruEntry(
+    deps: TestApp['deps'],
+    orgId: string,
+    torrentId: string,
+    infoHash: string,
+    playedAt: Date | null,
+    createdAt: Date,
+    source: 'stremthru' | 'download' = 'stremthru',
+  ) {
+    const { entry } = await deps.workspaceTorrents.insert({
+      orgId,
+      torrentId,
+      infoHash,
+      source,
+      sourceUri: `magnet:?xt=urn:btih:${infoHash}`,
+      displayName: null,
+      taskId: null,
+      status: 'ready',
+      createdBy: { type: 'api_key', ref: 'key-1', issuer: null },
+      now: createdAt,
+    })
+    if (playedAt) await deps.workspaceTorrents.update(entry.id, { lastPlayedAt: playedAt, updatedAt: playedAt })
+    return entry
+  }
+
+  it('expires StremThru entries not played within the retention period and evicts their torrent [spec: torrents/stremthru-expiry]', async () => {
+    const { app, db, deps } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const ws = await personalWorkspace(db)
+    const now = new Date()
+    const monthAgo = new Date(now.getTime() - 31 * DAY)
+    const yesterday = new Date(now.getTime() - DAY)
+    const stale = await seedTorrent(deps, 'a1'.repeat(20), [{ path: 'stale.mkv', size: 10 }], monthAgo)
+    const fresh = await seedTorrent(deps, 'b2'.repeat(20), [{ path: 'fresh.mkv', size: 20 }], yesterday)
+    const neverPlayed = await seedTorrent(deps, 'f6'.repeat(20), [{ path: 'never.mkv', size: 30 }], monthAgo)
+    const kept = await seedTorrent(deps, '07'.repeat(20), [{ path: 'kept.mkv', size: 40 }], monthAgo)
+    const old = await stremThruEntry(deps, ws.orgId, stale.id, stale.infoHash, monthAgo, monthAgo)
+    const recent = await stremThruEntry(deps, ws.orgId, fresh.id, fresh.infoHash, yesterday, monthAgo)
+    await stremThruEntry(deps, ws.orgId, neverPlayed.id, neverPlayed.infoHash, null, monthAgo)
+    // A download entry never expires, so its torrent stays.
+    const download = await stremThruEntry(deps, ws.orgId, kept.id, kept.infoHash, null, monthAgo, 'download')
+
+    expect(await evictTorrents(deps, now)).toBe(2)
+
+    const left = await db.all<{ id: string }>(sql`SELECT id FROM workspace_torrents ORDER BY id`)
+    expect(left.map((row) => row.id).sort()).toEqual([recent.id, download.id].sort())
+    expect(left.map((row) => row.id)).not.toContain(old.id)
+    expect(await deps.torrents.get(stale.id)).toBeNull()
+    expect(await deps.torrents.get(neverPlayed.id)).toBeNull()
+    expect(await deps.torrents.get(fresh.id)).toMatchObject({ status: 'ready' })
+    expect(await deps.torrents.get(kept.id)).toMatchObject({ status: 'ready' })
+  })
+
+  it('evicts torrents held only by StremThru entries, least recently played first, once no unheld one is left [spec: torrents/capacity-evicts-stremthru-held]', async () => {
+    const { app, db, deps } = await createTestApp()
+    await authedHeaders(app)
+    await seedStorage(db)
+    const ws = await personalWorkspace(db)
+    const now = new Date()
+    const hoursAgo = (n: number) => new Date(now.getTime() - n * 60 * 60 * 1000)
+    const driveHeld = await seedTorrent(deps, '1a'.repeat(20), [{ path: 'drive.mkv', size: 50 }], hoursAgo(10))
+    const older = await seedTorrent(deps, '2b'.repeat(20), [{ path: 'older.mkv', size: 30 }], hoursAgo(1))
+    const newer = await seedTorrent(deps, '3c'.repeat(20), [{ path: 'newer.mkv', size: 30 }], hoursAgo(1))
+    const transferred = await transferTorrent(deps, {
+      torrentId: driveHeld.id,
+      orgId: ws.orgId,
+      userId: ws.userId,
+      targetFolder: '',
+    })
+    expect(transferred.ok).toBe(true)
+    await stremThruEntry(deps, ws.orgId, older.id, older.infoHash, hoursAgo(5), hoursAgo(6))
+    await stremThruEntry(deps, ws.orgId, newer.id, newer.infoHash, hoursAgo(2), hoursAgo(6))
+    // 110 bytes on the instance against a capacity of 90: one torrent has to go.
+    await deps.systemOptions.set('torrent_capacity_bytes', '90')
+
+    expect(await evictTorrents(deps, now)).toBe(1)
+
+    expect(await deps.torrents.get(older.id)).toBeNull()
+    const left = await db.all<{ torrentId: string }>(sql`SELECT torrent_id AS torrentId FROM workspace_torrents`)
+    expect(left).toEqual([{ torrentId: newer.id }])
+    expect(await deps.torrents.get(newer.id)).toMatchObject({ status: 'ready' })
+    expect(await deps.torrents.get(driveHeld.id)).toMatchObject({ status: 'ready' })
+  })
+})

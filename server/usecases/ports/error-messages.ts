@@ -84,8 +84,11 @@ export const ZH_ERROR_MESSAGES = {
   'Torrent file is already uploaded': '种子中的该文件已上传',
   'Torrent file is already being uploaded': '种子中的该文件正在上传',
   'Uploaded file size does not match the torrent': '上传文件的大小与种子不一致',
-  '{count} drive files still hold this torrent; it can be evicted once they are deleted, including from trash':
-    '仍有 {count} 个网盘文件持有该种子；需先删除这些文件（包括回收站中的）才能清除',
+  '{count} drive files or Torrents list entries still hold this torrent; it can be evicted once they are deleted, including from trash, or removed':
+    '仍有 {count} 个网盘文件或种子列表条目持有该种子；需先删除这些文件（包括回收站中的）或移除这些条目才能清除',
+  'The task is not filling a torrent': '该任务没有在填充种子',
+  'Torrent is not in this workspace': '该工作空间的种子列表中没有这个种子',
+  'Torrent file is not playable yet': '种子中的该文件暂时无法播放',
   'Torrent is still being downloaded or verified': '种子仍在下载或校验中',
   'Torrent is already being evicted': '种子正在被清除',
   'Torrent changed while it was being evicted; try again': '清除期间种子发生了变化，请重试',

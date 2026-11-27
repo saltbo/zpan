@@ -41,6 +41,7 @@ import type {
   TrashRoute,
   UserQuotasRoute,
   UsersRoute,
+  WorkspaceTorrentsRoute,
 } from '@server/app'
 import { hc } from 'hono/client'
 import { requestLanguageHeaders } from './request-language'
@@ -97,6 +98,7 @@ export const licensingAdminApi = hc<LicensingAdminRoute>('/api/site/licensing', 
 export const brandingAdminApi = hc<BrandingAdminRoute>('/api/site/settings/branding', opts)
 export const adminAuditApi = hc<AdminAuditRoute>('/api/site/audit-events', opts)
 export const adminTorrentsApi = hc<AdminTorrentsRoute>('/api/site/torrents', opts)
+export const workspaceTorrentsApi = hc<WorkspaceTorrentsRoute>('/api/torrents', opts)
 export const adminTorrentSettingsApi = hc<AdminTorrentSettingsRoute>('/api/site/settings/torrents', opts)
 export const adminOverviewApi = hc<AdminOverviewRoute>('/api/site/analytics', opts)
 export const siteStatsApi = hc<AdminStatsRoute>('/api/site/analytics', opts)

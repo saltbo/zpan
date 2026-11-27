@@ -53,6 +53,14 @@ export const OAUTH_GRANT_SCOPE_METADATA = {
   [Scope.ANNOUNCEMENTS_UPDATE]: scope('Update announcements', '更新公告'),
   [Scope.ANNOUNCEMENTS_DELETE]: scope('Delete announcements', '删除公告'),
   [Scope.AUDIT_EVENTS_READ]: scope('Read audit events', '查看审计事件'),
+  [Scope.WORKSPACE_TORRENTS_READ]: scope(
+    "List the workspace's torrents and play their files",
+    '查看工作空间的种子并播放其中的文件',
+  ),
+  [Scope.WORKSPACE_TORRENTS_DELETE]: scope(
+    "Remove torrents from the workspace's list",
+    '从工作空间的种子列表中移除种子',
+  ),
   [Scope.TORRENTS_READ]: scope('List torrents on the instance', '查看实例上的种子'),
   [Scope.TORRENTS_DELETE]: scope('Evict torrents', '清除种子'),
   [Scope.TORRENT_SETTINGS_READ]: scope('Read torrent retention and capacity', '查看种子保留期和容量'),

@@ -50,6 +50,7 @@ import type {
 import { actorIdentityKey, DownloadError, featureBlocked, unauthorized } from '../ports'
 import { loadBindingState } from '../site/licensing'
 import { completeFillTask } from '../torrents/complete'
+import { addDownloadEntry, failWaitingEntries, reopenTaskEntry } from '../torrents/entries'
 import {
   isTorrentSource,
   reportTaskTorrentInfo,
@@ -335,6 +336,11 @@ export async function createDownloadTask(
   userId: string,
   input: CreateDownloadTaskInput,
   requestedBy: ActorIdentity = { type: 'user', ref: userId, issuer: null },
+  // The Torrents list entry a StremThru add created: the task downloads the
+  // torrent for that entry alone and writes no drive files
+  // (docs/design/torrents.md §4). Without one, a magnet or torrent URL task
+  // lands in the drive and in the list.
+  options: { listEntryId?: string } = {},
 ): Promise<DownloadTask> {
   const targetFolder = await ensureDownloadFolderPath(deps, {
     orgId,
@@ -360,12 +366,19 @@ export async function createDownloadTask(
     status: 'queued',
     assignedAt: null,
     infoHash: submittedInfoHash(input.source),
+    listOnly: !!options.listEntryId,
     now,
   })
   // A magnet's infoHash is known now: a torrent on the instance completes the task at
   // once, and one already downloading takes the task along.
   if (isTorrentSource(input.source.type) && (await torrentsEnabled(deps))) {
-    await serveTaskFromTorrents(deps, await deps.downloadTasks.getRecord(orgId, id), now)
+    const task = await deps.downloadTasks.getRecord(orgId, id)
+    if (options.listEntryId) {
+      await deps.workspaceTorrents.update(options.listEntryId, { taskId: id, error: null, updatedAt: now })
+    } else {
+      await addDownloadEntry(deps, task, requestedBy, now)
+    }
+    await serveTaskFromTorrents(deps, task, now)
   }
   return decorateDownloadTaskActors(deps, await deps.downloadTasks.get(orgId, id))
 }
@@ -500,6 +513,7 @@ export async function updateDownloadTask(
       updatedAt: now,
     })
     await purgeCanceledTaskFiles(deps, task.orgId, id)
+    if (isTorrentSource(task.sourceType)) await failWaitingEntries(deps, task, null, now)
     return deps.downloadTasks.get(task.orgId, id)
   }
   if (['pausing', 'paused', 'canceling', 'canceled'].includes(task.status)) {
@@ -591,6 +605,9 @@ export async function updateDownloadTask(
   }
 
   await deps.downloadTasks.setFields(id, fields)
+  if (status === 'failed' && task.status !== 'failed' && isTorrentSource(task.sourceType)) {
+    await failWaitingEntries(deps, task, fields.errorMessage ?? null, now)
+  }
 
   return deps.downloadTasks.get(task.orgId, id)
 }
@@ -675,7 +692,10 @@ export async function performDownloadTaskAction(
       finishedAt: status === 'canceled' ? (task.finishedAt ?? now) : task.finishedAt,
       updatedAt: now,
     })
-    if (status === 'canceled') await purgeCanceledTaskFiles(deps, orgId, id)
+    if (status === 'canceled') {
+      await purgeCanceledTaskFiles(deps, orgId, id)
+      if (isTorrentSource(task.sourceType)) await failWaitingEntries(deps, task, null, now)
+    }
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -699,6 +719,7 @@ export async function performDownloadTaskAction(
       finishedAt: null,
       updatedAt: now,
     })
+    await reopenTaskEntry(deps, id, now)
     return deps.downloadTasks.get(orgId, id)
   }
 
@@ -727,6 +748,7 @@ export async function performDownloadTaskAction(
       finishedAt: null,
       updatedAt: now,
     })
+    await reopenTaskEntry(deps, id, now)
     return deps.downloadTasks.get(orgId, id)
   }
 

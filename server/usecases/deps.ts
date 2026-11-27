@@ -56,6 +56,7 @@ import type {
   UserAdminRepo,
   WebDavPathRepo,
   WebDavStateRepo,
+  WorkspaceTorrentRepo,
   X402CapacityPurchaseRepo,
   ZipGateway,
   ZipPlanRepo,
@@ -112,6 +113,7 @@ export interface Deps {
   teams: TeamRepo
   teamInvites: TeamInviteRepo
   torrents: TorrentRepo
+  workspaceTorrents: WorkspaceTorrentRepo
   stremthruLinks: StremThruLinkRepo
   userAdmin: UserAdminRepo
   webdavPath: WebDavPathRepo

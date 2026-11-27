@@ -287,6 +287,7 @@ function toRecord(row: DownloadTaskRow): DownloadTaskRecord {
     infoHash: row.infoHash,
     torrentId: row.torrentId,
     torrentRole: row.torrentRole as DownloadTaskRecord['torrentRole'],
+    listOnly: row.listOnly,
   }
 }
 
@@ -442,6 +443,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         assignedDownloaderId: input.assignedDownloaderId,
         status: input.status,
         infoHash: input.infoHash ?? null,
+        listOnly: input.listOnly ?? false,
         events: JSON.stringify([
           {
             id: `initial:${input.id}`,
@@ -511,6 +513,36 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
     async findRecord(id) {
       const row = await findRow(id)
       return row ? toRecord(row) : null
+    },
+
+    async findRecords(ids) {
+      const unique = [...new Set(ids)]
+      const found: DownloadTaskRecord[] = []
+      // D1 binds at most 100 parameters per statement.
+      for (let i = 0; i < unique.length; i += 90) {
+        const rows = await db
+          .select()
+          .from(downloadTasks)
+          .where(and(inArray(downloadTasks.id, unique.slice(i, i + 90)), isNull(downloadTasks.deletedAt)))
+        found.push(...rows.map(toRecord))
+      }
+      return found
+    },
+
+    async findInfoHashBySourceUri(orgId, sourceUri) {
+      const rows = await db
+        .select({ infoHash: downloadTasks.infoHash })
+        .from(downloadTasks)
+        .where(
+          and(
+            eq(downloadTasks.orgId, orgId),
+            eq(downloadTasks.sourceUri, sourceUri),
+            isNotNull(downloadTasks.infoHash),
+          ),
+        )
+        .orderBy(desc(downloadTasks.createdAt))
+        .limit(1)
+      return rows[0]?.infoHash ?? null
     },
 
     async listPendingCleanup(downloaderId, limit) {

@@ -139,6 +139,13 @@ async function activeFiles(db: TestApp['db'], orgId: string) {
   `)
 }
 
+async function entries(db: TestApp['db'], orgId: string) {
+  return db.all<{ id: string; source: string; status: string; torrentId: string | null; taskId: string | null }>(sql`
+    SELECT id, source, status, torrent_id AS torrentId, task_id AS taskId FROM workspace_torrents
+    WHERE org_id = ${orgId} ORDER BY created_at
+  `)
+}
+
 async function trafficUsed(db: TestApp['db'], orgId: string): Promise<number> {
   const rows = await db.all<{ used: number }>(sql`SELECT traffic_used AS used FROM org_quotas WHERE org_id = ${orgId}`)
   return rows[0]?.used ?? 0
@@ -187,8 +194,8 @@ describe('StremThru Store API', () => {
     expect(tooMany.status).toBe(400)
   })
 
-  it('transfers a torrent on add and generates a link that downloads the chosen file [spec: torrents/stremthru-add-and-play]', async () => {
-    const { call, db, owner } = await setup()
+  it('lists a ready torrent on add without drive files and generates a link that downloads the chosen file [spec: torrents/stremthru-add-and-play]', async () => {
+    const { call, db, owner, torrent } = await setup()
 
     const added = await call('/v0/store/torz', {
       method: 'POST',
@@ -207,13 +214,9 @@ describe('StremThru Store API', () => {
       [0, 'Show.S01E01.mkv', 'string'],
       [1, 'Show.S01E01.srt', 'string'],
     ])
-    expect(await activeFiles(db, owner.orgId)).toEqual([
-      expect.objectContaining({ name: 'Show.S01E01.mkv', parent: 'Media/Show S01', object: cachedKeys[0] }),
-      expect.objectContaining({
-        name: 'Show.S01E01.srt',
-        parent: 'Media/Show S01/Subs',
-        object: cachedKeys[1],
-      }),
+    expect(await activeFiles(db, owner.orgId)).toEqual([])
+    expect(await entries(db, owner.orgId)).toEqual([
+      { id: torz.id, source: 'stremthru', status: 'ready', torrentId: torrent.id, taskId: null },
     ])
 
     const generated = await call('/v0/store/torz/link/generate', {
@@ -227,17 +230,23 @@ describe('StremThru Store API', () => {
     expect(link).toContain('name=Show.S01E01.mkv')
     expect(link).toContain(`ttl=${12 * 60 * 60}`)
 
-    // Adding the same magnet again returns the same item without a second transfer.
+    // Playing records the entry as played.
+    const [played] = await db.all<{ lastPlayedAt: number | null }>(sql`
+      SELECT last_played_at AS lastPlayedAt FROM workspace_torrents WHERE id = ${torz.id}
+    `)
+    expect(played.lastPlayedAt).not.toBeNull()
+
+    // Adding the same magnet again returns the same entry.
     const again = await call('/v0/store/torz', {
       method: 'POST',
       body: JSON.stringify({ link: `magnet:?xt=urn:btih:${CACHED_HASH}` }),
     })
     expect((await json<{ data: Torz }>(again)).data.id).toBe(torz.id)
-    expect(await activeFiles(db, owner.orgId)).toHaveLength(2)
+    expect(await entries(db, owner.orgId)).toHaveLength(1)
   })
 
-  it('queues a torrent that is not cached and lists and gets it', async () => {
-    const { call } = await setup()
+  it('queues a torrent that is not cached for a list-only download and lists and gets it', async () => {
+    const { call, db, owner } = await setup()
 
     const added = await call('/v0/store/torz', {
       method: 'POST',
@@ -251,6 +260,11 @@ describe('StremThru Store API', () => {
     const listed = await json<{ data: { items: Torz[]; total_items: number } }>(await call('/v0/store/torz'))
     expect(listed.data.total_items).toBe(1)
     expect(listed.data.items[0]).toMatchObject({ id: torz.id, hash: UNKNOWN_HASH, status: 'queued' })
+    const [task] = await db.all<{ id: string; listOnly: number; targetFolder: string }>(sql`
+      SELECT id, list_only AS listOnly, target_folder AS targetFolder FROM download_tasks WHERE org_id = ${owner.orgId}
+    `)
+    expect(task).toMatchObject({ listOnly: 1, targetFolder: '' })
+    expect((await entries(db, owner.orgId))[0]).toMatchObject({ id: torz.id, taskId: task.id, status: 'resolving' })
   })
 
   it('returns the issued link again within its lifetime and charges traffic once [spec: torrents/stremthru-link-metered-once]', async () => {
@@ -296,35 +310,41 @@ describe('StremThru Store API', () => {
     expect(await trafficUsed(db, owner.orgId)).toBe(VIDEO.length * 2)
   })
 
-  it('moves the files of a removed torrent to the trash and keeps the torrent [spec: torrents/stremthru-remove-trashes]', async () => {
+  it('takes a removed torrent off the list and keeps the torrent [spec: torrents/stremthru-remove]', async () => {
     const { call, db, deps, owner, torrent } = await setup()
     const torz = (
       await json<{ data: Torz }>(
         await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: CACHED_HASH }) }),
       )
     ).data
+    const issued = (
+      await json<{ data: { link: string } }>(
+        await call('/v0/store/torz/link/generate', {
+          method: 'POST',
+          body: JSON.stringify({ link: torz.files[0].link }),
+        }),
+      )
+    ).data.link
 
     const removed = await call(`/v0/store/torz/${torz.id}`, { method: 'DELETE' })
 
     expect(removed.status).toBe(200)
-    const files = await activeFiles(db, owner.orgId)
-    expect(files).toHaveLength(2)
-    expect(files.every((file) => file.trashedAt !== null)).toBe(true)
-    const trashRoots = await deps.matter.listTrashedRoots(owner.orgId)
-    expect(trashRoots.map((matter) => matter.name)).toEqual(['Show S01'])
+    expect(await entries(db, owner.orgId)).toEqual([])
     expect(await deps.torrents.get(torrent.id)).toMatchObject({ status: 'ready' })
     expect(objects.has(cachedKeys[0])).toBe(true)
+    // A link issued earlier keeps playing; only eviction deletes bytes.
+    expect(download(issued)).toEqual(VIDEO)
     const listed = await json<{ data: { items: Torz[]; total_items: number } }>(await call('/v0/store/torz'))
     expect(listed.data.total_items).toBe(0)
     expect((await call(`/v0/store/torz/${torz.id}`)).status).toBe(404)
 
-    // A link to a trashed file no longer resolves.
+    // No new link is issued for a removed entry.
     const stale = await call('/v0/store/torz/link/generate', {
       method: 'POST',
       body: JSON.stringify({ link: torz.files[0].link }),
     })
     expect(stale.status).toBe(404)
-    expect(await json(stale)).toEqual({ error: { code: 'NOT_FOUND', message: 'File not found' } })
+    expect(await json(stale)).toEqual({ error: { code: 'NOT_FOUND', message: 'Torrent not found' } })
   })
 
   it('answers missing and revoked keys with UNAUTHORIZED and an unlicensed instance with PAYMENT_REQUIRED [spec: torrents/stremthru-auth]', async () => {
@@ -429,35 +449,17 @@ describe('StremThru removal and re-adding', () => {
     ).data
   }
 
-  it('trashes only the torrent files when the folder also holds other files, and leaves copies elsewhere', async () => {
+  it('keeps the drive files saved from an entry when the entry is removed', async () => {
     const ctx = await setup()
     const torz = await add(ctx.call, CACHED_HASH)
-    // The same torrent transferred elsewhere in the workspace, outside the torrent folder.
-    const copy = await transferTorrent(ctx.deps, {
+    const saved = await transferTorrent(ctx.deps, {
       torrentId: ctx.torrent.id,
       orgId: ctx.owner.orgId,
       userId: ctx.owner.userId,
       targetFolder: 'Elsewhere',
     })
-    expect(copy.ok).toBe(true)
-    await ctx.deps.matter.create({
-      orgId: ctx.owner.orgId,
-      name: 'notes.txt',
-      type: 'text/plain',
-      size: 1,
-      parent: 'Media/Show S01',
-      object: 'org/user/notes.txt',
-      storageId: STORAGE_ID,
-      status: 'active',
-    })
-    // A file the user moved straight into the torrent folder still belongs to the item.
-    const subtitle = (await activeFiles(ctx.db, ctx.owner.orgId)).find(
-      (file) => file.parent === 'Media/Show S01/Subs' && file.name === 'Show.S01E01.srt',
-    )
-    await ctx.deps.matter.update(subtitle?.id ?? '', ctx.owner.orgId, { parent: 'Media' })
+    expect(saved.ok).toBe(true)
 
-    const listed = await json<{ data: Torz }>(await ctx.call(`/v0/store/torz/${torz.id}`))
-    expect(listed.data.files.map((file) => typeof file.link)).toEqual(['string', 'string'])
     const removed = await ctx.call(`/v0/store/torz/${torz.id}`, { method: 'DELETE' })
 
     expect(removed.status).toBe(200)
@@ -465,11 +467,10 @@ describe('StremThru removal and re-adding', () => {
     expect(live.map((file) => `${file.parent}/${file.name}`).sort()).toEqual([
       'Elsewhere/Show S01/Show.S01E01.mkv',
       'Elsewhere/Show S01/Subs/Show.S01E01.srt',
-      'Media/Show S01/notes.txt',
     ])
   })
 
-  it('trashes the lone file of a single-file torrent', async () => {
+  it('lists the lone file of a single-file torrent at its own name', async () => {
     const ctx = await setup()
     const single = 'ef'.repeat(20)
     await ctx.deps.torrents.create({
@@ -483,36 +484,45 @@ describe('StremThru removal and re-adding', () => {
     })
     const torz = await add(ctx.call, single)
     expect(torz).toMatchObject({ name: 'Movie.mkv', private: true, files: [{ index: 0, path: '/Movie.mkv' }] })
-
-    await ctx.call(`/v0/store/torz/${torz.id}`, { method: 'DELETE' })
-
-    const files = await activeFiles(ctx.db, ctx.owner.orgId)
-    expect(files).toEqual([expect.objectContaining({ name: 'Movie.mkv', parent: 'Media' })])
-    expect(files[0].trashedAt).not.toBeNull()
+    expect(await activeFiles(ctx.db, ctx.owner.orgId)).toEqual([])
   })
 
-  it('cancels and removes a torrent that is still queued', async () => {
+  it('cancels the list-only download of a torrent that is still queued when it is removed', async () => {
     const ctx = await setup()
     const torz = await add(ctx.call, UNKNOWN_HASH)
-    // An item still in progress is returned again rather than added twice.
+    // An entry still in progress is returned again rather than added twice.
     expect((await add(ctx.call, UNKNOWN_HASH)).id).toBe(torz.id)
 
     const removed = await ctx.call(`/v0/store/torz/${torz.id}`, { method: 'DELETE' })
 
     expect(removed.status).toBe(200)
     expect((await ctx.call(`/v0/store/torz/${torz.id}`)).status).toBe(404)
+    const tasks = await ctx.db.all<{ status: string }>(sql`
+      SELECT status FROM download_tasks WHERE org_id = ${ctx.owner.orgId}
+    `)
+    expect(tasks).toEqual([{ status: 'canceled' }])
   })
 
-  it('transfers again when a file of the earlier transfer was trashed by hand', async () => {
+  it('adds a failed entry anew', async () => {
     const ctx = await setup()
-    const first = await add(ctx.call, CACHED_HASH)
-    const video = (await activeFiles(ctx.db, ctx.owner.orgId)).find((file) => file.name === 'Show.S01E01.mkv')
-    await ctx.deps.matter.trash(ctx.owner.orgId, video?.id ?? '')
+    const first = await add(ctx.call, UNKNOWN_HASH)
+    const [task] = await ctx.db.all<{ id: string }>(
+      sql`SELECT id FROM download_tasks WHERE org_id = ${ctx.owner.orgId}`,
+    )
+    await ctx.db.run(
+      sql`UPDATE download_tasks SET status = 'failed', error_message = 'tracker down' WHERE id = ${task.id}`,
+    )
+    const failed = await json<{ data: Torz }>(await ctx.call(`/v0/store/torz/${first.id}`))
+    expect(failed.data.status).toBe('failed')
 
-    const second = await add(ctx.call, CACHED_HASH)
+    const second = await add(ctx.call, UNKNOWN_HASH)
 
-    expect(second.id).not.toBe(first.id)
-    expect(second.status).toBe('downloaded')
+    expect(second.id).toBe(first.id)
+    expect(second.status).toBe('queued')
+    const tasks = await ctx.db.all<{ status: string }>(sql`
+      SELECT status FROM download_tasks WHERE org_id = ${ctx.owner.orgId} ORDER BY created_at
+    `)
+    expect(tasks.map((row) => row.status)).toEqual(['failed', 'queued'])
   })
 
   it('refunds traffic and answers INTERNAL_SERVER_ERROR when the link cannot be signed', async () => {
@@ -529,6 +539,66 @@ describe('StremThru removal and re-adding', () => {
     expect(res.status).toBe(500)
     expect(await json(res)).toEqual({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Internal Server Error' } })
     expect(await trafficUsed(ctx.db, ctx.owner.orgId)).toBe(0)
+  })
+
+  it('returns the entry a concurrent add placed first, without a second download', async () => {
+    const ctx = await setup()
+    const first = await add(ctx.call, UNKNOWN_HASH)
+    // The second add looked before the first one's entry existed.
+    vi.spyOn(ctx.deps.workspaceTorrents, 'findByInfoHash').mockResolvedValueOnce(null)
+
+    const second = await add(ctx.call, UNKNOWN_HASH)
+
+    expect(second.id).toBe(first.id)
+    const tasks = await ctx.db.all<{ id: string }>(sql`
+      SELECT id FROM download_tasks WHERE org_id = ${ctx.owner.orgId}
+    `)
+    expect(tasks).toHaveLength(1)
+  })
+
+  it('downloads anew a ready torrent that a sweep claims while it is added', async () => {
+    const ctx = await setup()
+    // The capacity sweep claims the torrent between the add's read and its touch.
+    vi.spyOn(ctx.deps.torrents, 'touch').mockImplementationOnce(async () => {
+      await ctx.db.run(sql`UPDATE torrents SET status = 'evicting' WHERE info_hash = ${CACHED_HASH}`)
+      return false
+    })
+
+    const torz = await add(ctx.call, CACHED_HASH)
+
+    expect(torz).toMatchObject({ status: 'queued', files: [] })
+    expect(await entries(ctx.db, ctx.owner.orgId)).toEqual([
+      expect.objectContaining({ id: torz.id, status: 'resolving', torrentId: null }),
+    ])
+    const tasks = await ctx.db.all<{ listOnly: number }>(sql`
+      SELECT list_only AS listOnly FROM download_tasks WHERE org_id = ${ctx.owner.orgId}
+    `)
+    expect(tasks).toEqual([{ listOnly: 1 }])
+  })
+
+  it('plays nothing when the traffic quota refuses the link', async () => {
+    const ctx = await setup()
+    const torz = await add(ctx.call, CACHED_HASH)
+    const [before] = await ctx.db.all<{ accessed: number }>(sql`
+      SELECT last_accessed_at AS accessed FROM torrents WHERE info_hash = ${CACHED_HASH}
+    `)
+    vi.spyOn(ctx.deps.quota, 'consumeTrafficIfQuotaAllows').mockResolvedValueOnce(false)
+
+    const res = await ctx.call('/v0/store/torz/link/generate', {
+      method: 'POST',
+      body: JSON.stringify({ link: torz.files[0].link }),
+    })
+
+    expect(res.status).toBe(402)
+    expect(await json(res)).toMatchObject({ error: { code: 'PAYMENT_REQUIRED', message: 'Traffic quota exceeded' } })
+    const [entry] = await ctx.db.all<{ played: number | null }>(sql`
+      SELECT last_played_at AS played FROM workspace_torrents WHERE id = ${torz.id}
+    `)
+    expect(entry.played).toBeNull()
+    const [after] = await ctx.db.all<{ accessed: number }>(sql`
+      SELECT last_accessed_at AS accessed FROM torrents WHERE info_hash = ${CACHED_HASH}
+    `)
+    expect(after.accessed).toBe(before.accessed)
   })
 
   it('reads form-encoded bodies and rejects malformed JSON', async () => {
