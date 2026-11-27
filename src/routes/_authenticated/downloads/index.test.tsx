@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Profiler } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getDownloadTask, listDownloadTasks } from '@/lib/api'
+import { createDownloadTask, getDownloadTask, listDownloadTasks } from '@/lib/api'
 import { routerSearch } from '@/test/router-search'
 import { DownloadsPage, downloadsSearchSchema } from './index'
 
@@ -231,5 +231,44 @@ describe('DownloadsPage list state in the URL', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
     expect(routerSearch.search).toEqual({})
     expect(routerSearch.navigate).toHaveBeenLastCalledWith(expect.objectContaining({ replace: false }))
+  })
+})
+
+describe('DownloadsPage create task field errors', () => {
+  it('shows an invalid link under the link field and does not submit [spec: form-errors/download-task]', async () => {
+    vi.mocked(listDownloadTasks).mockResolvedValue({ items: [], nextPageToken: null } as never)
+    renderDownloadsPage(() => {})
+
+    fireEvent.click(screen.getByRole('button', { name: 'downloads.create' }))
+    const uri = await screen.findByLabelText('downloads.uri')
+    fireEvent.change(uri, { target: { value: 'ftp://example.com/file.zip' } })
+    fireEvent.click(screen.getByRole('button', { name: 'downloads.start' }))
+
+    const error = await screen.findByText('downloads.uriUrlInvalid')
+    expect(uri.getAttribute('aria-invalid')).toBe('true')
+    expect(uri.getAttribute('aria-describedby')).toBe(error.id)
+    expect(createDownloadTask).not.toHaveBeenCalled()
+  })
+
+  it('shows a rejected task above the submit button', async () => {
+    vi.mocked(listDownloadTasks).mockResolvedValue({ items: [], nextPageToken: null } as never)
+    vi.mocked(createDownloadTask).mockRejectedValue(new Error('URL must be a public http(s) address'))
+    renderDownloadsPage(() => {})
+
+    fireEvent.click(screen.getByRole('button', { name: 'downloads.create' }))
+    fireEvent.change(await screen.findByLabelText('downloads.uri'), {
+      target: { value: ' https://example.com/file.zip ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'downloads.start' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('URL must be a public http(s) address')
+    expect(vi.mocked(createDownloadTask).mock.calls[0][0]).toEqual({
+      source: { type: 'http', uri: 'https://example.com/file.zip' },
+      targetFolder: '',
+      name: undefined,
+      category: undefined,
+      tags: [],
+    })
   })
 })

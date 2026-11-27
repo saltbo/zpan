@@ -5,7 +5,7 @@ import { Activity, Settings2, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/admin/admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminSwitchField } from '@/components/admin/admin-form-drawer'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { ProBadge } from '@/components/ProBadge'
 import { Badge } from '@/components/ui/badge'
@@ -20,7 +20,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { deleteDownloader, listDownloaders, updateDownloader, updateDownloaderCreditBilling } from '@/lib/api'
@@ -250,10 +249,9 @@ function DownloaderSettingsDrawer({
     <AdminFormDrawer
       open={open}
       onOpenChange={onOpenChange}
-      onOpenAutoFocus={(event) => event.preventDefault()}
       title={t('admin.downloaders.settingsTitle')}
       description={t('admin.downloaders.settingsDescription', { hostname: downloader?.hostname ?? '' })}
-      bodyClassName="space-y-4"
+      bodyClassName="grid auto-rows-min content-start gap-4"
       formProps={{
         onSubmit: (event) => {
           event.preventDefault()
@@ -271,99 +269,79 @@ function DownloaderSettingsDrawer({
         </>
       }
     >
-      <section className="space-y-3">
-        <div className="flex items-start justify-between gap-4 rounded-md border bg-background p-3">
-          <div className="min-w-0">
-            <AdminFormLabel htmlFor="downloaderEnabled" help={t('admin.downloaders.enabledHint')}>
-              {t('admin.downloaders.enabled')}
-            </AdminFormLabel>
-          </div>
-          <Switch
-            id="downloaderEnabled"
-            className="mt-0.5"
-            checked={form.downloaderEnabled}
-            onCheckedChange={(downloaderEnabled) => onFormChange({ ...form, downloaderEnabled })}
+      <AdminSwitchField
+        id="downloaderEnabled"
+        label={t('admin.downloaders.enabled')}
+        help={t('admin.downloaders.enabledHint')}
+        checked={form.downloaderEnabled}
+        onCheckedChange={(downloaderEnabled) => onFormChange({ ...form, downloaderEnabled })}
+      />
+
+      <AdminFormField
+        id="downloaderDisplayName"
+        label={t('admin.downloaders.displayName')}
+        required
+        help={t('admin.downloaders.displayNameHint')}
+      >
+        <Input
+          maxLength={120}
+          value={form.name}
+          placeholder={t('admin.downloaders.displayNamePlaceholder')}
+          onChange={(event) => onFormChange({ ...form, name: event.target.value })}
+        />
+      </AdminFormField>
+
+      <AdminSwitchField
+        id="remoteDownloadCreditBillingEnabled"
+        label={
+          <>
+            <span>{t('admin.downloaders.billingEnabled')}</span>
+            <ProBadge className="px-1.5 py-0 text-[10px] leading-4" />
+          </>
+        }
+        help={t('admin.downloaders.billingEnabledHint')}
+        description={hasTrafficBilling ? undefined : t('admin.downloaders.billingBusinessOnly')}
+        disabled={!hasTrafficBilling}
+        checked={form.enabled}
+        onCheckedChange={(enabled) => onFormChange({ ...form, enabled: hasTrafficBilling && enabled })}
+      />
+
+      <AdminFormField
+        id="remoteDownloadCreditUnitValue"
+        label={t('admin.downloaders.billingUnit')}
+        required={hasTrafficBilling && form.enabled}
+      >
+        <div>
+          <DataAmountInput
+            id="remoteDownloadCreditUnitValue"
+            min={1}
+            placeholder={t('admin.downloaders.billingUnitPlaceholder')}
+            value={form.unitValue}
+            unit={form.unit}
+            disabled={billingFieldsDisabled}
+            required={hasTrafficBilling && form.enabled}
+            onValueChange={(unitValue) => onFormChange({ ...form, unitValue })}
+            onUnitChange={(unit) => onFormChange({ ...form, unit })}
           />
         </div>
+      </AdminFormField>
 
-        <AdminFormField
-          id="downloaderDisplayName"
-          label={t('admin.downloaders.displayName')}
-          required
-          help={t('admin.downloaders.displayNameHint')}
-        >
-          <Input
-            maxLength={120}
-            value={form.name}
-            placeholder={t('admin.downloaders.displayNamePlaceholder')}
-            onChange={(event) => onFormChange({ ...form, name: event.target.value })}
-          />
-        </AdminFormField>
-      </section>
-
-      <section className="space-y-3 border-t pt-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <AdminFormLabel
-              htmlFor="remoteDownloadCreditBillingEnabled"
-              help={t('admin.downloaders.billingEnabledHint')}
-            >
-              <span>{t('admin.downloaders.billingEnabled')}</span>
-              <ProBadge className="px-1.5 py-0 text-[10px] leading-4" />
-            </AdminFormLabel>
-            {!hasTrafficBilling && (
-              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                {t('admin.downloaders.billingBusinessOnly')}
-              </p>
-            )}
-          </div>
-          <Switch
-            id="remoteDownloadCreditBillingEnabled"
-            className="mt-0.5"
-            disabled={!hasTrafficBilling}
-            checked={form.enabled}
-            onCheckedChange={(enabled) => onFormChange({ ...form, enabled: hasTrafficBilling && enabled })}
-          />
-        </div>
-
-        <div className="space-y-2.5">
-          <div className="space-y-1">
-            <AdminFormLabel htmlFor="remoteDownloadCreditUnitValue" required={hasTrafficBilling && form.enabled}>
-              {t('admin.downloaders.billingUnit')}
-            </AdminFormLabel>
-            <div className="flex items-center gap-2">
-              <DataAmountInput
-                id="remoteDownloadCreditUnitValue"
-                min={1}
-                placeholder={t('admin.downloaders.billingUnitPlaceholder')}
-                value={form.unitValue}
-                unit={form.unit}
-                disabled={billingFieldsDisabled}
-                required={hasTrafficBilling && form.enabled}
-                onValueChange={(unitValue) => onFormChange({ ...form, unitValue })}
-                onUnitChange={(unit) => onFormChange({ ...form, unit })}
-              />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <AdminFormLabel htmlFor="remoteDownloadCreditPerUnit" required={hasTrafficBilling && form.enabled}>
-              {t('admin.downloaders.billingCredits')}
-            </AdminFormLabel>
-            <Input
-              id="remoteDownloadCreditPerUnit"
-              type="number"
-              min={1}
-              step={1}
-              value={form.credits}
-              placeholder={t('admin.downloaders.billingCreditsPlaceholder')}
-              disabled={billingFieldsDisabled}
-              aria-required={hasTrafficBilling && form.enabled ? true : undefined}
-              onChange={(event) => onFormChange({ ...form, credits: event.target.value })}
-              className="w-48"
-            />
-          </div>
-        </div>
-      </section>
+      <AdminFormField
+        id="remoteDownloadCreditPerUnit"
+        label={t('admin.downloaders.billingCredits')}
+        required={hasTrafficBilling && form.enabled}
+      >
+        <Input
+          type="number"
+          min={1}
+          step={1}
+          value={form.credits}
+          placeholder={t('admin.downloaders.billingCreditsPlaceholder')}
+          disabled={billingFieldsDisabled}
+          onChange={(event) => onFormChange({ ...form, credits: event.target.value })}
+          className="w-48"
+        />
+      </AdminFormField>
     </AdminFormDrawer>
   )
 }

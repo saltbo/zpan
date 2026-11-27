@@ -25,7 +25,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import { AdminFormDrawer, AdminFormLabel } from '@/components/admin/admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminSwitchField } from '@/components/admin/admin-form-drawer'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { DeleteStorageDialog } from '@/components/admin/delete-storage-dialog'
 import { StorageFormDrawer } from '@/components/admin/storage-form-drawer'
@@ -49,7 +49,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { useUrlText } from '@/hooks/use-url-text'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import {
@@ -1025,10 +1024,9 @@ function StorageEgressBillingDrawer({
     <AdminFormDrawer
       open={open}
       onOpenChange={onOpenChange}
-      onOpenAutoFocus={(event) => event.preventDefault()}
       title={t('admin.storages.billingTitle')}
       description={t('admin.storages.billingDescription', { bucket: storage?.bucket ?? '' })}
-      bodyClassName="space-y-3"
+      bodyClassName="grid auto-rows-min content-start gap-4"
       formProps={{
         onSubmit: (event) => {
           event.preventDefault()
@@ -1046,19 +1044,16 @@ function StorageEgressBillingDrawer({
         </>
       }
     >
-      <section className="space-y-1.5">
-        <div className="min-w-0">
-          <AdminFormLabel htmlFor="storage-capacity-value" className="font-medium" required>
-            {t('admin.storages.fieldCapacity')}
-          </AdminFormLabel>
-          <p id="storage-capacity-description" className="text-xs leading-5 text-muted-foreground">
-            {t('admin.storages.capacityHint')}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <AdminFormField
+        id="storage-capacity-value"
+        label={t('admin.storages.fieldCapacity')}
+        description={t('admin.storages.capacityHint')}
+        required
+      >
+        <div>
           <DataAmountInput
             id="storage-capacity-value"
-            describedBy="storage-capacity-description"
+            describedBy="storage-capacity-value-description"
             min={0}
             placeholder={t('admin.storages.capacityPlaceholder')}
             value={form.capacityValue}
@@ -1068,72 +1063,59 @@ function StorageEgressBillingDrawer({
             onUnitChange={(capacityUnit) => onFormChange({ ...form, capacityUnit })}
           />
         </div>
-      </section>
+      </AdminFormField>
 
-      <section className="space-y-2 border-t pt-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <AdminFormLabel
-              htmlFor="egressCreditBillingEnabled"
-              className="font-medium"
-              help={t('admin.storages.egressBillingHint')}
-            >
-              <span>{t('admin.storages.egressBilling')}</span>
-              <ProBadge className="px-1.5 py-0 text-[10px] leading-4" />
-            </AdminFormLabel>
-            {!hasTrafficBilling && (
-              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                {t('admin.storages.egressBillingBusinessOnly')}
-              </p>
-            )}
-          </div>
-          <Switch
-            id="egressCreditBillingEnabled"
-            className="mt-0.5"
-            disabled={!hasTrafficBilling}
-            checked={form.enabled}
-            onCheckedChange={(enabled) => onFormChange({ ...form, enabled: hasTrafficBilling && enabled })}
+      <AdminSwitchField
+        id="egressCreditBillingEnabled"
+        label={
+          <>
+            <span>{t('admin.storages.egressBilling')}</span>
+            <ProBadge className="px-1.5 py-0 text-[10px] leading-4" />
+          </>
+        }
+        help={t('admin.storages.egressBillingHint')}
+        description={hasTrafficBilling ? undefined : t('admin.storages.egressBillingBusinessOnly')}
+        disabled={!hasTrafficBilling}
+        checked={form.enabled}
+        onCheckedChange={(enabled) => onFormChange({ ...form, enabled: hasTrafficBilling && enabled })}
+      />
+
+      <AdminFormField
+        id="storage-egress-credit-unit-value"
+        label={t('admin.storages.egressBillingUnit')}
+        required={hasTrafficBilling && form.enabled}
+      >
+        <div>
+          <DataAmountInput
+            id="storage-egress-credit-unit-value"
+            min={1}
+            placeholder={t('admin.storages.egressBillingUnitPlaceholder')}
+            value={form.unitValue}
+            unit={form.unit}
+            disabled={billingFieldsDisabled}
+            required={hasTrafficBilling && form.enabled}
+            onValueChange={(unitValue) => onFormChange({ ...form, unitValue })}
+            onUnitChange={(unit) => onFormChange({ ...form, unit })}
           />
         </div>
+      </AdminFormField>
 
-        <div className="space-y-2.5">
-          <div className="space-y-1">
-            <AdminFormLabel htmlFor="storage-egress-credit-unit-value" required={hasTrafficBilling && form.enabled}>
-              {t('admin.storages.egressBillingUnit')}
-            </AdminFormLabel>
-            <div className="flex items-center gap-2">
-              <DataAmountInput
-                id="storage-egress-credit-unit-value"
-                min={1}
-                placeholder={t('admin.storages.egressBillingUnitPlaceholder')}
-                value={form.unitValue}
-                unit={form.unit}
-                disabled={billingFieldsDisabled}
-                required={hasTrafficBilling && form.enabled}
-                onValueChange={(unitValue) => onFormChange({ ...form, unitValue })}
-                onUnitChange={(unit) => onFormChange({ ...form, unit })}
-              />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <AdminFormLabel htmlFor="storage-egress-credit-per-unit" required={hasTrafficBilling && form.enabled}>
-              {t('admin.storages.egressBillingCredits')}
-            </AdminFormLabel>
-            <Input
-              id="storage-egress-credit-per-unit"
-              type="number"
-              min={1}
-              step={1}
-              value={form.credits}
-              placeholder={t('admin.storages.egressBillingCreditsPlaceholder')}
-              disabled={billingFieldsDisabled}
-              aria-required={hasTrafficBilling && form.enabled ? true : undefined}
-              onChange={(event) => onFormChange({ ...form, credits: event.target.value })}
-              className="w-48"
-            />
-          </div>
-        </div>
-      </section>
+      <AdminFormField
+        id="storage-egress-credit-per-unit"
+        label={t('admin.storages.egressBillingCredits')}
+        required={hasTrafficBilling && form.enabled}
+      >
+        <Input
+          type="number"
+          min={1}
+          step={1}
+          value={form.credits}
+          placeholder={t('admin.storages.egressBillingCreditsPlaceholder')}
+          disabled={billingFieldsDisabled}
+          onChange={(event) => onFormChange({ ...form, credits: event.target.value })}
+          className="w-48"
+        />
+      </AdminFormField>
     </AdminFormDrawer>
   )
 }

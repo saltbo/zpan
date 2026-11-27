@@ -15,7 +15,7 @@ import {
   auditActionToFilter,
   auditTimeRangeToFilter,
 } from '@/components/admin/audit-log-controls'
-import { GrantEntitlementDialog } from '@/components/admin/grant-entitlement-dialog'
+import { GrantEntitlementDrawer } from '@/components/admin/grant-entitlement-drawer'
 import { CursorPagination } from '@/components/list/cursor-pagination'
 import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
@@ -313,13 +313,13 @@ function AdminTeamDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <GrantEntitlementDialog
+      <GrantEntitlementDrawer
         open={grantOpen}
         onOpenChange={setGrantOpen}
         target={{ kind: 'team', orgId: team.id, name: team.name }}
       />
 
-      <GrantEntitlementDialog
+      <GrantEntitlementDrawer
         open={!!editTarget}
         onOpenChange={(open) => !open && setEditTarget(null)}
         target={{ kind: 'team', orgId: team.id, name: team.name }}

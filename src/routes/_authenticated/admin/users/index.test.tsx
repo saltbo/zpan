@@ -42,8 +42,8 @@ vi.mock('@/components/admin/delete-user-dialog', () => ({
   DeleteUserDialog: () => null,
 }))
 
-vi.mock('@/components/admin/site-invitations-dialog', () => ({
-  SiteInvitationsDialog: () => null,
+vi.mock('@/components/admin/site-invitations-drawer', () => ({
+  SiteInvitationsDrawer: () => null,
 }))
 
 vi.mock('@/lib/api', () => ({

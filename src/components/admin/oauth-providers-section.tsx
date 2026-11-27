@@ -5,7 +5,7 @@ import { Copy, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/admin/admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminFormLabel, AdminSwitchField } from '@/components/admin/admin-form-drawer'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { OAuthProviderIcon } from '@/components/oauth-provider-icon'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useClipboard } from '@/hooks/use-clipboard'
@@ -371,14 +370,12 @@ export function OAuthProvidersSection() {
           </>
         )}
 
-        <div className="flex items-center justify-between gap-4">
-          <AdminFormLabel htmlFor="oauth-provider-enabled">{t('admin.auth.enabled')}</AdminFormLabel>
-          <Switch
-            id="oauth-provider-enabled"
-            checked={form.enabled}
-            onCheckedChange={(checked) => update({ enabled: checked })}
-          />
-        </div>
+        <AdminSwitchField
+          id="oauth-provider-enabled"
+          label={t('admin.auth.enabled')}
+          checked={form.enabled}
+          onCheckedChange={(checked) => update({ enabled: checked })}
+        />
 
         <p className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
           {t('admin.auth.runtimeRestartNote')}

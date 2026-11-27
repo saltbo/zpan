@@ -67,8 +67,8 @@ vi.mock('sonner', () => ({
   },
 }))
 
-vi.mock('@/components/admin/grant-entitlement-dialog', () => ({
-  GrantEntitlementDialog: () => null,
+vi.mock('@/components/admin/grant-entitlement-drawer', () => ({
+  GrantEntitlementDrawer: () => null,
 }))
 
 vi.mock('@/components/UpgradeHint', () => ({

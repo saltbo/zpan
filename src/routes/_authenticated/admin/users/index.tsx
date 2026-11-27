@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
-import { SiteInvitationsDialog } from '@/components/admin/site-invitations-dialog'
+import { SiteInvitationsDrawer } from '@/components/admin/site-invitations-drawer'
 import { CursorPagination } from '@/components/list/cursor-pagination'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -316,7 +316,7 @@ export function UsersPage() {
         </DialogContent>
       </Dialog>
 
-      <SiteInvitationsDialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen} />
+      <SiteInvitationsDrawer open={inviteDialogOpen} onOpenChange={setInviteDialogOpen} />
     </div>
   )
 }

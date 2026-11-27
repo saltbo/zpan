@@ -11,7 +11,7 @@ const AnnouncementMarkdownEditor = lazy(() =>
   })),
 )
 
-interface AnnouncementFormDialogProps {
+interface AnnouncementFormDrawerProps {
   open: boolean
   announcement: Announcement | null
   saving: boolean
@@ -19,13 +19,13 @@ interface AnnouncementFormDialogProps {
   onSubmit: (input: AnnouncementInput) => void
 }
 
-export function AnnouncementFormDialog({
+export function AnnouncementFormDrawer({
   open,
   announcement,
   saving,
   onOpenChange,
   onSubmit,
-}: AnnouncementFormDialogProps) {
+}: AnnouncementFormDrawerProps) {
   const { t } = useTranslation()
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -54,7 +54,7 @@ export function AnnouncementFormDialog({
       width="extra-wide"
       title={announcement ? t('admin.announcement.editTitle') : t('admin.announcement.createTitle')}
       description={t('admin.announcement.description')}
-      bodyClassName="grid gap-5"
+      bodyClassName="grid auto-rows-min content-start gap-4"
       formProps={{ onSubmit: handleSubmit }}
       footer={
         <>

@@ -1,7 +1,10 @@
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -20,43 +23,66 @@ type PendingInvitation = {
   createdAt: string
 }
 
+function createEmailInviteSchema(t: (key: string) => string) {
+  return z.object({
+    email: z.string().trim().min(1, t('teams.invite.emailRequired')).email(t('teams.invite.emailInvalid')),
+    role: z.enum(['editor', 'viewer']),
+  })
+}
+
+type EmailInviteValues = z.infer<ReturnType<typeof createEmailInviteSchema>>
+
+const EMPTY_EMAIL_INVITE: EmailInviteValues = { email: '', role: 'viewer' }
+
 function EmailInviteTab({ orgId }: { orgId: string }) {
   const { t } = useTranslation()
-  const [email, setEmail] = useState('')
-  const [role, setRole] = useState<InviteRole>('viewer')
+  const form = useForm<EmailInviteValues>({
+    resolver: zodResolver(createEmailInviteSchema(t)),
+    defaultValues: EMPTY_EMAIL_INVITE,
+  })
+  const role = form.watch('role')
+  const emailError = form.formState.errors.email?.message
 
   const mutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (values: EmailInviteValues) => {
       const { error } = await authClient.organization.inviteMember({
         organizationId: orgId,
-        email,
-        role: role as 'member',
+        email: values.email,
+        role: values.role as 'member',
       })
       if (error) throw error
     },
     onSuccess: () => {
       toast.success(t('teams.invite.sent'))
-      setEmail('')
-      setRole('viewer')
+      form.reset(EMPTY_EMAIL_INVITE)
     },
-    onError: (err: { message?: string }) => toast.error(err.message ?? String(err)),
   })
+  const serverError = mutation.error
+    ? ((mutation.error as { message?: string }).message ?? String(mutation.error))
+    : null
 
   return (
-    <div className="space-y-4">
+    <form className="space-y-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))} noValidate>
       <div className="space-y-2">
         <Label htmlFor="invite-email">{t('teams.invite.emailLabel')}</Label>
         <Input
           id="invite-email"
           type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          {...form.register('email', { onChange: () => mutation.reset() })}
           placeholder={t('teams.invite.emailPlaceholder')}
+          aria-invalid={emailError ? true : undefined}
+          aria-describedby={emailError ? 'invite-email-error' : undefined}
+          aria-required
         />
+        {emailError && (
+          <p id="invite-email-error" className="text-xs text-destructive">
+            {emailError}
+          </p>
+        )}
       </div>
       <div className="space-y-2">
         <Label>{t('teams.invite.roleLabel')}</Label>
-        <Select value={role} onValueChange={(v) => setRole(v as InviteRole)}>
+        <Select value={role} onValueChange={(v) => form.setValue('role', v as InviteRole, { shouldDirty: true })}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -66,15 +92,15 @@ function EmailInviteTab({ orgId }: { orgId: string }) {
           </SelectContent>
         </Select>
       </div>
-      <Button
-        type="button"
-        className="w-full"
-        disabled={mutation.isPending || !email}
-        onClick={() => mutation.mutate()}
-      >
+      {serverError && (
+        <p role="alert" className="text-sm text-destructive">
+          {serverError}
+        </p>
+      )}
+      <Button type="submit" className="w-full" disabled={mutation.isPending || !form.formState.isDirty}>
         {mutation.isPending ? t('common.loading') : t('teams.invite.sendButton')}
       </Button>
-    </div>
+    </form>
   )
 }
 

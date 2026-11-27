@@ -3,7 +3,7 @@ import { Mail } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { AdminFormDrawer, AdminFormField, AdminFormLabel } from '@/components/admin/admin-form-drawer'
+import { AdminFormDrawer, AdminFormField, AdminSwitchField } from '@/components/admin/admin-form-drawer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card'
@@ -11,7 +11,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { type EmailConfigData, getEmailConfig, saveEmailConfig, testEmail } from '@/lib/api'
 
 const emailConfigQueryKey = ['admin', 'email-config'] as const
@@ -255,28 +254,22 @@ export function EmailConfigSection() {
           </>
         }
       >
-        <div className="flex items-center justify-between gap-4">
-          <AdminFormLabel htmlFor="emailEnabled" help={t('admin.auth.emailEnabledHint')}>
-            {t('admin.auth.emailEnabled')}
-          </AdminFormLabel>
-          <Switch
-            id="emailEnabled"
-            checked={form.enabled}
-            onCheckedChange={(enabled) => update({ enabled, ...(!enabled ? { requireEmailVerification: false } : {}) })}
-          />
-        </div>
+        <AdminSwitchField
+          id="emailEnabled"
+          label={t('admin.auth.emailEnabled')}
+          help={t('admin.auth.emailEnabledHint')}
+          checked={form.enabled}
+          onCheckedChange={(enabled) => update({ enabled, ...(!enabled ? { requireEmailVerification: false } : {}) })}
+        />
 
-        <div className="flex items-center justify-between gap-4">
-          <AdminFormLabel htmlFor="requireEmailVerification" help={t('admin.auth.emailVerificationHint')}>
-            {t('admin.auth.emailVerificationRequired')}
-          </AdminFormLabel>
-          <Switch
-            id="requireEmailVerification"
-            checked={form.requireEmailVerification}
-            disabled={!form.enabled}
-            onCheckedChange={(requireEmailVerification) => update({ requireEmailVerification })}
-          />
-        </div>
+        <AdminSwitchField
+          id="requireEmailVerification"
+          label={t('admin.auth.emailVerificationRequired')}
+          help={t('admin.auth.emailVerificationHint')}
+          checked={form.requireEmailVerification}
+          disabled={!form.enabled}
+          onCheckedChange={(requireEmailVerification) => update({ requireEmailVerification })}
+        />
 
         <AdminFormField id="email-provider" label={t('admin.auth.emailProvider')} required>
           <Select value={form.provider} onValueChange={(v) => update({ provider: v as ProviderType })}>

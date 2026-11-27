@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
-import { AnnouncementFormDialog } from '@/components/admin/announcement-form-dialog'
+import { AnnouncementFormDrawer } from '@/components/admin/announcement-form-drawer'
 import { ProBadge } from '@/components/ProBadge'
 import { UpgradeHint } from '@/components/UpgradeHint'
 import { Badge } from '@/components/ui/badge'
@@ -181,7 +181,7 @@ function AnnouncementPage() {
             </table>
           </div>
 
-          <AnnouncementFormDialog
+          <AnnouncementFormDrawer
             open={formOpen}
             announcement={editing}
             saving={createMutation.isPending || updateMutation.isPending}
