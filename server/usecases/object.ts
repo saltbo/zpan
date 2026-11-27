@@ -27,6 +27,13 @@ import type { Deps } from './deps'
 import { assertFolderNotUsedByDownload, ensureDownloadFolderPath } from './downloads/download-folders'
 import { assertTaskUploadAllowed } from './downloads/downloads'
 import {
+  chargedStorageId,
+  duplicateMatterObject,
+  isTorrentCacheReference,
+  releaseMatterObject,
+  releaseMatterObjects,
+} from './matter-objects'
+import {
   type ActorIdentity,
   type AppError,
   actorIdentityKey,
@@ -924,16 +931,23 @@ export async function copyObject(
 
   const copy = await withStorageUsageReservation(
     deps,
-    { orgId, storageId: source.storageId, bytes: sourceSize },
+    { orgId, storageId: chargedStorageId(source), bytes: sourceSize },
     async (ctx) => {
       let newObject = ''
       if (source.object) {
         // storage is non-null here: a missing storage for an object-backed source
         // returns storage_not_found above.
         const objectStorage = storage as StorageRecord
-        newObject = buildObjectKey({ uid: userId, orgId, rawExt: fileExt(source.name) })
-        await deps.s3.copyObject(objectStorage, source.object, objectStorage, newObject)
-        ctx.onRollback(() => deps.s3.deleteObject(objectStorage, newObject))
+        const duplicate = await duplicateMatterObject(deps.s3, {
+          sourceStorage: objectStorage,
+          sourceKey: source.object,
+          targetStorage: objectStorage,
+          uid: userId,
+          orgId,
+          name: source.name,
+        })
+        newObject = duplicate.key
+        ctx.onRollback(() => releaseMatterObject(deps.s3, objectStorage, newObject))
       }
       return deps.matter.copy(source, parent, newObject, {
         onConflict,
@@ -1119,7 +1133,7 @@ export async function purgeRecursively(deps: PurgeDeps, orgId: string, matters: 
   }
 
   for (const { storage, keys } of keysByStorage.values()) {
-    if (storage && keys.length > 0) await deps.s3.deleteObjects(storage, keys)
+    if (storage) await releaseMatterObjects(deps.s3, storage, keys)
   }
 
   for (const m of matters) {
@@ -1220,18 +1234,27 @@ async function saveFile(
   createdBy: ActorIdentity = { type: 'user', ref: currentUserId, issuer: null },
 ): Promise<Matter> {
   const bytes = sourceMatter.size ?? 0
-  const dstKey = buildObjectKey({ uid: currentUserId, orgId: targetOrgId, rawExt: fileExt(sourceMatter.name) })
 
   return withStorageUsageReservation(
     { quota: deps.quota, storageUsage: deps.storageUsage },
-    { orgId: targetOrgId, storageId: targetStorage.id, bytes, teamQuotaEnabled },
+    {
+      orgId: targetOrgId,
+      storageId: isTorrentCacheReference(sourceMatter.object, sourceStorage.id, targetStorage.id)
+        ? null
+        : targetStorage.id,
+      bytes,
+      teamQuotaEnabled,
+    },
     async (ctx) => {
-      if (sourceStorage.id === targetStorage.id) {
-        await deps.s3.copyObject(sourceStorage, sourceMatter.object, targetStorage, dstKey)
-      } else {
-        await deps.s3.streamCopy(sourceStorage, sourceMatter.object, targetStorage, dstKey)
-      }
-      ctx.onRollback(() => deps.s3.deleteObject(targetStorage, dstKey))
+      const { key: dstKey } = await duplicateMatterObject(deps.s3, {
+        sourceStorage,
+        sourceKey: sourceMatter.object,
+        targetStorage,
+        uid: currentUserId,
+        orgId: targetOrgId,
+        name: sourceMatter.name,
+      })
+      ctx.onRollback(() => releaseMatterObject(deps.s3, targetStorage, dstKey))
 
       const newMatter = await deps.matter.create({
         orgId: targetOrgId,

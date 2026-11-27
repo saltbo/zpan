@@ -327,7 +327,7 @@ async function refundTraffic(db: Database, orgId: string, bytes: number, now = n
 async function incrementUsageIfEffectiveQuotaAllows(
   db: Database,
   orgId: string,
-  storageId: string,
+  storageId: string | null,
   bytes: number,
   teamQuotaEnabled = true,
   now = new Date(),
@@ -349,10 +349,12 @@ async function incrementUsageIfEffectiveQuotaAllows(
     if (updated.length === 0) return false
   }
 
-  await db
-    .update(storages)
-    .set({ used: sql`${storages.used} + ${bytes}` })
-    .where(eq(storages.id, storageId))
+  if (storageId !== null) {
+    await db
+      .update(storages)
+      .set({ used: sql`${storages.used} + ${bytes}` })
+      .where(eq(storages.id, storageId))
+  }
 
   return true
 }

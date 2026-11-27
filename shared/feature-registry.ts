@@ -148,6 +148,14 @@ export const FEATURE_REGISTRY = [
     gateKey: 'media_library',
   },
   {
+    i18nKey: 'features.torrentCache',
+    category: 'advanced',
+    community: false,
+    pro: true,
+    business: true,
+    gateKey: 'torrent_cache',
+  },
+  {
     i18nKey: 'features.cloudStore',
     category: 'advanced',
     community: false,

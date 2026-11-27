@@ -29,6 +29,8 @@ export const AuthorizationScope = {
   IMAGE_HOSTING_CONFIG_READ: 'image-hosting-config:read',
   IMAGE_HOSTING_CONFIG_UPDATE: 'image-hosting-config:update',
   IMAGE_HOSTING_CONFIG_DELETE: 'image-hosting-config:delete',
+  TORRENT_CACHE_CONFIG_READ: 'torrent-cache-config:read',
+  TORRENT_CACHE_CONFIG_UPDATE: 'torrent-cache-config:update',
   IMAGES_READ: 'images:read',
   IMAGES_CREATE: 'images:create',
   IMAGES_UPDATE: 'images:update',

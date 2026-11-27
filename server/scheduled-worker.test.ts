@@ -5,6 +5,7 @@ import { reconcileImageDomains } from '../server/usecases/site/image-domain-prov
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/site/instance-telemetry'
 import { runLicensingRefresh } from '../server/usecases/site/licensing'
 import { syncPendingCloudTrafficReports } from '../server/usecases/store/traffic-metering'
+import { evictTorrentCache } from '../server/usecases/torrent-cache/eviction'
 import { handleScheduled } from '../workers/scheduled'
 
 vi.mock('../server/platform/cloudflare', () => ({
@@ -67,11 +68,16 @@ vi.mock('../server/usecases/media-library-scan', () => ({
   sweepMediaLibraries: vi.fn(),
 }))
 
+vi.mock('../server/usecases/torrent-cache/eviction', () => ({
+  evictTorrentCache: vi.fn(),
+}))
+
 describe('handleScheduled', () => {
   beforeEach(() => {
     vi.mocked(syncPendingCloudTrafficReports).mockReset()
     vi.mocked(syncPendingRemoteDownloadUsageReports).mockReset()
     vi.mocked(sweepMediaLibraries).mockReset()
+    vi.mocked(evictTorrentCache).mockReset()
     vi.mocked(reportInstanceTelemetry).mockReset()
     vi.mocked(runLicensingRefresh).mockReset()
     vi.mocked(reconcileImageDomains).mockReset()
@@ -90,6 +96,7 @@ describe('handleScheduled', () => {
       cloudBaseUrl: 'https://cloud.example',
     })
     expect(sweepMediaLibraries).toHaveBeenCalledWith(fakeDeps, { cloudBaseUrl: 'https://cloud.example' })
+    expect(evictTorrentCache).toHaveBeenCalledWith(fakeDeps)
     expect(refreshHourlyRollups).not.toHaveBeenCalled()
     expect(reconcileFreePlanBaselines).toHaveBeenCalledOnce()
     expect(runLicensingRefresh).not.toHaveBeenCalled()
@@ -108,6 +115,7 @@ describe('handleScheduled', () => {
 
     expect(refreshHourlyRollups).toHaveBeenCalledOnce()
     expect(sweepMediaLibraries).not.toHaveBeenCalled()
+    expect(evictTorrentCache).not.toHaveBeenCalled()
     expect(purgeExpiredLocks).toHaveBeenCalledOnce()
     expect(purgeResourceChanges).toHaveBeenCalledOnce()
     expect(reconcileImageDomains).toHaveBeenCalledWith(fakeDeps)

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import type { MatterMetadata } from '../../shared/schemas/matter-metadata'
 import { organization } from './auth-schema'
 
@@ -54,6 +54,8 @@ export const matters = sqliteTable(
       t.id,
     ),
     index('matters_trash_page_idx').on(t.orgId, t.status, t.purgedAt, t.trashedAt, t.createdAt, t.id),
+    // Counts references to a cached torrent object (`bt/…`) without a scan.
+    index('matters_storage_object_idx').on(t.storageId, t.object),
   ],
 )
 
@@ -777,3 +779,60 @@ export const imageHostings = sqliteTable(
     index('image_hostings_token_idx').on(t.token),
   ],
 )
+
+// torrents — one row per torrent cached on the instance (docs/design/torrent-cache.md)
+export const torrents = sqliteTable(
+  'torrents',
+  {
+    id: text('id').primaryKey(),
+    infoHash: text('info_hash').notNull().unique(), // lowercase hex v1 infoHash
+    storageId: text('storage_id')
+      .notNull()
+      .references(() => storages.id),
+    name: text('name').notNull(),
+    totalSize: integer('total_size').notNull(),
+    fileCount: integer('file_count').notNull(),
+    private: integer('private', { mode: 'boolean' }).notNull().default(false),
+    status: text('status').notNull(), // downloading | verifying | ready | invalid | evicting
+    verified: text('verified'), // full | sampled, set when verification passes
+    sourceTaskId: text('source_task_id'),
+    sourceDownloaderId: text('source_downloader_id'),
+    lastAccessedAt: integer('last_accessed_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    index('torrents_status_accessed_idx').on(t.status, t.lastAccessedAt),
+    index('torrents_storage_idx').on(t.storageId),
+  ],
+)
+
+// torrent_files — one row per file of a cached torrent; padding files get none
+export const torrentFiles = sqliteTable(
+  'torrent_files',
+  {
+    torrentId: text('torrent_id')
+      .notNull()
+      .references(() => torrents.id, { onDelete: 'cascade' }),
+    fileIdx: integer('file_idx').notNull(), // position in the info dictionary
+    path: text('path').notNull(), // path inside the torrent
+    size: integer('size').notNull(),
+    mime: text('mime').notNull().default(''),
+    storageId: text('storage_id').notNull(),
+    objectKey: text('object_key').notNull(), // bt/<infoHash>/<fileIdx>
+  },
+  (t) => [
+    primaryKey({ columns: [t.torrentId, t.fileIdx] }),
+    uniqueIndex('torrent_files_storage_object_uniq').on(t.storageId, t.objectKey),
+  ],
+)
+
+// torrent_cache_configs — per-workspace torrent settings; no row means defaults
+export const torrentCacheConfigs = sqliteTable('torrent_cache_configs', {
+  orgId: text('org_id')
+    .primaryKey()
+    .references(() => organization.id, { onDelete: 'cascade' }),
+  folder: text('folder').notNull(), // where transferred torrents land
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})

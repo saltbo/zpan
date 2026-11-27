@@ -12,7 +12,8 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { attachmentContentDisposition } from '@shared/content-disposition'
-import type { S3Gateway, S3StorageCredentials } from '../../usecases/ports'
+import { isTorrentCacheKey } from '../../domain/torrent-cache'
+import { type S3Gateway, type S3StorageCredentials, TorrentCacheDeletionRefusedError } from '../../usecases/ports'
 
 const DEFAULT_EXPIRES_IN = 3600
 const MULTIPART_PART_SIZE = 5 * 1024 * 1024
@@ -400,16 +401,30 @@ export class S3Service implements S3Gateway {
     return { ETag: result.ETag ?? `"part-${partNumber}"`, PartNumber: partNumber }
   }
 
+  // Cached torrent bytes are held by many drive files; only eviction may delete
+  // them, through evictTorrentCacheObjects.
   async deleteObject(storage: S3StorageCredentials, key: string): Promise<void> {
-    const client = this.createClient(storage)
-    await client.send(new DeleteObjectCommand({ Bucket: storage.bucket, Key: key }))
+    if (isTorrentCacheKey(key)) throw new TorrentCacheDeletionRefusedError(key)
+    await this.sendDelete(storage, key)
   }
 
   async deleteObjects(storage: S3StorageCredentials, keys: string[]): Promise<void> {
-    if (keys.length === 0) return
+    const cached = keys.find(isTorrentCacheKey)
+    if (cached) throw new TorrentCacheDeletionRefusedError(cached)
     // DeleteObjectsCommand returns XML which requires DOMParser to parse.
     // Cloudflare Workers doesn't have DOMParser, so we delete one-by-one.
     await Promise.all(keys.map((key) => this.deleteObject(storage, key)))
+  }
+
+  async evictTorrentCacheObjects(storage: S3StorageCredentials, keys: string[]): Promise<void> {
+    const other = keys.find((key) => !isTorrentCacheKey(key))
+    if (other) throw new Error(`Not a torrent cache key: ${other}`)
+    await Promise.all(keys.map((key) => this.sendDelete(storage, key)))
+  }
+
+  private async sendDelete(storage: S3StorageCredentials, key: string): Promise<void> {
+    const client = this.createClient(storage)
+    await client.send(new DeleteObjectCommand({ Bucket: storage.bucket, Key: key }))
   }
 }
 

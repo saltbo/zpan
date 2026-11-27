@@ -30,11 +30,13 @@ import type {
   PublicUser,
   RedeemGiftCardResponse,
   ReplaceStorageInput,
+  ReplaceTorrentCacheConfigInput,
   ShareObjectItem,
   ShareObjectsResponse,
   ShareReadmeResponse,
   SiteConfig,
   SiteSettings,
+  TorrentCacheConfig,
   UpdateDownloaderCreditBillingInput,
   UpdateDownloaderInput,
   UpdateDownloadTaskInput,
@@ -138,6 +140,7 @@ import {
   storageUsageApi,
   system,
   teamsApi,
+  torrentCacheConfigApi,
   trash,
   userQuotas,
   users,
@@ -1160,6 +1163,15 @@ export function enableIhostFeature() {
 
 export function updateIhostConfig(data: { customDomain?: string | null; refererAllowlist?: string[] | null }) {
   return unwrap<IhostConfigResponse>(ihostConfigApi.index.$put({ json: { enabled: true, ...data } }))
+}
+
+// Workspace torrent settings
+export function getTorrentCacheConfig() {
+  return unwrap<TorrentCacheConfig>(torrentCacheConfigApi.index.$get())
+}
+
+export function replaceTorrentCacheConfig(input: ReplaceTorrentCacheConfigInput) {
+  return unwrap<TorrentCacheConfig>(torrentCacheConfigApi.index.$put({ json: input }))
 }
 
 export function deleteIhostConfig() {

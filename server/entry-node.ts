@@ -22,6 +22,7 @@ import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from './usecases/sit
 import { runLicensingRefresh } from './usecases/site/licensing'
 import { getSitePublicOrigin } from './usecases/site/public-origin'
 import { syncPendingCloudTrafficReports } from './usecases/store/traffic-metering'
+import { evictTorrentCache } from './usecases/torrent-cache/eviction'
 
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 const TRAFFIC_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
@@ -108,6 +109,9 @@ setInterval(() => {
       console.error(`media_library.sweep.error code=${err instanceof Error ? err.message : String(err)}`)
     })
   }
+  evictTorrentCache(deps).catch((err) => {
+    console.error(`torrent_cache.evict.error code=${err instanceof Error ? err.message : String(err)}`)
+  })
 }, TRAFFIC_SYNC_INTERVAL_MS)
 
 function reportNodeInstanceTelemetry(): void {
