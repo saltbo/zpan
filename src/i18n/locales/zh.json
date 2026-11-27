@@ -157,6 +157,7 @@
   "tasks.type.archiveCompress": "压缩归档",
   "tasks.type.archiveExtract": "解压归档",
   "tasks.type.mediaLibraryScan": "媒体库扫描",
+  "tasks.type.torrentVerify": "种子分块校验",
   "tasks.colTask": "任务",
   "tasks.colStatus": "状态",
   "tasks.colProgress": "进度",
@@ -2548,5 +2549,7 @@
   "shows.episodeNumber": "第 {{number}} 集",
   "shows.playEpisode": "播放 {{code}} {{title}}",
   "shows.noEpisodesTitle": "没有剧集",
-  "shows.noEpisodesHint": "这部剧的剧集已移出它的文件夹或已删除。"
+  "shows.noEpisodesHint": "这部剧的剧集已移出它的文件夹或已删除。",
+  "downloads.events.download_task_cache_hit": "已从种子缓存完成",
+  "downloads.events.download_task_cache_joined": "已加入正在进行的下载"
 }

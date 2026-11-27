@@ -19,7 +19,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
-import { downloaders, downloadTasks } from '../../db/schema'
+import { downloaders, downloadTasks, torrents } from '../../db/schema'
 import { executeWriteTransaction, executeWriteTransactionWithResults } from '../../db/transaction'
 import { fallbackActorAttribution } from '../../domain/actor-attribution'
 import { parseDownloadTaskEvents } from '../../domain/download-task-events'
@@ -168,6 +168,27 @@ function appendScrapeSkippedEvent(
   ))`
 }
 
+// The task was served by the torrent cache: completed by instant transfer, or
+// joined to a download already in progress.
+function appendTorrentCacheEvent(
+  events: SQL,
+  input: { type: 'cache_hit' | 'cache_joined'; now: Date; attempt: SQL; category: SQL; billedBytes: SQL },
+): SQL {
+  return sql`json_insert(${events}, '$[#]', json_object(
+    'id', ${generateId()},
+    'type', ${input.type},
+    'occurredAt', CAST(${input.now.getTime()} AS INTEGER),
+    'attempt', CAST(${input.attempt} AS INTEGER),
+    'reason', NULL,
+    'category', COALESCE(${input.category}, 'uncategorized'),
+    'downloaderId', NULL,
+    'transferredBytes', NULL,
+    'billedBytes', CAST(${input.billedBytes} AS INTEGER),
+    'errorCode', NULL,
+    'errorMessage', NULL
+  ))`
+}
+
 function appendCleanupEvent(events: SQL, type: 'cleanup_requested' | 'cleanup_completed', now: Date): SQL {
   return sql`json_insert(${events}, '$[#]', json_object(
     'id', ${generateId()},
@@ -263,6 +284,9 @@ function toRecord(row: DownloadTaskRow): DownloadTaskRecord {
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
     deletedAt: row.deletedAt,
+    infoHash: row.infoHash,
+    torrentId: row.torrentId,
+    torrentCacheRole: row.torrentCacheRole as DownloadTaskRecord['torrentCacheRole'],
   }
 }
 
@@ -303,6 +327,7 @@ function toDownloadTask(row: DownloadTaskRow, control?: { action: 'delete'; requ
             downloaderId: row.assignedDownloaderId,
             assignedAt: row.assignedAt?.toISOString() ?? null,
             executor: fallbackActorAttribution({ type: 'device', ref: row.assignedDownloaderId, issuer: null }),
+            ...(row.torrentCacheRole === 'fill' ? { torrentCache: true as const } : {}),
           }
         : null,
       progress: runtime?.progress ?? emptyTaskProgress(),
@@ -330,6 +355,9 @@ function toDownloadTask(row: DownloadTaskRow, control?: { action: 'delete'; requ
     createdAt: row.createdAt.toISOString(),
   }
 }
+
+// A task waiting for another task's torrent download is not assignable.
+const notJoined = sql`${downloadTasks.torrentCacheRole} IS NOT 'join'`
 
 export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
   async function findRow(id: string): Promise<DownloadTaskRow | null> {
@@ -414,6 +442,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         tags: JSON.stringify(input.tags),
         assignedDownloaderId: input.assignedDownloaderId,
         status: input.status,
+        infoHash: input.infoHash ?? null,
         events: JSON.stringify([
           {
             id: `initial:${input.id}`,
@@ -633,7 +662,10 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
           errorMessage: fields.errorMessage,
         })
       }
-      const { scrapeSkippedReason, ...columns } = fields
+      const { scrapeSkippedReason, torrentCacheEvent, ...columns } = fields
+      if (torrentCacheEvent) {
+        events = appendTorrentCacheEvent(events, { type: torrentCacheEvent, now, attempt, category, billedBytes })
+      }
       if (scrapeSkippedReason) {
         events = appendScrapeSkippedEvent(events, {
           now,
@@ -664,12 +696,14 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
       ])
     },
 
-    async claimQueued(id, downloaderId, now) {
+    async claimQueued(id, downloaderId, now, options = {}) {
       const row = await findRow(id)
       if (!row || row.status !== 'queued' || row.assignedDownloaderId !== null) return false
+      if (row.torrentCacheRole === 'join') return false
       const update = db
         .update(downloadTasks)
         .set({
+          ...(options.torrentCacheRole === undefined ? {} : { torrentCacheRole: options.torrentCacheRole }),
           status: 'assigned',
           assignedDownloaderId: downloaderId,
           assignedAt: now,
@@ -684,6 +718,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
             eq(downloadTasks.status, 'queued'),
             isNull(downloadTasks.assignedDownloaderId),
             isNull(downloadTasks.deletedAt),
+            notJoined,
           ),
         )
         .returning({ id: downloadTasks.id })
@@ -751,7 +786,58 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
       const rows = await db
         .select()
         .from(downloadTasks)
-        .where(and(eq(downloadTasks.status, 'queued'), isNull(downloadTasks.deletedAt)))
+        .where(and(eq(downloadTasks.status, 'queued'), isNull(downloadTasks.deletedAt), notJoined))
+        .orderBy(asc(downloadTasks.createdAt))
+        .limit(limit)
+      return rows.map(toRecord)
+    },
+
+    async listByTorrent(torrentId, role, statuses) {
+      const rows = await db
+        .select()
+        .from(downloadTasks)
+        .where(
+          and(
+            eq(downloadTasks.torrentId, torrentId),
+            eq(downloadTasks.torrentCacheRole, role),
+            inArray(downloadTasks.status, statuses),
+            isNull(downloadTasks.deletedAt),
+          ),
+        )
+        .orderBy(asc(downloadTasks.createdAt))
+      return rows.map(toRecord)
+    },
+
+    async listSettledJoins(limit) {
+      const rows = await db
+        .select()
+        .from(downloadTasks)
+        .where(
+          and(
+            eq(downloadTasks.status, 'queued'),
+            eq(downloadTasks.torrentCacheRole, 'join'),
+            isNull(downloadTasks.deletedAt),
+            // Still pending: verifying, or downloading by a task that is still filling it.
+            sql`NOT EXISTS (
+              SELECT 1 FROM ${torrents}
+              WHERE ${torrents.id} = ${downloadTasks.torrentId}
+                AND (
+                  ${torrents.status} = 'verifying'
+                  OR (
+                    ${torrents.status} = 'downloading'
+                    AND EXISTS (
+                      SELECT 1 FROM download_tasks AS filler
+                      WHERE filler.id = ${torrents.sourceTaskId}
+                        AND filler.torrent_id = ${torrents.id}
+                        AND filler.torrent_cache_role = 'fill'
+                        AND filler.deleted_at IS NULL
+                        AND filler.status NOT IN ('completed', 'failed', 'canceled')
+                    )
+                  )
+                )
+            )`,
+          ),
+        )
         .orderBy(asc(downloadTasks.createdAt))
         .limit(limit)
       return rows.map(toRecord)

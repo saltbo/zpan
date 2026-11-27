@@ -25,7 +25,15 @@ export const downloadTaskPhaseSchema = z.enum(['metadata', 'downloading', 'uploa
 
 export const downloadTaskEventSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(['status_changed', 'error_reported', 'scrape_skipped', 'cleanup_requested', 'cleanup_completed']),
+  type: z.enum([
+    'status_changed',
+    'error_reported',
+    'scrape_skipped',
+    'cleanup_requested',
+    'cleanup_completed',
+    'cache_hit',
+    'cache_joined',
+  ]),
   occurredAt: z.number().int().min(0),
   attempt: z.number().int().min(1),
   from: downloadTaskStatusSchema.nullable().optional(),
@@ -149,6 +157,12 @@ export const downloadTaskSchema = z
           downloaderId: opaqueIdSchema,
           assignedAt: z.string().nullable().optional(),
           uploadToken: z.string().optional(),
+          // Present only when the task is assigned in torrent cache mode: the
+          // downloader uploads through the torrent cache API, not the object API.
+          torrentCache: z
+            .literal(true)
+            .optional()
+            .describe('Upload through the torrent cache API (/api/downloads/tasks/{id}/torrent) instead of objects'),
           executor: actorAttributionSchema.optional(),
         })
         .nullable(),

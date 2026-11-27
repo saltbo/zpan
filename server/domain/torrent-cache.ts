@@ -67,3 +67,26 @@ export function normalizeTorrentFolder(folder: string): string {
     .filter(Boolean)
     .join('/')
 }
+
+// Reading R2 back from Workers has no egress fee, so R2-backed torrents are
+// verified in full; other storages verify a sample (docs/design/torrent-cache.md §7).
+export function isR2Storage(storage: { provider?: string | null; endpoint: string }): boolean {
+  if (/(^|[^a-z])r2([^a-z]|$)/i.test(storage.provider ?? '')) return true
+  try {
+    return new URL(storage.endpoint).hostname.toLowerCase().endsWith('.r2.cloudflarestorage.com')
+  } catch {
+    return false
+  }
+}
+
+export const TORRENT_VERIFY_SAMPLE_PIECES = 32
+// Bytes one torrent_verify message reads before continuing in the next one.
+export const TORRENT_VERIFY_BATCH_BYTES = 256 * 1024 * 1024
+
+// Up to `count` distinct piece indexes below `pieceCount`, ascending.
+export function samplePieces(pieceCount: number, count: number, random: () => number = Math.random): number[] {
+  if (pieceCount <= count) return Array.from({ length: pieceCount }, (_, i) => i)
+  const picked = new Set<number>()
+  while (picked.size < count) picked.add(Math.floor(random() * pieceCount))
+  return [...picked].sort((a, b) => a - b)
+}

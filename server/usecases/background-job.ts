@@ -18,6 +18,7 @@ import { enqueueArchiveJob, processArchiveJob } from './archive-processing'
 import type { Deps } from './deps'
 import { processMediaLibraryScan } from './media-library-scan'
 import type { ActorIdentity, BackgroundJobMessage, ListBackgroundJobsOptions } from './ports'
+import { processTorrentVerify } from './torrent-cache/verify'
 
 type JobType = BackgroundJobRequest['type']
 type JobProcessor<T extends JobType> = (
@@ -29,6 +30,7 @@ const JOB_PROCESSORS: { [T in JobType]: JobProcessor<T> } = {
   archive_compress: processArchiveJob,
   archive_extract: processArchiveJob,
   media_library_scan: processMediaLibraryScan,
+  torrent_verify: processTorrentVerify,
 }
 
 export async function runBackgroundJob(deps: Deps, message: BackgroundJobMessage): Promise<void> {

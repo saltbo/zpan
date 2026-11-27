@@ -15,6 +15,7 @@ vi.mock('lucide-react', () => ({
   Clapperboard: () => null,
   FileArchive: () => null,
   RotateCcw: () => null,
+  ShieldCheck: () => null,
   Square: () => null,
 }))
 
