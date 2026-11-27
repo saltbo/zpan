@@ -1359,6 +1359,96 @@ describe('Torrents lists', () => {
     expect((await listEntries(ctx.db, a.orgId))[0]).toMatchObject({ status: 'resolving' })
   })
 
+  it('settles list-only tasks without a download when the torrent turns up elsewhere, and fails them on an invalid one', async () => {
+    const { ctx, a, b } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const call = await stremThruKey(ctx, b)
+    const torrent = sampleTorrent()
+    // A fills the torrent; B's StremThru add of its torrent URL learns it is in progress.
+    await submit(ctx.app, a.headers, torrent.magnet)
+    const [filling] = await dl.poll()
+    expect((await reportInfo(ctx.app, dl, filling, torrent.infoBase64)).status).toBe(200)
+    await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: 'https://example.com/a.torrent' }) })
+    const [listTask] = (await dl.poll()).filter((task) => task.id !== filling.id)
+    expect((await reportInfo(ctx.app, dl, listTask, torrent.infoBase64)).status).toBe(200)
+    expect((await getTask(ctx.app, b.headers, listTask.id)).status.state).toBe('completed')
+    expect(await listEntries(ctx.db, b.orgId)).toEqual([expect.objectContaining({ status: 'downloading' })])
+
+    // An invalid torrent fails a list-only task, whether met at assignment or on its report.
+    const bad = sampleTorrent('Bad Show')
+    await ctx.deps.torrents.create({
+      infoHash: bad.infoHash,
+      storageId: STORAGE_ID,
+      name: 'Bad Show',
+      private: false,
+      status: 'downloading',
+      files: [{ fileIdx: 0, path: 'x.mkv', size: 1, mime: 'video/x-matroska' }],
+    })
+    await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: bad.magnet }) })
+    const [badEntry] = await ctx.db.all<{ taskId: string }>(sql`
+      SELECT task_id AS taskId FROM workspace_torrents WHERE info_hash = ${bad.infoHash}
+    `)
+    await ctx.db.run(sql`UPDATE torrents SET status = 'invalid' WHERE info_hash = ${bad.infoHash}`)
+    await dl.poll()
+    expect((await getTask(ctx.app, b.headers, badEntry.taskId)).status.state).toBe('failed')
+    await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: 'https://example.com/bad.torrent' }) })
+    const [urlTask] = (await dl.poll()).filter((task) => task.spec.source.uri === 'https://example.com/bad.torrent')
+    expect((await reportInfo(ctx.app, dl, urlTask, bad.infoBase64)).status).toBe(200)
+    expect((await getTask(ctx.app, b.headers, urlTask.id)).status.state).toBe('failed')
+    // A StremThru add of the invalid torrent fails at once.
+    const direct = await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: bad.magnet }) })
+    expect(((await direct.json()) as { data: { status: string } }).data.status).toBe('failed')
+  })
+
+  it('keeps the entry of the task that fills the torrent when two entries of a workspace meet it', async () => {
+    const { ctx, a } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const call = await stremThruKey(ctx, a)
+    const torrent = sampleTorrent()
+    // A StremThru add of the magnet and a remote download of a torrent URL for the same torrent.
+    await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: torrent.magnet }) })
+    const remote = await submitTorrentUrl(ctx.app, a.headers)
+    // The remote download keeps the StremThru entry while its list-only task runs.
+    await submit(ctx.app, a.headers, torrent.magnet, 'Other')
+    const entriesBefore = await listEntries(ctx.db, a.orgId)
+    expect(entriesBefore.map((entry) => entry.source).sort()).toEqual(['download', 'stremthru'])
+    const tasks = await dl.poll()
+    const urlTask = tasks.find((task) => task.id === remote.id) as DownloadTask
+    // The torrent URL reports first and becomes the fill: the magnet's entry merges into its entry.
+    expect((await reportInfo(ctx.app, dl, urlTask, torrent.infoBase64)).status).toBe(200)
+    expect(await listEntries(ctx.db, a.orgId)).toEqual([
+      expect.objectContaining({ source: 'download', taskId: remote.id, status: 'downloading' }),
+    ])
+  })
+
+  it('leaves waiting downloads alone when a fill fails, and keeps a fill that others still hold', async () => {
+    const { ctx, a, b } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const torrent = sampleTorrent()
+    const callA = await stremThruKey(ctx, a)
+    const callB = await stremThruKey(ctx, b)
+    const added = await callA('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: torrent.magnet }) })
+    const { id } = ((await added.json()) as { data: { id: string } }).data
+    const [fill] = await dl.poll()
+    expect((await reportInfo(ctx.app, dl, fill, torrent.infoBase64)).status).toBe(200)
+    // B waits on the same download, without a task of its own.
+    await callB('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: torrent.magnet }) })
+    // Removing A's entry keeps the fill: B still holds the torrent.
+    await ctx.app.request(`/api/torrents/${id}`, { method: 'DELETE', headers: a.headers })
+    expect((await getTask(ctx.app, a.headers, fill.id)).status.state).not.toBe('canceling')
+    // A remote download in B joins the download and keeps its own task.
+    const joined = await submit(ctx.app, b.headers, torrent.magnet)
+    const failed = await ctx.app.request(`/api/downloads/tasks/${fill.id}`, {
+      method: 'PATCH',
+      headers: dl.headers,
+      body: JSON.stringify({ status: 'failed', errorMessage: 'disk full' }),
+    })
+    expect(failed.status).toBe(200)
+    expect(await listEntries(ctx.db, b.orgId)).toEqual([
+      expect.objectContaining({ source: 'download', taskId: joined.id, status: 'downloading' }),
+    ])
+  })
+
   it('refuses to play or save a torrent that is not ready, and cancels its list-only fill once nobody holds it', async () => {
     const { ctx, a } = await setup()
     const dl = await downloader(ctx, a.userId)
