@@ -13,15 +13,18 @@ import {
   DEFAULT_SITE_NAME,
   SignupMode,
 } from '@shared/constants'
+import { DEFAULT_MEDIA_SCRAPER_LANGUAGE, MEDIA_SCRAPER_LANGUAGES } from '@shared/media-scraper'
 import type {
   SiteCaptchaSettings,
   SiteIdentitySettings,
+  SiteMediaScrapingSettings,
   SiteQuotaSettings,
   SiteRegistrationSettings,
   SiteSettings,
   SiteWebDavSettings,
   UpdateSiteCaptchaInput,
   UpdateSiteIdentityInput,
+  UpdateSiteMediaScrapingInput,
   UpdateSiteQuotasInput,
   UpdateSiteRegistrationInput,
   UpdateSiteWebDavInput,
@@ -110,6 +113,14 @@ function quotasFrom(values: Map<string, string>): SiteQuotaSettings {
   }
 }
 
+function mediaScrapingFrom(values: Map<string, string>): SiteMediaScrapingSettings {
+  const language = values.get(SITE_SETTING_KEYS.mediaScraperLanguage)
+  return {
+    language: MEDIA_SCRAPER_LANGUAGES.find((tag) => tag === language) ?? DEFAULT_MEDIA_SCRAPER_LANGUAGE,
+    tmdbTokenConfigured: !!values.get(SITE_SETTING_KEYS.mediaScraperTmdbAccessToken)?.trim(),
+  }
+}
+
 function isWebDavEnabled(values: Map<string, string>): boolean {
   return values.get(SITE_SETTING_KEYS.webdavEnabled) !== 'false'
 }
@@ -167,6 +178,7 @@ export async function getSiteSettings(
     captcha: captchaFrom(values),
     quotas: quotasFrom(values),
     webdav: webdavFrom(values, requestUrl),
+    mediaScraping: mediaScrapingFrom(values),
   }
 }
 
@@ -339,4 +351,26 @@ export async function updateSiteQuotas(
     { key: SITE_SETTING_KEYS.defaultMonthlyTrafficQuota, value: String(input.defaultMonthlyTrafficBytes) },
   ])
   return input
+}
+
+// The access token is write-only, like the captcha secret: an omitted token
+// keeps the saved one and an empty one removes it, which turns scraping off.
+export async function updateSiteMediaScraping(
+  deps: Pick<SiteSettingsDeps, 'systemOptions'>,
+  input: UpdateSiteMediaScrapingInput,
+): Promise<SiteMediaScrapingSettings> {
+  await deps.systemOptions.setMany([
+    { key: SITE_SETTING_KEYS.mediaScraperLanguage, value: input.language },
+    ...(input.tmdbAccessToken === undefined
+      ? []
+      : [{ key: SITE_SETTING_KEYS.mediaScraperTmdbAccessToken, value: input.tmdbAccessToken.trim() }]),
+  ])
+  return mediaScrapingFrom(
+    optionMap(
+      await deps.systemOptions.getMany([
+        SITE_SETTING_KEYS.mediaScraperLanguage,
+        SITE_SETTING_KEYS.mediaScraperTmdbAccessToken,
+      ]),
+    ),
+  )
 }

@@ -1,4 +1,4 @@
-import { DirType } from '@shared/constants'
+import { DirType, ZPAN_CLOUD_URL_DEFAULT } from '@shared/constants'
 import type { BackgroundJob } from '@shared/types'
 import { describe, expect, it, vi } from 'vitest'
 import type { Deps } from './deps'
@@ -13,11 +13,14 @@ const library: MediaLibraryState = {
   fingerprint: null,
   lastScannedAt: null,
   scanning: true,
+  scraping: false,
   createdByUserId: 'user-1',
   createdBy: { type: 'user', ref: 'user-1', issuer: null },
   createdAt: new Date(),
   updatedAt: new Date(),
 }
+
+const runtime = { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT }
 
 const message = {
   jobId: 'job-1',
@@ -86,7 +89,7 @@ describe('processMediaLibraryScan', () => {
   ])('turns the library off without writing an index when the index is %s', async (_label, entry) => {
     const { deps, typed, updates } = makeDeps({ index: entry })
 
-    await processMediaLibraryScan(typed, message)
+    await processMediaLibraryScan(typed, message, runtime)
 
     expect(updates.at(-1)).toMatchObject({
       status: 'failed',
@@ -99,7 +102,7 @@ describe('processMediaLibraryScan', () => {
   it('reports a quota failure for the index and deletes the object it wrote', async () => {
     const { deps, typed, updates } = makeDeps({ quota: false })
 
-    await processMediaLibraryScan(typed, message)
+    await processMediaLibraryScan(typed, message, runtime)
 
     expect(updates.at(-1)).toMatchObject({
       status: 'failed',
@@ -114,7 +117,7 @@ describe('processMediaLibraryScan', () => {
   it('drops the library and fails the job when its folder was purged', async () => {
     const { deps, typed, updates } = makeDeps({ library: { ...library, folder: null } })
 
-    await processMediaLibraryScan(typed, message)
+    await processMediaLibraryScan(typed, message, runtime)
 
     expect(deps.mediaLibraries.delete).toHaveBeenCalledWith('org-1', 'lib-1')
     expect(updates.at(-1)).toMatchObject({ status: 'failed', errorMessage: 'Media library folder no longer exists' })
@@ -126,7 +129,7 @@ describe('processMediaLibraryScan', () => {
   ])('fails without scanning when the library is unavailable (%#)', async (state, errorMessage) => {
     const { deps, typed, updates } = makeDeps({ library: state })
 
-    await processMediaLibraryScan(typed, message)
+    await processMediaLibraryScan(typed, message, runtime)
 
     expect(updates.at(-1)).toMatchObject({ status: 'failed', errorMessage })
     expect(deps.mediaLibraries.fingerprint).not.toHaveBeenCalled()

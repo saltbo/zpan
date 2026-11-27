@@ -1,5 +1,11 @@
 import { DirType } from '@shared/constants'
-import { MEDIA_LIBRARY_FEED_VERSION, type MediaLibraryFeed, type MediaLibraryFeedItem } from '@shared/schemas'
+import {
+  MEDIA_LIBRARY_FEED_VERSION,
+  type MediaInfo,
+  type MediaLibraryFeed,
+  type MediaLibraryFeedItem,
+  type TmdbRef,
+} from '@shared/schemas'
 import { parseMediaPath } from './media-filename'
 
 export const MEDIA_LIBRARY_INDEX_FILE = 'library.json'
@@ -86,6 +92,8 @@ export interface MediaLibraryFile {
   type: string
   size: number | null
   updatedAt: Date
+  // The match of the video's last scrape, when it found one.
+  tmdb: TmdbRef | null
 }
 
 export interface MediaLibraryFeedSource {
@@ -95,16 +103,29 @@ export interface MediaLibraryFeedSource {
   generatedAt: Date
 }
 
+type LibraryRoot = Pick<MediaLibraryFeedSource, 'folderPath' | 'folderName'>
+
+// What the filename and its folders inside the library say about a video. The
+// library folder's own name counts as the outermost folder.
+export function libraryMediaInfo(library: LibraryRoot, file: { parent: string; name: string }): MediaInfo {
+  const path = libraryRelativePath(library, file)
+  return parseMediaPath([library.folderName, ...path.split('/').slice(0, -1)], file.name)
+}
+
+function libraryRelativePath(library: LibraryRoot, file: { parent: string; name: string }): string {
+  return joinMatterPath(file.parent, file.name).slice(library.folderPath.length + 1)
+}
+
 // The feed items for a page of files, in the same order; non-videos are dropped.
 export function mediaLibraryFeedItems(
-  library: Pick<MediaLibraryFeedSource, 'folderPath' | 'folderName'>,
+  library: LibraryRoot,
   files: readonly MediaLibraryFile[],
 ): MediaLibraryFeedItem[] {
   return files.flatMap((file) => {
     const mimeType = videoMimeType(file.name, file.type)
     if (!mimeType) return []
-    const path = joinMatterPath(file.parent, file.name).slice(library.folderPath.length + 1)
-    const media = parseMediaPath([library.folderName, ...path.split('/').slice(0, -1)], file.name)
+    const path = libraryRelativePath(library, file)
+    const media = libraryMediaInfo(library, file)
     return [
       {
         id: file.id,
@@ -118,7 +139,7 @@ export function mediaLibraryFeedItems(
             size_in_bytes: file.size ?? 0,
           },
         ],
-        _media: media,
+        _media: file.tmdb ? { ...media, tmdb: file.tmdb } : media,
       },
     ]
   })

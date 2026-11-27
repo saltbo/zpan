@@ -197,6 +197,36 @@ describe('Site configuration API', () => {
     expect(JSON.stringify(publicView)).not.toContain('secret-key')
   })
 
+  it('saves the scraping language and a write-only TMDB token the scraper reads [spec: media-scraping/settings]', async () => {
+    const { app, deps } = await createTestApp()
+    const admin = await adminHeaders(app)
+    const settings = async () =>
+      (
+        (await (await app.request('/api/site/settings', { headers: admin })).json()) as {
+          mediaScraping: unknown
+        }
+      ).mediaScraping
+
+    expect(await settings()).toEqual({ language: 'en-US', tmdbTokenConfigured: false })
+    const saved = await put(app, 'media-scraping', admin, { language: 'zh-CN', tmdbAccessToken: ' tmdb-token ' })
+    expect(saved.status).toBe(200)
+    expect(await saved.json()).toEqual({ language: 'zh-CN', tmdbTokenConfigured: true })
+    expect(await deps.tmdb.getConfig()).toEqual({ accessToken: 'tmdb-token', language: 'zh-CN' })
+
+    const kept = await put(app, 'media-scraping', admin, { language: 'ja-JP' })
+    expect(await kept.json()).toEqual({ language: 'ja-JP', tmdbTokenConfigured: true })
+    expect(JSON.stringify(await settings())).not.toContain('tmdb-token')
+    expect(await deps.tmdb.getConfig()).toEqual({ accessToken: 'tmdb-token', language: 'ja-JP' })
+
+    expect((await put(app, 'media-scraping', admin, { language: 'ja-JP', tmdbAccessToken: null })).status).toBe(400)
+    expect(await deps.tmdb.getConfig()).toEqual({ accessToken: 'tmdb-token', language: 'ja-JP' })
+
+    const removed = await put(app, 'media-scraping', admin, { language: 'ja-JP', tmdbAccessToken: '' })
+    expect(await removed.json()).toEqual({ language: 'ja-JP', tmdbTokenConfigured: false })
+    expect(await deps.tmdb.getConfig()).toBeNull()
+    expect((await put(app, 'media-scraping', admin, { language: 'xx-XX' })).status).toBe(400)
+  })
+
   it('validates grouped quota and captcha requests [spec: system/settings-validation]', async () => {
     const { app } = await createTestApp()
     const admin = await adminHeaders(app)

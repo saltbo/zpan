@@ -6,7 +6,7 @@ import type { BackgroundJobMessage, BackgroundJobQueue } from '../../usecases/po
 export const BACKGROUND_JOB_QUEUE_BINDING = 'ARCHIVE_QUEUE'
 
 interface QueueProducer {
-  send(message: BackgroundJobMessage): Promise<void>
+  send(message: BackgroundJobMessage, options?: { delaySeconds?: number }): Promise<void>
   sendBatch(messages: Iterable<{ body: BackgroundJobMessage }>): Promise<void>
 }
 
@@ -52,13 +52,15 @@ export function createBackgroundJobQueue(
   const localQueue = new LocalJobQueue(run)
 
   return {
-    async dispatch(message) {
+    async dispatch(message, options = {}) {
+      const { delaySeconds } = options
       const queue = platform.getBinding<QueueProducer>(BACKGROUND_JOB_QUEUE_BINDING)
       if (queue) {
-        await queue.send(message)
+        await queue.send(message, delaySeconds === undefined ? undefined : { delaySeconds })
         return
       }
-      localQueue.push(message)
+      if (delaySeconds === undefined) localQueue.push(message)
+      else setTimeout(() => localQueue.push(message), delaySeconds * 1000)
     },
 
     async dispatchBatch(messages) {

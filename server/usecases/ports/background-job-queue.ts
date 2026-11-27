@@ -12,10 +12,17 @@ export interface BackgroundJobMessage<R extends BackgroundJobRequest = Backgroun
 // Cloudflare Queues takes at most 100 messages per sendBatch call.
 export const BACKGROUND_JOB_DISPATCH_BATCH_LIMIT = 100
 
+// What a job processor needs from the runtime that runs it.
+export interface BackgroundJobRuntime {
+  // Decides which license certificate issuer is trusted, as in the sweep.
+  cloudBaseUrl: string
+}
+
 export interface BackgroundJobQueue {
   // Hand a job off for asynchronous processing: a queue binding when present,
-  // otherwise an in-process worker that drains on the next tick.
-  dispatch(message: BackgroundJobMessage): Promise<void>
+  // otherwise an in-process worker that drains on the next tick. A delay holds
+  // the message back that many seconds.
+  dispatch(message: BackgroundJobMessage, options?: { delaySeconds?: number }): Promise<void>
   // One queue call for up to BACKGROUND_JOB_DISPATCH_BATCH_LIMIT messages.
   dispatchBatch(messages: readonly BackgroundJobMessage[]): Promise<void>
 }

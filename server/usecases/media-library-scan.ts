@@ -1,5 +1,5 @@
-// Media library scans: enqueueing, the change-detection sweep, and the job
-// processor that rewrites <library>/library.json. Scans never hook into
+// Media library scans: the change-detection sweep and the job processor that
+// rewrites <library>/library.json. Scans never hook into
 // write paths; the sweep compares a cheap subtree fingerprint instead, so
 // uploads, WebDAV writes, and downloads into a library are all covered. A
 // library whose index is gone is off: the sweep and the scan delete it and
@@ -22,11 +22,13 @@ import { chunk } from '../lib/chunk'
 import { formatError } from '../lib/errors'
 import type { Deps } from './deps'
 import { findMediaLibraryIndex, rewriteMediaLibraryIndex } from './media-library-index'
+import { mediaLibraryJobInput, mediaLibraryJobMessage, scanRequest } from './media-library-jobs'
+import { enqueueScrapeAfterScan } from './media-library-scrape'
 import {
   type ActorIdentity,
   BACKGROUND_JOB_DISPATCH_BATCH_LIMIT,
   type BackgroundJobMessage,
-  type CreateBackgroundJobInput,
+  type BackgroundJobRuntime,
   type Matter,
   type MediaLibraryFileCursor,
   type MediaLibraryState,
@@ -47,42 +49,6 @@ const LEASE_RENEWAL_PAGES = 10
 // Only these record the attempted fingerprint; any other failure leaves it, so
 // the next sweep retries.
 class MediaLibraryScanBlockedError extends Error {}
-
-export async function enqueueMediaLibraryScan(
-  deps: Pick<Deps, 'backgroundJobs' | 'jobQueue'>,
-  input: { library: MediaLibraryView; userId: string; createdBy: ActorIdentity },
-): Promise<BackgroundJob> {
-  const { library, userId, createdBy } = input
-  const job = await deps.backgroundJobs.create(scanJobInput(library, userId))
-  await deps.jobQueue.dispatch(scanMessage(job, library, createdBy))
-  return job
-}
-
-function scanJobInput(library: MediaLibraryView, userId: string): CreateBackgroundJobInput {
-  const request: MediaLibraryScanJobRequest = { type: 'media_library_scan', libraryId: library.id }
-  return {
-    orgId: library.orgId,
-    userId,
-    type: request.type,
-    targetFolder: library.folder.path,
-    metadata: request,
-    cancelable: false,
-  }
-}
-
-function scanMessage(
-  job: BackgroundJob,
-  library: MediaLibraryView,
-  createdBy: ActorIdentity,
-): BackgroundJobMessage<MediaLibraryScanJobRequest> {
-  return {
-    jobId: job.id,
-    orgId: library.orgId,
-    userId: job.userId,
-    createdBy,
-    request: { type: 'media_library_scan', libraryId: library.id },
-  }
-}
 
 // Runs on the 10-minute cron. Libraries stay in place when the license lapses;
 // they just stop being scanned until the instance is entitled again. The cloud
@@ -135,29 +101,40 @@ async function enqueueSweepScans(
   libraries: readonly MediaLibraryView[],
 ): Promise<void> {
   const jobs = await deps.backgroundJobs.createMany(
-    libraries.map((library) => scanJobInput(library, library.createdByUserId)),
+    libraries.map((library) => mediaLibraryJobInput(library, library.createdByUserId, scanRequest(library))),
   )
-  await deps.jobQueue.dispatchBatch(jobs.map((job, i) => scanMessage(job, libraries[i], SWEEP_ACTOR)))
+  await deps.jobQueue.dispatchBatch(
+    jobs.map((job, i) => mediaLibraryJobMessage(job, SWEEP_ACTOR, scanRequest(libraries[i]))),
+  )
 }
 
 function idList(libraries: ReadonlyArray<{ id: string }>): string {
   return libraries.map((library) => library.id).join(',')
 }
 
+// A completed scan queues a TMDB scrape when the library has videos that need
+// one; failing to queue it is logged and leaves the scan completed.
 export async function processMediaLibraryScan(
   deps: Deps,
   message: BackgroundJobMessage<MediaLibraryScanJobRequest>,
+  runtime: BackgroundJobRuntime,
 ): Promise<BackgroundJob> {
   const { orgId, jobId } = message
   await deps.backgroundJobs.update(orgId, jobId, { status: 'running', startedAt: new Date() })
   try {
-    const { index, itemCount } = await scanLibrary(deps, message)
-    return await deps.backgroundJobs.update(orgId, jobId, {
+    const { library, index, itemCount } = await scanLibrary(deps, message)
+    const job = await deps.backgroundJobs.update(orgId, jobId, {
       status: 'completed',
       progress: { fileCount: itemCount, currentFilename: null },
       resultMetadata: { matterId: index.id, itemCount },
       cancelable: false,
     })
+    await enqueueScrapeAfterScan(deps, message, library, runtime).catch((error: unknown) => {
+      console.error(
+        `media_library.scan.scrape_enqueue_error library=${library.id} org=${orgId} code=${formatError(error)}`,
+      )
+    })
+    return job
   } catch (error) {
     return deps.backgroundJobs.update(orgId, jobId, {
       status: 'failed',
@@ -171,7 +148,7 @@ export async function processMediaLibraryScan(
 async function scanLibrary(
   deps: Deps,
   message: BackgroundJobMessage<MediaLibraryScanJobRequest>,
-): Promise<{ index: Matter; itemCount: number }> {
+): Promise<{ library: MediaLibraryView; index: Matter; itemCount: number }> {
   const { orgId } = message
   const library = await deps.mediaLibraries.get(orgId, message.request.libraryId)
   if (!library) throw new Error('Media library not found')
@@ -189,7 +166,7 @@ async function scanLibrary(
 
   // Taken before listing: a change that races the listing then shows up as a
   // fingerprint mismatch and triggers one more scan instead of being lost.
-  const fingerprint = await deps.mediaLibraries.fingerprint(orgId, path)
+  const fingerprint = await deps.mediaLibraries.fingerprint(orgId, library.id, path)
   try {
     await assertNoOlderOverlap(deps, orgId, { id: library.id, createdAt: library.createdAt, path })
     const source = { libraryId: library.id, folderPath: path, folderName: name, generatedAt: new Date() }
@@ -198,7 +175,7 @@ async function scanLibrary(
     const index = await writeIndex(deps, message, existing, feed)
     await deps.mediaLibraries.recordScan(orgId, library.id, { fingerprint, scannedAt: new Date() })
     await deps.webdavPath.invalidateFolders(orgId, [path])
-    return { index, itemCount: listed.items }
+    return { library: { ...library, folder: library.folder }, index, itemCount: listed.items }
   } catch (error) {
     if (error instanceof MediaLibraryScanBlockedError) {
       await deps.mediaLibraries.recordScan(orgId, library.id, { fingerprint })

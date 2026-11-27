@@ -27,6 +27,7 @@ const library: MediaLibrary = {
   folderId: 'folder-1',
   folderPath: 'Movies',
   scanning: false,
+  scraping: false,
   lastScannedAt: null,
   createdBy: { type: 'user', ref: 'user-1', issuer: null },
   createdAt: '2026-11-09T00:00:00.000Z',

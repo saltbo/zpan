@@ -40,15 +40,20 @@ export function parseMediaPath(folders: readonly string[], fileName: string): Me
   const info = parseMediaFilename(fileName)
   if (info.type !== 'episode' || info.title) return info
 
-  const showFolder = [...folders].reverse().find((folder) => !SEASON_FOLDER.test(folder.trim()))
+  const showFolder = [...folders].reverse().find((folder) => !isSeasonFolder(folder))
   if (!showFolder) return info
   const show = titleAndYear(showFolder)
   return { ...info, title: show.title, ...(show.year === undefined ? {} : { year: show.year }) }
 }
 
+// `Season 1`, `S01`, `Series 2`, `第1季`, `第一季`, and `Specials`.
+export function isSeasonFolder(name: string): boolean {
+  return SEASON_FOLDER.test(name.trim())
+}
+
 // The last year token with a non-empty title before it wins, so a title that is
 // itself a year ("1917.2019", "Blade.Runner.2049.2017") keeps its year in the title.
-function titleAndYear(text: string): { title: string; year?: number } {
+export function titleAndYear(text: string): { title: string; year?: number } {
   let found: { title: string; year: number } | null = null
   for (const match of text.matchAll(YEAR)) {
     const title = cleanTitle(text.slice(0, match.index))

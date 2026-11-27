@@ -15,6 +15,7 @@ export const mediaLibrarySchema = z
     folderId: opaqueIdSchema,
     folderPath: z.string().describe('Current slash-delimited path of the library folder within the workspace.'),
     scanning: z.boolean().describe('Whether a scan is queued or running.'),
+    scraping: z.boolean().describe('Whether a TMDB scrape is queued or running.'),
     lastScannedAt: z.string().nullable(),
     createdBy: actorIdentitySchema,
     createdAt: z.string(),
@@ -42,6 +43,14 @@ export const mediaInfoSchema = z.discriminatedUnion('type', [
 
 export type MediaInfo = z.infer<typeof mediaInfoSchema>
 
+// The TMDB match of a video; for an episode, the series.
+export const tmdbRefSchema = z.object({ id: z.number().int(), type: z.enum(['movie', 'tv']) })
+
+export type TmdbRef = z.infer<typeof tmdbRefSchema>
+
+// What the filename says, plus the TMDB match once a scrape found one.
+export const mediaLibraryFeedMediaSchema = mediaInfoSchema.and(z.object({ tmdb: tmdbRefSchema.optional() }))
+
 export const mediaLibraryFeedItemSchema = z.object({
   // The video's matter id: stable across renames and moves, so clients diff by it.
   id: z.string(),
@@ -59,7 +68,7 @@ export const mediaLibraryFeedItemSchema = z.object({
       }),
     )
     .length(1),
-  _media: mediaInfoSchema,
+  _media: mediaLibraryFeedMediaSchema,
 })
 
 export const mediaLibraryFeedSchema = z.object({

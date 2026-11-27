@@ -3,12 +3,14 @@ import { AuthorizationScope } from '@shared/authorization'
 import {
   siteCaptchaSettingsSchema,
   siteIdentitySettingsSchema,
+  siteMediaScrapingSettingsSchema,
   siteQuotaSettingsSchema,
   siteRegistrationSettingsSchema,
   siteSettingsSchema,
   siteWebDavSettingsSchema,
   updateSiteCaptchaSchema,
   updateSiteIdentitySchema,
+  updateSiteMediaScrapingSchema,
   updateSiteQuotasSchema,
   updateSiteRegistrationSchema,
   updateSiteWebDavSchema,
@@ -18,6 +20,7 @@ import {
   getSiteSettings,
   updateSiteCaptcha,
   updateSiteIdentity,
+  updateSiteMediaScraping,
   updateSiteQuotas,
   updateSiteRegistration,
   updateSiteWebDav,
@@ -99,6 +102,24 @@ const updateQuotasRoute = authRoute(
   },
 )
 
+const updateMediaScrapingRoute = authRoute(
+  { scopes: [AuthorizationScope.SITE_SETTINGS_UPDATE], siteRole: 'admin' },
+  {
+    operationId: 'updateSiteMediaScraping',
+    summary: 'Update media library scraping settings',
+    description:
+      'Sets the TMDB language and the TMDB API Read Access Token. The token is write-only: omit it to keep the saved one, or send an empty string to remove it.',
+    tags: ['Site Settings'],
+    method: 'put',
+    path: '/media-scraping',
+    request: jsonBody(updateSiteMediaScrapingSchema),
+    responses: {
+      200: jsonContent(siteMediaScrapingSettingsSchema, 'Updated scraping settings'),
+      400: errorResponse('Invalid scraping settings'),
+    },
+  },
+)
+
 const verifyWebDavRoute = authRoute(
   { scopes: [AuthorizationScope.SITE_SETTINGS_UPDATE], siteRole: 'admin' },
   {
@@ -139,3 +160,6 @@ export const siteSettings = new OpenAPIHono<Env>()
     c.json(await updateSiteWebDav(c.get('deps'), c.req.valid('json'), c.req.url), 200),
   )
   .openapi(verifyWebDavRoute, async (c) => c.json(await verifySiteWebDav(c.get('deps'), c.req.url, fetch), 200))
+  .openapi(updateMediaScrapingRoute, async (c) =>
+    c.json(await updateSiteMediaScraping(c.get('deps'), c.req.valid('json')), 200),
+  )
