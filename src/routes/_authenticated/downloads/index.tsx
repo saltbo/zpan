@@ -95,6 +95,7 @@ import { useUrlText } from '@/hooks/use-url-text'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import {
+  ApiError,
   createDownloadTask,
   getDownloadTask,
   listDownloadTaskEvents,
@@ -118,10 +119,14 @@ const FILTERABLE_STATUSES = [
   'canceled',
 ] as const satisfies readonly DownloadTaskStatus[]
 
+const DETAIL_TAB_IDS = ['overview', 'trackers', 'peers', 'files', 'events'] as const
+
 export const downloadsSearchSchema = z.object({
   status: enumParam(FILTERABLE_STATUSES),
   category: textParam,
   tag: textParam,
+  task: textParam,
+  tab: enumParam(DETAIL_TAB_IDS),
 })
 
 type DownloadsSearch = z.infer<typeof downloadsSearchSchema>
@@ -141,7 +146,7 @@ const STATUS_FILTERS: Array<{ value: DownloadTaskStatus | 'all'; labelKey: strin
 ]
 type DownloadTaskDisplayStatus = DownloadTaskStatus | 'seeding'
 type DownloadTaskPhase = NonNullable<NonNullable<DownloadTask['status']['runtime']>['phase']>
-type DetailTab = 'overview' | 'trackers' | 'peers' | 'files' | 'events'
+type DetailTab = (typeof DETAIL_TAB_IDS)[number]
 type PanelDragState = { startY: number; startDetailHeight: number; containerHeight: number }
 type PendingTaskAction = { tasks: DownloadTaskListItem[]; action: DownloadTaskAction }
 type DetailTableColumn<T> = {
@@ -182,16 +187,14 @@ const DETAIL_TABS: Array<{ id: DetailTab; labelKey: string; icon: ReactNode }> =
 export function DownloadsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
+  const navigate = useNavigate({ from: Route.fullPath })
   const filters = useSearch({ from: '/_authenticated/downloads/' })
   const [createOpen, setCreateOpen] = useState(false)
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(DEFAULT_COLUMN_ORDER)
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({})
   const [draggedColumnId, setDraggedColumnId] = useState<string | null>(null)
   const [pendingTaskAction, setPendingTaskAction] = useState<PendingTaskAction | null>(null)
-  const [detailTab, setDetailTab] = useState<DetailTab>('overview')
   const [detailHeight, setDetailHeight] = useState(DETAIL_MIN_HEIGHT)
   const [detailHeightCustomized, setDetailHeightCustomized] = useState(false)
   const [panelDrag, setPanelDrag] = useState<PanelDragState | null>(null)
@@ -300,8 +303,13 @@ export function DownloadsPage() {
       await Promise.all(actionable.map((task) => runDownloadTaskAction(task.id, action)))
       return { action, count: actionable.length }
     },
-    onSuccess: ({ action }) => {
-      if (action === 'delete') setRowSelection({})
+    onSuccess: ({ action }, { tasks }) => {
+      if (action === 'delete') {
+        setRowSelection({})
+        if (tasks.some((task) => task.id === filters.task)) {
+          navigate({ to: '/downloads', search: (prev) => ({ ...prev, task: undefined }), replace: true })
+        }
+      }
       queryClient.invalidateQueries({ queryKey: QUERY_KEY })
       toast.success(t('downloads.actionSuccess'))
     },
@@ -376,13 +384,36 @@ export function DownloadsPage() {
     enableRowSelection: true,
     columnResizeMode: 'onChange',
   })
-  const selectedListItem = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null
-  const activeSelectedTaskId = selectedListItem?.id ?? null
+  // The task named in the link is opened even when it is not on a loaded page.
+  const activeSelectedTaskId = filters.task ?? tasks[0]?.id ?? null
+  const detailTab = filters.tab ?? 'overview'
   const selectedTaskQuery = useQuery({
     queryKey: ['download-task', activeSelectedTaskId],
     queryFn: () => getDownloadTask(activeSelectedTaskId as string),
     enabled: activeSelectedTaskId !== null,
   })
+  const linkedTaskMissing =
+    filters.task !== undefined && selectedTaskQuery.error instanceof ApiError && selectedTaskQuery.error.status === 404
+
+  useEffect(() => {
+    if (linkedTaskMissing) {
+      navigate({ to: '/downloads', search: (prev) => ({ ...prev, task: undefined }), replace: true })
+    }
+  }, [linkedTaskMissing, navigate])
+
+  function selectTask(taskId: string) {
+    if (taskId === filters.task) return
+    navigate({ to: '/downloads', search: (prev) => ({ ...prev, task: taskId }) })
+  }
+
+  function changeDetailTab(tab: DetailTab) {
+    // Switching tabs replaces the entry, so back returns to the previous task.
+    navigate({
+      to: '/downloads',
+      search: (prev) => ({ ...prev, tab: tab === 'overview' ? undefined : tab }),
+      replace: true,
+    })
+  }
   const selectedTasks = table.getSelectedRowModel().rows.map((row) => row.original)
 
   function handlePanelResizeStart(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -421,7 +452,13 @@ export function DownloadsPage() {
               onChange={(next, replace) =>
                 navigate({
                   to: '/downloads',
-                  search: { status: next.status, category: next.category || undefined, tag: next.tag || undefined },
+                  // A new filter drops the selected task, which may no longer be listed.
+                  search: {
+                    status: next.status,
+                    category: next.category || undefined,
+                    tag: next.tag || undefined,
+                    tab: filters.tab,
+                  },
                   replace,
                 })
               }
@@ -508,7 +545,7 @@ export function DownloadsPage() {
                   row={row}
                   selected={row.original.id === activeSelectedTaskId}
                   actionPending={actionMutation.isPending}
-                  onSelect={() => setSelectedTaskId(row.original.id)}
+                  onSelect={() => selectTask(row.original.id)}
                   onPrimaryAction={() => handlePrimaryTaskAction(row.original)}
                   onAction={(action) => handleTaskAction(row.original, action)}
                 />
@@ -542,7 +579,7 @@ export function DownloadsPage() {
             task={selectedTaskQuery.data ?? null}
             loading={selectedTaskQuery.isLoading}
             tab={detailTab}
-            onTabChange={setDetailTab}
+            onTabChange={changeDetailTab}
           />
         </section>
       </div>

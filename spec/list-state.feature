@@ -60,3 +60,19 @@ Feature: List state in the URL
     Then the page header, the filter bar, and the previous rows stay on screen
     And the previous rows are shown dimmed until the new rows arrive
     But opening the list for the first time shows the loading state in its place
+
+  @list-state/downloads-selected-task @web
+  Scenario: The download list restores the selected task and its detail tab from the link
+    Given a user selects a download task and opens its files or events tab
+    Then the link carries that task and that tab, alongside any filters
+    When the user reloads the page or opens the link in a new tab
+    Then the same task's details open on the same tab
+    When the user selects another task and goes back
+    Then the previously selected task's details are shown again
+
+  @list-state/downloads-missing-task @web
+  Scenario: A link to a download task that no longer exists opens the list
+    Given a link that names a download task that was deleted or never existed
+    When a user opens it
+    Then the download list is shown with the first task's details, not a broken panel
+    And the link no longer names the missing task
