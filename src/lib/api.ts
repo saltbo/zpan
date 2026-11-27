@@ -1275,7 +1275,9 @@ export interface CreateIhostApiKeyResult extends IhostApiKey {
 }
 
 async function apiKeyFetch<T>(path: string, options: RequestInit): Promise<T> {
-  const res = await fetch(`/api/auth${path}`, { credentials: 'include', ...options })
+  const headers = new Headers(requestLanguageHeaders())
+  for (const [name, value] of new Headers(options.headers)) headers.set(name, value)
+  const res = await fetch(`/api/auth${path}`, { credentials: 'include', ...options, headers })
   if (!res.ok) {
     const parsed = await res.json().catch(() => ({}))
     throw new ApiError(res.status, toErrorBody(res.status, parsed))
@@ -1457,7 +1459,11 @@ async function fetchSession(): Promise<SessionData> {
   const timeout = window.setTimeout(() => controller.abort(), SESSION_REQUEST_TIMEOUT_MS)
 
   try {
-    const res = await fetch('/api/auth/get-session', { credentials: 'include', signal: controller.signal })
+    const res = await fetch('/api/auth/get-session', {
+      credentials: 'include',
+      signal: controller.signal,
+      headers: requestLanguageHeaders(),
+    })
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
       throw new ApiError(res.status, toErrorBody(res.status, body))

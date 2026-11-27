@@ -30,7 +30,15 @@ Feature: Error messages
     When an action fails with a known error
     Then the toast shows the server's message in Chinese, as it is
 
+  @error-messages/auth @api
+  Scenario: Sign-in, sign-up, password reset, API-key and team errors follow the request language
+    Given a request to the sign-in service that asks for Chinese
+    When sign-in, sign-up, a password reset, an API-key action or a team action fails
+    Then the error message is in Chinese, not an internal code
+    And a sign-up the registration gate refuses names its reason, such as a missing invite code
+    And the status and code are the same as for an English request
+
   @error-messages/catalog-complete @api
   Scenario: Every error message has its Chinese text
-    Given the server's error messages
+    Given the server's error messages, including every sign-in service error
     Then each one has Chinese text with the same parameters

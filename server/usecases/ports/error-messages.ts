@@ -194,6 +194,23 @@ export const ZH_ERROR_MESSAGES = {
   'Failed to create invitation': '创建邀请失败',
   'Email must be enabled before email verification can be required': '须先启用邮件，才能要求邮箱验证',
   'Unknown error': '未知错误',
+  'An invitation is required to register': '需要邀请才能注册',
+  'Invalid invitation': '邀请无效',
+  'Invitation has expired': '邀请已过期',
+  'Invitation email does not match': '邀请对应的邮箱与填写的邮箱不一致',
+  'An invite code is required to register': '需要邀请码才能注册',
+  'Invalid invite code': '邀请码无效',
+  'Invite code already used': '邀请码已被使用',
+  'Invite code expired': '邀请码已过期',
+
+  // Accounts and API keys (Better Auth hooks)
+  'Self-service account deletion is not available': '不支持自行注销账号',
+  'API key prefixes must contain only ASCII letters and digits': 'API 密钥前缀只能包含 ASCII 字母和数字',
+  'WebDAV API keys cannot target a workspace': 'WebDAV API 密钥不能指定空间',
+  'Organization ID is required': '须指定空间',
+  'Editor access to the workspace is required': '需要该空间的编辑权限',
+  'Team limit reached. Free includes one personal workspace plus one extra team. Upgrade to Pro for unlimited teams.':
+    '团队数量已达上限。免费版包含一个个人空间和一个额外团队，升级到 Pro 可创建不限数量的团队。',
 
   // OAuth
   'Invalid OAuth authorization details': 'OAuth 授权详情无效',

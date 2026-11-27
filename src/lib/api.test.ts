@@ -3723,6 +3723,17 @@ describe('api', () => {
       expect(init.method).toBe('POST')
     })
 
+    it('asks for errors in the UI language and keeps its own headers', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(createdKey))
+
+      await createIhostApiKey('org-1', 'Test Key')
+
+      const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      const headers = new Headers(init.headers)
+      expect(headers.get('Accept-Language')).toBe('en')
+      expect(headers.get('Content-Type')).toBe('application/json')
+    })
+
     it('sends organizationId and name (permissions set by server defaults)', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse(createdKey))
 

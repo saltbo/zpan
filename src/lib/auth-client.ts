@@ -7,9 +7,16 @@ import {
   usernameClient,
 } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
+import { requestLanguageHeaders } from './request-language'
 
 export const authClient = createAuthClient({
   baseURL: import.meta.env.VITE_API_URL || '',
+  // Every request names the UI language, so sign-in, sign-up and API-key errors come back in it.
+  fetchOptions: {
+    onRequest(context) {
+      for (const [name, value] of Object.entries(requestLanguageHeaders())) context.headers.set(name, value)
+    },
+  },
   plugins: [
     usernameClient(),
     organizationClient(),
