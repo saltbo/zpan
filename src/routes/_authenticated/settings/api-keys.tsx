@@ -25,20 +25,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
   createIhostApiKey,
   createRemoteDownloadApiKey,
+  createStremThruApiKey,
   createWebDavAppPassword,
   type IhostApiKey,
   listApiKeys,
   revokeIhostApiKey,
   revokeRemoteDownloadApiKey,
+  revokeStremThruApiKey,
   revokeWebDavAppPassword,
 } from '@/lib/api'
 import { useListOrganizations, useSession } from '@/lib/auth-client'
+import { mediaFusionToken } from '@/lib/stremthru'
 
 export const Route = createFileRoute('/_authenticated/settings/api-keys')({
   component: ApiKeysSettingsPage,
 })
 
-type ApiKeyKind = 'ihost' | 'webdav' | 'remote-download'
+type ApiKeyKind = 'ihost' | 'webdav' | 'remote-download' | 'stremthru'
+
+const API_KEY_KINDS: ApiKeyKind[] = ['ihost', 'webdav', 'remote-download', 'stremthru']
 
 interface ApiKeyRow {
   id: string
@@ -47,9 +52,10 @@ interface ApiKeyRow {
   key: IhostApiKey
 }
 
-interface CreatedKey {
+export interface CreatedKey {
   name: string
   key: string
+  kind: ApiKeyKind
 }
 
 interface Organization {
@@ -80,7 +86,7 @@ function CopyButton({ value }: { value: string }) {
 function createApiKeyFormSchema(t: (key: string) => string) {
   return z
     .object({
-      kind: z.enum(['ihost', 'webdav', 'remote-download']),
+      kind: z.enum(['ihost', 'webdav', 'remote-download', 'stremthru']),
       name: z.string().trim().min(1, t('settings.apiKeys.nameRequired')),
       orgId: z.string(),
     })
@@ -125,11 +131,14 @@ export function CreateApiKeyDialog({
       if (values.kind === 'ihost') {
         return createIhostApiKey(values.orgId, values.name)
       }
+      if (values.kind === 'stremthru') {
+        return createStremThruApiKey(values.orgId, values.name)
+      }
       return createRemoteDownloadApiKey(values.orgId, values.name)
     },
     onSuccess: (result, values) => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] })
-      onCreated({ name: result.name ?? values.name, key: result.key })
+      onCreated({ name: result.name ?? values.name, key: result.key, kind: values.kind })
       handleOpenChange(false)
       toast.success(t('settings.apiKeys.createSuccess'))
     },
@@ -169,6 +178,7 @@ export function CreateApiKeyDialog({
                 <SelectItem value="ihost">{t('settings.apiKeys.typeIhost')}</SelectItem>
                 <SelectItem value="webdav">{t('settings.apiKeys.typeWebdav')}</SelectItem>
                 <SelectItem value="remote-download">{t('settings.apiKeys.typeRemoteDownload')}</SelectItem>
+                <SelectItem value="stremthru">{t('settings.apiKeys.typeStremThru')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -239,10 +249,12 @@ export function CreateApiKeyDialog({
   )
 }
 
-function CreatedKeyDialog({ createdKey, onClose }: { createdKey: CreatedKey | null; onClose: () => void }) {
+export function CreatedKeyDialog({ createdKey, onClose }: { createdKey: CreatedKey | null; onClose: () => void }) {
   const { t } = useTranslation()
 
   if (!createdKey) return null
+  const origin = typeof window === 'undefined' ? '' : window.location.origin
+  const token = createdKey.kind === 'stremthru' ? mediaFusionToken(origin, createdKey.key) : null
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -258,6 +270,18 @@ function CreatedKeyDialog({ createdKey, onClose }: { createdKey: CreatedKey | nu
             <CopyButton value={createdKey.key} />
           </div>
         </div>
+        {token ? (
+          <div className="space-y-2">
+            <Label>{t('settings.apiKeys.mediaFusionToken')}</Label>
+            <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
+              <code className="min-w-0 flex-1 break-all text-sm" data-testid="mediafusion-token">
+                {token}
+              </code>
+              <CopyButton value={token} />
+            </div>
+            <p className="text-xs text-muted-foreground">{t('settings.apiKeys.mediaFusionTokenHint')}</p>
+          </div>
+        ) : null}
         <DialogFooter>
           <Button type="button" onClick={onClose}>
             {t('common.close')}
@@ -281,6 +305,10 @@ function RevokeApiKeyDialog({ apiKey, onClose }: { apiKey: ApiKeyRow | null; onC
       }
       if (apiKey.kind === 'ihost') {
         await revokeIhostApiKey(apiKey.id)
+        return
+      }
+      if (apiKey.kind === 'stremthru') {
+        await revokeStremThruApiKey(apiKey.id)
         return
       }
       await revokeRemoteDownloadApiKey(apiKey.id)
@@ -337,9 +365,7 @@ function ApiKeysSettingsPage() {
   })
 
   const rows: ApiKeyRow[] = (apiKeysQuery.data ?? [])
-    .filter((key): key is IhostApiKey & { configId: ApiKeyKind } =>
-      ['ihost', 'webdav', 'remote-download'].includes(key.configId),
-    )
+    .filter((key): key is IhostApiKey & { configId: ApiKeyKind } => API_KEY_KINDS.includes(key.configId as ApiKeyKind))
     .map((key) => ({ id: key.id, name: key.name ?? key.id, kind: key.configId, key }))
     .sort((a, b) => new Date(b.key.createdAt).getTime() - new Date(a.key.createdAt).getTime())
 

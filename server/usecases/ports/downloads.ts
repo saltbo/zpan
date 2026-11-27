@@ -232,6 +232,21 @@ export interface DownloadTaskRepo {
     now: Date,
     options?: { torrentCacheRole?: 'fill' | null },
   ): Promise<boolean>
+  /** A user's live tasks of the given source types in a workspace, newest first, with their total. */
+  listByCreator(params: {
+    orgId: string
+    userId: string
+    sourceTypes: readonly string[]
+    limit: number
+    offset: number
+  }): Promise<{ items: DownloadTaskRecord[]; total: number }>
+  /** The user's newest live task for an infoHash in a workspace, skipping the excluded statuses. */
+  findLatestByInfoHash(params: {
+    orgId: string
+    userId: string
+    infoHash: string
+    excludeStatuses: readonly string[]
+  }): Promise<DownloadTaskRecord | null>
   /** Tasks attached to a torrent in the given role and statuses. */
   listByTorrent(torrentId: string, role: TorrentCacheRole, statuses: string[]): Promise<DownloadTaskRecord[]>
   /** Queued tasks joined to a torrent that is no longer pending: not verifying, nor downloading by a live filler. */

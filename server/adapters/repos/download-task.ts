@@ -792,6 +792,44 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
       return rows.map(toRecord)
     },
 
+    async listByCreator(params) {
+      const where = and(
+        eq(downloadTasks.orgId, params.orgId),
+        eq(downloadTasks.createdByUserId, params.userId),
+        inArray(downloadTasks.sourceType, [...params.sourceTypes]),
+        isNull(downloadTasks.deletedAt),
+      )
+      const [rows, counts] = await Promise.all([
+        db
+          .select()
+          .from(downloadTasks)
+          .where(where)
+          .orderBy(desc(downloadTasks.createdAt), desc(downloadTasks.id))
+          .limit(params.limit)
+          .offset(params.offset),
+        db.select({ total: sql<number>`COUNT(*)` }).from(downloadTasks).where(where),
+      ])
+      return { items: rows.map(toRecord), total: Number(counts[0]?.total ?? 0) }
+    },
+
+    async findLatestByInfoHash(params) {
+      const rows = await db
+        .select()
+        .from(downloadTasks)
+        .where(
+          and(
+            eq(downloadTasks.orgId, params.orgId),
+            eq(downloadTasks.createdByUserId, params.userId),
+            eq(downloadTasks.infoHash, params.infoHash),
+            notInArray(downloadTasks.status, [...params.excludeStatuses]),
+            isNull(downloadTasks.deletedAt),
+          ),
+        )
+        .orderBy(desc(downloadTasks.createdAt), desc(downloadTasks.id))
+        .limit(1)
+      return rows[0] ? toRecord(rows[0]) : null
+    },
+
     async listByTorrent(torrentId, role, statuses) {
       const rows = await db
         .select()

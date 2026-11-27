@@ -1,4 +1,5 @@
 import type { TorrentStatus } from '../../domain/torrent-cache'
+import type { Matter } from './matter'
 import type { KeysetPage, KeysetPageOpts } from './pagination'
 
 export interface TorrentRecord {
@@ -62,6 +63,12 @@ export interface TorrentRepo {
   create(input: CreateTorrentInput): Promise<TorrentRecord>
   get(id: string): Promise<TorrentRecord | null>
   getByInfoHash(infoHash: string): Promise<TorrentRecord | null>
+  // Torrents for the infoHashes that are cached, in no particular order.
+  listByInfoHashes(infoHashes: readonly string[]): Promise<TorrentRecord[]>
+  // Files for several torrents at once.
+  listFilesOf(torrentIds: readonly string[]): Promise<TorrentFileRecord[]>
+  // A workspace's live (not trashed) drive files that reference the torrent.
+  listWorkspaceReferences(orgId: string, torrent: Pick<TorrentRecord, 'infoHash' | 'storageId'>): Promise<Matter[]>
   // Inserts the torrent unless its infoHash is already cached; the unique
   // info_hash makes a concurrent second insert return the first one.
   createIfAbsent(input: CreateTorrentInput): Promise<{ created: boolean; torrent: TorrentRecord }>
@@ -97,4 +104,23 @@ export interface TorrentRepo {
 export interface TorrentCacheConfigRepo {
   getFolder(orgId: string): Promise<string | null>
   setFolder(orgId: string, folder: string): Promise<void>
+}
+
+// The playback link last issued to a user for a held file (docs/design/torrent-cache.md §10).
+export interface IssuedLink {
+  url: string
+  expiresAt: Date
+}
+
+export interface StremThruLinkRepo {
+  get(userId: string, matterId: string): Promise<IssuedLink | null>
+  // Replaces the user's link for the file.
+  save(input: {
+    userId: string
+    orgId: string
+    matterId: string
+    url: string
+    expiresAt: Date
+    now: Date
+  }): Promise<void>
 }

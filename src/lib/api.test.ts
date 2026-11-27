@@ -26,6 +26,7 @@ import {
   createShare,
   createSiteInvitation,
   createStorage,
+  createStremThruApiKey,
   createWebDavAppPassword,
   deleteAnnouncement,
   deleteAuthProvider,
@@ -143,6 +144,7 @@ import {
   revokeRemoteDownloadApiKey,
   revokeShare,
   revokeSiteInvitation,
+  revokeStremThruApiKey,
   revokeUserEntitlement,
   revokeWebDavAppPassword,
   runDownloadTaskAction,
@@ -3850,6 +3852,58 @@ describe('api', () => {
       expect(url).toBe('/api/auth/api-key/delete')
       expect(init.method).toBe('POST')
       expect(JSON.parse(init.body as string)).toEqual({ configId: 'remote-download', keyId: 'remote-key-1' })
+    })
+  })
+
+  describe('StremThru API keys', () => {
+    const sampleKey = {
+      id: 'stremthru-key-1',
+      configId: 'stremthru',
+      name: 'MediaFusion',
+      start: 'zpan',
+      prefix: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      lastRequest: null,
+      permissions: { stremthru: ['store'] },
+      metadata: { scope: { mode: 'workspace', orgId: 'org-1' } },
+      referenceId: 'user-1',
+      enabled: true,
+    }
+
+    it('creates a workspace-bound StremThru API key with configId', async () => {
+      const created = { ...sampleKey, key: 'stremthru-secret' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(created))
+
+      const result = await createStremThruApiKey('org-1', 'MediaFusion')
+
+      expect(result).toEqual(created)
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/auth/api-key/create')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({
+        configId: 'stremthru',
+        name: 'MediaFusion',
+        organizationId: 'org-1',
+      })
+    })
+
+    it('revokes a StremThru API key with configId', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ success: true }))
+
+      const result = await revokeStremThruApiKey('stremthru-key-1')
+
+      expect(result).toEqual({ success: true })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/auth/api-key/delete')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({ configId: 'stremthru', keyId: 'stremthru-key-1' })
+    })
+
+    it('throws ApiError when creating or revoking fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ message: 'Forbidden' }, false, 403))
+      await expect(createStremThruApiKey('org-1', 'MediaFusion')).rejects.toBeInstanceOf(ApiError)
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ message: 'Not found' }, false, 404))
+      await expect(revokeStremThruApiKey('missing')).rejects.toBeInstanceOf(ApiError)
     })
   })
 

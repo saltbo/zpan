@@ -49,6 +49,7 @@ import system from './http/site/system'
 import { adminTorrentCacheSettings, adminTorrents } from './http/site/torrents'
 import storageUsage from './http/storage-usage'
 import { cloudStore, cloudStoreWebhooks } from './http/store'
+import stremthru from './http/stremthru'
 import { adminTeams, publicTeams, teams } from './http/teams'
 import { torrentCacheConfig } from './http/torrent-cache'
 import trash from './http/trash'
@@ -139,6 +140,8 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.use('/api/*', accessLog)
   app.use('/dav', accessLog)
   app.use('/dav/*', accessLog)
+  // StremThru keys arrive in headers, which the access log never records.
+  app.use('/stremthru/*', accessLog)
 
   app.use(
     '/api/*',
@@ -315,6 +318,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.get('/api/docs', Scalar({ url: '/api/openapi.json', title: 'ZPan API' }))
 
   app.route('/dav', webdav)
+  app.route('/stremthru', stremthru)
 
   // Resolve the caller's principal for API routes that can use it. Public,
   // identity-independent health/config responses skip session resolution so

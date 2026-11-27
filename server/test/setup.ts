@@ -373,6 +373,17 @@ const APP_SCHEMA_SQL = `
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS stremthru_links (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    org_id TEXT NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+    matter_id TEXT NOT NULL,
+    url TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS stremthru_links_user_matter_uniq ON stremthru_links(user_id, matter_id);
+  CREATE INDEX IF NOT EXISTS stremthru_links_expires_idx ON stremthru_links(expires_at);
   CREATE TABLE IF NOT EXISTS webdav_dead_properties (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,

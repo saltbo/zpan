@@ -6,6 +6,7 @@ export const ApiKeyTemplate = {
   IHOST: 'ihost',
   WEBDAV: 'webdav',
   REMOTE_DOWNLOAD: 'remote-download',
+  STREMTHRU: 'stremthru',
 } as const
 
 export type ApiKeyTemplate = (typeof ApiKeyTemplate)[keyof typeof ApiKeyTemplate]
@@ -59,10 +60,16 @@ export const REMOTE_DOWNLOAD_API_KEY_PERMISSIONS = {
   ]),
 } satisfies ApiKeyPermissions
 
+// A StremThru key lives in third-party addon configuration, so it carries no
+// ZPan API scope at all: only the /stremthru Store API accepts it, verified by
+// its template (docs/design/torrent-cache.md §12).
+export const STREMTHRU_API_KEY_PERMISSIONS = { stremthru: ['store'] } satisfies ApiKeyPermissions
+
 export const API_KEY_TEMPLATE_PERMISSIONS = {
   [ApiKeyTemplate.IHOST]: IHOST_API_KEY_PERMISSIONS,
   [ApiKeyTemplate.WEBDAV]: WEBDAV_API_KEY_PERMISSIONS,
   [ApiKeyTemplate.REMOTE_DOWNLOAD]: REMOTE_DOWNLOAD_API_KEY_PERMISSIONS,
+  [ApiKeyTemplate.STREMTHRU]: STREMTHRU_API_KEY_PERMISSIONS,
 } satisfies Record<ApiKeyTemplate, ApiKeyPermissions>
 
 export const API_KEY_TEMPLATES = Object.values(ApiKeyTemplate)

@@ -15,6 +15,8 @@ run_worker_first = [
   "/.well-known/zpan-domain-verification/*",
   "/dav",
   "/dav/*",
+  "/stremthru",
+  "/stremthru/*",
   "/ih/*",
   "/r/*",
   "/s/*",

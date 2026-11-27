@@ -48,6 +48,7 @@ import type {
   StorageRepo,
   StorageUsageBreakdownRepo,
   StorageUsageRepo,
+  StremThruLinkRepo,
   SystemOptionsRepo,
   TeamInviteRepo,
   TeamRepo,
@@ -113,6 +114,7 @@ export interface Deps {
   teamInvites: TeamInviteRepo
   torrents: TorrentRepo
   torrentCacheConfigs: TorrentCacheConfigRepo
+  stremthruLinks: StremThruLinkRepo
   userAdmin: UserAdminRepo
   webdavPath: WebDavPathRepo
   webdavState: WebDavStateRepo

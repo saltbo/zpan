@@ -1368,6 +1368,35 @@ export function revokeRemoteDownloadApiKey(keyId: string) {
   })
 }
 
+// StremThru API Keys (via better-auth apiKey plugin): addons such as MediaFusion
+// use them against /stremthru, bound to one workspace.
+
+export type StremThruApiKey = IhostApiKey
+
+export interface CreateStremThruApiKeyResult extends StremThruApiKey {
+  key: string
+}
+
+export function createStremThruApiKey(organizationId: string, name: string) {
+  return apiKeyFetch<CreateStremThruApiKeyResult>('/api-key/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      configId: ApiKeyTemplate.STREMTHRU,
+      name,
+      organizationId,
+    }),
+  })
+}
+
+export function revokeStremThruApiKey(keyId: string) {
+  return apiKeyFetch<{ success: boolean }>('/api-key/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ configId: ApiKeyTemplate.STREMTHRU, keyId }),
+  })
+}
+
 // Licensing API
 
 export type { BindingState }
