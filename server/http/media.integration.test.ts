@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { createMatterRepo } from '../adapters/repos/matter.js'
 import { adminHeaders, createTestApp } from '../test/setup.js'
-import { mintTaskUploadContext } from '../test/task-upload.js'
+import { mintSiblingTaskUploadToken, mintTaskUploadContext } from '../test/task-upload.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>['app']
 type TestDb = Awaited<ReturnType<typeof createTestApp>>['db']
@@ -165,6 +165,26 @@ describe('task media metadata [spec: file-metadata/task-write]', () => {
       body: JSON.stringify(movie()),
     })
     expect(userRes.status).toBe(403)
+  })
+
+  it('refuses a file another task of the same downloader uploaded into the shared folder', async () => {
+    const context = await setup()
+    const { app, db, uploadToken } = context
+    const sibling = await mintSiblingTaskUploadToken(app, context)
+    const siblingVideo = await uploadAsTask(app, sibling.uploadToken, { name: 'sibling.mkv', parent: 'Movies' })
+
+    expect((await putMedia(app, uploadToken, siblingVideo, movie())).status).toBe(403)
+    expect(await metadataOf(db, siblingVideo)).toBeNull()
+    expect((await putMedia(app, sibling.uploadToken, siblingVideo, movie())).status).toBe(200)
+  })
+
+  it('keeps the device-and-assignment rule for a file created before matters recorded their task', async () => {
+    const { app, db, uploadToken } = await setup()
+    const videoId = await uploadAsTask(app, uploadToken, { name: 'legacy.mkv', parent: 'Movies' })
+    await db.run(sql`UPDATE matters SET created_by_task_id = NULL WHERE id = ${videoId}`)
+
+    expect((await putMedia(app, uploadToken, videoId, movie())).status).toBe(200)
+    expect(await metadataOf(db, videoId)).toEqual({ media: movie() })
   })
 
   it('sets media on a reused folder only while it has none', async () => {

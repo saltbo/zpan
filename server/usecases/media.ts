@@ -29,8 +29,9 @@ export interface TaskUploadWriter {
 }
 
 // A task's upload token may set `media` on what that task uploaded: a live
-// matter inside the task's target folder, created by the task's downloader
-// since the task's current assignment. A folder it did not create (a show
+// matter inside the task's target folder that records the task as its creator.
+// A matter from before matters recorded their task counts as the task's when
+// the task's downloader created it since the task's current assignment. A folder it did not create (a show
 // folder an earlier task made) takes `media` only while it has none, so an
 // earlier task's show data is never overwritten.
 export async function setTaskMediaMetadata(
@@ -51,7 +52,7 @@ export async function setTaskMediaMetadata(
   if ((media.kind === 'tvshow') !== (matter.dirtype !== DirType.FILE)) {
     throw badRequest(media.kind === 'tvshow' ? 'Show media belongs on a folder' : 'Video media belongs on a file')
   }
-  if (createdByTask(matter, writer.downloaderId, task.assignedAt)) {
+  if (createdByTask(matter, writer, task.assignedAt)) {
     if (!(await deps.matter.setMediaMetadata(orgId, objectId, media, { onlyIfAbsent: false }))) throw notFound()
     return
   }
@@ -61,10 +62,11 @@ export async function setTaskMediaMetadata(
   }
 }
 
-function createdByTask(matter: Matter, downloaderId: string, assignedAt: Date | null): boolean {
+function createdByTask(matter: Matter, writer: TaskUploadWriter, assignedAt: Date | null): boolean {
+  if (matter.createdByTaskId) return matter.createdByTaskId === writer.taskId
   return (
     matter.createdByActorType === 'device' &&
-    matter.createdByActorRef === downloaderId &&
+    matter.createdByActorRef === writer.downloaderId &&
     assignedAt !== null &&
     // createdAt has second precision.
     matter.createdAt.getTime() >= Math.floor(assignedAt.getTime() / 1000) * 1000
