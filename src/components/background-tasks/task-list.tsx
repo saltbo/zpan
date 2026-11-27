@@ -1,5 +1,5 @@
 import type { BackgroundJob, BackgroundJobStatus, KnownBackgroundJobType } from '@shared/types'
-import { Archive, Clapperboard, FileArchive, type LucideIcon, RotateCcw, Square } from 'lucide-react'
+import { Archive, Clapperboard, FileArchive, type LucideIcon, RotateCcw, ShieldCheck, Square } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,7 @@ const TASK_TYPES: Record<KnownBackgroundJobType, { icon: LucideIcon; labelKey: s
   archive_compress: { icon: Archive, labelKey: 'tasks.type.archiveCompress', byteProgress: true },
   archive_extract: { icon: FileArchive, labelKey: 'tasks.type.archiveExtract', byteProgress: true },
   media_library_scan: { icon: Clapperboard, labelKey: 'tasks.type.mediaLibraryScan', byteProgress: false },
+  torrent_verify: { icon: ShieldCheck, labelKey: 'tasks.type.torrentVerify', byteProgress: false },
 }
 
 function taskType(type: string) {

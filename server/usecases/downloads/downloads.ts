@@ -47,6 +47,15 @@ import type {
 } from '../ports'
 import { actorIdentityKey, DownloadError, featureBlocked, unauthorized } from '../ports'
 import { loadBindingState } from '../site/licensing'
+import {
+  isTorrentSource,
+  serveTaskFromCache,
+  settleJoinedTasks,
+  submittedInfoHash,
+  TORRENT_CACHE_CAPABILITY,
+  type TorrentFillDeps,
+  torrentCacheEnabled,
+} from '../torrent-cache/fill'
 import { ensureDownloadFolderPath } from './download-folders'
 import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from './remote-download-usage'
 
@@ -70,7 +79,7 @@ export type DownloadsDeps = {
   audit: AuditRepo
   matter: MatterRepo
   storages: StorageRepo
-}
+} & Omit<TorrentFillDeps, 'downloadTasks' | 'licenseBinding' | 'licenseCloudBaseUrl' | 'matter' | 'storages'>
 
 const DEFAULT_REMOTE_DOWNLOAD_UNIT_BYTES = 100 * 1024 * 1024
 const UPLOAD_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
@@ -265,6 +274,7 @@ export async function recordDownloaderHeartbeat(
     await deps.downloaders.recordHeartbeat(downloaderId, heartbeat, downloader.enabled, persistence.statusChanged, now)
   }
   await recoverStaleDownloaderAssignments(deps)
+  await settleJoinedTasks(deps, now)
   if (downloader.enabled) {
     await claimQueuedTasksForDownloader(deps, {
       id: downloaderId,
@@ -345,8 +355,14 @@ export async function createDownloadTask(
     assignedDownloaderId: null,
     status: 'queued',
     assignedAt: null,
+    infoHash: submittedInfoHash(input.source),
     now,
   })
+  // A magnet's infoHash is known now: a cached torrent completes the task at
+  // once, and one already downloading takes the task along.
+  if (isTorrentSource(input.source.type) && (await torrentCacheEnabled(deps))) {
+    await serveTaskFromCache(deps, await deps.downloadTasks.getRecord(orgId, id), now)
+  }
   return decorateDownloadTaskActors(deps, await deps.downloadTasks.get(orgId, id))
 }
 
@@ -655,6 +671,8 @@ export async function performDownloadTaskAction(
       errorCode: null,
       errorMessage: null,
       resultObjectId: null,
+      torrentId: null,
+      torrentCacheRole: null,
       runtime: clearTaskRuntimeMessageJson(task.runtime),
       assignedAt: null,
       startedAt: null,
@@ -681,6 +699,8 @@ export async function performDownloadTaskAction(
       errorCode: null,
       errorMessage: null,
       resultObjectId: null,
+      torrentId: null,
+      torrentCacheRole: null,
       runtime: null,
       assignedAt: null,
       startedAt: null,
@@ -719,10 +739,22 @@ async function claimQueuedTasksForDownloader(
   if (params.freeSlots <= 0) return
   const tasks = await deps.downloadTasks.listQueued(QUEUE_ASSIGN_BATCH)
   let remaining = params.freeSlots
+  let cacheEnabled: boolean | undefined
   for (const task of tasks) {
     if (remaining <= 0) break
     if (!canDownloaderRunSource(params.capabilities, task.sourceType)) continue
-    if (await deps.downloadTasks.claimQueued(task.id, params.id, params.now)) {
+    let torrentCacheRole: 'fill' | null | undefined
+    if (isTorrentSource(task.sourceType)) {
+      cacheEnabled ??= await torrentCacheEnabled(deps)
+      // The torrent may have been cached, or started downloading, since submit.
+      if (cacheEnabled && (await serveTaskFromCache(deps, task, params.now)) !== 'miss') continue
+      // Only a downloader reporting the capability downloads into the cache;
+      // every other one uploads into the drive as before.
+      if (cacheEnabled && params.capabilities.includes(TORRENT_CACHE_CAPABILITY)) torrentCacheRole = 'fill'
+      else if (task.torrentCacheRole) torrentCacheRole = null
+    }
+    const options = torrentCacheRole === undefined ? undefined : { torrentCacheRole }
+    if (await deps.downloadTasks.claimQueued(task.id, params.id, params.now, options)) {
       remaining -= 1
     }
   }
@@ -972,7 +1004,11 @@ function taskEventTimelineItem(taskId: string, event: DownloadTaskEvent): Downlo
           ? 'download_task_cleanup_completed'
           : event.type === 'scrape_skipped'
             ? 'download_task_scrape_skipped'
-            : 'download_task_error'
+            : event.type === 'cache_hit'
+              ? 'download_task_cache_hit'
+              : event.type === 'cache_joined'
+                ? 'download_task_cache_joined'
+                : 'download_task_error'
   const metadata = {
     attempt: event.attempt,
     from: event.from,
@@ -1043,6 +1079,8 @@ function actionTitle(action: string): string {
     download_task_deleted: 'Task deleted',
     download_task_error: 'Error reported',
     download_task_scrape_skipped: 'Uploaded without media scraping',
+    download_task_cache_hit: 'Completed from the torrent cache',
+    download_task_cache_joined: 'Joined a download already in progress',
     download_task_cleanup_requested: 'Downloader cleanup requested',
     download_task_cleanup_completed: 'Downloader cleanup completed',
     download_resolve_started: 'Resolving source',
@@ -1076,7 +1114,7 @@ function actionDetail(metadata: Record<string, unknown> | null): string | null {
 function actionSeverity(action: string): DownloadTaskTimelineItem['severity'] {
   if (action.includes('failed') || action.includes('error')) return 'error'
   if (action.includes('suspended') || action.includes('offline') || action.includes('skipped')) return 'warning'
-  if (action.includes('completed')) return 'success'
+  if (action.includes('completed') || action === 'download_task_cache_hit') return 'success'
   return 'info'
 }
 
@@ -1117,6 +1155,7 @@ function downloadTaskFromRecord(row: DownloadTaskRecord): DownloadTask {
             downloaderId: row.assignedDownloaderId,
             assignedAt: row.assignedAt?.toISOString() ?? null,
             executor: fallbackActorAttribution({ type: 'device', ref: row.assignedDownloaderId, issuer: null }),
+            ...(row.torrentCacheRole === 'fill' ? { torrentCache: true as const } : {}),
           }
         : null,
       progress: runtime?.progress ?? {

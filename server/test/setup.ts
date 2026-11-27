@@ -362,6 +362,7 @@ const APP_SCHEMA_SQL = `
     mime TEXT NOT NULL DEFAULT '',
     storage_id TEXT NOT NULL,
     object_key TEXT NOT NULL,
+    uploaded_at INTEGER,
     PRIMARY KEY (torrent_id, file_idx)
   );
   CREATE UNIQUE INDEX IF NOT EXISTS torrent_files_storage_object_uniq ON torrent_files(storage_id, object_key);
@@ -791,8 +792,12 @@ const APP_SCHEMA_SQL = `
     assigned_at INTEGER,
     started_at INTEGER,
     finished_at INTEGER,
-    deleted_at INTEGER
+    deleted_at INTEGER,
+    info_hash TEXT,
+    torrent_id TEXT,
+    torrent_cache_role TEXT
   );
+  CREATE INDEX IF NOT EXISTS download_tasks_torrent_idx ON download_tasks(torrent_id, status);
   CREATE INDEX IF NOT EXISTS download_tasks_org_created_idx ON download_tasks(org_id, created_at);
   CREATE INDEX IF NOT EXISTS download_tasks_org_status_idx ON download_tasks(org_id, status);
   CREATE INDEX IF NOT EXISTS download_tasks_org_category_idx ON download_tasks(org_id, category);

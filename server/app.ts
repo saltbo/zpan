@@ -18,6 +18,7 @@ import { addRegisteredBetterAuthOpenApiOperations, DOWNLOADER_DEVICE_FLOW_TAG } 
 import { configz } from './http/configz'
 import downloadTasks, { downloaderTasksRoute } from './http/downloads/download-tasks'
 import downloaders, { downloaderSelfRoute } from './http/downloads/downloaders'
+import { taskTorrentRoute } from './http/downloads/task-torrent'
 import { events } from './http/events'
 import ihostConfig from './http/image-hosting/config'
 import ihost from './http/image-hosting/images'
@@ -387,6 +388,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/media-libraries', mediaLibraries)
   app.route('/api/media', media)
   app.route('/api/downloads/tasks', downloadTasks)
+  app.route('/api/downloads/tasks', taskTorrentRoute)
   app.route('/api/events', events)
   app.route('/api/downloads/downloaders', downloaderSelfRoute)
   app.route('/api/downloads/downloaders', downloaderTasksRoute)

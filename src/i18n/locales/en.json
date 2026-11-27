@@ -157,6 +157,7 @@
   "tasks.type.archiveCompress": "Compress archive",
   "tasks.type.archiveExtract": "Extract archive",
   "tasks.type.mediaLibraryScan": "Media library scan",
+  "tasks.type.torrentVerify": "Torrent piece verification",
   "tasks.colTask": "Task",
   "tasks.colStatus": "Status",
   "tasks.colProgress": "Progress",
@@ -2548,5 +2549,7 @@
   "shows.episodeNumber": "Episode {{number}}",
   "shows.playEpisode": "Play {{code}} {{title}}",
   "shows.noEpisodesTitle": "No episodes",
-  "shows.noEpisodesHint": "The episodes of this show were moved out of its folder or deleted."
+  "shows.noEpisodesHint": "The episodes of this show were moved out of its folder or deleted.",
+  "downloads.events.download_task_cache_hit": "Completed from the torrent cache",
+  "downloads.events.download_task_cache_joined": "Joined a download already in progress"
 }
