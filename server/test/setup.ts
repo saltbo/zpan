@@ -324,9 +324,13 @@ const APP_SCHEMA_SQL = `
     created_by_actor_type TEXT,
     created_by_actor_ref TEXT,
     created_by_actor_issuer TEXT,
+    metadata TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE INDEX IF NOT EXISTS matters_media_kind_idx
+    ON matters(org_id, metadata ->> '$.media.kind', created_at DESC, id DESC)
+    WHERE status = 'active' AND trashed_at IS NULL AND purged_at IS NULL;
   CREATE UNIQUE INDEX IF NOT EXISTS matters_active_name_uniq
     ON matters(org_id, parent, LOWER(name))
     WHERE status = 'active' AND trashed_at IS NULL;

@@ -2198,7 +2198,7 @@ func applyTaskPatch(task client.DownloadTask, patch client.TaskPatch) client.Dow
 	return task
 }
 
-func (a *recordingAPI) CreateFolder(context.Context, string, string, string) (client.ObjectDraft, error) {
+func (a *recordingAPI) CreateFolder(context.Context, string, string, string, client.OnConflict) (client.ObjectDraft, error) {
 	if a.createFolderErr != nil {
 		return client.ObjectDraft{}, a.createFolderErr
 	}
@@ -2210,16 +2210,24 @@ func (a *recordingAPI) CreateFolder(context.Context, string, string, string) (cl
 	return client.ObjectDraft{ID: "folder-1", Name: "folder"}, nil
 }
 
-func (a *recordingAPI) CreateObject(context.Context, string, string, int64, string) (client.ObjectDraft, error) {
+func (a *recordingAPI) CreateObject(context.Context, string, string, int64, string, client.OnConflict) (client.ObjectDraft, error) {
 	return a.createObjectDraft, nil
 }
 
-func (a *recordingAPI) CompleteObjectUpload(context.Context, string, string, string, []client.CompletedObjectUploadPart) error {
+func (a *recordingAPI) CompleteObjectUpload(_ context.Context, _ string, id string, _ string, _ []client.CompletedObjectUploadPart) (client.ObjectDraft, error) {
 	if len(a.completeErrs) > 0 {
 		err := a.completeErrs[0]
 		a.completeErrs = a.completeErrs[1:]
-		return err
+		return client.ObjectDraft{}, err
 	}
+	return client.ObjectDraft{ID: id, Name: a.createObjectDraft.Name}, nil
+}
+
+func (a *recordingAPI) FindObject(context.Context, string, string, string) (client.ObjectEntry, bool, error) {
+	return client.ObjectEntry{}, false, nil
+}
+
+func (a *recordingAPI) PutMediaMetadata(context.Context, string, string, any) error {
 	return nil
 }
 

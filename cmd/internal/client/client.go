@@ -1,8 +1,10 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -224,6 +226,9 @@ type TaskPatch struct {
 	ResultObjectID   *string                    `json:"resultObjectId,omitempty"`
 	Runtime          *DownloadTaskRuntime       `json:"runtime,omitempty"`
 	CleanupCompleted bool                       `json:"cleanupCompleted,omitempty"`
+	// ScrapeSkippedReason records in the task activity why the download was
+	// uploaded without media scraping.
+	ScrapeSkippedReason string `json:"scrapeSkippedReason,omitempty"`
 }
 
 func (p TaskPatch) State() string {
@@ -583,12 +588,70 @@ func (c *Client) UpdateTask(ctx context.Context, id string, patch TaskPatch) (Do
 	return task, nil
 }
 
-func (c *Client) CreateObject(ctx context.Context, token string, name string, size int64, parent string) (ObjectDraft, error) {
-	return c.createMatter(ctx, token, name, "application/octet-stream", size, parent, dirTypeFile)
+// OnConflict is what the server does when the parent already holds a live
+// entry of that name: Rename gives the new entry a free name, Fail answers 409.
+type OnConflict string
+
+const (
+	OnConflictRename OnConflict = "rename"
+	OnConflictFail   OnConflict = "fail"
+)
+
+func (c *Client) CreateObject(ctx context.Context, token string, name string, size int64, parent string, onConflict OnConflict) (ObjectDraft, error) {
+	return c.createMatter(ctx, token, name, "application/octet-stream", size, parent, dirTypeFile, onConflict)
 }
 
-func (c *Client) CreateFolder(ctx context.Context, token string, name string, parent string) (ObjectDraft, error) {
-	return c.createMatter(ctx, token, name, "folder", 0, parent, dirTypeUserFolder)
+func (c *Client) CreateFolder(ctx context.Context, token string, name string, parent string, onConflict OnConflict) (ObjectDraft, error) {
+	return c.createMatter(ctx, token, name, "folder", 0, parent, dirTypeUserFolder, onConflict)
+}
+
+// ObjectEntry is a live entry found in a folder.
+type ObjectEntry struct {
+	ID       string
+	Name     string
+	IsFolder bool
+}
+
+// FindObject looks up the live entry named name in parent, comparing names
+// case-insensitively like the server does. found is false when there is none.
+func (c *Client) FindObject(ctx context.Context, token string, parent string, name string) (ObjectEntry, bool, error) {
+	pageSize := 1
+	res, err := c.api.ListObjectsWithResponse(ctx, &openapi.ListObjectsParams{
+		Parent:   &parent,
+		Name:     &name,
+		PageSize: &pageSize,
+	}, bearer(token))
+	if err != nil {
+		return ObjectEntry{}, false, err
+	}
+	if err := expectStatus("GET", "/api/objects", res.StatusCode(), res.Body, http.StatusOK); err != nil {
+		return ObjectEntry{}, false, err
+	}
+	if res.JSON200 == nil {
+		return ObjectEntry{}, false, fmt.Errorf("GET /api/objects failed: empty response")
+	}
+	if len(res.JSON200.Items) == 0 {
+		return ObjectEntry{}, false, nil
+	}
+	item := res.JSON200.Items[0]
+	return ObjectEntry{
+		ID:       item.Id,
+		Name:     item.Name,
+		IsFolder: item.Dirtype != nil && *item.Dirtype != dirTypeFile,
+	}, true, nil
+}
+
+// PutMediaMetadata sets the object's `media` file metadata.
+func (c *Client) PutMediaMetadata(ctx context.Context, token string, id string, media any) error {
+	body, err := json.Marshal(media)
+	if err != nil {
+		return err
+	}
+	res, err := c.api.ReplaceObjectMediaMetadataWithBodyWithResponse(ctx, id, "application/json", bytes.NewReader(body), bearer(token))
+	if err != nil {
+		return err
+	}
+	return expectStatus("PUT", "/api/objects/"+id+"/metadata/media", res.StatusCode(), res.Body, http.StatusOK)
 }
 
 func (c *Client) createMatter(
@@ -599,9 +662,10 @@ func (c *Client) createMatter(
 	size int64,
 	parent string,
 	dirtype int,
+	conflict OnConflict,
 ) (ObjectDraft, error) {
 	sizeInt := int(size)
-	onConflict := openapi.CreateObjectJSONBodyOnConflictRename
+	onConflict := openapi.CreateObjectJSONBodyOnConflict(conflict)
 	res, err := c.api.CreateObjectWithResponse(ctx, openapi.CreateObjectJSONRequestBody{
 		Name:       name,
 		Type:       &contentType,
@@ -671,7 +735,9 @@ func (c *Client) PresignObjectUploadParts(ctx context.Context, token string, id 
 	return parts, nil
 }
 
-func (c *Client) CompleteObjectUpload(ctx context.Context, token string, id string, sessionID string, parts []CompletedObjectUploadPart) error {
+// CompleteObjectUpload finalizes an upload and returns the live object, whose
+// name is the one the server gave it.
+func (c *Client) CompleteObjectUpload(ctx context.Context, token string, id string, sessionID string, parts []CompletedObjectUploadPart) (ObjectDraft, error) {
 	body := openapi.CompleteObjectUploadJSONRequestBody{
 		Parts: make([]struct {
 			Etag       string `json:"etag"`
@@ -686,9 +752,16 @@ func (c *Client) CompleteObjectUpload(ctx context.Context, token string, id stri
 	}
 	res, err := c.api.CompleteObjectUploadWithResponse(ctx, id, sessionID, body, bearer(token))
 	if err != nil {
-		return err
+		return ObjectDraft{}, err
 	}
-	return expectStatus("POST", "/api/objects/"+id+"/uploads/"+sessionID+"/completions", res.StatusCode(), res.Body, http.StatusOK)
+	path := "/api/objects/" + id + "/uploads/" + sessionID + "/completions"
+	if err := expectStatus("POST", path, res.StatusCode(), res.Body, http.StatusOK); err != nil {
+		return ObjectDraft{}, err
+	}
+	if res.JSON200 == nil {
+		return ObjectDraft{}, fmt.Errorf("POST %s failed: empty response", path)
+	}
+	return ObjectDraft{ID: res.JSON200.Id, Name: res.JSON200.Name}, nil
 }
 
 func (c *Client) AbortObjectUploadSession(ctx context.Context, token string, id string, sessionID string) error {
@@ -733,13 +806,31 @@ func bearer(token string) openapi.RequestEditorFn {
 	}
 }
 
+// StatusError is an API response with an unexpected status.
+type StatusError struct {
+	Method  string
+	Path    string
+	Status  int
+	Message string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("%s %s failed: %s: %s", e.Method, e.Path, http.StatusText(e.Status), e.Message)
+}
+
+// IsConflict reports whether err is a 409 from the API.
+func IsConflict(err error) bool {
+	var status *StatusError
+	return errors.As(err, &status) && status.Status == http.StatusConflict
+}
+
 func expectStatus(method string, path string, actual int, body []byte, expected ...int) error {
 	for _, status := range expected {
 		if actual == status {
 			return nil
 		}
 	}
-	return fmt.Errorf("%s %s failed: %s: %s", method, path, http.StatusText(actual), responseError(body))
+	return &StatusError{Method: method, Path: path, Status: actual, Message: responseError(body)}
 }
 
 func responseError(body []byte) string {

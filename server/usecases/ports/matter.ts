@@ -1,4 +1,4 @@
-import type { ActorType, ConflictStrategy } from '@shared/schemas'
+import type { ActorType, ConflictStrategy, MatterMetadata, MediaMetadata } from '@shared/schemas'
 
 export type { ConflictStrategy } from '@shared/schemas'
 
@@ -23,8 +23,14 @@ export interface Matter {
   createdByActorType?: string | null
   createdByActorRef?: string | null
   createdByActorIssuer?: string | null
+  metadata?: MatterMetadata | null
   createdAt: Date
   updatedAt: Date
+}
+
+export interface MediaPageBoundary {
+  createdAt: Date
+  id: string
 }
 
 export interface CreateMatterInput {
@@ -48,6 +54,8 @@ export interface CreateMatterInput {
 // bin is served separately by listTrashedRoots.
 export interface MatterListFilters {
   parent?: string
+  // The entry in `parent` with this name, compared case-insensitively.
+  name?: string
   pageSize: number
   typeFilter?: string
   search?: string
@@ -132,6 +140,7 @@ export interface MatterRepo {
   // Bump updatedAt only (WebDAV PROPPATCH touches the matter's mtime).
   touch(orgId: string, id: string): Promise<void>
   // Overwrite a file matter's content fields after a WebDAV PUT to an existing path.
+  // Clears its metadata, since the old match may not describe the new content.
   applyUpload(orgId: string, matter: Matter, fields: { type: string; size: number; object: string }): Promise<void>
   listTrashedRoots(orgId: string): Promise<Matter[]>
   listTrashedRootPage(
@@ -168,4 +177,20 @@ export interface MatterRepo {
    * concurrent-confirm safety net. Returns false when no draft row matched (race).
    */
   activateDraft(id: string, orgId: string, finalName: string, type: string, now: Date): Promise<boolean>
+  /**
+   * Sets the `media` namespace of a live matter's metadata and bumps its
+   * updatedAt. With onlyIfAbsent, a matter that already has `media` is left
+   * alone. Returns whether a row was written.
+   */
+  setMediaMetadata(
+    orgId: string,
+    id: string,
+    media: MediaMetadata,
+    options: { onlyIfAbsent: boolean },
+  ): Promise<boolean>
+  // Live matters whose media.kind is `kind`, newest first (createdAt, then id).
+  listMediaPage(
+    orgId: string,
+    params: { kind: MediaMetadata['kind']; pageSize: number; after?: MediaPageBoundary },
+  ): Promise<{ items: Matter[]; nextBoundary: MediaPageBoundary | null }>
 }

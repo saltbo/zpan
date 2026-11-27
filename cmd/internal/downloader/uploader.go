@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -39,14 +40,27 @@ func (u *Uploader) Upload(
 	task client.DownloadTask,
 	result Result,
 ) (string, error) {
+	if result.Plan != nil {
+		id, notices, err := u.uploadPlan(ctx, log, task, *result.Plan)
+		var unusable *planUnusableError
+		if !errors.As(err, &unusable) {
+			for _, notice := range notices {
+				u.reportScrapeSkipped(ctx, log, task.ID, notice)
+			}
+			return id, err
+		}
+		log.Warn("upload plan unusable; uploading unprocessed", "reason", unusable.reason)
+		u.reportScrapeSkipped(ctx, log, task.ID, unusable.reason)
+	}
 	if !result.IsDir {
 		progress := &uploadProgress{totalBytes: result.Size, lastAt: time.Now()}
-		return u.uploadSingleFile(ctx, log, task, result.Path, result.Name, result.Size, task.TargetFolder(), progress)
+		draft, err := u.uploadSingleFile(ctx, log, task, result.Path, result.Name, result.Size, task.TargetFolder(), client.OnConflictRename, progress)
+		return draft.ID, err
 	}
 
 	progress := &uploadProgress{totalBytes: result.Size, lastAt: time.Now()}
 	log.Info("creating remote folder", "name", result.Name, "size", result.Size, "target_folder", task.TargetFolder())
-	root, err := u.createFolder(ctx, task.UploadToken(), result.Name, task.TargetFolder())
+	root, err := u.createFolder(ctx, task.UploadToken(), result.Name, task.TargetFolder(), client.OnConflictRename)
 	if err != nil {
 		return "", fmt.Errorf("create remote folder: %w", err)
 	}
@@ -70,12 +84,12 @@ func (u *Uploader) Upload(
 		parent := joinObjectPath(rootPath, path.Dir(entry.relativePath))
 		if entry.isDir {
 			log.Debug("creating remote subfolder", "name", entry.name, "parent", parent)
-			if _, err := u.createFolder(ctx, task.UploadToken(), entry.name, parent); err != nil {
+			if _, err := u.createFolder(ctx, task.UploadToken(), entry.name, parent, client.OnConflictRename); err != nil {
 				return "", fmt.Errorf("create remote subfolder %s: %w", entry.relativePath, err)
 			}
 			continue
 		}
-		if _, err := u.uploadSingleFile(ctx, log, task, entry.path, entry.name, entry.size, parent, progress); err != nil {
+		if _, err := u.uploadSingleFile(ctx, log, task, entry.path, entry.name, entry.size, parent, client.OnConflictRename, progress); err != nil {
 			return "", err
 		}
 	}
@@ -91,21 +105,23 @@ func (u *Uploader) uploadSingleFile(
 	name string,
 	size int64,
 	parent string,
+	onConflict client.OnConflict,
 	progress *uploadProgress,
-) (string, error) {
+) (client.ObjectDraft, error) {
 	log.Info("creating remote object", "name", name, "size", size, "target_folder", parent)
-	draft, err := u.createObject(ctx, task.UploadToken(), name, size, parent)
+	draft, err := u.createObject(ctx, task.UploadToken(), name, size, parent, onConflict)
 	if err != nil {
-		return "", fmt.Errorf("create remote object: %w", err)
+		return client.ObjectDraft{}, fmt.Errorf("create remote object: %w", err)
 	}
 	if draft.Upload == nil {
-		return "", fmt.Errorf("create remote object %s: missing upload instructions", draft.ID)
+		return client.ObjectDraft{}, fmt.Errorf("create remote object %s: missing upload instructions", draft.ID)
 	}
 	log.Info("uploading file to object storage", "object_id", draft.ID, "path", path, "parts", len(draft.Upload.Parts))
-	if err := u.uploadObjectSlices(ctx, log, task, draft, path, size, progress); err != nil {
-		return "", fmt.Errorf("upload object %s: %w", draft.ID, err)
+	live, err := u.uploadObjectSlices(ctx, log, task, draft, path, size, progress)
+	if err != nil {
+		return client.ObjectDraft{}, fmt.Errorf("upload object %s: %w", draft.ID, err)
 	}
-	return draft.ID, nil
+	return live, nil
 }
 
 // uploadObjectSlices runs the uniform upload: PUT each explicit presigned part,
@@ -119,7 +135,7 @@ func (u *Uploader) uploadObjectSlices(
 	filePath string,
 	size int64,
 	progress *uploadProgress,
-) error {
+) (client.ObjectDraft, error) {
 	upload := draft.Upload
 	completed := false
 	defer func() {
@@ -135,7 +151,7 @@ func (u *Uploader) uploadObjectSlices(
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return err
+		return client.ObjectDraft{}, err
 	}
 	defer file.Close()
 
@@ -151,18 +167,19 @@ func (u *Uploader) uploadObjectSlices(
 			return u.reportUploadProgress(ctx, log, task, progress, written)
 		})
 		if err != nil {
-			return fmt.Errorf("upload part %d: %w", partNumber, err)
+			return client.ObjectDraft{}, fmt.Errorf("upload part %d: %w", partNumber, err)
 		}
 		if etag == "" {
-			return fmt.Errorf("upload part %d: missing ETag", partNumber)
+			return client.ObjectDraft{}, fmt.Errorf("upload part %d: missing ETag", partNumber)
 		}
 		parts = append(parts, client.CompletedObjectUploadPart{PartNumber: partNumber, ETag: etag})
 	}
-	if err := u.completeObjectUpload(ctx, task.UploadToken(), draft.ID, upload.SessionID, parts); err != nil {
-		return fmt.Errorf("complete upload: %w", err)
+	live, err := u.completeObjectUpload(ctx, task.UploadToken(), draft.ID, upload.SessionID, parts)
+	if err != nil {
+		return client.ObjectDraft{}, fmt.Errorf("complete upload: %w", err)
 	}
 	completed = true
-	return nil
+	return live, nil
 }
 
 func (u *Uploader) reportUploadProgress(
@@ -211,6 +228,12 @@ func (u *Uploader) reportUploadProgress(
 	return nil
 }
 
+func (u *Uploader) reportScrapeSkipped(ctx context.Context, log *slog.Logger, taskID string, reason string) {
+	if _, err := u.updateTask(ctx, taskID, client.TaskPatch{ScrapeSkippedReason: scrapeReason(reason)}); err != nil {
+		log.Warn("failed to record skipped media scraping", "error", err)
+	}
+}
+
 func (u *Uploader) updateTask(ctx context.Context, id string, patch client.TaskPatch) (client.DownloadTask, error) {
 	var task client.DownloadTask
 	err := callAPI(ctx, nil, "update task", func(ctx context.Context) error {
@@ -221,29 +244,50 @@ func (u *Uploader) updateTask(ctx context.Context, id string, patch client.TaskP
 	return task, err
 }
 
-func (u *Uploader) createFolder(ctx context.Context, token string, name string, parent string) (client.ObjectDraft, error) {
+func (u *Uploader) createFolder(ctx context.Context, token string, name string, parent string, onConflict client.OnConflict) (client.ObjectDraft, error) {
 	var draft client.ObjectDraft
 	err := callAPI(ctx, nil, "create folder", func(ctx context.Context) error {
 		var err error
-		draft, err = u.api.CreateFolder(ctx, token, name, parent)
+		draft, err = u.api.CreateFolder(ctx, token, name, parent, onConflict)
 		return err
 	})
 	return draft, err
 }
 
-func (u *Uploader) createObject(ctx context.Context, token string, name string, size int64, parent string) (client.ObjectDraft, error) {
+func (u *Uploader) createObject(ctx context.Context, token string, name string, size int64, parent string, onConflict client.OnConflict) (client.ObjectDraft, error) {
 	var draft client.ObjectDraft
 	err := callAPI(ctx, nil, "create object", func(ctx context.Context) error {
 		var err error
-		draft, err = u.api.CreateObject(ctx, token, name, size, parent)
+		draft, err = u.api.CreateObject(ctx, token, name, size, parent, onConflict)
 		return err
 	})
 	return draft, err
 }
 
-func (u *Uploader) completeObjectUpload(ctx context.Context, token string, id string, sessionID string, parts []client.CompletedObjectUploadPart) error {
-	return callAPI(ctx, nil, "complete object upload", func(ctx context.Context) error {
-		return u.api.CompleteObjectUpload(ctx, token, id, sessionID, parts)
+func (u *Uploader) completeObjectUpload(ctx context.Context, token string, id string, sessionID string, parts []client.CompletedObjectUploadPart) (client.ObjectDraft, error) {
+	var live client.ObjectDraft
+	err := callAPI(ctx, nil, "complete object upload", func(ctx context.Context) error {
+		var err error
+		live, err = u.api.CompleteObjectUpload(ctx, token, id, sessionID, parts)
+		return err
+	})
+	return live, err
+}
+
+func (u *Uploader) findObject(ctx context.Context, token string, parent string, name string) (client.ObjectEntry, bool, error) {
+	var entry client.ObjectEntry
+	var found bool
+	err := callAPI(ctx, nil, "find object", func(ctx context.Context) error {
+		var err error
+		entry, found, err = u.api.FindObject(ctx, token, parent, name)
+		return err
+	})
+	return entry, found, err
+}
+
+func (u *Uploader) putMediaMetadata(ctx context.Context, token string, id string, media any) error {
+	return callAPI(ctx, nil, "put media metadata", func(ctx context.Context) error {
+		return u.api.PutMediaMetadata(ctx, token, id, media)
 	})
 }
 

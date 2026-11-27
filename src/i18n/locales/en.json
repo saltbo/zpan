@@ -2551,5 +2551,13 @@
   "admin.entitlement.save": "Save",
   "admin.entitlement.granted": "Quota granted",
   "admin.entitlement.updated": "Entitlement updated",
-  "admin.entitlement.positiveQuotaRequired": "Amount must be a positive number"
+  "admin.entitlement.positiveQuotaRequired": "Amount must be a positive number",
+  "nav.movies": "Movies",
+  "movies.title": "Movies",
+  "movies.emptyTitle": "No movies yet",
+  "movies.emptyHint": "Movies downloaded by a downloader with media scraping turned on appear here with their posters.",
+  "movies.play": "Play",
+  "movies.runtime": "{{minutes}} min",
+  "movies.genres": "Genres",
+  "downloads.events.download_task_scrape_skipped": "Uploaded without media scraping"
 }

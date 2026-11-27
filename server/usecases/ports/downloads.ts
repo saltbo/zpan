@@ -232,6 +232,8 @@ export interface DownloadTaskRepo {
 }
 
 export interface UpdateDownloadTaskFields {
+  // Appends a scrape_skipped event with this reason; not a column.
+  scrapeSkippedReason?: string
   targetFolder?: string
   status?: string
   assignedDownloaderId?: string | null

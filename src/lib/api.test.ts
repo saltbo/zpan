@@ -98,6 +98,7 @@ import {
   listIhostImages,
   listInviteCodes,
   listMediaLibraries,
+  listMovies,
   listNotifications,
   listOAuthGrants,
   listObjectsByPath,
@@ -1588,6 +1589,46 @@ describe('api', () => {
         status: 409,
         message: 'Background job cannot be retried',
       })
+    })
+  })
+
+  describe('movies', () => {
+    const movie = {
+      id: 'video-1',
+      path: 'Movies/Big Buck Bunny (2008)/bbb.mkv',
+      media: { kind: 'movie', tmdb: { id: 10378, type: 'movie' }, title: 'Big Buck Bunny', year: 2008 },
+      posterUrl: 'https://images.example.com/poster.jpg',
+    }
+
+    it('lists a page of movies', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [movie], nextPageToken: 'next' }))
+
+      await expect(listMovies({ pageToken: 'page-2', pageSize: 12 })).resolves.toEqual({
+        items: [movie],
+        nextPageToken: 'next',
+      })
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/media/movies?')
+      expect(url).toContain('pageSize=12')
+      expect(url).toContain('pageToken=page-2')
+      expect(init.method).toBe('GET')
+    })
+
+    it('asks for 24 movies by default', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
+
+      await listMovies()
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('pageSize=24')
+      expect(url).not.toContain('pageToken')
+    })
+
+    it('throws ApiError when listing movies fails', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: { message: 'Forbidden' } }, false, 403))
+
+      await expect(listMovies()).rejects.toBeInstanceOf(ApiError)
     })
   })
 

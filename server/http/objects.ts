@@ -8,6 +8,7 @@ import {
   createMatterSchema,
   cursorPageQuerySchema,
   cursorPageSchema,
+  mediaMetadataSchema,
   objectUploadInstructionsSchema,
   opaqueIdSchema,
   patchMatterSchema,
@@ -19,6 +20,7 @@ import type { Context } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { transferAuditActor } from '../middleware/audit-transfers'
 import { boundWorkspaceOrgId, type Env } from '../middleware/platform'
+import { setTaskMediaMetadata } from '../usecases/media'
 import {
   abortUpload,
   authorizeTaskUploadAbort,
@@ -28,6 +30,7 @@ import {
   createObject,
   getObject,
   getObjectCreator,
+  isWithinDownloadTarget,
   listObjects,
   matterCreatorIdentity,
   type ObjectActor,
@@ -166,6 +169,11 @@ const listObjectsQuerySchema = cursorPageQuerySchema.extend({
     .string()
     .describe('Alias for parent: the slash-delimited parent folder path relative to the workspace root.')
     .optional(),
+  name: z
+    .string()
+    .min(1)
+    .describe('Only the live entry in the parent folder with this name, compared case-insensitively.')
+    .optional(),
   type: z.string().optional(),
   search: z.string().optional(),
   orgId: opaqueIdSchema.optional(),
@@ -240,7 +248,7 @@ async function authorizeUploadSessionControl(
 const cloudBaseUrl = (c: Context<Env>) => c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
 
 const listRoute = authRoute(
-  { scopes: [AuthorizationScope.OBJECTS_READ], minTeamRole: 'viewer' },
+  { scopes: [AuthorizationScope.OBJECTS_READ], minTeamRole: 'viewer', taskUpload: true },
   {
     operationId: 'listObjects',
     summary: 'List objects',
@@ -257,7 +265,7 @@ const listRoute = authRoute(
 )
 
 const createObjectRoute = authRoute(
-  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor' },
+  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor', taskUpload: true },
   {
     operationId: 'createObject',
     summary: 'Create object',
@@ -287,7 +295,7 @@ const createObjectRoute = authRoute(
 )
 
 const presignPartsRoute = authRoute(
-  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor' },
+  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor', taskUpload: true },
   {
     operationId: 'presignObjectUploadParts',
     summary: 'Re-presign upload parts',
@@ -308,7 +316,7 @@ const presignPartsRoute = authRoute(
 )
 
 const completionsRoute = authRoute(
-  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor' },
+  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor', taskUpload: true },
   {
     operationId: 'completeObjectUpload',
     summary: 'Complete upload',
@@ -330,7 +338,7 @@ const completionsRoute = authRoute(
 )
 
 const abortUploadRoute = authRoute(
-  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor' },
+  { scopes: [AuthorizationScope.OBJECTS_CREATE], minTeamRole: 'editor', taskUpload: true },
   {
     operationId: 'abortObjectUpload',
     summary: 'Abort upload',
@@ -465,6 +473,31 @@ const transferObjectRoute = authRoute(
   },
 )
 
+const putMediaMetadataRoute = authRoute(
+  {
+    scopes: [AuthorizationScope.OBJECTS_CREATE],
+    credential: 'download-task-upload',
+    minTeamRole: 'editor',
+    taskUpload: true,
+  },
+  {
+    operationId: 'replaceObjectMediaMetadata',
+    summary: 'Set media metadata',
+    description:
+      "Sets the object's `media` file metadata. Only a download task's upload token may call it, on the objects its task uploaded and on a folder in its target folder that has no media metadata yet. Image fields are matter ids of the sidecar images.",
+    tags: ['Objects'],
+    method: 'put',
+    path: '/{id}/metadata/media',
+    request: { params: idParam, ...jsonBody(mediaMetadataSchema) },
+    responses: {
+      200: jsonContent(mediaMetadataSchema, 'The media metadata now on the object'),
+      403: errorResponse('Forbidden'),
+      404: errorResponse('Not found'),
+      409: errorResponse('The folder already has media metadata'),
+    },
+  },
+)
+
 const app = createRouter()
 
 const objects = app
@@ -473,9 +506,18 @@ const objects = app
     if (!orgId) throw badRequest('No active organization')
 
     const query = c.req.valid('query')
+    const parent = query.path ?? query.parent ?? ''
+    const principal = c.get('principal')
+    if (principal?.kind === 'download-task-upload') {
+      if (query.search !== undefined) throw forbidden('Search is not allowed for task uploads')
+      if (!isWithinDownloadTarget(parent, principal.targetFolder)) {
+        throw forbidden('Target folder is outside task authorization')
+      }
+    }
     const fingerprint = await pageQueryFingerprint({
       orgId: query.orgId ?? orgId,
-      parent: query.path ?? query.parent ?? '',
+      parent,
+      name: query.name ?? null,
       type: query.type ?? null,
       search: query.search ?? null,
       pageSize: query.pageSize,
@@ -490,7 +532,8 @@ const objects = app
       boundOrgId: boundWorkspaceOrgId(c.get('authzContext')),
       orgOverride: query.orgId,
       filters: {
-        parent: query.path ?? query.parent ?? '',
+        parent,
+        name: query.name,
         typeFilter: query.type,
         search: query.search,
         pageSize: query.pageSize,
@@ -702,6 +745,23 @@ const objects = app
       },
       201,
     )
+  })
+  .openapi(putMediaMetadataRoute, async (c) => {
+    const orgId = c.get('orgId')
+    const principal = c.get('principal')
+    if (!orgId || principal?.kind !== 'download-task-upload') throw forbidden()
+    const media = c.req.valid('json')
+    await setTaskMediaMetadata(c.get('deps'), {
+      orgId,
+      objectId: c.req.valid('param').id,
+      writer: {
+        taskId: principal.taskId,
+        downloaderId: principal.downloaderId,
+        targetFolder: principal.targetFolder,
+      },
+      media,
+    })
+    return c.json(media, 200)
   })
 
 export default objects

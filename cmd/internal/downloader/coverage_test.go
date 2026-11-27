@@ -585,7 +585,7 @@ func TestUploadObjectSlicesTailPartAndMissingETag(t *testing.T) {
 
 	path := writeTempFile(t, "hello")
 	uploader := NewUploader(&recordingAPI{}, nil)
-	err := uploader.uploadObjectSlices(context.Background(), slog.New(slog.NewTextHandler(io.Discard, nil)), clientTaskWithUploadToken("task-1", "uploading"), client.ObjectDraft{
+	_, err := uploader.uploadObjectSlices(context.Background(), slog.New(slog.NewTextHandler(io.Discard, nil)), clientTaskWithUploadToken("task-1", "uploading"), client.ObjectDraft{
 		ID: "object-1",
 		Upload: &client.ObjectUploadInstructions{
 			SessionID: "session",
@@ -956,15 +956,23 @@ func (a *happyPathAPI) UpdateTask(_ context.Context, id string, patch client.Tas
 	return task, nil
 }
 
-func (a *happyPathAPI) CreateFolder(context.Context, string, string, string) (client.ObjectDraft, error) {
+func (a *happyPathAPI) CreateFolder(context.Context, string, string, string, client.OnConflict) (client.ObjectDraft, error) {
 	return client.ObjectDraft{}, errors.New("unexpected folder creation")
 }
 
-func (a *happyPathAPI) CreateObject(context.Context, string, string, int64, string) (client.ObjectDraft, error) {
+func (a *happyPathAPI) CreateObject(context.Context, string, string, int64, string, client.OnConflict) (client.ObjectDraft, error) {
 	return a.draft, nil
 }
 
-func (a *happyPathAPI) CompleteObjectUpload(context.Context, string, string, string, []client.CompletedObjectUploadPart) error {
+func (a *happyPathAPI) CompleteObjectUpload(context.Context, string, string, string, []client.CompletedObjectUploadPart) (client.ObjectDraft, error) {
+	return client.ObjectDraft{ID: a.draft.ID, Name: a.draft.Name}, nil
+}
+
+func (a *happyPathAPI) FindObject(context.Context, string, string, string) (client.ObjectEntry, bool, error) {
+	return client.ObjectEntry{}, false, nil
+}
+
+func (a *happyPathAPI) PutMediaMetadata(context.Context, string, string, any) error {
 	return nil
 }
 

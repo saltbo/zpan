@@ -1,0 +1,2 @@
+ALTER TABLE `matters` ADD `metadata` text;--> statement-breakpoint
+CREATE INDEX `matters_media_kind_idx` ON `matters` (`org_id`,"metadata" ->> '$.media.kind',"created_at" desc,"id" desc) WHERE "matters"."status" = 'active' AND "matters"."trashed_at" IS NULL AND "matters"."purged_at" IS NULL;

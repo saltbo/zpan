@@ -556,17 +556,34 @@ describe('evaluateAuthorization', () => {
     await expect(
       evaluateAuthorization({
         context: taskUploadContext,
-        declaration: { scopes: [AuthorizationScope.OBJECTS_CREATE] },
+        declaration: { scopes: [AuthorizationScope.OBJECTS_CREATE], taskUpload: true },
         deps,
       }),
     ).resolves.toMatchObject({ allowed: true })
     await expect(
       evaluateAuthorization({
         context: { ...taskUploadContext, grantedScopes: new Set<AuthorizationScope>() },
-        declaration: { scopes: [AuthorizationScope.OBJECTS_CREATE] },
+        declaration: { scopes: [AuthorizationScope.OBJECTS_CREATE], taskUpload: true },
         deps,
       }),
     ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'missing_scope' })
+  })
+
+  it('refuses a task-upload token on a route that does not confine it to its target folder', async () => {
+    await expect(
+      evaluateAuthorization({
+        context: {
+          credential: 'download-task-upload',
+          userId: 'user-1',
+          workspace: { mode: 'bound', orgId: 'org-1' },
+          grantedScopes: new Set([AuthorizationScope.OBJECTS_READ]),
+          actor: { type: 'device', ref: 'downloader-1' },
+          state: { downloaderId: 'downloader-1', taskId: 'task-1' },
+        },
+        declaration: { scopes: [AuthorizationScope.OBJECTS_READ] },
+        deps,
+      }),
+    ).resolves.toMatchObject({ allowed: false, status: 403, reason: 'actor_not_allowed' })
   })
 
   it('evaluates session team roles independently of scopes', async () => {

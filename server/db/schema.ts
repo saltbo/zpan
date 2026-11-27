@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import type { MatterMetadata } from '../../shared/schemas/matter-metadata'
 import { organization } from './auth-schema'
 
 export const matters = sqliteTable(
@@ -21,10 +22,16 @@ export const matters = sqliteTable(
     createdByActorType: text('created_by_actor_type'),
     createdByActorRef: text('created_by_actor_ref'),
     createdByActorIssuer: text('created_by_actor_issuer'),
+    // File metadata keyed by namespace (shared/schemas/matter-metadata.ts).
+    metadata: text('metadata', { mode: 'json' }).$type<MatterMetadata>(),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
   },
   (t) => [
+    // The Movies and TV views list live matters by media kind, newest first.
+    index('matters_media_kind_idx')
+      .on(t.orgId, sql`${t.metadata} ->> '$.media.kind'`, sql`${t.createdAt} desc`, sql`${t.id} desc`)
+      .where(sql`${t.status} = 'active' AND ${t.trashedAt} IS NULL AND ${t.purgedAt} IS NULL`),
     index('matters_status_dir_created_idx').on(t.status, t.dirtype, t.createdAt),
     index('matters_webdav_path_idx').on(t.orgId, t.parent, t.name, t.status, t.trashedAt, t.purgedAt),
     index('matters_webdav_children_idx').on(

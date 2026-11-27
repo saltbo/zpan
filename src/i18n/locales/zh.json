@@ -2551,5 +2551,13 @@
   "admin.entitlement.save": "保存",
   "admin.entitlement.granted": "配额已授予",
   "admin.entitlement.updated": "配额授予已更新",
-  "admin.entitlement.positiveQuotaRequired": "容量必须为正数"
+  "admin.entitlement.positiveQuotaRequired": "容量必须为正数",
+  "nav.movies": "电影",
+  "movies.title": "电影",
+  "movies.emptyTitle": "还没有电影",
+  "movies.emptyHint": "开启了媒体刮削的下载器下载的电影会带着海报出现在这里。",
+  "movies.play": "播放",
+  "movies.runtime": "{{minutes}} 分钟",
+  "movies.genres": "类型",
+  "downloads.events.download_task_scrape_skipped": "未经媒体刮削直接上传"
 }

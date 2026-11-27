@@ -25,7 +25,7 @@ export const downloadTaskPhaseSchema = z.enum(['metadata', 'downloading', 'uploa
 
 export const downloadTaskEventSchema = z.object({
   id: z.string().min(1),
-  type: z.enum(['status_changed', 'error_reported', 'cleanup_requested', 'cleanup_completed']),
+  type: z.enum(['status_changed', 'error_reported', 'scrape_skipped', 'cleanup_requested', 'cleanup_completed']),
   occurredAt: z.number().int().min(0),
   attempt: z.number().int().min(1),
   from: downloadTaskStatusSchema.nullable().optional(),
@@ -394,6 +394,14 @@ export const updateDownloadTaskSchema = z
     resultObjectId: opaqueIdSchema.nullable().optional(),
     runtime: downloadTaskRuntimeSchema.nullable().optional(),
     cleanupCompleted: z.literal(true).optional(),
+    scrapeSkippedReason: z
+      .string()
+      .min(1)
+      .max(1000)
+      .describe(
+        'Why the downloader uploaded this download without media scraping. Recorded in the task activity; the task carries on.',
+      )
+      .optional(),
   })
   .refine(
     (input) =>
@@ -402,7 +410,8 @@ export const updateDownloadTaskSchema = z
         input.progress === undefined &&
         input.errorMessage === undefined &&
         input.resultObjectId === undefined &&
-        input.runtime === undefined),
+        input.runtime === undefined &&
+        input.scrapeSkippedReason === undefined),
     { message: 'Cleanup acknowledgment cannot include task updates' },
   )
 

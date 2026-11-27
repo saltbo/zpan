@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -48,7 +49,7 @@ func TestCreateObjectUsesRenameConflictStrategy(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := mustClient(t, server.URL, "token").CreateObject(context.Background(), "upload-token", "movie.mkv", 1024, "Downloads")
+	_, err := mustClient(t, server.URL, "token").CreateObject(context.Background(), "upload-token", "movie.mkv", 1024, "Downloads", OnConflictRename)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -507,7 +508,7 @@ func TestMultipartUploadSessionClientMethods(t *testing.T) {
 	if !reflect.DeepEqual(parts, []PresignedObjectUploadPart{{PartNumber: 1, URL: "https://s3/part-1"}, {PartNumber: 2, URL: "https://s3/part-2"}}) {
 		t.Fatalf("unexpected presigned parts: %#v", parts)
 	}
-	err = api.CompleteObjectUpload(context.Background(), "upload-token", "object-1", "session-1", []CompletedObjectUploadPart{{PartNumber: 1, ETag: `"etag-1"`}})
+	_, err = api.CompleteObjectUpload(context.Background(), "upload-token", "object-1", "session-1", []CompletedObjectUploadPart{{PartNumber: 1, ETag: `"etag-1"`}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -569,7 +570,7 @@ func TestCreateObjectMapsUploadInstructions(t *testing.T) {
 	}))
 	defer server.Close()
 
-	draft, err := mustClient(t, server.URL, "token").CreateObject(context.Background(), "upload-token", "movie.mkv", 1024, "")
+	draft, err := mustClient(t, server.URL, "token").CreateObject(context.Background(), "upload-token", "movie.mkv", 1024, "", OnConflictRename)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -603,7 +604,7 @@ func TestCreateFolderUsesFolderMatterShape(t *testing.T) {
 	}))
 	defer server.Close()
 
-	folder, err := mustClient(t, server.URL, "token").CreateFolder(context.Background(), "upload-token", "Movies", "parent-1")
+	folder, err := mustClient(t, server.URL, "token").CreateFolder(context.Background(), "upload-token", "Movies", "parent-1", OnConflictRename)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -704,7 +705,7 @@ func TestClientEmptyResponseBranches(t *testing.T) {
 		{
 			name: "create object",
 			call: func(api *Client) error {
-				_, err := api.CreateObject(context.Background(), "upload-token", "file.bin", 1, "")
+				_, err := api.CreateObject(context.Background(), "upload-token", "file.bin", 1, "", OnConflictRename)
 				return err
 			},
 		},
@@ -746,4 +747,60 @@ func mustClient(t *testing.T, baseURL string, token string) *Client {
 		t.Fatal(err)
 	}
 	return api
+}
+
+func TestClientFindObjectAndMediaMetadata(t *testing.T) {
+	var media map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer upload-token" {
+			t.Fatalf("authorization = %q", r.Header.Get("Authorization"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/objects":
+			q := r.URL.Query()
+			if q.Get("parent") != "Movies" || q.Get("pageSize") != "1" {
+				t.Fatalf("query = %v", q)
+			}
+			items := []map[string]any{}
+			if q.Get("name") == "Inception (2010)" {
+				items = append(items, map[string]any{
+					"id": "folder-1", "orgId": "org-1", "alias": "a", "name": "inception (2010)", "type": "folder",
+					"size": 0, "dirtype": 1, "parent": "Movies", "object": "", "storageId": "s", "status": "active",
+					"trashedAt": nil, "createdBy": nil, "createdAt": "x", "updatedAt": "x", "hasChildren": false,
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": items, "nextPageToken": nil})
+		case r.Method == http.MethodPut && r.URL.Path == "/api/objects/video-1/metadata/media":
+			if err := json.NewDecoder(r.Body).Decode(&media); err != nil {
+				t.Fatal(err)
+			}
+			_ = json.NewEncoder(w).Encode(media)
+		case r.Method == http.MethodPut:
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error":{"code":409,"message":"exists","status":"ALREADY_EXISTS"}}`))
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	api := mustClient(t, server.URL, "token")
+
+	entry, found, err := api.FindObject(context.Background(), "upload-token", "Movies", "Inception (2010)")
+	if err != nil || !found || entry != (ObjectEntry{ID: "folder-1", Name: "inception (2010)", IsFolder: true}) {
+		t.Fatalf("FindObject = %+v, %v, %v", entry, found, err)
+	}
+	if _, found, err := api.FindObject(context.Background(), "upload-token", "Movies", "Other"); err != nil || found {
+		t.Fatalf("FindObject of a missing name = %v, %v", found, err)
+	}
+	if err := api.PutMediaMetadata(context.Background(), "upload-token", "video-1", map[string]any{"kind": "movie"}); err != nil {
+		t.Fatal(err)
+	}
+	if media["kind"] != "movie" {
+		t.Fatalf("sent media = %v", media)
+	}
+	err = api.PutMediaMetadata(context.Background(), "upload-token", "folder-1", map[string]any{"kind": "tvshow"})
+	if !IsConflict(err) || IsConflict(errors.New("other")) {
+		t.Fatalf("IsConflict(%v) = false", err)
+	}
 }

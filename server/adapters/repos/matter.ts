@@ -328,6 +328,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         createdByActorType: input.createdByActorType ?? null,
         createdByActorRef: input.createdByActorRef ?? null,
         createdByActorIssuer: input.createdByActorIssuer ?? null,
+        metadata: null,
         createdAt: now,
         updatedAt: now,
       }
@@ -397,6 +398,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       ]
       const typeCond = filters.typeFilter ? typeFilterCondition(filters.typeFilter) : undefined
       if (filters.search) conditions.push(like(matters.name, `%${filters.search}%`))
+      if (filters.name) conditions.push(sql`LOWER(${matters.name}) = LOWER(${filters.name})`)
       if (typeCond) {
         conditions.push(typeCond)
         if (filters.typeFilter !== 'folder') conditions.push(eq(matters.dirtype, DirType.FILE))
@@ -548,6 +550,9 @@ export function createMatterRepo(db: Database): MatterRepo {
         createdByActorType: opts.createdByActorType ?? null,
         createdByActorRef: opts.createdByActorRef ?? null,
         createdByActorIssuer: opts.createdByActorIssuer ?? null,
+        // A copy describes the same content, so it keeps the metadata; its image
+        // references still point at the original sidecars.
+        metadata: source.metadata ?? null,
         createdAt: now,
         updatedAt: now,
       }
@@ -826,7 +831,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         matterResizeLedgerQuery(db, orgId, matter.id, fields.size, now),
         db
           .update(matters)
-          .set({ type: fields.type, size: fields.size, object: fields.object, updatedAt: now })
+          .set({ type: fields.type, size: fields.size, object: fields.object, metadata: null, updatedAt: now })
           .where(and(eq(matters.id, matter.id), eq(matters.orgId, orgId), isNull(matters.purgedAt))),
         ...matterAddedProjectionQueries(db, orgId, matter.id),
         ...matterChanges(orgId, [matter.id], now, 'updated'),
@@ -978,7 +983,59 @@ export function createMatterRepo(db: Database): MatterRepo {
       const updated = results[0] as { id: string }[]
       return updated.length > 0
     },
+
+    async setMediaMetadata(orgId, id, media, options): Promise<boolean> {
+      const now = new Date()
+      const conditions = [eq(matters.id, id), eq(matters.orgId, orgId), ...liveConditions()]
+      if (options.onlyIfAbsent) conditions.push(sql`${matters.metadata} ->> '$.media' IS NULL`)
+      const updateQuery = db
+        .update(matters)
+        .set({
+          metadata: sql`json_set(COALESCE(${matters.metadata}, '{}'), '$.media', json(${JSON.stringify(media)}))`,
+          updatedAt: now,
+        })
+        .where(and(...conditions))
+        .returning({ id: matters.id })
+      const results = await executeWriteTransactionWithResults(
+        db,
+        [updateQuery, ...matterChanges(orgId, [id], now, 'updated')],
+        [0],
+      )
+      return (results[0] as { id: string }[]).length > 0
+    },
+
+    async listMediaPage(orgId, params) {
+      const conditions = [
+        eq(matters.orgId, orgId),
+        sql`${matters.metadata} ->> '$.media.kind' = ${params.kind}`,
+        ...liveConditions(),
+      ]
+      if (params.after) {
+        conditions.push(
+          or(
+            lt(matters.createdAt, params.after.createdAt),
+            and(eq(matters.createdAt, params.after.createdAt), lt(matters.id, params.after.id)),
+          ) as SQL,
+        )
+      }
+      const rows = await db
+        .select()
+        .from(matters)
+        .where(and(...conditions))
+        .orderBy(desc(matters.createdAt), desc(matters.id))
+        .limit(params.pageSize + 1)
+      const hasMore = rows.length > params.pageSize
+      const items = (hasMore ? rows.slice(0, params.pageSize) : rows).map(toMatter)
+      const last = items.at(-1)
+      return { items, nextBoundary: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null }
+    },
   }
 
   return repo
+}
+
+// Live matters, spelled with literals so SQLite can use the partial
+// matters_media_kind_idx, whose WHERE a bound parameter would not imply.
+function liveConditions(): SQL[] {
+  return [sql`${matters.status} = 'active'`, isNull(matters.trashedAt), isNull(matters.purgedAt)]
 }

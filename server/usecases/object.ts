@@ -116,7 +116,7 @@ function normalizeMatterPath(path: string): string {
     .join('/')
 }
 
-function isWithinDownloadTarget(parent: string, targetFolder: string): boolean {
+export function isWithinDownloadTarget(parent: string, targetFolder: string): boolean {
   const normalizedParent = normalizeMatterPath(parent)
   const normalizedTarget = normalizeMatterPath(targetFolder)
   if (!normalizedTarget) return true
