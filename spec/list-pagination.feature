@@ -19,6 +19,12 @@ Feature: List pagination
     When the admin changes the page size, a filter, the sort, or the search
     Then the table shows the first page of the new view
 
+  @list-pagination/empty-later-page @web
+  Scenario: A later page that empties returns to the page before
+    Given an admin on a page after the first of an admin table
+    When the last row on that page is deleted
+    Then the table shows the page before it instead of an empty page
+
   @list-pagination/invite-codes-beyond-first-page @web
   Scenario: Every invite code is reachable
     Given a site that has generated more invite codes than one page

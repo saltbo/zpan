@@ -39,7 +39,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useCursorPager } from '@/hooks/use-cursor-pager'
+import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
 import { deleteIhostImage, deleteObject, listStorageUsageItems, purgeTrashObject } from '@/lib/api'
 import { formatDate, formatSize } from '@/lib/format'
 import { runSequentialOperation, type SequentialOperationFailure } from '@/lib/sequential-operation'
@@ -88,6 +88,7 @@ export function StorageCleanupDialog({
     queryFn: () => listStorageUsageItems(category!, { pageToken: pager.pageToken, pageSize, sortBy, sortDir }),
     enabled: category !== null,
   })
+  useStepBackFromEmptyPage({ ...pager, previous: () => changePage(pager.previous) }, itemsQuery)
   const items = itemsQuery.data?.items ?? []
   const activeBreakdown = breakdowns.find((row) => row.category === category)
   const selectedItems = useMemo(() => items.filter((item) => selectedIds.has(item.id)), [items, selectedIds])

@@ -22,7 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { useCursorPager } from '@/hooks/use-cursor-pager'
+import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
 import { useUrlText } from '@/hooks/use-url-text'
 import { getUserQuotaById, listUsers } from '@/lib/api'
 import { adminRemoveUser, adminSetUserBanned } from '@/lib/auth-client'
@@ -64,6 +64,7 @@ export function UsersPage() {
     queryKey: ['admin', 'users', pageSize, search, pager.pageToken],
     queryFn: () => listUsers({ pageToken: pager.pageToken, pageSize, search }),
   })
+  useStepBackFromEmptyPage({ ...pager, previous: () => movePage(pager.previous) }, usersQuery)
 
   const baseUsers = useMemo(() => usersQuery.data?.items ?? [], [usersQuery.data])
   const pageUserIds = useMemo(() => baseUsers.map((user) => user.id), [baseUsers])
