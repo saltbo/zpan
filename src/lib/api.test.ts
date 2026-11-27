@@ -73,6 +73,7 @@ import {
   getStorage,
   getStorageUsage,
   getTeam,
+  getTorrentCacheConfig,
   getTrashObject,
   getUnreadCount,
   getUserQuota,
@@ -124,6 +125,7 @@ import {
   redeemCloudGiftCard,
   refreshLicense,
   replaceStorage,
+  replaceTorrentCacheConfig,
   resendSiteInvitation,
   resetBrandingField,
   restoreObject,
@@ -3249,6 +3251,45 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
 
       await expect(getIhostConfig()).rejects.toThrow('Unauthorized')
+    })
+  })
+
+  describe('getTorrentCacheConfig', () => {
+    it('calls GET /api/torrent-cache/config and returns the workspace torrent folder', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ folder: 'Media' }))
+
+      const result = await getTorrentCacheConfig()
+
+      expect(result).toEqual({ folder: 'Media' })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/torrent-cache/config')
+      expect(init.method ?? 'GET').toBe('GET')
+    })
+
+    it('throws ApiError on 401', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Unauthorized' }, false, 401))
+
+      await expect(getTorrentCacheConfig()).rejects.toBeInstanceOf(ApiError)
+    })
+  })
+
+  describe('replaceTorrentCacheConfig', () => {
+    it('calls PUT /api/torrent-cache/config with the folder and returns the saved settings', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ folder: 'Movies/Incoming' }))
+
+      const result = await replaceTorrentCacheConfig({ folder: 'Movies/Incoming' })
+
+      expect(result).toEqual({ folder: 'Movies/Incoming' })
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/torrent-cache/config')
+      expect(init.method).toBe('PUT')
+      expect(JSON.parse(init.body as string)).toEqual({ folder: 'Movies/Incoming' })
+    })
+
+    it('throws ApiError on 403 (insufficient role)', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Forbidden' }, false, 403))
+
+      await expect(replaceTorrentCacheConfig({ folder: 'Media' })).rejects.toBeInstanceOf(ApiError)
     })
   })
 

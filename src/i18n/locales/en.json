@@ -2076,6 +2076,7 @@
   "features.whiteLabel": "Custom Branding",
   "features.auditLog": "Audit Logs",
   "features.mediaLibrary": "Media Library Indexing",
+  "features.torrentCache": "Torrent Cache and Instant Transfer",
   "features.cloudStore": "Sell Storage & Traffic",
   "features.siteAnnouncements": "Site Announcements",
   "features.webhooks": "Event Webhooks",

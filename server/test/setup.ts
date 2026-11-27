@@ -336,6 +336,41 @@ const APP_SCHEMA_SQL = `
     WHERE status = 'active' AND trashed_at IS NULL;
   CREATE INDEX IF NOT EXISTS matters_list_page_idx
     ON matters(org_id, parent, status, trashed_at, purged_at, dirtype DESC, created_at, id);
+  CREATE INDEX IF NOT EXISTS matters_storage_object_idx ON matters(storage_id, object);
+  CREATE TABLE IF NOT EXISTS torrents (
+    id TEXT PRIMARY KEY,
+    info_hash TEXT NOT NULL UNIQUE,
+    storage_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    total_size INTEGER NOT NULL,
+    file_count INTEGER NOT NULL,
+    private INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    verified TEXT,
+    source_task_id TEXT,
+    source_downloader_id TEXT,
+    last_accessed_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS torrents_status_accessed_idx ON torrents(status, last_accessed_at);
+  CREATE TABLE IF NOT EXISTS torrent_files (
+    torrent_id TEXT NOT NULL REFERENCES torrents(id) ON DELETE CASCADE,
+    file_idx INTEGER NOT NULL,
+    path TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    mime TEXT NOT NULL DEFAULT '',
+    storage_id TEXT NOT NULL,
+    object_key TEXT NOT NULL,
+    PRIMARY KEY (torrent_id, file_idx)
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS torrent_files_storage_object_uniq ON torrent_files(storage_id, object_key);
+  CREATE TABLE IF NOT EXISTS torrent_cache_configs (
+    org_id TEXT PRIMARY KEY REFERENCES organization(id) ON DELETE CASCADE,
+    folder TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS webdav_dead_properties (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,

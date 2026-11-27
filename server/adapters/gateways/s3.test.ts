@@ -1,7 +1,7 @@
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type { Storage } from '@shared/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { S3StorageCredentials } from '../../usecases/ports'
+import { type S3StorageCredentials, TorrentCacheDeletionRefusedError } from '../../usecases/ports'
 import { S3Service } from './s3.js'
 
 const mockSend = vi.fn()
@@ -494,6 +494,35 @@ describe('S3Service', () => {
     it('skips API call for empty keys array', async () => {
       mockSend.mockClear()
       await service.deleteObjects(storage, [])
+      expect(mockSend).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('torrent cache keys', () => {
+    it('refuses to delete cached torrent objects outside eviction [spec: torrent-cache/only-eviction-deletes]', async () => {
+      mockSend.mockClear()
+      mockSend.mockResolvedValue({ $metadata: {} })
+
+      await expect(service.deleteObject(storage, 'bt/abc/0')).rejects.toBeInstanceOf(TorrentCacheDeletionRefusedError)
+      await expect(service.deleteObjects(storage, ['org/u/a.jpg', 'bt/abc/1'])).rejects.toBeInstanceOf(
+        TorrentCacheDeletionRefusedError,
+      )
+      expect(mockSend).not.toHaveBeenCalled()
+
+      await service.evictTorrentCacheObjects(storage, ['bt/abc/0', 'bt/abc/info'])
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'bt/abc/0' } }),
+      )
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({ input: { Bucket: 'my-bucket', Key: 'bt/abc/info' } }),
+      )
+    })
+
+    it('evicts nothing but torrent cache keys', async () => {
+      mockSend.mockClear()
+      await expect(service.evictTorrentCacheObjects(storage, ['org/u/a.jpg'])).rejects.toThrow(
+        'Not a torrent cache key',
+      )
       expect(mockSend).not.toHaveBeenCalled()
     })
   })

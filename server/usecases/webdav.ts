@@ -19,6 +19,12 @@ import type { Database } from '../platform/interface'
 import type { Deps } from './deps'
 import { assertFolderNotUsedByDownload } from './downloads/download-folders'
 import {
+  assertMatterContentWritable,
+  chargedStorageId,
+  duplicateMatterObject,
+  releaseMatterObject,
+} from './matter-objects'
+import {
   type ActorIdentity,
   type ApiKeyAuth,
   ApiKeyRateLimitError,
@@ -315,6 +321,7 @@ export async function putWebDavFile(
 ): Promise<PutWebDavOutcome> {
   const { orgId, userId, target, fileName, parent, contentType, contentLength, body } = params
   assertObjectKeyOwner({ orgId, uid: userId })
+  if (target.matter) assertMatterContentWritable(target.matter.object)
   let startedAt = performance.now()
   const storage = target.matter ? await deps.storages.get(target.matter.storageId) : await deps.storages.select()
   params.onTiming?.('storage', performance.now() - startedAt)
@@ -412,7 +419,7 @@ async function persistWebDavUpload(
   const { orgId, target, fileName, parent, storage, objectKey, contentType, uploadedSize } = params
   if (target.matter) {
     await deps.matter.applyUpload(orgId, target.matter, { type: contentType, size: uploadedSize, object: objectKey })
-    if (objectKey !== target.matter.object) await deps.s3.deleteObject(storage, target.matter.object)
+    if (objectKey !== target.matter.object) await releaseMatterObject(deps.s3, storage, target.matter.object)
     return { status: 204, matterId: target.matter.id, bytes: uploadedSize }
   }
 
@@ -538,12 +545,19 @@ export async function copyWebDavFile(
     if (replaced) await assertFolderNotUsedByDownload(deps, { orgId: params.orgId, folder: replaced })
   }
 
-  return withStorageUsageReservation(deps, { orgId, storageId: sourceMatter.storageId, bytes }, async (ctx) => {
+  return withStorageUsageReservation(deps, { orgId, storageId: chargedStorageId(sourceMatter), bytes }, async (ctx) => {
     let newObject = ''
     if (sourceMatter.object && storage) {
-      newObject = buildObjectKey({ uid: userId, orgId, rawExt: fileExt(params.targetName) })
-      await deps.s3.copyObject(storage, sourceMatter.object, storage, newObject)
-      ctx.onRollback(() => deps.s3.deleteObject(storage, newObject))
+      const duplicate = await duplicateMatterObject(deps.s3, {
+        sourceStorage: storage,
+        sourceKey: sourceMatter.object,
+        targetStorage: storage,
+        uid: userId,
+        orgId,
+        name: params.targetName,
+      })
+      newObject = duplicate.key
+      ctx.onRollback(() => releaseMatterObject(deps.s3, storage, newObject))
     }
 
     if (params.replacedMatterId) {
@@ -614,7 +628,7 @@ export async function copyWebDavCollection(
         : []
   const reservationInputs = ordered
     .filter((item) => item.dirtype === DirType.FILE && item.object && (item.size ?? 0) > 0)
-    .map((item) => ({ orgId, storageId: item.storageId, bytes: item.size ?? 0 }))
+    .map((item) => ({ orgId, storageId: chargedStorageId(item), bytes: item.size ?? 0 }))
 
   let missingStorage = false
   try {
@@ -629,9 +643,17 @@ export async function copyWebDavCollection(
             missingStorage = true
             return null
           }
-          objectKey = buildObjectKey({ uid: userId, orgId, rawExt: fileExt(item.name) })
-          await deps.s3.copyObject(storage, item.object, storage, objectKey)
-          ctx.onRollback(() => deps.s3.deleteObject(storage, objectKey))
+          const duplicate = await duplicateMatterObject(deps.s3, {
+            sourceStorage: storage,
+            sourceKey: item.object,
+            targetStorage: storage,
+            uid: userId,
+            orgId,
+            name: item.name,
+          })
+          const copiedKey = duplicate.key
+          objectKey = copiedKey
+          ctx.onRollback(() => releaseMatterObject(deps.s3, storage, copiedKey))
         }
         preparedCopies.push({ item, targetParent, objectKey })
       }

@@ -59,6 +59,16 @@ export interface S3Gateway {
     contentType: string,
     contentLength?: number,
   ): Promise<number>
+  // Both refuse torrent cache keys (`bt/…`) with TorrentCacheDeletionRefusedError.
   deleteObject(storage: S3StorageCredentials, key: string): Promise<void>
   deleteObjects(storage: S3StorageCredentials, keys: string[]): Promise<void>
+  // The only deletion of torrent cache keys, called by cache eviction alone.
+  evictTorrentCacheObjects(storage: S3StorageCredentials, keys: string[]): Promise<void>
+}
+
+export class TorrentCacheDeletionRefusedError extends Error {
+  constructor(readonly key: string) {
+    super(`Refusing to delete torrent cache object ${key} outside eviction`)
+    this.name = 'TorrentCacheDeletionRefusedError'
+  }
 }

@@ -7,7 +7,9 @@ export class StorageQuotaExceededError extends Error {
 
 export interface StorageUsageReservation {
   orgId: string
-  storageId: string
+  // Null reserves org quota only, for a reference to bytes already counted in
+  // its storage (a cached torrent file).
+  storageId: string | null
   bytes: number
 }
 
@@ -20,4 +22,6 @@ export interface StorageUsageRepo {
   rollbackReservations(reservations: Iterable<StorageUsageReservation | null>): Promise<void>
   // Recompute org (and optionally specific storages') `used` from live matter/image rows.
   reconcile(orgId: string, storageIds?: Iterable<string>): Promise<void>
+  // Recompute storages' `used` alone, e.g. after cached torrent objects are evicted.
+  reconcileStorages(storageIds: Iterable<string>): Promise<void>
 }

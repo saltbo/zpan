@@ -38,6 +38,8 @@ export const OAUTH_GRANT_SCOPE_METADATA = {
   [Scope.IMAGE_HOSTING_CONFIG_READ]: scope('Read image hosting configuration', '查看图床配置'),
   [Scope.IMAGE_HOSTING_CONFIG_UPDATE]: scope('Update image hosting configuration', '更新图床配置'),
   [Scope.IMAGE_HOSTING_CONFIG_DELETE]: scope('Delete image hosting configuration', '删除图床配置'),
+  [Scope.TORRENT_CACHE_CONFIG_READ]: scope('Read the workspace torrent folder', '查看工作空间种子文件夹'),
+  [Scope.TORRENT_CACHE_CONFIG_UPDATE]: scope('Change the workspace torrent folder', '更改工作空间种子文件夹'),
   [Scope.IMAGES_READ]: scope('List and inspect images', '列出和查看图片'),
   [Scope.IMAGES_CREATE]: scope('Create images', '创建图片'),
   [Scope.IMAGES_UPDATE]: scope('Update images', '更新图片'),

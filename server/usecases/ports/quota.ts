@@ -46,7 +46,7 @@ export interface QuotaRepo {
   refundTraffic(orgId: string, bytes: number, now?: Date): Promise<void>
   incrementUsageIfEffectiveQuotaAllows(
     orgId: string,
-    storageId: string,
+    storageId: string | null,
     bytes: number,
     teamQuotaEnabled?: boolean,
     now?: Date,

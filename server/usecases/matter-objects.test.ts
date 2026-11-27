@@ -1,0 +1,89 @@
+import { describe, expect, it, vi } from 'vitest'
+import {
+  assertMatterContentWritable,
+  chargedStorageId,
+  duplicateMatterObject,
+  releaseMatterObject,
+  releaseMatterObjects,
+} from './matter-objects'
+import { AppError, type S3Gateway, type StorageRecord } from './ports'
+
+const storageA = { id: 'a' } as StorageRecord
+const storageB = { id: 'b' } as StorageRecord
+
+function fakeS3() {
+  return {
+    deleteObject: vi.fn(async () => {}),
+    deleteObjects: vi.fn(async () => {}),
+    copyObject: vi.fn(async () => {}),
+    streamCopy: vi.fn(async () => {}),
+  } as unknown as S3Gateway &
+    Record<'deleteObject' | 'deleteObjects' | 'copyObject' | 'streamCopy', ReturnType<typeof vi.fn>>
+}
+
+describe('releaseMatterObjects', () => {
+  it('deletes owned objects and leaves cached torrent objects to eviction', async () => {
+    const s3 = fakeS3()
+    await releaseMatterObjects(s3, storageA, ['org/u/a.mkv', 'bt/ab/0', ''])
+    expect(s3.deleteObjects).toHaveBeenCalledWith(storageA, ['org/u/a.mkv'])
+
+    await releaseMatterObject(s3, storageA, 'bt/ab/1')
+    expect(s3.deleteObject).not.toHaveBeenCalled()
+    await releaseMatterObject(s3, storageA, 'org/u/b.mkv')
+    expect(s3.deleteObject).toHaveBeenCalledWith(storageA, 'org/u/b.mkv')
+  })
+})
+
+describe('duplicateMatterObject', () => {
+  const params = { uid: 'u', orgId: 'org', name: 'movie.mkv' }
+
+  it('writes another reference to a cached object within its storage', async () => {
+    const s3 = fakeS3()
+    const result = await duplicateMatterObject(s3, {
+      ...params,
+      sourceStorage: storageA,
+      sourceKey: 'bt/ab/0',
+      targetStorage: storageA,
+    })
+    expect(result).toEqual({ key: 'bt/ab/0', chargedStorageId: null })
+    expect(s3.copyObject).not.toHaveBeenCalled()
+  })
+
+  it('refuses to move a cached object to another storage', async () => {
+    const s3 = fakeS3()
+    await expect(
+      duplicateMatterObject(s3, { ...params, sourceStorage: storageA, sourceKey: 'bt/ab/0', targetStorage: storageB }),
+    ).rejects.toMatchObject({ httpStatus: 409 })
+    expect(s3.streamCopy).not.toHaveBeenCalled()
+  })
+
+  it('copies owned objects within a storage and streams them across storages', async () => {
+    const s3 = fakeS3()
+    const same = await duplicateMatterObject(s3, {
+      ...params,
+      sourceStorage: storageA,
+      sourceKey: 'org/u/a.mkv',
+      targetStorage: storageA,
+    })
+    expect(same.chargedStorageId).toBe('a')
+    expect(s3.copyObject).toHaveBeenCalledWith(storageA, 'org/u/a.mkv', storageA, same.key)
+
+    const across = await duplicateMatterObject(s3, {
+      ...params,
+      sourceStorage: storageA,
+      sourceKey: 'org/u/a.mkv',
+      targetStorage: storageB,
+    })
+    expect(across.chargedStorageId).toBe('b')
+    expect(s3.streamCopy).toHaveBeenCalledWith(storageA, 'org/u/a.mkv', storageB, across.key)
+  })
+})
+
+describe('content writes and charging', () => {
+  it('rejects content writes to cached files and charges their copies to no storage', () => {
+    expect(() => assertMatterContentWritable('bt/ab/0')).toThrow(AppError)
+    expect(() => assertMatterContentWritable('org/u/a.mkv')).not.toThrow()
+    expect(chargedStorageId({ object: 'bt/ab/0', storageId: 'a' })).toBeNull()
+    expect(chargedStorageId({ object: 'org/u/a.mkv', storageId: 'a' })).toBe('a')
+  })
+})

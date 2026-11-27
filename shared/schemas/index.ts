@@ -307,6 +307,8 @@ export {
   replaceStorageSchema,
   updateStorageEgressBillingSchema,
 } from './storage'
+export type { ReplaceTorrentCacheConfigInput, TorrentCacheConfig } from './torrent-cache'
+export { replaceTorrentCacheConfigSchema, torrentCacheConfigSchema } from './torrent-cache'
 
 export const signInSchema = z.object({
   email: z.string().email(),

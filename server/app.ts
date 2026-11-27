@@ -48,6 +48,7 @@ import system from './http/site/system'
 import storageUsage from './http/storage-usage'
 import { cloudStore, cloudStoreWebhooks } from './http/store'
 import { adminTeams, publicTeams, teams } from './http/teams'
+import { torrentCacheConfig } from './http/torrent-cache'
 import trash from './http/trash'
 import { users } from './http/users'
 import webdav from './http/webdav'
@@ -391,6 +392,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
   app.route('/api/downloads/downloaders', downloaderTasksRoute)
   app.route('/api/image-hosting', ihost)
   app.route('/api/image-hosting/config', ihostConfig)
+  app.route('/api/torrent-cache/config', torrentCacheConfig)
   app.route('/api/site/licensing', licensingAdmin)
   app.route('/api/site/settings/branding', brandingAdmin)
   app.route('/api/site/audit-events', adminAudit)
@@ -513,6 +515,7 @@ export type DownloaderSelfRoute = typeof downloaderSelfRoute
 export type DownloaderTasksRoute = typeof downloaderTasksRoute
 export type IhostRoute = typeof ihost
 export type IhostConfigRoute = typeof ihostConfig
+export type TorrentCacheConfigRoute = typeof torrentCacheConfig
 export type AnnouncementsRoute = typeof announcements
 export type LicensingRoute = typeof licensing
 export type LicensingAdminRoute = typeof licensingAdmin

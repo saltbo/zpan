@@ -1,10 +1,46 @@
 import { DirType } from '@shared/constants'
 import { eq, sql } from 'drizzle-orm'
-import { imageHostings, matters, orgQuotas, storages } from '../../db/schema'
+import { imageHostings, matters, orgQuotas, storages, torrentFiles } from '../../db/schema'
+import { TORRENT_CACHE_PREFIX } from '../../domain/torrent-cache'
 import type { Database } from '../../platform/interface'
 import type { StorageUsageRepo } from '../../usecases/ports'
 
+// Every cache key falls in ['bt/', 'bt0'): '0' is the character after '/'.
+const TORRENT_KEY_FROM = TORRENT_CACHE_PREFIX
+const TORRENT_KEY_TO = `${TORRENT_CACHE_PREFIX.slice(0, -1)}0`
+
 export function createStorageUsageRepo(db: Database): StorageUsageRepo {
+  // A storage's used bytes: its drive files and hosted images, except drive files
+  // that reference the torrent cache, plus the cached torrent files it holds once.
+  async function reconcileStorages(storageIds: Iterable<string>): Promise<void> {
+    for (const storageId of new Set(storageIds)) {
+      await db
+        .update(storages)
+        .set({
+          used: sql`COALESCE((
+            SELECT SUM(${matters.size})
+            FROM ${matters}
+            WHERE ${matters.storageId} = ${storageId}
+              AND ${matters.dirtype} = ${DirType.FILE}
+              AND ${matters.status} = 'active'
+              AND ${matters.purgedAt} IS NULL
+              AND NOT (${matters.object} >= ${TORRENT_KEY_FROM} AND ${matters.object} < ${TORRENT_KEY_TO})
+          ), 0) + COALESCE((
+            SELECT SUM(${imageHostings.size})
+            FROM ${imageHostings}
+            WHERE ${imageHostings.storageId} = ${storageId}
+              AND ${imageHostings.status} = 'active'
+              AND ${imageHostings.purgedAt} IS NULL
+          ), 0) + COALESCE((
+            SELECT SUM(${torrentFiles.size})
+            FROM ${torrentFiles}
+            WHERE ${torrentFiles.storageId} = ${storageId}
+          ), 0)`,
+        })
+        .where(eq(storages.id, storageId))
+    }
+  }
+
   return {
     async rollbackReservations(reservations) {
       const bytesByStorage = new Map<string, number>()
@@ -12,7 +48,12 @@ export function createStorageUsageRepo(db: Database): StorageUsageRepo {
 
       for (const reservation of reservations) {
         if (!reservation || reservation.bytes <= 0) continue
-        bytesByStorage.set(reservation.storageId, (bytesByStorage.get(reservation.storageId) ?? 0) + reservation.bytes)
+        if (reservation.storageId !== null) {
+          bytesByStorage.set(
+            reservation.storageId,
+            (bytesByStorage.get(reservation.storageId) ?? 0) + reservation.bytes,
+          )
+        }
         bytesByOrg.set(reservation.orgId, (bytesByOrg.get(reservation.orgId) ?? 0) + reservation.bytes)
       }
 
@@ -30,6 +71,8 @@ export function createStorageUsageRepo(db: Database): StorageUsageRepo {
           .where(eq(orgQuotas.orgId, orgId))
       }
     },
+
+    reconcileStorages,
 
     async reconcile(orgId, storageIds = []) {
       await db
@@ -52,27 +95,7 @@ export function createStorageUsageRepo(db: Database): StorageUsageRepo {
         })
         .where(eq(orgQuotas.orgId, orgId))
 
-      for (const storageId of new Set(storageIds)) {
-        await db
-          .update(storages)
-          .set({
-            used: sql`COALESCE((
-              SELECT SUM(${matters.size})
-              FROM ${matters}
-              WHERE ${matters.storageId} = ${storageId}
-                AND ${matters.dirtype} = ${DirType.FILE}
-                AND ${matters.status} = 'active'
-                AND ${matters.purgedAt} IS NULL
-            ), 0) + COALESCE((
-              SELECT SUM(${imageHostings.size})
-              FROM ${imageHostings}
-              WHERE ${imageHostings.storageId} = ${storageId}
-                AND ${imageHostings.status} = 'active'
-                AND ${imageHostings.purgedAt} IS NULL
-            ), 0)`,
-          })
-          .where(eq(storages.id, storageId))
-      }
+      await reconcileStorages(storageIds)
     },
   }
 }

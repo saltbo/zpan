@@ -51,6 +51,8 @@ import type {
   TeamInviteRepo,
   TeamRepo,
   TmdbGateway,
+  TorrentCacheConfigRepo,
+  TorrentRepo,
   UserAdminRepo,
   WebDavPathRepo,
   WebDavStateRepo,
@@ -109,6 +111,8 @@ export interface Deps {
   teams: TeamRepo
   teamInvites: TeamInviteRepo
   tmdb: TmdbGateway
+  torrents: TorrentRepo
+  torrentCacheConfigs: TorrentCacheConfigRepo
   userAdmin: UserAdminRepo
   webdavPath: WebDavPathRepo
   webdavState: WebDavStateRepo

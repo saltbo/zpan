@@ -2929,6 +2929,8 @@ const (
 	GetOAuthConsentContext200JSONResponseBodyScopesTeamsCreate               GetOAuthConsentContext200JSONResponseBodyScopes = "teams:create"
 	GetOAuthConsentContext200JSONResponseBodyScopesTeamsRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "teams:read"
 	GetOAuthConsentContext200JSONResponseBodyScopesTeamsUpdate               GetOAuthConsentContext200JSONResponseBodyScopes = "teams:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheConfigRead    GetOAuthConsentContext200JSONResponseBodyScopes = "torrent-cache-config:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheConfigUpdate  GetOAuthConsentContext200JSONResponseBodyScopes = "torrent-cache-config:update"
 	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsCreate    GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:create"
 	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsDelete    GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:delete"
 	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsRead      GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:read"
@@ -3105,6 +3107,10 @@ func (e GetOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesTeamsUpdate:
 		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheConfigRead:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheConfigUpdate:
+		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsCreate:
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsDelete:
@@ -3208,6 +3214,8 @@ const (
 	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsCreate               ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:create"
 	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:read"
 	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsUpdate               ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheConfigRead    ListOAuthGrants200JSONResponseBodyItemsScopes = "torrent-cache-config:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheConfigUpdate  ListOAuthGrants200JSONResponseBodyItemsScopes = "torrent-cache-config:update"
 	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsCreate    ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:create"
 	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsDelete    ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:delete"
 	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsRead      ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:read"
@@ -3383,6 +3391,10 @@ func (e ListOAuthGrants200JSONResponseBodyItemsScopes) Valid() bool {
 	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamsRead:
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamsUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheConfigRead:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheConfigUpdate:
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsCreate:
 		return true
@@ -6782,6 +6794,12 @@ type TeamSummary struct {
 	Slug        string  `json:"slug"`
 }
 
+// TorrentCacheConfig defines model for TorrentCacheConfig.
+type TorrentCacheConfig struct {
+	// Folder Workspace folder that cached torrents are transferred into, slash-delimited. Empty is the root.
+	Folder string `json:"folder"`
+}
+
 // TransferResult defines model for TransferResult.
 type TransferResult struct {
 	Saved   []Matter `json:"saved"`
@@ -7987,6 +8005,12 @@ type JoinTeamJSONBody struct {
 // JoinTeam200JSONResponseBodyOk defines parameters for JoinTeam.
 type JoinTeam200JSONResponseBodyOk bool
 
+// ReplaceTorrentCacheConfigJSONBody defines parameters for ReplaceTorrentCacheConfig.
+type ReplaceTorrentCacheConfigJSONBody struct {
+	// Folder Workspace folder that cached torrents are transferred into, slash-delimited. Empty is the root.
+	Folder string `json:"folder"`
+}
+
 // ListTrashObjectsParams defines parameters for ListTrashObjects.
 type ListTrashObjectsParams struct {
 	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
@@ -8199,6 +8223,9 @@ type CreateTeamInviteLinkJSONRequestBody CreateTeamInviteLinkJSONBody
 
 // JoinTeamJSONRequestBody defines body for JoinTeam for application/json ContentType.
 type JoinTeamJSONRequestBody JoinTeamJSONBody
+
+// ReplaceTorrentCacheConfigJSONRequestBody defines body for ReplaceTorrentCacheConfig for application/json ContentType.
+type ReplaceTorrentCacheConfigJSONRequestBody ReplaceTorrentCacheConfigJSONBody
 
 // RestoreObjectJSONRequestBody defines body for RestoreObject for application/json ContentType.
 type RestoreObjectJSONRequestBody RestoreObjectJSONBody
@@ -12074,6 +12101,14 @@ type ClientInterface interface {
 
 	JoinTeam(ctx context.Context, teamId string, body JoinTeamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetTorrentCacheConfig request
+	GetTorrentCacheConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceTorrentCacheConfigWithBody request with any body
+	ReplaceTorrentCacheConfigWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ReplaceTorrentCacheConfig(ctx context.Context, body ReplaceTorrentCacheConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListTrashObjects request
 	ListTrashObjects(ctx context.Context, params *ListTrashObjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -14714,6 +14749,42 @@ func (c *Client) JoinTeamWithBody(ctx context.Context, teamId string, contentTyp
 
 func (c *Client) JoinTeam(ctx context.Context, teamId string, body JoinTeamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewJoinTeamRequest(c.Server, teamId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetTorrentCacheConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTorrentCacheConfigRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceTorrentCacheConfigWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceTorrentCacheConfigRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceTorrentCacheConfig(ctx context.Context, body ReplaceTorrentCacheConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceTorrentCacheConfigRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -21990,6 +22061,73 @@ func NewJoinTeamRequestWithBody(server string, teamId string, contentType string
 	return req, nil
 }
 
+// NewGetTorrentCacheConfigRequest generates requests for GetTorrentCacheConfig
+func NewGetTorrentCacheConfigRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/torrent-cache/config")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewReplaceTorrentCacheConfigRequest calls the generic ReplaceTorrentCacheConfig builder with application/json body
+func NewReplaceTorrentCacheConfigRequest(server string, body ReplaceTorrentCacheConfigJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplaceTorrentCacheConfigRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewReplaceTorrentCacheConfigRequestWithBody generates requests for ReplaceTorrentCacheConfig with any type of body
+func NewReplaceTorrentCacheConfigRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/torrent-cache/config")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListTrashObjectsRequest generates requests for ListTrashObjects
 func NewListTrashObjectsRequest(server string, params *ListTrashObjectsParams) (*http.Request, error) {
 	var err error
@@ -23182,6 +23320,14 @@ type ClientWithResponsesInterface interface {
 	JoinTeamWithBodyWithResponse(ctx context.Context, teamId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*JoinTeamResponse, error)
 
 	JoinTeamWithResponse(ctx context.Context, teamId string, body JoinTeamJSONRequestBody, reqEditors ...RequestEditorFn) (*JoinTeamResponse, error)
+
+	// GetTorrentCacheConfigWithResponse request
+	GetTorrentCacheConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTorrentCacheConfigResponse, error)
+
+	// ReplaceTorrentCacheConfigWithBodyWithResponse request with any body
+	ReplaceTorrentCacheConfigWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheConfigResponse, error)
+
+	ReplaceTorrentCacheConfigWithResponse(ctx context.Context, body ReplaceTorrentCacheConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheConfigResponse, error)
 
 	// ListTrashObjectsWithResponse request
 	ListTrashObjectsWithResponse(ctx context.Context, params *ListTrashObjectsParams, reqEditors ...RequestEditorFn) (*ListTrashObjectsResponse, error)
@@ -28522,6 +28668,70 @@ func (r JoinTeamResponse) ContentType() string {
 	return ""
 }
 
+type GetTorrentCacheConfigResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TorrentCacheConfig
+	JSON401      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTorrentCacheConfigResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTorrentCacheConfigResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetTorrentCacheConfigResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ReplaceTorrentCacheConfigResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TorrentCacheConfig
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplaceTorrentCacheConfigResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplaceTorrentCacheConfigResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReplaceTorrentCacheConfigResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListTrashObjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -30826,6 +31036,32 @@ func (c *ClientWithResponses) JoinTeamWithResponse(ctx context.Context, teamId s
 		return nil, err
 	}
 	return ParseJoinTeamResponse(rsp)
+}
+
+// GetTorrentCacheConfigWithResponse request returning *GetTorrentCacheConfigResponse
+func (c *ClientWithResponses) GetTorrentCacheConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTorrentCacheConfigResponse, error) {
+	rsp, err := c.GetTorrentCacheConfig(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTorrentCacheConfigResponse(rsp)
+}
+
+// ReplaceTorrentCacheConfigWithBodyWithResponse request with arbitrary body returning *ReplaceTorrentCacheConfigResponse
+func (c *ClientWithResponses) ReplaceTorrentCacheConfigWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheConfigResponse, error) {
+	rsp, err := c.ReplaceTorrentCacheConfigWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceTorrentCacheConfigResponse(rsp)
+}
+
+func (c *ClientWithResponses) ReplaceTorrentCacheConfigWithResponse(ctx context.Context, body ReplaceTorrentCacheConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheConfigResponse, error) {
+	rsp, err := c.ReplaceTorrentCacheConfig(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceTorrentCacheConfigResponse(rsp)
 }
 
 // ListTrashObjectsWithResponse request returning *ListTrashObjectsResponse
@@ -37267,6 +37503,86 @@ func ParseJoinTeamResponse(rsp *http.Response) (*JoinTeamResponse, error) {
 			return nil, err
 		}
 		response.JSON410 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTorrentCacheConfigResponse parses an HTTP response from a GetTorrentCacheConfigWithResponse call
+func ParseGetTorrentCacheConfigResponse(rsp *http.Response) (*GetTorrentCacheConfigResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTorrentCacheConfigResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TorrentCacheConfig
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReplaceTorrentCacheConfigResponse parses an HTTP response from a ReplaceTorrentCacheConfigWithResponse call
+func ParseReplaceTorrentCacheConfigResponse(rsp *http.Response) (*ReplaceTorrentCacheConfigResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplaceTorrentCacheConfigResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TorrentCacheConfig
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
