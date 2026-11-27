@@ -94,3 +94,34 @@ export async function mintTaskUploadContext(
     downloaderToken: downloader.token,
   }
 }
+
+// Assigns one more task to the downloader behind `context`, so two tasks run on
+// the same downloader, and returns that task's upload token.
+export async function mintSiblingTaskUploadToken(
+  app: TestApp,
+  context: { downloaderToken: string; targetFolder: string; taskId: string },
+): Promise<{ uploadToken: string; taskId: string }> {
+  const user = await adminHeaders(app)
+  const createTaskRes = await app.request('/api/downloads/tasks', {
+    method: 'POST',
+    headers: { ...user, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source: { type: 'http', uri: 'https://example.com/sibling.txt' },
+      targetFolder: context.targetFolder,
+      name: 'sibling.txt',
+    }),
+  })
+  expect(createTaskRes.status).toBe(201)
+  const assignedRes = await app.request('/api/downloads/downloaders/me/heartbeats', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${context.downloaderToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...downloaderHeartbeat, currentTasks: 1 }),
+  })
+  const assigned = (await assignedRes.json()) as {
+    assignments: Array<{ id: string; status: { assignment?: { uploadToken?: string } } }>
+  }
+  const sibling = assigned.assignments.find((assignment) => assignment.id !== context.taskId)
+  const uploadToken = sibling?.status.assignment?.uploadToken
+  if (!sibling || !uploadToken) throw new Error('sibling_upload_token_missing')
+  return { uploadToken, taskId: sibling.id }
+}

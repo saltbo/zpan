@@ -82,20 +82,31 @@ describe('removing server-side scraping from a production database', () => {
     }
     const deps = createDeps(platform)
     const matters = createMatterRepo(db)
-    const add = (parent: string, name: string, kind: 'file' | 'folder' = 'file') =>
-      matters.create({
-        orgId: 'org-1',
-        name,
-        type: kind === 'file' ? 'video/mp4' : 'folder',
-        size: kind === 'file' ? 100 : 0,
-        dirtype: kind === 'file' ? DirType.FILE : DirType.USER_FOLDER,
-        parent,
-        object: kind === 'file' ? `objects/${name}` : '',
-        storageId: 'storage-1',
-        status: 'active',
-      })
-    const folder = await add('', 'Movies', 'folder')
-    const video = await add('Movies', 'Sintel (2010).mp4')
+    // Rows go in with SQL: the database still has the schema of BEFORE_REMOVAL,
+    // which the current repos may have outgrown.
+    const add = (parent: string, name: string, kind: 'file' | 'folder' = 'file') => {
+      const id = `m-${name.replace(/\W/g, '')}`
+      sqlite
+        .prepare(
+          `INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+           VALUES (?, 'org-1', ?, ?, ?, ?, ?, ?, ?, 'storage-1', 'active', ?, ?)`,
+        )
+        .run(
+          id,
+          id,
+          name,
+          kind === 'file' ? 'video/mp4' : 'folder',
+          kind === 'file' ? 100 : 0,
+          kind === 'file' ? DirType.FILE : DirType.USER_FOLDER,
+          parent,
+          kind === 'file' ? `objects/${name}` : '',
+          now,
+          now,
+        )
+      return { id }
+    }
+    const folder = add('', 'Movies', 'folder')
+    const video = add('Movies', 'Sintel (2010).mp4')
     const createdBy = { type: 'user' as const, ref: 'user-1', issuer: null }
     const library = await createMediaLibraryRepo(db).create({
       orgId: 'org-1',

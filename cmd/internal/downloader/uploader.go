@@ -64,6 +64,9 @@ func (u *Uploader) Upload(
 	if err != nil {
 		return "", fmt.Errorf("create remote folder: %w", err)
 	}
+	// The files this upload created. A failed upload deletes them and leaves
+	// the folders, which a task's upload token may not delete.
+	var made []string
 	completed := false
 	defer func() {
 		if completed {
@@ -71,8 +74,10 @@ func (u *Uploader) Upload(
 		}
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
-		if deleteErr := u.deleteObject(cleanupCtx, task.UploadToken(), root.ID); deleteErr != nil {
-			log.Warn("failed to delete remote folder after directory upload failure", "object_id", root.ID, "name", root.Name, "error", deleteErr)
+		for _, id := range made {
+			if deleteErr := u.deleteObject(cleanupCtx, task.UploadToken(), id); deleteErr != nil {
+				log.Warn("failed to delete remote object after directory upload failure", "object_id", id, "error", deleteErr)
+			}
 		}
 	}()
 	rootPath := joinObjectPath(task.TargetFolder(), root.Name)
@@ -89,9 +94,11 @@ func (u *Uploader) Upload(
 			}
 			continue
 		}
-		if _, err := u.uploadSingleFile(ctx, log, task, entry.path, entry.name, entry.size, parent, client.OnConflictRename, progress); err != nil {
+		live, err := u.uploadSingleFile(ctx, log, task, entry.path, entry.name, entry.size, parent, client.OnConflictRename, progress)
+		if err != nil {
 			return "", err
 		}
+		made = append(made, live.ID)
 	}
 	completed = true
 	return root.ID, nil

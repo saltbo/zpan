@@ -26366,6 +26366,7 @@ type DeleteObjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *Error
+	JSON403      *Error
 	JSON404      *Error
 }
 
@@ -35155,6 +35156,13 @@ func ParseDeleteObjectResponse(rsp *http.Response) (*DeleteObjectResponse, error
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest Error

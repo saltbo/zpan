@@ -248,6 +248,7 @@ export async function createObject(
     createdByActorType: createdBy.type,
     createdByActorRef: createdBy.ref,
     createdByActorIssuer: createdBy.issuer,
+    createdByTaskId: actor.kind === 'download-task-upload' ? actor.taskId : null,
     onConflict,
   })
 
@@ -890,6 +891,27 @@ export async function authorizeTaskUploadAbort(
     return { ok: true }
   }
   return authorizeTaskUploadConfirm(deps, params)
+}
+
+// A download task's upload token removes a file its own task created: the
+// downloader's cleanup after a failed upload. The task never handed the file to
+// the user, so it is purged rather than left in their trash, where it would
+// still count against their quota. Folders stay, because another task may have
+// joined a folder this one created.
+export async function deleteTaskUploadFile(
+  deps: Pick<Deps, 'matter' | 'downloaders' | 'downloadTasks' | 'storages' | 's3' | 'storageUsage' | 'share'>,
+  params: { orgId: string; objectId: string; taskId: string; downloaderId: string },
+): Promise<TrashObjectOutcome> {
+  const { orgId, objectId } = params
+  const matter = await deps.matter.get(objectId, orgId)
+  if (!matter) return { ok: false, error: notFound() }
+  if (matter.dirtype !== DirType.FILE || matter.createdByTaskId !== params.taskId) {
+    return { ok: false, error: forbidden() }
+  }
+  await assertTaskUploadAllowed(deps as Deps, { taskId: params.taskId, downloaderId: params.downloaderId })
+  if (matter.trashedAt == null) await deps.matter.trash(orgId, objectId)
+  const purged = await deleteObject(deps, { orgId, objectId })
+  return purged.ok ? { ok: true, matter } : { ok: false, error: notFound() }
 }
 
 // ─── Permanent delete (purge) ─────────────────────────────────────────────────

@@ -23,6 +23,7 @@ export interface Matter {
   createdByActorType?: string | null
   createdByActorRef?: string | null
   createdByActorIssuer?: string | null
+  createdByTaskId?: string | null
   metadata?: MatterMetadata | null
   createdAt: Date
   updatedAt: Date
@@ -52,6 +53,7 @@ export interface CreateMatterInput {
   createdByActorType?: ActorType | null
   createdByActorRef?: string | null
   createdByActorIssuer?: string | null
+  createdByTaskId?: string | null
   /** How to handle name collision with an existing active sibling. Default 'fail'. */
   onConflict?: ConflictStrategy
 }

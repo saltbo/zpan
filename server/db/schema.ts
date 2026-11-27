@@ -22,6 +22,9 @@ export const matters = sqliteTable(
     createdByActorType: text('created_by_actor_type'),
     createdByActorRef: text('created_by_actor_ref'),
     createdByActorIssuer: text('created_by_actor_issuer'),
+    // The download task whose upload token created this matter; that token may
+    // delete only the files its own task created.
+    createdByTaskId: text('created_by_task_id'),
     // File metadata keyed by namespace (shared/schemas/matter-metadata.ts).
     metadata: text('metadata', { mode: 'json' }).$type<MatterMetadata>(),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),

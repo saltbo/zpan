@@ -28,6 +28,7 @@ import {
   completeUpload,
   copyObject,
   createObject,
+  deleteTaskUploadFile,
   getObject,
   getObjectCreator,
   isWithinDownloadTarget,
@@ -410,7 +411,7 @@ const patchObjectRoute = authRoute(
 )
 
 const deleteObjectRoute = authRoute(
-  { scopes: [AuthorizationScope.OBJECTS_DELETE], minTeamRole: 'editor' },
+  { scopes: [AuthorizationScope.OBJECTS_DELETE], minTeamRole: 'editor', taskUpload: true },
   {
     operationId: 'deleteObject',
     summary: 'Delete object',
@@ -420,9 +421,11 @@ const deleteObjectRoute = authRoute(
     request: { params: idParam },
     responses: {
       // Soft delete: the object moves to trash (GET /trash/objects). Permanent
-      // removal is DELETE /trash/objects/{id}.
+      // removal is DELETE /trash/objects/{id}. A download task's upload token
+      // may remove only a file its own task created, and removes it permanently.
       204: { description: 'Object moved to trash' },
       400: errorResponse('No active organization'),
+      403: errorResponse('Forbidden'),
       404: errorResponse('Not found'),
     },
   },
@@ -703,10 +706,17 @@ const objects = app
   .openapi(deleteObjectRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw badRequest('No active organization')
-    const result = await trashObject(c.get('deps'), {
-      orgId,
-      objectId: c.req.valid('param').id,
-    })
+    const objectId = c.req.valid('param').id
+    const principal = c.get('principal')
+    const result =
+      principal?.kind === 'download-task-upload'
+        ? await deleteTaskUploadFile(c.get('deps'), {
+            orgId,
+            objectId,
+            taskId: principal.taskId,
+            downloaderId: principal.downloaderId,
+          })
+        : await trashObject(c.get('deps'), { orgId, objectId })
     if (!result.ok) throw result.error
     return c.body(null, 204)
   })

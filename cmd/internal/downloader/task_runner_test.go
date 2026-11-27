@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -752,36 +751,37 @@ func TestUploadFailurePersistsDownloadCheckpoint(t *testing.T) {
 	}
 }
 
-func TestDirectoryUploadFailureDeletesRemoteRootFolder(t *testing.T) {
-	api := &recordingAPI{
-		createFolderDrafts: []client.ObjectDraft{{ID: "root-folder", Name: "album"}},
-		createObjectDraft:  client.ObjectDraft{ID: "file-object"},
-	}
-	w := NewTaskRunnerWithAPI(config.Config{}, api)
+// [spec: download-tasks/failed-upload-cleanup]
+func TestDirectoryUploadFailureDeletesItsFilesAndKeepsFolders(t *testing.T) {
+	drive := newFakeDrive(t)
+	drive.add("", "Movies", true, "")
 	resultPath := t.TempDir()
-	if err := os.WriteFile(filepath.Join(resultPath, "track.flac"), []byte("audio"), 0o644); err != nil {
+	if err := os.MkdirAll(filepath.Join(resultPath, "Subs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(resultPath, "a.mkv"), []byte("video"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The second file cannot be read, so the upload fails after the first went up.
+	unreadable := filepath.Join(resultPath, "b.srt")
+	if err := os.WriteFile(unreadable, []byte("subs"), 0o000); err != nil {
 		t.Fatal(err)
 	}
 
-	w.uploadAndComplete(
-		context.Background(),
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		clientTaskWithUploadToken("task-1", "downloading"),
-		Result{
-			Path:  resultPath,
-			Name:  "album",
-			Size:  5,
-			IsDir: true,
-		},
-		nil,
-	)
-
-	if !reflect.DeepEqual(api.deletedObjects, []string{"root-folder"}) {
-		t.Fatalf("expected remote root folder cleanup, got %#v", api.deletedObjects)
+	_, err := NewUploader(drive, nil).Upload(context.Background(), discardLogger(), planTask(), Result{
+		Path:  resultPath,
+		Name:  "Sintel",
+		Size:  9,
+		IsDir: true,
+	})
+	if err == nil {
+		t.Fatal("expected the upload to fail")
 	}
-	failed := api.patches[len(api.patches)-1]
-	if failed.State() != "failed" {
-		t.Fatalf("expected failed status, got %q", failed.State())
+	if drive.entry("Movies/Sintel/a.mkv") != nil {
+		t.Fatalf("the uploaded file was left behind: %v", drive.paths())
+	}
+	if drive.entry("Movies/Sintel") == nil || drive.entry("Movies/Sintel/Subs") == nil {
+		t.Fatalf("the folders should stay: %v", drive.paths())
 	}
 }
 

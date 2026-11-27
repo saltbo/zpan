@@ -393,6 +393,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         createdByActorType: input.createdByActorType ?? null,
         createdByActorRef: input.createdByActorRef ?? null,
         createdByActorIssuer: input.createdByActorIssuer ?? null,
+        createdByTaskId: input.createdByTaskId ?? null,
         metadata: null,
         createdAt: now,
         updatedAt: now,
@@ -593,6 +594,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         createdByActorType: opts.createdByActorType ?? null,
         createdByActorRef: opts.createdByActorRef ?? null,
         createdByActorIssuer: opts.createdByActorIssuer ?? null,
+        createdByTaskId: null,
         // A copy describes the same content, so it keeps the metadata; its image
         // references still point at the original sidecars.
         metadata: source.metadata ?? null,

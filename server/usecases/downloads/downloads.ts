@@ -830,7 +830,7 @@ function createTaskUploadToken(
     orgId: params.orgId,
     targetFolder: params.targetFolder,
     createdByUserId: params.createdByUserId,
-    scopes: ['objects:read', 'objects:create', 'objects:upload', 'objects:confirm'],
+    scopes: ['objects:read', 'objects:create', 'objects:upload', 'objects:confirm', 'objects:delete'],
     jti: `${params.taskId}:${params.downloaderId}:${params.assignedAt.getTime()}`,
     iat: issuedAt,
     exp,
