@@ -484,8 +484,16 @@ export const downloadTasks = sqliteTable(
     startedAt: integer('started_at', { mode: 'timestamp_ms' }),
     finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
     deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
+    // Torrent cache (docs/design/torrent-cache.md §6): the v1 infoHash once known,
+    // the cached torrent this task fills or waits for, and its role: 'fill' while
+    // a capable downloader uploads into the cache, 'join' while it waits for
+    // another task's download.
+    infoHash: text('info_hash'),
+    torrentId: text('torrent_id'),
+    torrentCacheRole: text('torrent_cache_role'),
   },
   (t) => [
+    index('download_tasks_torrent_idx').on(t.torrentId, t.status),
     index('download_tasks_org_created_idx').on(t.orgId, t.createdAt),
     index('download_tasks_org_status_idx').on(t.orgId, t.status),
     index('download_tasks_org_category_idx').on(t.orgId, t.category),
@@ -792,6 +800,7 @@ export const torrentFiles = sqliteTable(
     mime: text('mime').notNull().default(''),
     storageId: text('storage_id').notNull(),
     objectKey: text('object_key').notNull(), // bt/<infoHash>/<fileIdx>
+    uploadedAt: integer('uploaded_at', { mode: 'timestamp_ms' }), // set when a cache download completes the file
   },
   (t) => [
     primaryKey({ columns: [t.torrentId, t.fileIdx] }),

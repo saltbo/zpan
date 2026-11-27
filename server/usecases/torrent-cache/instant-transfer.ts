@@ -4,7 +4,7 @@
 // size; the storage's used bytes do not change, because no bytes landed.
 
 import { DirType, ObjectStatus } from '@shared/constants'
-import { normalizeTorrentFolder, torrentTreeRoot } from '../../domain/torrent-cache'
+import { normalizeTorrentFolder, type TorrentStatus, torrentTreeRoot } from '../../domain/torrent-cache'
 import type { Deps } from '../deps'
 import {
   type ActorIdentity,
@@ -27,16 +27,28 @@ function joinPath(parent: string, name: string): string {
 
 export async function transferTorrent(
   deps: InstantTransferDeps,
-  params: { torrentId: string; orgId: string; userId: string; targetFolder: string; now?: Date },
+  params: {
+    torrentId: string
+    orgId: string
+    userId: string
+    targetFolder: string
+    now?: Date
+    // The download that filled the cache gets its files before verification
+    // passes (docs/design/torrent-cache.md §7); every other transfer needs ready.
+    sourceTaskId?: string
+  },
 ): Promise<InstantTransferOutcome> {
   const { orgId } = params
   const torrent = await deps.torrents.get(params.torrentId)
   if (!torrent) return { ok: false, error: notFound('Torrent not found') }
   const notReady = conflict('Torrent is not ready', 'TORRENT_NOT_READY')
-  if (torrent.status !== 'ready') return { ok: false, error: notReady }
+  const isSource = params.sourceTaskId !== undefined && params.sourceTaskId === torrent.sourceTaskId
+  const statuses: TorrentStatus[] = isSource ? ['ready', 'verifying'] : ['ready']
+  if (!statuses.includes(torrent.status)) return { ok: false, error: notReady }
   // Touching first makes a racing eviction lose: its claim requires the access
   // time it listed, and a claimed torrent is no longer ready to touch.
-  if (!(await deps.torrents.touchReady(torrent.id, params.now ?? new Date()))) return { ok: false, error: notReady }
+  if (!(await deps.torrents.touch(torrent.id, statuses, params.now ?? new Date())))
+    return { ok: false, error: notReady }
 
   const files = await deps.torrents.listFiles(torrent.id)
   const createdBy: ActorIdentity = { type: 'user', ref: params.userId, issuer: null }

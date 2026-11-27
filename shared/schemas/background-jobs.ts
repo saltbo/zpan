@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { opaqueIdSchema } from './id'
+import { torrentVerifyJobRequestSchema } from './torrent-cache'
 
 export const backgroundJobStatusSchema = z.enum(['queued', 'running', 'completed', 'failed', 'canceled'])
 export type BackgroundJobStatusInput = z.infer<typeof backgroundJobStatusSchema>
@@ -39,6 +40,7 @@ export const backgroundJobRequestSchema = z.discriminatedUnion('type', [
   archiveCompressJobRequestSchema,
   archiveExtractJobRequestSchema,
   mediaLibraryScanJobRequestSchema,
+  torrentVerifyJobRequestSchema,
 ])
 
 export type ArchiveCompressJobRequest = z.infer<typeof archiveCompressJobRequestSchema>

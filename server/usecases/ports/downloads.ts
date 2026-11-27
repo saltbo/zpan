@@ -86,7 +86,14 @@ export interface DownloadTaskRecord {
   startedAt: Date | null
   finishedAt: Date | null
   deletedAt: Date | null
+  infoHash: string | null
+  torrentId: string | null
+  torrentCacheRole: TorrentCacheRole | null
 }
+
+// How a download task uses the torrent cache: 'fill' while its downloader uploads
+// the torrent into the cache, 'join' while it waits for another task's download.
+export type TorrentCacheRole = 'fill' | 'join'
 
 export interface CreateDownloaderRecordInput {
   id: string
@@ -161,6 +168,7 @@ export interface CreateDownloadTaskRecordInput {
   assignedDownloaderId: string | null
   status: string
   assignedAt: Date | null
+  infoHash?: string | null
   now: Date
 }
 
@@ -217,7 +225,17 @@ export interface DownloadTaskRepo {
   /** Active task whose target is `folderPath` or a descendant of it. */
   findActiveTargetWithin(orgId: string, folderPath: string): Promise<DownloadTaskRecord | null>
   setFields(id: string, fields: UpdateDownloadTaskFields): Promise<void>
-  claimQueued(id: string, downloaderId: string, now: Date): Promise<boolean>
+  /** Assigns a queued task; `torrentCacheRole` 'fill' assigns it in cache mode, null in drive mode. */
+  claimQueued(
+    id: string,
+    downloaderId: string,
+    now: Date,
+    options?: { torrentCacheRole?: 'fill' | null },
+  ): Promise<boolean>
+  /** Tasks attached to a torrent in the given role and statuses. */
+  listByTorrent(torrentId: string, role: TorrentCacheRole, statuses: string[]): Promise<DownloadTaskRecord[]>
+  /** Queued tasks joined to a torrent that is no longer pending: not verifying, nor downloading by a live filler. */
+  listSettledJoins(limit: number): Promise<DownloadTaskRecord[]>
   delete(id: string, now: Date): Promise<void>
   /** Oldest queued tasks awaiting assignment. */
   listQueued(limit: number): Promise<DownloadTaskRecord[]>
@@ -234,6 +252,11 @@ export interface DownloadTaskRepo {
 export interface UpdateDownloadTaskFields {
   // Appends a scrape_skipped event with this reason; not a column.
   scrapeSkippedReason?: string
+  // Appends a torrent cache event; not a column.
+  torrentCacheEvent?: 'cache_hit' | 'cache_joined'
+  infoHash?: string | null
+  torrentId?: string | null
+  torrentCacheRole?: TorrentCacheRole | null
   targetFolder?: string
   status?: string
   assignedDownloaderId?: string | null

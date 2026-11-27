@@ -38,7 +38,7 @@ export function createTorrentRepo(db: Database): TorrentRepo {
     return rows[0] ? toTorrent(rows[0]) : null
   }
 
-  return {
+  const repo: TorrentRepo = {
     async create(input) {
       const now = input.now ?? new Date()
       const row: typeof torrents.$inferInsert = {
@@ -88,13 +88,53 @@ export function createTorrentRepo(db: Database): TorrentRepo {
         .orderBy(asc(torrentFiles.fileIdx))
     },
 
-    async touchReady(id, now) {
+    async createIfAbsent(input) {
+      const existing = await repo.getByInfoHash(input.infoHash)
+      if (existing) return { created: false, torrent: existing }
+      try {
+        return { created: true, torrent: await repo.create(input) }
+      } catch (error) {
+        const winner = await repo.getByInfoHash(input.infoHash)
+        if (winner) return { created: false, torrent: winner }
+        throw error
+      }
+    },
+
+    async setSource(id, source, now) {
+      await db
+        .update(torrents)
+        .set({ sourceTaskId: source.taskId, sourceDownloaderId: source.downloaderId, updatedAt: now })
+        .where(eq(torrents.id, id))
+    },
+
+    async transition(id, from, to, fields = {}) {
+      const now = fields.now ?? new Date()
+      const rows = await db
+        .update(torrents)
+        .set({
+          status: to,
+          updatedAt: now,
+          ...(fields.verified === undefined ? {} : { verified: fields.verified }),
+        })
+        .where(and(eq(torrents.id, id), inArray(torrents.status, [...from])))
+        .returning({ id: torrents.id })
+      return rows.length === 1
+    },
+
+    async touch(id, statuses, now) {
       const rows = await db
         .update(torrents)
         .set({ lastAccessedAt: now, updatedAt: now })
-        .where(and(eq(torrents.id, id), eq(torrents.status, 'ready')))
+        .where(and(eq(torrents.id, id), inArray(torrents.status, [...statuses])))
         .returning({ id: torrents.id })
       return rows.length === 1
+    },
+
+    async markFileUploaded(torrentId, fileIdx, now) {
+      await db
+        .update(torrentFiles)
+        .set({ uploadedAt: now })
+        .where(and(eq(torrentFiles.torrentId, torrentId), eq(torrentFiles.fileIdx, fileIdx)))
     },
 
     async listEvictionCandidates(limit): Promise<EvictionCandidate[]> {
@@ -140,6 +180,7 @@ export function createTorrentRepo(db: Database): TorrentRepo {
       ])
     },
   }
+  return repo
 }
 
 export function createTorrentCacheConfigRepo(db: Database): TorrentCacheConfigRepo {

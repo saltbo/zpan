@@ -44,3 +44,39 @@ Feature: Torrent cache
     Given a workspace with an admin and an editor
     When both read the torrent folder and both try to change it
     Then both read Media, the admin's change is saved and the editor's is refused
+
+  @torrent-cache/fill-from-download @api
+  Scenario: A capable downloader fills the cache and the requester gets the files
+    Given a downloader that supports the torrent cache and a submitted magnet task
+    When the downloader uploads the torrent's metadata and files through the cache
+    Then the torrent is cached and the requester's folder holds its files
+
+  @torrent-cache/reject-forged-metadata @api
+  Scenario: Metadata that does not match the infoHash is refused
+    Given a cache download for one infoHash
+    When the downloader uploads metadata of a different torrent
+    Then the upload is refused and nothing is cached
+
+  @torrent-cache/verify-pieces @usecase
+  Scenario: A torrent is shared only after its pieces verify
+    Given a cached torrent whose files were uploaded
+    When verification runs over correct bytes, and over bytes with one altered piece
+    Then the first becomes ready and the second is marked invalid and is never handed to another workspace
+
+  @torrent-cache/instant-on-submit @api
+  Scenario: Submitting a torrent that is already cached completes at once
+    Given a ready cached torrent
+    When another workspace submits its magnet link
+    Then the task completes without a download and the files appear in its folder
+
+  @torrent-cache/join-in-progress @api
+  Scenario: Submitting a torrent that is still downloading joins that download
+    Given a torrent another workspace is downloading into the cache
+    When its magnet link is submitted again
+    Then no second download starts and the task completes when the torrent is ready
+
+  @torrent-cache/legacy-downloader-unchanged @api
+  Scenario: Downloaders without cache support keep uploading into the drive
+    Given a downloader that does not report torrent cache support
+    When a magnet task is assigned to it
+    Then it uploads into the drive exactly as before

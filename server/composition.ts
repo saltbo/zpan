@@ -11,6 +11,7 @@ import { createBackgroundJobQueue } from './adapters/gateways/background-job-que
 import { createEmailGateway } from './adapters/gateways/email'
 import { createImageUploadGateway } from './adapters/gateways/image-upload'
 import { createLicensingCloudGateway } from './adapters/gateways/licensing-cloud'
+import { createPieceHasherGateway } from './adapters/gateways/piece-hasher'
 import { S3Service } from './adapters/gateways/s3'
 import { createZipGateway } from './adapters/gateways/zip'
 import { createChangelogProvider } from './adapters/providers/changelog'
@@ -118,6 +119,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     memberCount: createMemberCountRepo(db),
     notifications: createNotificationRepo(db),
     objectUploadSessions: createObjectUploadSessionRepo(db),
+    pieceHasher: createPieceHasherGateway(),
     org: createOrgRepo(db),
     profiles: createProfileRepo(db),
     quota: createQuotaRepo(db),
