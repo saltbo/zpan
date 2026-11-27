@@ -1,62 +1,61 @@
-// Torrent eviction (docs/design/torrents.md §11). A torrent no drive
-// file references, in any status including trash, is deleted once its last
-// access is older than the retention period, or oldest first while the torrents
-// exceed the optional capacity. Objects go first and rows second, so a failed
-// sweep leaves rows that the next sweep retries.
+// Torrent eviction (docs/design/torrents.md §11). Drive files are paid for with
+// quota and list entries are not, so the two hold a torrent differently: a drive
+// file, in any status including trash, holds it until it is purged, and a
+// stremthru list entry holds it until it expires. Each sweep first expires
+// stremthru entries not played within the retention period, then deletes
+// torrents nobody holds once their last access is older than the retention
+// period, or oldest first while the torrents exceed the optional capacity. When
+// evicting every unheld torrent is not enough, torrents held only by stremthru
+// entries go next, least recently played first, with their entries. Objects go
+// first and rows second, so a failed sweep leaves rows that the next sweep
+// retries.
 
-import {
-  DEFAULT_TORRENT_RETENTION_DAYS,
-  selectTorrentsToEvict,
-  torrentInfoObjectKey,
-  torrentObjectPrefix,
-} from '../../domain/torrents'
+import { selectTorrentsToEvict, torrentInfoObjectKey, torrentObjectPrefix } from '../../domain/torrents'
 import type { Deps } from '../deps'
 import type { EvictionCandidate } from '../ports'
+import { loadTorrentPolicy } from './policy'
+import { expireStremThruEntries } from './workspace-list'
 
-export const TORRENT_OPTION_KEYS = {
-  retentionDays: 'torrent_retention_days',
-  capacityBytes: 'torrent_capacity_bytes',
-} as const
+export { loadTorrentPolicy, TORRENT_OPTION_KEYS } from './policy'
 
 const SWEEP_BATCH = 100
 
-export type TorrentEvictionDeps = Pick<Deps, 'torrents' | 'storages' | 's3' | 'storageUsage' | 'systemOptions'>
-
-function parseNonNegative(raw: string | null): number | null {
-  if (raw === null || raw.trim() === '') return null
-  const value = Number(raw)
-  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null
-}
-
-export async function loadTorrentPolicy(
-  deps: Pick<Deps, 'systemOptions'>,
-): Promise<{ retentionDays: number; capacityBytes: number | null }> {
-  const options = await deps.systemOptions.getMany(Object.values(TORRENT_OPTION_KEYS))
-  const value = (key: string) => options.find((option) => option.key === key)?.value ?? null
-  return {
-    retentionDays: parseNonNegative(value(TORRENT_OPTION_KEYS.retentionDays)) ?? DEFAULT_TORRENT_RETENTION_DAYS,
-    capacityBytes: parseNonNegative(value(TORRENT_OPTION_KEYS.capacityBytes)),
-  }
-}
+export type TorrentEvictionDeps = Deps
 
 export async function evictTorrents(deps: TorrentEvictionDeps, now = new Date()): Promise<number> {
+  await expireStremThruEntries(deps, now)
   const policy = await loadTorrentPolicy(deps)
+  let total = await deps.torrents.totalSize()
+  let evicted = 0
+  const touchedStorages = new Set<string>()
+
   const candidates = await deps.torrents.listEvictionCandidates(SWEEP_BATCH)
-  if (candidates.length === 0) return 0
   const selected = selectTorrentsToEvict(candidates, {
     now,
     retentionDays: policy.retentionDays,
     capacityBytes: policy.capacityBytes,
-    totalBytes: await deps.torrents.totalSize(),
+    totalBytes: total,
   })
-
-  let evicted = 0
-  const touchedStorages = new Set<string>()
   for (const candidate of selected) {
     if (!(await deps.torrents.claimForEviction(candidate))) continue
     await deleteClaimedTorrent(deps, candidate)
     touchedStorages.add(candidate.storageId)
+    total -= candidate.size
     evicted++
+  }
+
+  // Still over capacity with every unheld torrent gone: torrents only stremthru
+  // entries hold go next, least recently played first, with their entries.
+  const unheldLeft = candidates.length === SWEEP_BATCH || selected.length < candidates.length
+  if (policy.capacityBytes !== null && total > policy.capacityBytes && !unheldLeft) {
+    for (const candidate of await deps.workspaceTorrents.listStremThruHeld(SWEEP_BATCH)) {
+      if (total <= policy.capacityBytes) break
+      if (!(await deps.workspaceTorrents.claimStremThruHeldForEviction(candidate))) continue
+      await deleteClaimedTorrent(deps, candidate)
+      touchedStorages.add(candidate.storageId)
+      total -= candidate.size
+      evicted++
+    }
   }
   if (touchedStorages.size > 0) await deps.storageUsage.reconcileStorages(touchedStorages)
   return evicted

@@ -2311,6 +2311,96 @@ func (e WebDavVerificationStatus) Valid() bool {
 	}
 }
 
+// Defines values for WorkspaceTorrentSource.
+const (
+	WorkspaceTorrentSourceDownload  WorkspaceTorrentSource = "download"
+	WorkspaceTorrentSourceStremthru WorkspaceTorrentSource = "stremthru"
+)
+
+// Valid indicates whether the value is a known member of the WorkspaceTorrentSource enum.
+func (e WorkspaceTorrentSource) Valid() bool {
+	switch e {
+	case WorkspaceTorrentSourceDownload:
+		return true
+	case WorkspaceTorrentSourceStremthru:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkspaceTorrentStatus.
+const (
+	WorkspaceTorrentStatusDownloading WorkspaceTorrentStatus = "downloading"
+	WorkspaceTorrentStatusFailed      WorkspaceTorrentStatus = "failed"
+	WorkspaceTorrentStatusReady       WorkspaceTorrentStatus = "ready"
+	WorkspaceTorrentStatusResolving   WorkspaceTorrentStatus = "resolving"
+	WorkspaceTorrentStatusVerifying   WorkspaceTorrentStatus = "verifying"
+)
+
+// Valid indicates whether the value is a known member of the WorkspaceTorrentStatus enum.
+func (e WorkspaceTorrentStatus) Valid() bool {
+	switch e {
+	case WorkspaceTorrentStatusDownloading:
+		return true
+	case WorkspaceTorrentStatusFailed:
+		return true
+	case WorkspaceTorrentStatusReady:
+		return true
+	case WorkspaceTorrentStatusResolving:
+		return true
+	case WorkspaceTorrentStatusVerifying:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkspaceTorrentDetailSource.
+const (
+	WorkspaceTorrentDetailSourceDownload  WorkspaceTorrentDetailSource = "download"
+	WorkspaceTorrentDetailSourceStremthru WorkspaceTorrentDetailSource = "stremthru"
+)
+
+// Valid indicates whether the value is a known member of the WorkspaceTorrentDetailSource enum.
+func (e WorkspaceTorrentDetailSource) Valid() bool {
+	switch e {
+	case WorkspaceTorrentDetailSourceDownload:
+		return true
+	case WorkspaceTorrentDetailSourceStremthru:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkspaceTorrentDetailStatus.
+const (
+	WorkspaceTorrentDetailStatusDownloading WorkspaceTorrentDetailStatus = "downloading"
+	WorkspaceTorrentDetailStatusFailed      WorkspaceTorrentDetailStatus = "failed"
+	WorkspaceTorrentDetailStatusReady       WorkspaceTorrentDetailStatus = "ready"
+	WorkspaceTorrentDetailStatusResolving   WorkspaceTorrentDetailStatus = "resolving"
+	WorkspaceTorrentDetailStatusVerifying   WorkspaceTorrentDetailStatus = "verifying"
+)
+
+// Valid indicates whether the value is a known member of the WorkspaceTorrentDetailStatus enum.
+func (e WorkspaceTorrentDetailStatus) Valid() bool {
+	switch e {
+	case WorkspaceTorrentDetailStatusDownloading:
+		return true
+	case WorkspaceTorrentDetailStatusFailed:
+		return true
+	case WorkspaceTorrentDetailStatusReady:
+		return true
+	case WorkspaceTorrentDetailStatusResolving:
+		return true
+	case WorkspaceTorrentDetailStatusVerifying:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateDeviceAuthorization400JSONResponseBodyError.
 const (
 	CreateDeviceAuthorization400JSONResponseBodyErrorInvalidClient      CreateDeviceAuthorization400JSONResponseBodyError = "invalid_client"
@@ -2927,6 +3017,8 @@ const (
 	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsUpdate    GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:update"
 	GetOAuthConsentContext200JSONResponseBodyScopesUsersRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "users:read"
 	GetOAuthConsentContext200JSONResponseBodyScopesUsersUpdate               GetOAuthConsentContext200JSONResponseBodyScopes = "users:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesWorkspaceTorrentsDelete   GetOAuthConsentContext200JSONResponseBodyScopes = "workspace-torrents:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesWorkspaceTorrentsRead     GetOAuthConsentContext200JSONResponseBodyScopes = "workspace-torrents:read"
 	GetOAuthConsentContext200JSONResponseBodyScopesWorkspacesDiscover        GetOAuthConsentContext200JSONResponseBodyScopes = "workspaces:discover"
 )
 
@@ -3117,6 +3209,10 @@ func (e GetOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesUsersUpdate:
 		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesWorkspaceTorrentsDelete:
+		return true
+	case GetOAuthConsentContext200JSONResponseBodyScopesWorkspaceTorrentsRead:
+		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesWorkspacesDiscover:
 		return true
 	default:
@@ -3218,6 +3314,8 @@ const (
 	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsUpdate    ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:update"
 	ListOAuthGrants200JSONResponseBodyItemsScopesUsersRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "users:read"
 	ListOAuthGrants200JSONResponseBodyItemsScopesUsersUpdate               ListOAuthGrants200JSONResponseBodyItemsScopes = "users:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesWorkspaceTorrentsDelete   ListOAuthGrants200JSONResponseBodyItemsScopes = "workspace-torrents:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesWorkspaceTorrentsRead     ListOAuthGrants200JSONResponseBodyItemsScopes = "workspace-torrents:read"
 	ListOAuthGrants200JSONResponseBodyItemsScopesWorkspacesDiscover        ListOAuthGrants200JSONResponseBodyItemsScopes = "workspaces:discover"
 )
 
@@ -3407,6 +3505,10 @@ func (e ListOAuthGrants200JSONResponseBodyItemsScopes) Valid() bool {
 	case ListOAuthGrants200JSONResponseBodyItemsScopesUsersRead:
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesUsersUpdate:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesWorkspaceTorrentsDelete:
+		return true
+	case ListOAuthGrants200JSONResponseBodyItemsScopesWorkspaceTorrentsRead:
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesWorkspacesDiscover:
 		return true
@@ -5528,6 +5630,12 @@ type CreateTestEmail struct {
 	To openapi_types.Email `json:"to"`
 }
 
+// CreateWorkspaceTorrentTransfer defines model for CreateWorkspaceTorrentTransfer.
+type CreateWorkspaceTorrentTransfer struct {
+	// Folder Drive folder path to save into; empty for the workspace root
+	Folder string `json:"folder"`
+}
+
 // CreatedShare defines model for CreatedShare.
 type CreatedShare struct {
 	DownloadLimit *int    `json:"downloadLimit"`
@@ -6957,6 +7065,124 @@ type UpdateSiteWebDav struct {
 // WebDavVerificationStatus defines model for WebDavVerificationStatus.
 type WebDavVerificationStatus string
 
+// WorkspaceTorrent defines model for WorkspaceTorrent.
+type WorkspaceTorrent struct {
+	CreatedAt string `json:"createdAt"`
+
+	// Error Why the entry failed
+	Error     *string `json:"error"`
+	FileCount *int    `json:"fileCount"`
+	Id        string  `json:"id"`
+
+	// InfoHash Lowercase hex v1 infoHash; null until a torrent URL is resolved
+	InfoHash     *string `json:"infoHash"`
+	LastPlayedAt *string `json:"lastPlayedAt"`
+
+	// Name The torrent's name, or the link's suggested name before its metadata arrives
+	Name string `json:"name"`
+
+	// Playable Whether its files can be played and downloaded
+	Playable bool `json:"playable"`
+
+	// Size Total size; null before the torrent is known
+	Size int64 `json:"size"`
+
+	// Source `download` for a remote download, `stremthru` for an add from a Stremio addon
+	Source WorkspaceTorrentSource `json:"source"`
+
+	// SourceUri The submitted magnet link or torrent URL
+	SourceUri string                 `json:"sourceUri"`
+	Status    WorkspaceTorrentStatus `json:"status"`
+
+	// TaskId The download task the entry started, if any
+	TaskId *string `json:"taskId"`
+}
+
+// WorkspaceTorrentSource `download` for a remote download, `stremthru` for an add from a Stremio addon
+type WorkspaceTorrentSource string
+
+// WorkspaceTorrentStatus defines model for WorkspaceTorrent.Status.
+type WorkspaceTorrentStatus string
+
+// WorkspaceTorrentDetail defines model for WorkspaceTorrentDetail.
+type WorkspaceTorrentDetail struct {
+	CreatedAt string `json:"createdAt"`
+
+	// Error Why the entry failed
+	Error     *string `json:"error"`
+	FileCount *int    `json:"fileCount"`
+
+	// Files The torrent's own file tree, by index
+	Files []WorkspaceTorrentFile `json:"files"`
+	Id    string                 `json:"id"`
+
+	// InfoHash Lowercase hex v1 infoHash; null until a torrent URL is resolved
+	InfoHash     *string `json:"infoHash"`
+	LastPlayedAt *string `json:"lastPlayedAt"`
+
+	// Name The torrent's name, or the link's suggested name before its metadata arrives
+	Name string `json:"name"`
+
+	// Playable Whether its files can be played and downloaded
+	Playable bool `json:"playable"`
+
+	// Size Total size; null before the torrent is known
+	Size int64 `json:"size"`
+
+	// Source `download` for a remote download, `stremthru` for an add from a Stremio addon
+	Source WorkspaceTorrentDetailSource `json:"source"`
+
+	// SourceUri The submitted magnet link or torrent URL
+	SourceUri string                       `json:"sourceUri"`
+	Status    WorkspaceTorrentDetailStatus `json:"status"`
+
+	// TaskId The download task the entry started, if any
+	TaskId *string `json:"taskId"`
+}
+
+// WorkspaceTorrentDetailSource `download` for a remote download, `stremthru` for an add from a Stremio addon
+type WorkspaceTorrentDetailSource string
+
+// WorkspaceTorrentDetailStatus defines model for WorkspaceTorrentDetail.Status.
+type WorkspaceTorrentDetailStatus string
+
+// WorkspaceTorrentFile defines model for WorkspaceTorrentFile.
+type WorkspaceTorrentFile struct {
+	Id string `json:"id"`
+
+	// Index The file's position in the info dictionary
+	Index int    `json:"index"`
+	Mime  string `json:"mime"`
+
+	// Path Path inside the torrent
+	Path string `json:"path"`
+	Size int64  `json:"size"`
+}
+
+// WorkspaceTorrentFileLink defines model for WorkspaceTorrentFileLink.
+type WorkspaceTorrentFileLink struct {
+	ExpiresAt string `json:"expiresAt"`
+
+	// Url Presigned URL of the file, valid for 12 hours
+	Url string `json:"url"`
+}
+
+// WorkspaceTorrentPage defines model for WorkspaceTorrentPage.
+type WorkspaceTorrentPage struct {
+	Items         []WorkspaceTorrent `json:"items"`
+	NextPageToken *string            `json:"nextPageToken"`
+}
+
+// WorkspaceTorrentTransfer defines model for WorkspaceTorrentTransfer.
+type WorkspaceTorrentTransfer struct {
+	// Files The drive files written for the torrent’s files (sidecars not included)
+	Files []struct {
+		Id     string `json:"id"`
+		Name   string `json:"name"`
+		Parent string `json:"parent"`
+	} `json:"files"`
+}
+
 // CreateDeviceAuthorizationJSONBody defines parameters for CreateDeviceAuthorization.
 type CreateDeviceAuthorizationJSONBody struct {
 	// ClientId The client ID of the application
@@ -8096,6 +8322,15 @@ type JoinTeamJSONBody struct {
 // JoinTeam200JSONResponseBodyOk defines parameters for JoinTeam.
 type JoinTeam200JSONResponseBodyOk bool
 
+// ListWorkspaceTorrentsParams defines parameters for ListWorkspaceTorrents.
+type ListWorkspaceTorrentsParams struct {
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+
+	// Search Matches the name or the infoHash
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+}
+
 // ListTrashObjectsParams defines parameters for ListTrashObjects.
 type ListTrashObjectsParams struct {
 	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
@@ -8308,6 +8543,9 @@ type CreateTeamInviteLinkJSONRequestBody CreateTeamInviteLinkJSONBody
 
 // JoinTeamJSONRequestBody defines body for JoinTeam for application/json ContentType.
 type JoinTeamJSONRequestBody JoinTeamJSONBody
+
+// CreateWorkspaceTorrentTransferJSONRequestBody defines body for CreateWorkspaceTorrentTransfer for application/json ContentType.
+type CreateWorkspaceTorrentTransferJSONRequestBody = CreateWorkspaceTorrentTransfer
 
 // RestoreObjectJSONRequestBody defines body for RestoreObject for application/json ContentType.
 type RestoreObjectJSONRequestBody RestoreObjectJSONBody
@@ -12198,6 +12436,23 @@ type ClientInterface interface {
 
 	JoinTeam(ctx context.Context, teamId string, body JoinTeamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListWorkspaceTorrents request
+	ListWorkspaceTorrents(ctx context.Context, params *ListWorkspaceTorrentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteWorkspaceTorrent request
+	DeleteWorkspaceTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetWorkspaceTorrent request
+	GetWorkspaceTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateWorkspaceTorrentFileLink request
+	CreateWorkspaceTorrentFileLink(ctx context.Context, id string, fileId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateWorkspaceTorrentTransferWithBody request with any body
+	CreateWorkspaceTorrentTransferWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateWorkspaceTorrentTransfer(ctx context.Context, id string, body CreateWorkspaceTorrentTransferJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListTrashObjects request
 	ListTrashObjects(ctx context.Context, params *ListTrashObjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -14898,6 +15153,78 @@ func (c *Client) JoinTeamWithBody(ctx context.Context, teamId string, contentTyp
 
 func (c *Client) JoinTeam(ctx context.Context, teamId string, body JoinTeamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewJoinTeamRequest(c.Server, teamId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListWorkspaceTorrents(ctx context.Context, params *ListWorkspaceTorrentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListWorkspaceTorrentsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteWorkspaceTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteWorkspaceTorrentRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetWorkspaceTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetWorkspaceTorrentRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkspaceTorrentFileLink(ctx context.Context, id string, fileId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkspaceTorrentFileLinkRequest(c.Server, id, fileId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkspaceTorrentTransferWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkspaceTorrentTransferRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateWorkspaceTorrentTransfer(ctx context.Context, id string, body CreateWorkspaceTorrentTransferJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateWorkspaceTorrentTransferRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -22440,6 +22767,240 @@ func NewJoinTeamRequestWithBody(server string, teamId string, contentType string
 	return req, nil
 }
 
+// NewListWorkspaceTorrentsRequest generates requests for ListWorkspaceTorrents
+func NewListWorkspaceTorrentsRequest(server string, params *ListWorkspaceTorrentsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/torrents")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "search", *params.Search, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteWorkspaceTorrentRequest generates requests for DeleteWorkspaceTorrent
+func NewDeleteWorkspaceTorrentRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/torrents/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetWorkspaceTorrentRequest generates requests for GetWorkspaceTorrent
+func NewGetWorkspaceTorrentRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/torrents/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateWorkspaceTorrentFileLinkRequest generates requests for CreateWorkspaceTorrentFileLink
+func NewCreateWorkspaceTorrentFileLinkRequest(server string, id string, fileId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "fileId", fileId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/torrents/%s/files/%s/links", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateWorkspaceTorrentTransferRequest calls the generic CreateWorkspaceTorrentTransfer builder with application/json body
+func NewCreateWorkspaceTorrentTransferRequest(server string, id string, body CreateWorkspaceTorrentTransferJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateWorkspaceTorrentTransferRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewCreateWorkspaceTorrentTransferRequestWithBody generates requests for CreateWorkspaceTorrentTransfer with any type of body
+func NewCreateWorkspaceTorrentTransferRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/torrents/%s/transfers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListTrashObjectsRequest generates requests for ListTrashObjects
 func NewListTrashObjectsRequest(server string, params *ListTrashObjectsParams) (*http.Request, error) {
 	var err error
@@ -23647,6 +24208,23 @@ type ClientWithResponsesInterface interface {
 	JoinTeamWithBodyWithResponse(ctx context.Context, teamId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*JoinTeamResponse, error)
 
 	JoinTeamWithResponse(ctx context.Context, teamId string, body JoinTeamJSONRequestBody, reqEditors ...RequestEditorFn) (*JoinTeamResponse, error)
+
+	// ListWorkspaceTorrentsWithResponse request
+	ListWorkspaceTorrentsWithResponse(ctx context.Context, params *ListWorkspaceTorrentsParams, reqEditors ...RequestEditorFn) (*ListWorkspaceTorrentsResponse, error)
+
+	// DeleteWorkspaceTorrentWithResponse request
+	DeleteWorkspaceTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteWorkspaceTorrentResponse, error)
+
+	// GetWorkspaceTorrentWithResponse request
+	GetWorkspaceTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetWorkspaceTorrentResponse, error)
+
+	// CreateWorkspaceTorrentFileLinkWithResponse request
+	CreateWorkspaceTorrentFileLinkWithResponse(ctx context.Context, id string, fileId string, reqEditors ...RequestEditorFn) (*CreateWorkspaceTorrentFileLinkResponse, error)
+
+	// CreateWorkspaceTorrentTransferWithBodyWithResponse request with any body
+	CreateWorkspaceTorrentTransferWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkspaceTorrentTransferResponse, error)
+
+	CreateWorkspaceTorrentTransferWithResponse(ctx context.Context, id string, body CreateWorkspaceTorrentTransferJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkspaceTorrentTransferResponse, error)
 
 	// ListTrashObjectsWithResponse request
 	ListTrashObjectsWithResponse(ctx context.Context, params *ListTrashObjectsParams, reqEditors ...RequestEditorFn) (*ListTrashObjectsResponse, error)
@@ -29140,6 +29718,169 @@ func (r JoinTeamResponse) ContentType() string {
 	return ""
 }
 
+type ListWorkspaceTorrentsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkspaceTorrentPage
+	JSON400      *Error
+	JSON402      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListWorkspaceTorrentsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListWorkspaceTorrentsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListWorkspaceTorrentsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteWorkspaceTorrentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON402      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteWorkspaceTorrentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteWorkspaceTorrentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteWorkspaceTorrentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetWorkspaceTorrentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *WorkspaceTorrentDetail
+	JSON402      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetWorkspaceTorrentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetWorkspaceTorrentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetWorkspaceTorrentResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateWorkspaceTorrentFileLinkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *WorkspaceTorrentFileLink
+	JSON402      *Error
+	JSON404      *Error
+	JSON409      *Error
+	JSON422      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateWorkspaceTorrentFileLinkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateWorkspaceTorrentFileLinkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateWorkspaceTorrentFileLinkResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateWorkspaceTorrentTransferResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *WorkspaceTorrentTransfer
+	JSON402      *Error
+	JSON404      *Error
+	JSON409      *Error
+	JSON422      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateWorkspaceTorrentTransferResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateWorkspaceTorrentTransferResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateWorkspaceTorrentTransferResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListTrashObjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -31489,6 +32230,59 @@ func (c *ClientWithResponses) JoinTeamWithResponse(ctx context.Context, teamId s
 		return nil, err
 	}
 	return ParseJoinTeamResponse(rsp)
+}
+
+// ListWorkspaceTorrentsWithResponse request returning *ListWorkspaceTorrentsResponse
+func (c *ClientWithResponses) ListWorkspaceTorrentsWithResponse(ctx context.Context, params *ListWorkspaceTorrentsParams, reqEditors ...RequestEditorFn) (*ListWorkspaceTorrentsResponse, error) {
+	rsp, err := c.ListWorkspaceTorrents(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListWorkspaceTorrentsResponse(rsp)
+}
+
+// DeleteWorkspaceTorrentWithResponse request returning *DeleteWorkspaceTorrentResponse
+func (c *ClientWithResponses) DeleteWorkspaceTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteWorkspaceTorrentResponse, error) {
+	rsp, err := c.DeleteWorkspaceTorrent(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteWorkspaceTorrentResponse(rsp)
+}
+
+// GetWorkspaceTorrentWithResponse request returning *GetWorkspaceTorrentResponse
+func (c *ClientWithResponses) GetWorkspaceTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetWorkspaceTorrentResponse, error) {
+	rsp, err := c.GetWorkspaceTorrent(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetWorkspaceTorrentResponse(rsp)
+}
+
+// CreateWorkspaceTorrentFileLinkWithResponse request returning *CreateWorkspaceTorrentFileLinkResponse
+func (c *ClientWithResponses) CreateWorkspaceTorrentFileLinkWithResponse(ctx context.Context, id string, fileId string, reqEditors ...RequestEditorFn) (*CreateWorkspaceTorrentFileLinkResponse, error) {
+	rsp, err := c.CreateWorkspaceTorrentFileLink(ctx, id, fileId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkspaceTorrentFileLinkResponse(rsp)
+}
+
+// CreateWorkspaceTorrentTransferWithBodyWithResponse request with arbitrary body returning *CreateWorkspaceTorrentTransferResponse
+func (c *ClientWithResponses) CreateWorkspaceTorrentTransferWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateWorkspaceTorrentTransferResponse, error) {
+	rsp, err := c.CreateWorkspaceTorrentTransferWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkspaceTorrentTransferResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateWorkspaceTorrentTransferWithResponse(ctx context.Context, id string, body CreateWorkspaceTorrentTransferJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateWorkspaceTorrentTransferResponse, error) {
+	rsp, err := c.CreateWorkspaceTorrentTransfer(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateWorkspaceTorrentTransferResponse(rsp)
 }
 
 // ListTrashObjectsWithResponse request returning *ListTrashObjectsResponse
@@ -38081,6 +38875,227 @@ func ParseJoinTeamResponse(rsp *http.Response) (*JoinTeamResponse, error) {
 			return nil, err
 		}
 		response.JSON410 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListWorkspaceTorrentsResponse parses an HTTP response from a ListWorkspaceTorrentsWithResponse call
+func ParseListWorkspaceTorrentsResponse(rsp *http.Response) (*ListWorkspaceTorrentsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListWorkspaceTorrentsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkspaceTorrentPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteWorkspaceTorrentResponse parses an HTTP response from a DeleteWorkspaceTorrentWithResponse call
+func ParseDeleteWorkspaceTorrentResponse(rsp *http.Response) (*DeleteWorkspaceTorrentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteWorkspaceTorrentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetWorkspaceTorrentResponse parses an HTTP response from a GetWorkspaceTorrentWithResponse call
+func ParseGetWorkspaceTorrentResponse(rsp *http.Response) (*GetWorkspaceTorrentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetWorkspaceTorrentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkspaceTorrentDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateWorkspaceTorrentFileLinkResponse parses an HTTP response from a CreateWorkspaceTorrentFileLinkWithResponse call
+func ParseCreateWorkspaceTorrentFileLinkResponse(rsp *http.Response) (*CreateWorkspaceTorrentFileLinkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateWorkspaceTorrentFileLinkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest WorkspaceTorrentFileLink
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateWorkspaceTorrentTransferResponse parses an HTTP response from a CreateWorkspaceTorrentTransferWithResponse call
+func ParseCreateWorkspaceTorrentTransferResponse(rsp *http.Response) (*CreateWorkspaceTorrentTransferResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateWorkspaceTorrentTransferResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest WorkspaceTorrentTransfer
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 402:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON402 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
 
 	}
 

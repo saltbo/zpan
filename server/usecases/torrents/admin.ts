@@ -3,7 +3,8 @@
 
 import type { Deps } from '../deps'
 import { type AdminTorrentRecord, conflict, type KeysetPage, type KeysetPageOpts, msg, notFound } from '../ports'
-import { deleteClaimedTorrent, loadTorrentPolicy, TORRENT_OPTION_KEYS } from './eviction'
+import { deleteClaimedTorrent } from './eviction'
+import { loadTorrentPolicy, TORRENT_OPTION_KEYS } from './policy'
 
 export function listTorrents(
   deps: Pick<Deps, 'torrents'>,
@@ -14,9 +15,12 @@ export function listTorrents(
 
 function heldError(holders: number) {
   return conflict(
-    msg('{count} drive files still hold this torrent; it can be evicted once they are deleted, including from trash', {
-      count: String(holders),
-    }),
+    msg(
+      '{count} drive files or Torrents list entries still hold this torrent; it can be evicted once they are deleted, including from trash, or removed',
+      {
+        count: String(holders),
+      },
+    ),
     'TORRENT_HELD',
   )
 }

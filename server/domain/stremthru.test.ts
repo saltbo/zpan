@@ -15,12 +15,14 @@ import { parseMagnetInfoHash } from './torrent-info'
 const HASH = 'ab'.repeat(20)
 
 describe('StremThru protocol shapes', () => {
-  it('maps download task statuses onto torz statuses', () => {
-    expect(
-      ['queued', 'assigned', 'paused', 'downloading', 'uploading', 'completed', 'failed', 'canceled', 'canceling'].map(
-        torzStatus,
-      ),
-    ).toEqual(['queued', 'queued', 'queued', 'downloading', 'uploading', 'downloaded', 'failed', 'failed', 'failed'])
+  it('maps Torrents list statuses onto torz statuses', () => {
+    expect(['resolving', 'downloading', 'verifying', 'ready', 'failed'].map(torzStatus)).toEqual([
+      'queued',
+      'downloading',
+      'processing',
+      'downloaded',
+      'failed',
+    ])
   })
 
   it('lists a file by its index with the path inside the root folder', () => {
@@ -40,9 +42,11 @@ describe('StremThru protocol shapes', () => {
   })
 
   it('round-trips opaque file links and rejects anything else', () => {
-    expect(decodeFileLink(encodeFileLink('abc_123'))).toBe('abc_123')
+    expect(decodeFileLink(encodeFileLink('abc_123', 'f-9'))).toEqual({ entryId: 'abc_123', fileId: 'f-9' })
     expect(decodeFileLink('https://example.com/file')).toBeNull()
     expect(decodeFileLink('zpan:st:../../etc')).toBeNull()
+    expect(decodeFileLink('zpan:st:abc')).toBeNull()
+    expect(decodeFileLink('zpan:st:a.b.c')).toBeNull()
     expect(decodeFileLink('zpan:st:')).toBeNull()
   })
 

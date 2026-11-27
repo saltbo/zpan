@@ -372,16 +372,40 @@ const APP_SCHEMA_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS torrent_files_torrent_idx_uniq ON torrent_files(torrent_id, file_idx);
   CREATE INDEX IF NOT EXISTS torrent_files_torrent_layout_idx ON torrent_files(torrent_id, layout_path);
   CREATE UNIQUE INDEX IF NOT EXISTS torrent_files_storage_object_uniq ON torrent_files(storage_id, object_key);
+  CREATE TABLE IF NOT EXISTS workspace_torrents (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
+    torrent_id TEXT REFERENCES torrents(id) ON DELETE CASCADE,
+    info_hash TEXT,
+    source TEXT NOT NULL,
+    source_uri TEXT NOT NULL,
+    display_name TEXT,
+    task_id TEXT,
+    status TEXT NOT NULL,
+    error TEXT,
+    created_by_actor_type TEXT NOT NULL,
+    created_by_actor_ref TEXT NOT NULL,
+    created_by_actor_issuer TEXT,
+    last_played_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS workspace_torrents_org_torrent_uniq ON workspace_torrents(org_id, torrent_id);
+  CREATE INDEX IF NOT EXISTS workspace_torrents_org_created_idx ON workspace_torrents(org_id, created_at, id);
+  CREATE INDEX IF NOT EXISTS workspace_torrents_org_hash_idx ON workspace_torrents(org_id, info_hash);
+  CREATE INDEX IF NOT EXISTS workspace_torrents_torrent_idx ON workspace_torrents(torrent_id);
+  CREATE INDEX IF NOT EXISTS workspace_torrents_task_idx ON workspace_torrents(task_id);
+  CREATE INDEX IF NOT EXISTS workspace_torrents_source_played_idx ON workspace_torrents(source, last_played_at);
   CREATE TABLE IF NOT EXISTS stremthru_links (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     org_id TEXT NOT NULL REFERENCES organization(id) ON DELETE CASCADE,
-    matter_id TEXT NOT NULL,
+    torrent_file_id TEXT NOT NULL REFERENCES torrent_files(id) ON DELETE CASCADE,
     url TEXT NOT NULL,
     expires_at INTEGER NOT NULL,
     created_at INTEGER NOT NULL
   );
-  CREATE UNIQUE INDEX IF NOT EXISTS stremthru_links_user_matter_uniq ON stremthru_links(user_id, matter_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS stremthru_links_user_file_uniq ON stremthru_links(user_id, torrent_file_id);
   CREATE INDEX IF NOT EXISTS stremthru_links_expires_idx ON stremthru_links(expires_at);
   CREATE TABLE IF NOT EXISTS webdav_dead_properties (
     id TEXT PRIMARY KEY,
@@ -806,7 +830,8 @@ const APP_SCHEMA_SQL = `
     deleted_at INTEGER,
     info_hash TEXT,
     torrent_id TEXT,
-    torrent_role TEXT
+    torrent_role TEXT,
+    list_only INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS download_tasks_torrent_idx ON download_tasks(torrent_id, status);
   CREATE INDEX IF NOT EXISTS download_tasks_org_created_idx ON download_tasks(org_id, created_at);

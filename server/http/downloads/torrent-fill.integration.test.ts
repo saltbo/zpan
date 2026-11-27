@@ -1006,3 +1006,389 @@ describe('torrent fill edge cases', () => {
     expect(await torrentStatus(ctx.db, torrent.infoHash)).toBeUndefined()
   })
 })
+
+// ─── Torrents lists (docs/design/torrents.md §3 workspace_torrents, §4, §9) ──
+
+async function stremThruKey(ctx: TestApp, ws: { headers: Record<string, string>; orgId: string }) {
+  const res = await ctx.app.request('/api/auth/api-key/create', {
+    method: 'POST',
+    headers: ws.headers,
+    body: JSON.stringify({ configId: 'stremthru', name: 'MediaFusion', organizationId: ws.orgId }),
+  })
+  expect(res.status).toBe(200)
+  const { key } = (await res.json()) as { key: string }
+  return (path: string, init: RequestInit = {}) =>
+    ctx.app.request(`/stremthru${path}`, {
+      ...init,
+      headers: {
+        'X-StremThru-Store-Authorization': `Bearer ${key}`,
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      },
+    })
+}
+
+async function listEntries(db: TestApp['db'], orgId: string) {
+  return db.all<{ id: string; source: string; status: string; torrentId: string | null; taskId: string | null }>(sql`
+    SELECT id, source, status, torrent_id AS torrentId, task_id AS taskId FROM workspace_torrents
+    WHERE org_id = ${orgId} ORDER BY created_at
+  `)
+}
+
+async function findObject(app: TestApp['app'], task: DownloadTask, parent: string, name: string) {
+  const res = await app.request(
+    `/api/objects?parent=${encodeURIComponent(parent)}&name=${encodeURIComponent(name)}&pageSize=1`,
+    { headers: token(task) },
+  )
+  expect(res.status).toBe(200)
+  return ((await res.json()) as { items: Array<{ id: string; name: string; dirtype: number }> }).items
+}
+
+describe('Torrents lists', () => {
+  it('downloads a StremThru add for the list alone: bt/ and torrent_files, no drive rows [spec: torrents/stremthru-add-lands-in-list]', async () => {
+    const { ctx, a } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const call = await stremThruKey(ctx, a)
+    const torrent = sampleTorrent('Show.S01.1080p')
+
+    const added = await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: torrent.magnet }) })
+    expect(added.status).toBe(201)
+    const torz = ((await added.json()) as { data: { id: string; status: string } }).data
+    expect(torz.status).toBe('queued')
+
+    const [task] = await dl.poll()
+    expect(task.spec.destination.folder).toBe('')
+    expect((await reportInfo(ctx.app, dl, task, torrent.infoBase64)).status).toBe(200)
+    // The downloader's scraped plan: folders, renamed videos, a sidecar and media.
+    const show = await createFolder(ctx.app, task, '', 'Show (2019)')
+    expect(await createFolder(ctx.app, task, '', 'Show (2019)')).toBe(show)
+    const season = await createFolder(ctx.app, task, 'Show (2019)', 'Season 01')
+    const files = torrent.files.filter((file) => !file.padding)
+    const e01 = await uploadFile(ctx.app, task, {
+      parent: 'Show (2019)/Season 01',
+      name: 'Show S01E01.mkv',
+      bytes: files[0].bytes,
+      torrentPath: files[0].path,
+    })
+    const poster = await uploadFile(ctx.app, task, {
+      parent: 'Show (2019)',
+      name: 'poster.jpg',
+      bytes: new Uint8Array([1, 2, 3]),
+    })
+    // A sidecar that failed midway is cleaned up by the downloader.
+    const broken = await createDraft(ctx.app, task, {
+      parent: 'Show (2019)',
+      name: 'fanart.jpg',
+      bytes: new Uint8Array([9]),
+    })
+    const aborted = await ctx.app.request(
+      `/api/objects/${broken.draft?.id}/uploads/${broken.draft?.upload.sessionId}`,
+      { method: 'DELETE', headers: token(task) },
+    )
+    expect(aborted.status).toBe(204)
+    await uploadFile(ctx.app, task, {
+      parent: 'Show (2019)/Season 01',
+      name: 'Show S01E02.mkv',
+      bytes: files[1].bytes,
+      torrentPath: files[1].path,
+    })
+    // Lookups read the torrent's own layout; a file shows only once it landed.
+    expect(await findObject(ctx.app, task, 'Show (2019)', 'Season 01')).toEqual([
+      expect.objectContaining({ id: season, name: 'Season 01', dirtype: 1 }),
+    ])
+    expect(await findObject(ctx.app, task, 'Show (2019)', 'poster.jpg')).toEqual([
+      expect.objectContaining({ id: poster.id }),
+    ])
+    expect(await findObject(ctx.app, task, 'Show (2019)', 'fanart.jpg')).toEqual([])
+    await putMedia(ctx.app, task, e01.id as string, {
+      kind: 'episode',
+      tmdb: { id: 1, type: 'tv' },
+      season: 1,
+      episode: 1,
+      still: poster.id,
+    })
+    await putMedia(ctx.app, task, show, { kind: 'tvshow', tmdb: { id: 1, type: 'tv' }, title: 'Show', poster: 'gone' })
+    const completed = await completeTask(ctx.app, dl, task, show)
+    expect(completed.status.state).toBe('completed')
+
+    // Stored once under bt/, recorded in torrent_files, and nothing in the drive.
+    expect(await waitForTorrent(ctx.db, torrent.infoHash, 'ready')).toMatchObject({ verified: 'sampled' })
+    expect(await driveFiles(ctx.db, a.orgId)).toEqual([])
+    const [folders] = await ctx.db.all<{ count: number }>(sql`
+      SELECT COUNT(*) AS count FROM matters WHERE org_id = ${a.orgId} AND purged_at IS NULL
+    `)
+    expect(folders.count).toBe(0)
+    const rows = await entries(ctx.db, torrent.infoHash)
+    expect(rows.map((row) => [row.kind, row.layoutPath])).toEqual([
+      ['folder', 'Show (2019)'],
+      ['folder', 'Show (2019)/Season 01'],
+      ['file', 'Show (2019)/Season 01/Show S01E01.mkv'],
+      ['file', 'Show (2019)/Season 01/Show S01E02.mkv'],
+      ['sidecar', 'Show (2019)/poster.jpg'],
+    ])
+    const posterRow = rows.find((row) => row.kind === 'sidecar')
+    expect(JSON.parse(rows[2].media as string)).toMatchObject({ kind: 'episode', still: posterRow?.id })
+    expect(JSON.parse(rows[0].media as string)).not.toHaveProperty('poster')
+    expect([...objects.keys()].filter((key) => key.startsWith('bt/')).length).toBe(4)
+
+    // The entry follows the torrent and its files play.
+    const got = await call(`/v0/store/torz/${torz.id}`)
+    const item = ((await got.json()) as { data: { status: string; files: Array<{ link?: string }> } }).data
+    expect(item.status).toBe('downloaded')
+    expect(item.files.every((file) => typeof file.link === 'string')).toBe(true)
+    expect(await listEntries(ctx.db, a.orgId)).toEqual([
+      expect.objectContaining({ id: torz.id, source: 'stremthru', taskId: task.id }),
+    ])
+  })
+
+  it('refuses list-only uploads before the torrent is known, and deletes a sidecar on cleanup', async () => {
+    const { ctx, a } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const call = await stremThruKey(ctx, a)
+    const torrent = sampleTorrent()
+    await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: torrent.magnet }) })
+    const [task] = await dl.poll()
+
+    // A downloader that never reports the dictionary has nowhere to upload.
+    const early = await ctx.app.request('/api/objects', {
+      method: 'POST',
+      headers: token(task),
+      body: JSON.stringify({ name: 'x', type: 'folder', parent: '', dirtype: 1 }),
+    })
+    expect(early.status).toBe(409)
+
+    expect((await reportInfo(ctx.app, dl, task, torrent.infoBase64)).status).toBe(200)
+    const nfo = await uploadFile(ctx.app, task, { parent: '', name: 'show.nfo', bytes: new Uint8Array([1]) })
+    const taken = await createDraft(ctx.app, task, { parent: '', name: 'show.nfo', bytes: new Uint8Array([2]) })
+    expect(taken.draft?.id).not.toBe(nfo.id)
+    const removed = await ctx.app.request(`/api/objects/${nfo.id}`, { method: 'DELETE', headers: token(task) })
+    expect(removed.status).toBe(204)
+    expect(await findObject(ctx.app, task, '', 'show.nfo')).toEqual([])
+    const presigned = await ctx.app.request(
+      `/api/objects/${taken.draft?.id}/uploads/${taken.draft?.upload.sessionId}/parts`,
+      { method: 'POST', headers: token(task), body: JSON.stringify({ partNumbers: [1] }) },
+    )
+    expect(presigned.status).toBe(200)
+    expect(await driveFiles(ctx.db, a.orgId)).toEqual([])
+  })
+
+  it('lists a StremThru add of a ready torrent without a task, and one in progress waits for that download', async () => {
+    const { ctx, a, b } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const ready = await readyTorrent(ctx, a, dl)
+    const pending = sampleTorrent('Pending Show')
+    await submit(ctx.app, a.headers, pending.magnet)
+    const [filling] = await dl.poll()
+    expect((await reportInfo(ctx.app, dl, filling, pending.infoBase64)).status).toBe(200)
+    const call = await stremThruKey(ctx, b)
+
+    await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: ready.magnet }) })
+    await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: pending.magnet }) })
+
+    expect((await listEntries(ctx.db, b.orgId)).map((entry) => [entry.source, entry.status, entry.taskId])).toEqual([
+      ['stremthru', 'ready', null],
+      ['stremthru', 'downloading', null],
+    ])
+    const [tasks] = await ctx.db.all<{ count: number }>(sql`
+      SELECT COUNT(*) AS count FROM download_tasks WHERE org_id = ${b.orgId}
+    `)
+    expect(tasks.count).toBe(0)
+
+    // The download fails: the entry waiting on it fails too.
+    const failed = await ctx.app.request(`/api/downloads/tasks/${filling.id}`, {
+      method: 'PATCH',
+      headers: dl.headers,
+      body: JSON.stringify({ status: 'failed', errorMessage: 'tracker down' }),
+    })
+    expect(failed.status).toBe(200)
+    expect((await listEntries(ctx.db, b.orgId))[1]).toMatchObject({ status: 'failed' })
+    const listed = await call('/v0/store/torz')
+    const items = ((await listed.json()) as { data: { items: Array<{ status: string }> } }).data.items
+    expect(items.map((item) => item.status).sort()).toEqual(['downloaded', 'failed'])
+  })
+
+  it('lands a remote download in the drive and in the Torrents list [spec: torrents/remote-download-in-list]', async () => {
+    const { ctx, a, b } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const torrent = await readyTorrent(ctx, a, dl)
+
+    const submitted = await submit(ctx.app, b.headers, torrent.magnet)
+
+    expect((await getTask(ctx.app, b.headers, submitted.id)).status.state).toBe('completed')
+    expect((await driveFiles(ctx.db, b.orgId)).map((file) => `${file.parent}/${file.name}`)).toEqual([
+      'Downloads/Sample Show/Season 01/E01.mkv',
+      'Downloads/Sample Show/Season 01/E02.mkv',
+    ])
+    const [entry] = await listEntries(ctx.db, b.orgId)
+    expect(entry).toMatchObject({ source: 'download', taskId: submitted.id })
+    const res = await ctx.app.request('/api/torrents', { headers: b.headers })
+    expect(res.status).toBe(200)
+    const page = (await res.json()) as { items: Array<{ id: string; status: string; source: string; name: string }> }
+    expect(page.items).toEqual([
+      expect.objectContaining({ id: entry.id, status: 'ready', source: 'download', name: 'Sample Show' }),
+    ])
+    // The filling workspace's own entry is a download entry too.
+    expect(await listEntries(ctx.db, a.orgId)).toEqual([expect.objectContaining({ source: 'download' })])
+    // Submitting again reuses the entry.
+    await submit(ctx.app, b.headers, torrent.magnet, 'Again')
+    expect(await listEntries(ctx.db, b.orgId)).toHaveLength(1)
+  })
+
+  it('serves the Torrents page: tree, play link, Save to drive, Remove [spec: torrents/save-to-drive]', async () => {
+    const { ctx, a, b } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const torrent = await readyTorrent(ctx, a, dl)
+    const call = await stremThruKey(ctx, b)
+    const added = await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: torrent.magnet }) })
+    const { id } = ((await added.json()) as { data: { id: string } }).data
+    vi.spyOn(S3Service.prototype, 'presignDownload').mockImplementation(async (_s, key) => `mem://get/${key}`)
+
+    const detail = await ctx.app.request(`/api/torrents/${id}`, { headers: b.headers })
+    expect(detail.status).toBe(200)
+    const body = (await detail.json()) as {
+      status: string
+      playable: boolean
+      size: number
+      files: Array<{ id: string; index: number; path: string; size: number }>
+    }
+    expect(body).toMatchObject({ status: 'ready', playable: true, size: 103_000 })
+    expect(body.files.map((file) => [file.index, file.path])).toEqual([
+      [0, 'Season 01/E01.mkv'],
+      [2, 'Season 01/E02.mkv'],
+    ])
+
+    const link = await ctx.app.request(`/api/torrents/${id}/files/${body.files[0].id}/links`, {
+      method: 'POST',
+      headers: b.headers,
+    })
+    expect(link.status).toBe(201)
+    const keys = await fileKeys(ctx.db, torrent.infoHash)
+    expect(((await link.json()) as { url: string }).url).toBe(`mem://get/${keys[0]}`)
+    const [played] = await ctx.db.all<{ lastPlayedAt: number | null }>(sql`
+      SELECT last_played_at AS lastPlayedAt FROM workspace_torrents WHERE id = ${id}
+    `)
+    expect(played.lastPlayedAt).not.toBeNull()
+
+    const saved = await ctx.app.request(`/api/torrents/${id}/transfers`, {
+      method: 'POST',
+      headers: b.headers,
+      body: JSON.stringify({ folder: 'Library/TV' }),
+    })
+    expect(saved.status).toBe(201)
+    expect(((await saved.json()) as { files: unknown[] }).files).toHaveLength(2)
+    expect(await driveFiles(ctx.db, b.orgId)).toEqual([
+      { name: 'E01.mkv', parent: 'Library/TV/Sample Show/Season 01', object: keys[0], size: 70_000 },
+      { name: 'E02.mkv', parent: 'Library/TV/Sample Show/Season 01', object: keys[2], size: 33_000 },
+    ])
+    const [quota] = await ctx.db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${b.orgId}`)
+    expect(quota.used).toBe(103_000)
+
+    const removed = await ctx.app.request(`/api/torrents/${id}`, { method: 'DELETE', headers: b.headers })
+    expect(removed.status).toBe(204)
+    expect(await listEntries(ctx.db, b.orgId)).toEqual([])
+    expect(await driveFiles(ctx.db, b.orgId)).toHaveLength(2)
+    expect((await ctx.app.request(`/api/torrents/${id}`, { headers: b.headers })).status).toBe(404)
+  })
+
+  it('resolves torrent URL entries and merges them into the entry the workspace already holds', async () => {
+    const { ctx, a, b } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const torrent = await readyTorrent(ctx, a, dl)
+    const call = await stremThruKey(ctx, b)
+    await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: torrent.magnet }) })
+    const url = 'https://example.com/show.torrent'
+
+    // A StremThru add of a torrent URL runs a list-only task until its infoHash is known.
+    const first = await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: url }) })
+    const again = await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: url }) })
+    const pending = ((await first.json()) as { data: { id: string; status: string } }).data
+    expect(pending.status).toBe('queued')
+    expect(((await again.json()) as { data: { id: string } }).data.id).toBe(pending.id)
+    const [listTask] = await dl.poll()
+    expect((await reportInfo(ctx.app, dl, listTask, torrent.infoBase64)).status).toBe(200)
+
+    // It resolved to the torrent the workspace holds: one entry, and the task is done without drive files.
+    expect((await getTask(ctx.app, b.headers, listTask.id)).status.state).toBe('completed')
+    expect(await listEntries(ctx.db, b.orgId)).toEqual([
+      expect.objectContaining({ source: 'stremthru', status: 'ready', taskId: listTask.id }),
+    ])
+    expect(await driveFiles(ctx.db, b.orgId)).toEqual([])
+
+    // A remote download of a torrent URL merges the same way, and the entry becomes a download one.
+    const remote = await submitTorrentUrl(ctx.app, b.headers)
+    const [remoteTask] = await dl.poll()
+    expect(remoteTask.id).toBe(remote.id)
+    expect((await reportInfo(ctx.app, dl, remoteTask, torrent.infoBase64)).status).toBe(200)
+    expect(await listEntries(ctx.db, b.orgId)).toEqual([
+      expect.objectContaining({ source: 'download', status: 'ready', taskId: remote.id }),
+    ])
+    expect(await driveFiles(ctx.db, b.orgId)).toHaveLength(2)
+
+    // The list is searchable by name and infoHash.
+    const byName = await ctx.app.request('/api/torrents?search=sample', { headers: b.headers })
+    const byHash = await ctx.app.request(`/api/torrents?search=${torrent.infoHash.slice(0, 8)}`, { headers: b.headers })
+    const none = await ctx.app.request('/api/torrents?search=nothing', { headers: b.headers })
+    expect(((await byName.json()) as { items: unknown[] }).items).toHaveLength(1)
+    expect(((await byHash.json()) as { items: unknown[] }).items).toHaveLength(1)
+    expect(((await none.json()) as { items: unknown[] }).items).toHaveLength(0)
+  })
+
+  it('reopens a failed remote download’s entry when the task is retried', async () => {
+    const { ctx, a } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const torrent = sampleTorrent()
+    const task = await submit(ctx.app, a.headers, torrent.magnet)
+    await dl.poll()
+    const failed = await ctx.app.request(`/api/downloads/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: dl.headers,
+      body: JSON.stringify({ status: 'failed', errorMessage: 'no peers' }),
+    })
+    expect(failed.status).toBe(200)
+    expect((await listEntries(ctx.db, a.orgId))[0]).toMatchObject({ status: 'failed' })
+    const page = (await (await ctx.app.request('/api/torrents', { headers: a.headers })).json()) as {
+      items: Array<{ status: string; error: string | null }>
+    }
+    expect(page.items[0]).toMatchObject({ status: 'failed', error: 'no peers' })
+
+    const retried = await ctx.app.request(`/api/downloads/tasks/${task.id}/attempts`, {
+      method: 'POST',
+      headers: a.headers,
+      body: JSON.stringify({}),
+    })
+    expect(retried.status).toBeLessThan(300)
+    expect((await listEntries(ctx.db, a.orgId))[0]).toMatchObject({ status: 'resolving' })
+  })
+
+  it('refuses to play or save a torrent that is not ready, and cancels its list-only fill once nobody holds it', async () => {
+    const { ctx, a } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const call = await stremThruKey(ctx, a)
+    const torrent = sampleTorrent()
+    const added = await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: torrent.magnet }) })
+    const { id } = ((await added.json()) as { data: { id: string } }).data
+    const [task] = await dl.poll()
+    expect((await reportInfo(ctx.app, dl, task, torrent.infoBase64)).status).toBe(200)
+
+    const detail = (await (await ctx.app.request(`/api/torrents/${id}`, { headers: a.headers })).json()) as {
+      status: string
+      playable: boolean
+      files: Array<{ id: string }>
+    }
+    expect(detail).toMatchObject({ status: 'downloading', playable: false })
+    const link = await ctx.app.request(`/api/torrents/${id}/files/${detail.files[0].id}/links`, {
+      method: 'POST',
+      headers: a.headers,
+    })
+    expect(link.status).toBe(409)
+    const saved = await ctx.app.request(`/api/torrents/${id}/transfers`, {
+      method: 'POST',
+      headers: a.headers,
+      body: JSON.stringify({ folder: '' }),
+    })
+    expect(saved.status).toBe(409)
+
+    await ctx.app.request(`/api/torrents/${id}`, { method: 'DELETE', headers: a.headers })
+
+    expect((await getTask(ctx.app, a.headers, task.id)).status.state).toBe('canceling')
+  })
+})

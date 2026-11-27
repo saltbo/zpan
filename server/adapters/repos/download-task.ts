@@ -287,6 +287,7 @@ function toRecord(row: DownloadTaskRow): DownloadTaskRecord {
     infoHash: row.infoHash,
     torrentId: row.torrentId,
     torrentRole: row.torrentRole as DownloadTaskRecord['torrentRole'],
+    listOnly: row.listOnly,
   }
 }
 
@@ -442,6 +443,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         assignedDownloaderId: input.assignedDownloaderId,
         status: input.status,
         infoHash: input.infoHash ?? null,
+        listOnly: input.listOnly ?? false,
         events: JSON.stringify([
           {
             id: `initial:${input.id}`,

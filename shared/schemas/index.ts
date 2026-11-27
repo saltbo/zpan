@@ -532,3 +532,23 @@ export const listIhostImagesSchema = z.object({
 export const PUBLIC_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const
 export type PublicImageMime = (typeof PUBLIC_IMAGE_MIMES)[number]
 export const MAX_PUBLIC_IMAGE_SIZE = 1 * 1024 * 1024 // 1 MiB (SDK MAX_AVATAR_BYTES)
+export type {
+  CreateWorkspaceTorrentTransferInput,
+  WorkspaceTorrent,
+  WorkspaceTorrentDetail,
+  WorkspaceTorrentFile,
+  WorkspaceTorrentFileLink,
+  WorkspaceTorrentSource,
+  WorkspaceTorrentStatus,
+  WorkspaceTorrentTransfer,
+} from './workspace-torrents'
+export {
+  createWorkspaceTorrentTransferSchema,
+  WORKSPACE_TORRENT_SOURCES,
+  WORKSPACE_TORRENT_STATUSES,
+  workspaceTorrentDetailSchema,
+  workspaceTorrentFileLinkSchema,
+  workspaceTorrentFileSchema,
+  workspaceTorrentSchema,
+  workspaceTorrentTransferSchema,
+} from './workspace-torrents'

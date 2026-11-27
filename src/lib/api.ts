@@ -53,6 +53,10 @@ import type {
   UpdateSiteRegistrationInput,
   UpdateSiteWebDavInput,
   UpdateStorageEgressBillingInput,
+  WorkspaceTorrent,
+  WorkspaceTorrentDetail,
+  WorkspaceTorrentFileLink,
+  WorkspaceTorrentTransfer,
 } from '@shared/schemas'
 import type {
   AdminAuditEvent,
@@ -150,6 +154,7 @@ import {
   trash,
   userQuotas,
   users,
+  workspaceTorrentsApi,
 } from './rpc'
 
 export type { Storage, StorageObject }
@@ -1212,6 +1217,33 @@ export function getTorrentSettings() {
 
 export function replaceTorrentSettings(input: ReplaceTorrentSettingsInput) {
   return unwrap<TorrentSettings>(adminTorrentSettingsApi.index.$put({ json: input }))
+}
+
+// The workspace's Torrents list (docs/design/torrents.md §9).
+
+export function listWorkspaceTorrents(opts: CursorPageRequest & { search?: string } = {}) {
+  const query = { ...cursorQuery(opts), ...(opts.search ? { search: opts.search } : {}) }
+  return unwrap<CursorPage<WorkspaceTorrent>>(workspaceTorrentsApi.index.$get({ query }))
+}
+
+export function getWorkspaceTorrent(id: string) {
+  return unwrap<WorkspaceTorrentDetail>(workspaceTorrentsApi[':id'].$get({ param: { id } }))
+}
+
+export function createWorkspaceTorrentFileLink(id: string, fileId: string) {
+  return unwrap<WorkspaceTorrentFileLink>(
+    workspaceTorrentsApi[':id'].files[':fileId'].links.$post({ param: { id, fileId } }),
+  )
+}
+
+export function deleteWorkspaceTorrent(id: string) {
+  return discard(workspaceTorrentsApi[':id'].$delete({ param: { id } }))
+}
+
+export function saveWorkspaceTorrentToDrive(id: string, folder: string) {
+  return unwrap<WorkspaceTorrentTransfer>(
+    workspaceTorrentsApi[':id'].transfers.$post({ param: { id }, json: { folder } }),
+  )
 }
 
 export function deleteIhostConfig() {

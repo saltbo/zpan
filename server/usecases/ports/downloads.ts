@@ -89,6 +89,9 @@ export interface DownloadTaskRecord {
   infoHash: string | null
   torrentId: string | null
   torrentRole: TorrentRole | null
+  // A StremThru add's task: it fills a torrent for Torrents lists alone and
+  // writes no drive rows (docs/design/torrents.md §4).
+  listOnly: boolean
 }
 
 // How a download task uses Torrents: 'fill' for the task whose download is the
@@ -169,6 +172,7 @@ export interface CreateDownloadTaskRecordInput {
   status: string
   assignedAt: Date | null
   infoHash?: string | null
+  listOnly?: boolean
   now: Date
 }
 

@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
+import { DirType } from '@shared/constants'
 import {
   actorIdentitySchema,
   actorProfileSchema,
@@ -55,6 +56,18 @@ import {
   unauthorized,
 } from '../usecases/ports'
 import { describeCapacityRequirement } from '../usecases/store/store'
+import {
+  abortFillUpload,
+  completeFillUpload,
+  createFillFile,
+  createFillFolder,
+  deleteFillEntry,
+  type ListFill,
+  listFillEntries,
+  listFillFor,
+  presignFillParts,
+  setFillMedia,
+} from '../usecases/torrents/list-fill'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 import { decodeOptionalPageToken, directoryCursorCodec, encodeNextPageToken, pageQueryFingerprint } from './page-token'
@@ -223,6 +236,14 @@ function objectActor(c: Context<Env>): ObjectActor {
     userId: c.get('userId') as string,
     identity: { type: actor.type, ref: actor.ref, issuer: 'issuer' in actor ? actor.issuer : null },
   }
+}
+
+// The list-only fill a StremThru add's task upload token acts for
+// (docs/design/torrents.md §4), or null for any other caller.
+async function listFillOf(c: Context<Env>): Promise<ListFill | null> {
+  const principal = c.get('principal')
+  if (principal?.kind !== 'download-task-upload') return null
+  return listFillFor(c.get('deps'), { taskId: principal.taskId, downloaderId: principal.downloaderId })
 }
 
 // The id recorded in matter/activity logs.
@@ -532,6 +553,18 @@ const objects = app
       if (!isWithinDownloadTarget(parent, principal.targetFolder)) {
         throw forbidden('Target folder is outside task authorization')
       }
+      const fill = await listFillOf(c)
+      if (fill) {
+        const items = await listFillEntries(c.get('deps'), fill, {
+          parent,
+          name: query.name,
+          pageSize: query.pageSize,
+        })
+        return c.json(
+          { items: items.map((item) => toObjectListItemDTO(item, matterCreatorIdentity(item))), nextPageToken: null },
+          200,
+        )
+      }
     }
     const fingerprint = await pageQueryFingerprint({
       orgId: query.orgId ?? orgId,
@@ -588,6 +621,27 @@ const objects = app
     const input = c.req.valid('json')
     if (input.storageId && c.get('userRole') !== 'admin') throw forbidden('Forbidden')
 
+    // A StremThru add's task writes no drive rows: its uploads land in the
+    // torrent's own layout (docs/design/torrents.md §4).
+    const fill = await listFillOf(c)
+    if (fill) {
+      if (!isWithinDownloadTarget(input.parent ?? '', fill.task.targetFolder)) {
+        throw forbidden('Target folder is outside task authorization')
+      }
+      if (input.dirtype !== DirType.FILE) {
+        const folder = await createFillFolder(c.get('deps'), fill, { parent: input.parent ?? '', name: input.name })
+        return c.json(matterDTO(folder), 201)
+      }
+      const created = await createFillFile(c.get('deps'), fill, {
+        parent: input.parent ?? '',
+        name: input.name,
+        size: input.size ?? 0,
+        torrentPath: input.torrentPath,
+        onConflict: input.onConflict ?? 'fail',
+        actorId: actorId(c),
+      })
+      return c.json({ ...matterDTO(created.matter), upload: created.upload }, 201)
+    }
     const result = await createObject(c.get('deps'), { orgId, actor: objectActor(c), input })
     if (!result.ok) {
       if ('error' in result) throw result.error
@@ -632,6 +686,15 @@ const objects = app
     if (!orgId) throw new ObjectUploadSessionError('not_found')
     const objectId = c.req.valid('param').id
     const uploadSessionId = c.req.valid('param').uploadSessionId
+    const fill = await listFillOf(c)
+    if (fill) {
+      const parts = await presignFillParts(c.get('deps'), fill, {
+        objectId,
+        sessionId: uploadSessionId,
+        partNumbers: c.req.valid('json').partNumbers,
+      })
+      return c.json(parts, 200)
+    }
     await authorizeUploadSessionControl(c, orgId, objectId, { uploadSessionId })
     const result = await presignUploadSessionParts(c.get('deps'), {
       orgId,
@@ -650,6 +713,15 @@ const objects = app
     if (!orgId) throw new ObjectUploadSessionError('not_found')
     const objectId = c.req.valid('param').id
     const uploadSessionId = c.req.valid('param').uploadSessionId
+    const fill = await listFillOf(c)
+    if (fill) {
+      const matter = await completeFillUpload(c.get('deps'), fill, {
+        objectId,
+        sessionId: uploadSessionId,
+        parts: c.req.valid('json').parts,
+      })
+      return c.json(matterDTO(matter), 200)
+    }
     await authorizeUploadSessionControl(c, orgId, objectId, { uploadSessionId })
 
     const result = await completeUpload(c.get('deps'), {
@@ -670,6 +742,11 @@ const objects = app
     if (!orgId) throw new ObjectUploadSessionError('not_found')
     const objectId = c.req.valid('param').id
     const uploadSessionId = c.req.valid('param').uploadSessionId
+    const fill = await listFillOf(c)
+    if (fill) {
+      await abortFillUpload(c.get('deps'), fill, { objectId, sessionId: uploadSessionId })
+      return c.body(null, 204)
+    }
     await authorizeUploadSessionControl(c, orgId, objectId, { uploadSessionId })
     await abortUpload(c.get('deps'), {
       orgId,
@@ -730,6 +807,11 @@ const objects = app
     if (!orgId) throw badRequest('No active organization')
     const objectId = c.req.valid('param').id
     const principal = c.get('principal')
+    const fill = await listFillOf(c)
+    if (fill) {
+      await deleteFillEntry(c.get('deps'), fill, objectId)
+      return c.body(null, 204)
+    }
     const result =
       principal?.kind === 'download-task-upload'
         ? await deleteTaskUploadFile(c.get('deps'), {
@@ -783,6 +865,11 @@ const objects = app
     const principal = c.get('principal')
     if (!orgId || principal?.kind !== 'download-task-upload') throw forbidden()
     const media = c.req.valid('json')
+    const fill = await listFillOf(c)
+    if (fill) {
+      await setFillMedia(c.get('deps'), fill, { objectId: c.req.valid('param').id, media })
+      return c.json(media, 200)
+    }
     await setTaskMediaMetadata(c.get('deps'), {
       orgId,
       objectId: c.req.valid('param').id,

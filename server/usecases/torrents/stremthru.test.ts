@@ -108,22 +108,29 @@ describe('toStremThruError', () => {
 
 describe('generateTorzLink', () => {
   const caller = { keyId: 'key-1', userId: 'user-1', orgId: 'org-1' }
-  const matter = {
-    id: 'm1',
-    name: 'E01.mkv',
+  const torrent = { id: 't1', infoHash: 'ab'.repeat(20), storageId: 's1', status: 'ready', sourceTaskId: null }
+  const file = {
+    id: 'f1',
+    torrentId: 't1',
+    kind: 'file',
+    fileIdx: 0,
+    path: 'Show/E01.mkv',
     size: 10,
-    dirtype: 0,
-    status: 'active',
-    trashedAt: null,
-    purgedAt: null,
-    object: `bt/${'ab'.repeat(20)}/0`,
-    storageId: 's1',
+    objectKey: 'bt/x/f1',
   }
 
-  function linkDeps(overrides: { storage?: unknown; object?: string } = {}) {
+  function linkDeps(overrides: { storage?: unknown; torrentStatus?: string; entry?: boolean } = {}) {
+    const view = {
+      id: 'e1',
+      orgId: 'org-1',
+      status: 'ready',
+      taskId: null,
+      torrent: { ...torrent, status: overrides.torrentStatus ?? 'ready' },
+    }
     return {
-      matter: { get: async () => ({ ...matter, object: overrides.object ?? matter.object }) },
-      torrents: { getByInfoHash: async () => null, touch: vi.fn() },
+      workspaceTorrents: { get: async () => (overrides.entry === false ? null : view), update: vi.fn() },
+      downloadTasks: { findRecord: async () => null },
+      torrents: { listFiles: async () => [file], touch: vi.fn() },
       stremthruLinks: { get: async () => null, save: vi.fn() },
       storages: { get: async () => ('storage' in overrides ? overrides.storage : { id: 's1' }) },
       s3: { presignDownload: async () => 'https://bucket/signed' },
@@ -131,11 +138,14 @@ describe('generateTorzLink', () => {
     } as unknown as Deps
   }
 
-  const generate = (deps: Deps) =>
-    generateTorzLink(deps, { caller, link: 'zpan:st:m1', cloudBaseUrl: 'https://cloud' }).catch((e) => e)
+  const generate = (deps: Deps, link = 'zpan:st:e1.f1') =>
+    generateTorzLink(deps, { caller, link, cloudBaseUrl: 'https://cloud' }).catch((e) => e)
 
-  it('refuses files outside the cache and files whose storage is gone', async () => {
-    expect(await generate(linkDeps({ object: 'org-1/user-1/file.mkv' }))).toMatchObject({ code: 'NOT_FOUND' })
+  it('refuses links outside the list, files that do not play yet, and files whose storage is gone', async () => {
+    expect(await generate(linkDeps({ entry: false }))).toMatchObject({ code: 'NOT_FOUND' })
+    expect(await generate(linkDeps(), 'zpan:st:e1.other')).toMatchObject({ code: 'NOT_FOUND' })
+    expect(await generate(linkDeps(), 'zpan:st:e1')).toMatchObject({ code: 'BAD_REQUEST' })
+    expect(await generate(linkDeps({ torrentStatus: 'downloading' }))).toMatchObject({ code: 'BAD_REQUEST' })
     expect(await generate(linkDeps({ storage: null }))).toMatchObject({ code: 'NOT_FOUND' })
   })
 

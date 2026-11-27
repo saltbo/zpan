@@ -54,23 +54,16 @@ export const STREMTHRU_CHECK_MAX_HASHES = 500
 export const STREMTHRU_LIST_DEFAULT_LIMIT = 100
 export const STREMTHRU_LIST_MAX_LIMIT = 500
 
-// Playback links are valid for 12 hours, which StremThru clients expect, and an
-// issued link is handed out again while it has more than an hour left (§10).
-export const STREMTHRU_LINK_TTL_SECONDS = 12 * 60 * 60
-export const STREMTHRU_LINK_REUSE_MIN_REMAINING_MS = 60 * 60 * 1000
-
-// A download task's status as a StremThru torz status.
-export function torzStatus(taskStatus: string): StremThruTorzStatus {
-  switch (taskStatus) {
-    case 'completed':
+// A Torrents list entry's status as a StremThru torz status.
+export function torzStatus(entryStatus: string): StremThruTorzStatus {
+  switch (entryStatus) {
+    case 'ready':
       return 'downloaded'
     case 'downloading':
       return 'downloading'
-    case 'uploading':
-      return 'uploading'
+    case 'verifying':
+      return 'processing'
     case 'failed':
-    case 'canceled':
-    case 'canceling':
       return 'failed'
     default:
       return 'queued'
@@ -91,17 +84,20 @@ export function torzFile(file: { fileIdx: number; path: string; size: number }, 
 }
 
 const LINK_PREFIX = 'zpan:st:'
+const ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 
-// `files[].link` is an opaque reference to the caller's drive file holding that
-// torrent file; only link/generate resolves it, and only for the same workspace.
-export function encodeFileLink(matterId: string): string {
-  return `${LINK_PREFIX}${matterId}`
+// `files[].link` is an opaque reference to a file of the torrent within a
+// Torrents list entry; only link/generate resolves it, and only for the same
+// workspace.
+export function encodeFileLink(entryId: string, fileId: string): string {
+  return `${LINK_PREFIX}${entryId}.${fileId}`
 }
 
-export function decodeFileLink(link: string): string | null {
+export function decodeFileLink(link: string): { entryId: string; fileId: string } | null {
   if (!link.startsWith(LINK_PREFIX)) return null
-  const id = link.slice(LINK_PREFIX.length)
-  return /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null
+  const [entryId, fileId, ...rest] = link.slice(LINK_PREFIX.length).split('.')
+  if (rest.length > 0 || !entryId || !fileId || !ID_RE.test(entryId) || !ID_RE.test(fileId)) return null
+  return { entryId, fileId }
 }
 
 // A check hash: a hex or base32 infoHash, or a magnet link carrying one.

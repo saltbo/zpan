@@ -53,6 +53,7 @@ import { Route as AuthenticatedStoragesIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
 import { Route as AuthenticatedTeamsTeamIdRouteRouteImport } from './routes/_authenticated/teams/$teamId/route'
 import { Route as AuthenticatedTeamsInviteRouteImport } from './routes/_authenticated/teams/invite'
+import { Route as AuthenticatedTorrentsIndexRouteImport } from './routes/_authenticated/torrents/index'
 import { Route as AuthenticatedTrashIndexRouteImport } from './routes/_authenticated/trash/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_authenticated/admin/settings/index'
@@ -310,6 +311,12 @@ const AuthenticatedTeamsInviteRoute =
     path: '/teams/invite',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedTorrentsIndexRoute =
+  AuthenticatedTorrentsIndexRouteImport.update({
+    id: '/torrents/',
+    path: '/torrents/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedTrashIndexRoute = AuthenticatedTrashIndexRouteImport.update({
   id: '/trash/',
   path: '/trash/',
@@ -454,6 +461,7 @@ export interface FileRoutesByFullPath {
   '/shows/': typeof AuthenticatedShowsIndexRoute
   '/storages/': typeof AuthenticatedStoragesIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
+  '/torrents/': typeof AuthenticatedTorrentsIndexRoute
   '/trash/': typeof AuthenticatedTrashIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/email': typeof AuthenticatedAdminSettingsEmailRoute
@@ -512,6 +520,7 @@ export interface FileRoutesByTo {
   '/shows': typeof AuthenticatedShowsIndexRoute
   '/storages': typeof AuthenticatedStoragesIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
+  '/torrents': typeof AuthenticatedTorrentsIndexRoute
   '/trash': typeof AuthenticatedTrashIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/admin/settings/email': typeof AuthenticatedAdminSettingsEmailRoute
@@ -576,6 +585,7 @@ export interface FileRoutesById {
   '/_authenticated/shows/': typeof AuthenticatedShowsIndexRoute
   '/_authenticated/storages/': typeof AuthenticatedStoragesIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
+  '/_authenticated/torrents/': typeof AuthenticatedTorrentsIndexRoute
   '/_authenticated/trash/': typeof AuthenticatedTrashIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/admin/settings/email': typeof AuthenticatedAdminSettingsEmailRoute
@@ -639,6 +649,7 @@ export interface FileRouteTypes {
     | '/shows/'
     | '/storages/'
     | '/tasks/'
+    | '/torrents/'
     | '/trash/'
     | '/users/'
     | '/admin/settings/email'
@@ -697,6 +708,7 @@ export interface FileRouteTypes {
     | '/shows'
     | '/storages'
     | '/tasks'
+    | '/torrents'
     | '/trash'
     | '/users'
     | '/admin/settings/email'
@@ -760,6 +772,7 @@ export interface FileRouteTypes {
     | '/_authenticated/shows/'
     | '/_authenticated/storages/'
     | '/_authenticated/tasks/'
+    | '/_authenticated/torrents/'
     | '/_authenticated/trash/'
     | '/_authenticated/users/'
     | '/_authenticated/admin/settings/email'
@@ -1099,6 +1112,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeamsInviteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/torrents/': {
+      id: '/_authenticated/torrents/'
+      path: '/torrents'
+      fullPath: '/torrents/'
+      preLoaderRoute: typeof AuthenticatedTorrentsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/trash/': {
       id: '/_authenticated/trash/'
       path: '/trash'
@@ -1354,6 +1374,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedShowsIndexRoute: typeof AuthenticatedShowsIndexRoute
   AuthenticatedStoragesIndexRoute: typeof AuthenticatedStoragesIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
+  AuthenticatedTorrentsIndexRoute: typeof AuthenticatedTorrentsIndexRoute
   AuthenticatedTrashIndexRoute: typeof AuthenticatedTrashIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
 }
@@ -1375,6 +1396,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedShowsIndexRoute: AuthenticatedShowsIndexRoute,
   AuthenticatedStoragesIndexRoute: AuthenticatedStoragesIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
+  AuthenticatedTorrentsIndexRoute: AuthenticatedTorrentsIndexRoute,
   AuthenticatedTrashIndexRoute: AuthenticatedTrashIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
 }

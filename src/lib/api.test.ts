@@ -29,6 +29,7 @@ import {
   createStorage,
   createStremThruApiKey,
   createWebDavAppPassword,
+  createWorkspaceTorrentFileLink,
   deleteAnnouncement,
   deleteAuthProvider,
   deleteAvatar,
@@ -40,6 +41,7 @@ import {
   deleteObject,
   deleteStorage,
   deleteTeamLogo,
+  deleteWorkspaceTorrent,
   disconnectCloud,
   enableIhostFeature,
   evictTorrent,
@@ -82,6 +84,7 @@ import {
   getUnreadCount,
   getUserQuota,
   getUserQuotaById,
+  getWorkspaceTorrent,
   grantOrgEntitlement,
   grantUserEntitlement,
   isNameConflictError,
@@ -123,6 +126,7 @@ import {
   listTrash,
   listUserEntitlements,
   listUsers,
+  listWorkspaceTorrents,
   markAllNotificationsRead,
   markNotificationRead,
   patchStorage,
@@ -151,6 +155,7 @@ import {
   saveEmailConfig,
   saveImageDomainProvider,
   saveShareToDrive,
+  saveWorkspaceTorrentToDrive,
   scanMediaLibrary,
   sendDownloaderHeartbeat,
   serverEventsUrl,
@@ -3388,6 +3393,118 @@ describe('api', () => {
       )
 
       await expect(evictTorrent('t-1')).rejects.toBeInstanceOf(ApiError)
+    })
+  })
+
+  describe('Workspace Torrents', () => {
+    const entry = {
+      id: 'e-1',
+      infoHash: 'a1'.repeat(20),
+      name: 'Movie',
+      size: 300,
+      fileCount: 1,
+      status: 'ready',
+      error: null,
+      source: 'stremthru',
+      sourceUri: 'magnet:?xt=urn:btih:a1',
+      playable: true,
+      taskId: null,
+      lastPlayedAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }
+
+    it('listWorkspaceTorrents calls GET /api/torrents with the cursor', async () => {
+      const payload = { items: [entry], nextPageToken: null }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(payload))
+
+      await expect(listWorkspaceTorrents({ pageToken: 'tok', pageSize: 20 })).resolves.toEqual(payload)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/torrents?')
+      expect(url).toContain('pageSize=20')
+      expect(url).toContain('pageToken=tok')
+      expect(init.method ?? 'GET').toBe('GET')
+    })
+
+    it('listWorkspaceTorrents throws ApiError when the feature is unavailable', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'feature_not_available' }, false, 402))
+
+      await expect(listWorkspaceTorrents()).rejects.toBeInstanceOf(ApiError)
+    })
+
+    it('getWorkspaceTorrent calls GET /api/torrents/:id and returns the tree', async () => {
+      const detail = {
+        ...entry,
+        files: [{ id: 'f-1', index: 0, path: 'Movie.mkv', size: 300, mime: 'video/x-matroska' }],
+      }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(detail))
+
+      await expect(getWorkspaceTorrent('e-1')).resolves.toEqual(detail)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/torrents/e-1')
+      expect(init.method ?? 'GET').toBe('GET')
+    })
+
+    it('getWorkspaceTorrent throws ApiError on 404', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ error: { code: 404, message: 'Torrent not found' } }, false, 404),
+      )
+
+      await expect(getWorkspaceTorrent('nope')).rejects.toMatchObject({ status: 404 })
+    })
+
+    it('createWorkspaceTorrentFileLink calls POST /api/torrents/:id/files/:fileId/links', async () => {
+      const link = { url: 'https://bucket/signed', expiresAt: '2026-01-01T12:00:00.000Z' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(link, true, 201))
+
+      await expect(createWorkspaceTorrentFileLink('e-1', 'f-1')).resolves.toEqual(link)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/torrents/e-1/files/f-1/links')
+      expect(init.method).toBe('POST')
+    })
+
+    it('createWorkspaceTorrentFileLink throws ApiError when the torrent is not ready', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: { code: 409, message: 'not ready' } }, false, 409))
+
+      await expect(createWorkspaceTorrentFileLink('e-1', 'f-1')).rejects.toBeInstanceOf(ApiError)
+    })
+
+    it('deleteWorkspaceTorrent calls DELETE /api/torrents/:id', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(null, true, 204))
+
+      await expect(deleteWorkspaceTorrent('e-1')).resolves.toBeUndefined()
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/torrents/e-1')
+      expect(init.method).toBe('DELETE')
+    })
+
+    it('deleteWorkspaceTorrent throws ApiError on 404', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: { code: 404, message: 'gone' } }, false, 404))
+
+      await expect(deleteWorkspaceTorrent('e-1')).rejects.toBeInstanceOf(ApiError)
+    })
+
+    it('saveWorkspaceTorrentToDrive calls POST /api/torrents/:id/transfers with the folder', async () => {
+      const saved = { files: [{ id: 'm-1', name: 'Movie.mkv', parent: 'Movies' }] }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(saved, true, 201))
+
+      await expect(saveWorkspaceTorrentToDrive('e-1', 'Movies')).resolves.toEqual(saved)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/torrents/e-1/transfers')
+      expect(init.method).toBe('POST')
+      expect(JSON.parse(init.body as string)).toEqual({ folder: 'Movies' })
+    })
+
+    it('saveWorkspaceTorrentToDrive throws ApiError when the quota is exceeded', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse({ error: { code: 422, message: 'Quota exceeded' } }, false, 422),
+      )
+
+      await expect(saveWorkspaceTorrentToDrive('e-1', '')).rejects.toMatchObject({ status: 422 })
     })
   })
 

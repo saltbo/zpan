@@ -1,7 +1,7 @@
 # Torrents
 
-> Status: Accepted. Sections 1–13 describe the target design; [section 14](#14-phases)
-> lists what is built and what the rework still changes.
+> Status: Accepted. Sections 1–13 describe the design as built; [section 14](#14-phases)
+> lists how it was built.
 > Editions: Pro and Business, self-hosted only
 
 ## 1. Problem
@@ -120,7 +120,9 @@ resolves to a torrent the workspace already holds merges into that entry.
 `download_tasks` carries `info_hash` once known, `torrent_id`, and
 `torrent_role`: `fill` for the task whose download is the torrent's first,
 `join` for a remote download waiting on another task's download, null
-otherwise.
+otherwise. `list_only` marks the task a StremThru add starts, which writes no
+drive rows; it lives on the task because the task's entry may be removed or
+merged while the download runs.
 
 `bt/` cannot collide with other keys: drive objects are
 `<orgId>/<uid>/<date>/<token>` and image-hosting objects are `ih/…`
@@ -151,8 +153,10 @@ reports the info dictionary for a torrent URL.
 
 A torrent URL task that turns out to be cached or already downloading is
 cancelled on the downloader the usual way, and finishes as in steps 1 and 2.
-A `fill` task whose torrent loses every holder before it completes is
-cancelled, and one that fails marks every waiting entry `failed`.
+A list-only `fill` task whose torrent loses every holder before it completes is
+cancelled; a remote download goes on, because its drive files are the user's
+own request. A `fill` task that fails marks every waiting entry `failed`, and
+an addon that adds a failed entry again starts it anew.
 
 The downloader uploads a torrent task exactly as it uploads any task into the
 drive: scraping when it is configured to, then folders, files, and metadata
@@ -349,12 +353,11 @@ quota and list entries are not, so the two hold a torrent differently:
 
 - A row in `matters` with `purged_at IS NULL` that references a torrent, in any
   status including trash, holds it until the file is purged.
-- A `stremthru` list entry expires when its `last_played_at`, or its
-  `created_at` if it was never played, is older than the retention period
-  (default 30 days). A `download` entry does not expire, because the drive
-  files it brought are what hold its torrent, and removing it is the user's
-  choice. An expired torrent shows as not cached to the addons, and the next
-  play adds it again.
+- A list entry holds it until the entry is removed. A `stremthru` entry
+  expires when its `last_played_at`, or its `created_at` if it was never
+  played, is older than the retention period (default 30 days). A `download`
+  entry does not expire, because removing it is the user's choice. An expired
+  torrent shows as not cached to the addons, and the next play adds it again.
 
 A torrent with neither holder is evictable. Evictable torrents are deleted,
 objects first and rows second:
@@ -362,8 +365,8 @@ objects first and rows second:
 - when `last_accessed_at` is older than the retention period, or
 - oldest access first, while the total size exceeds the admin's capacity,
   which is unset by default. When evicting every unheld torrent is not
-  enough, torrents held only by `stremthru` entries go next, least recently
-  played first, with their entries.
+  enough, torrents held only by `stremthru` entries, with no drive file and no
+  `download` entry, go next, least recently played first, with their entries.
 
 Eviction lists `bt/<infoHash>/` and deletes every object under it, so an object
 no row records, such as an upload that landed after its task stopped, goes too.
@@ -403,8 +406,7 @@ sidecars and an uploaded `layout.json` (#721, #726). None of it is in a release
 yet, and production holds no torrent data, so the rework changes tables without
 migrating rows.
 
-The rework, in order; phases 1 and 2 are built (#737 and its successor), and
-phase 3 remains:
+The rework, in order, all built (#737, #738, and its successor):
 
 1. **Rename and simplify the server.** Rename *torrent cache* to *Torrents*
    throughout: the entitlement `torrents`, `download_tasks.torrent_role`,

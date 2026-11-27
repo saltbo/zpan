@@ -1,7 +1,7 @@
 import { ObjectStatus } from '@shared/constants'
 import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { generateId } from '../../../shared/ids'
-import { downloaders, matters, stremthruLinks, torrentFiles, torrents } from '../../db/schema'
+import { downloaders, matters, stremthruLinks, torrentFiles, torrents, workspaceTorrents } from '../../db/schema'
 import { executeWriteTransaction, rowsPerInsert } from '../../db/transaction'
 import { torrentEntryObjectKey, torrentKeyRange, torrentTreeLayoutPath, torrentTreeRoot } from '../../domain/torrents'
 import type { Database } from '../../platform/interface'
@@ -31,23 +31,31 @@ function chunks<T>(items: readonly T[]): T[][] {
 }
 
 // True when some drive file still references one of the torrent's objects, in
-// any status including trash. Uses the (storage_id, object) index on matters.
-const referenced = sql`EXISTS (
+// any status including trash (through the (storage_id, object) index on
+// matters), or some Torrents list entry holds it.
+const referenced = sql`(EXISTS (
   SELECT 1 FROM ${matters}
   WHERE ${matters.storageId} = ${torrents.storageId}
     AND ${matters.object} >= 'bt/' || ${torrents.infoHash} || '/'
     AND ${matters.object} < 'bt/' || ${torrents.infoHash} || '0'
     AND ${matters.purgedAt} IS NULL
-)`
+) OR EXISTS (
+  SELECT 1 FROM ${workspaceTorrents} WHERE ${workspaceTorrents.torrentId} = ${torrents.id}
+))`
 
-// Drive files, live or in trash, that reference one of the torrent's objects.
-const holderCount = sql<number>`(
-  SELECT COUNT(*) FROM ${matters}
-  WHERE ${matters.storageId} = ${torrents.storageId}
-    AND ${matters.object} >= 'bt/' || ${torrents.infoHash} || '/'
-    AND ${matters.object} < 'bt/' || ${torrents.infoHash} || '0'
-    AND ${matters.purgedAt} IS NULL
-)`
+// Drive files, live or in trash, that reference one of the torrent's objects,
+// plus the Torrents list entries that hold it. Written with qualified names,
+// because drizzle drops the table from columns in a select list, which would
+// bind them to the subqueries' own tables.
+const holderCount = sql<number>`${sql.raw(`((
+  SELECT COUNT(*) FROM "matters"
+  WHERE "matters"."storage_id" = "torrents"."storage_id"
+    AND "matters"."object" >= 'bt/' || "torrents"."info_hash" || '/'
+    AND "matters"."object" < 'bt/' || "torrents"."info_hash" || '0'
+    AND "matters"."purged_at" IS NULL
+) + (
+  SELECT COUNT(*) FROM "workspace_torrents" WHERE "workspace_torrents"."torrent_id" = "torrents"."id"
+))`)}`.mapWith(Number)
 
 function toEntry(row: typeof torrentFiles.$inferSelect): TorrentEntryRecord {
   return { ...row, kind: row.kind as TorrentEntryRecord['kind'], media: row.media ?? null }
@@ -280,6 +288,10 @@ export function createTorrentRepo(db: Database): TorrentRepo {
       ])
     },
 
+    async deleteEntry(id) {
+      await db.delete(torrentFiles).where(and(eq(torrentFiles.id, id), sql`${torrentFiles.kind} <> 'file'`))
+    },
+
     async deleteIncompleteSidecars(torrentId) {
       await db
         .delete(torrentFiles)
@@ -361,11 +373,11 @@ export function createTorrentRepo(db: Database): TorrentRepo {
 
 export function createStremThruLinkRepo(db: Database): StremThruLinkRepo {
   return {
-    async get(userId, matterId) {
+    async get(userId, torrentFileId) {
       const rows = await db
         .select({ url: stremthruLinks.url, expiresAt: stremthruLinks.expiresAt })
         .from(stremthruLinks)
-        .where(and(eq(stremthruLinks.userId, userId), eq(stremthruLinks.matterId, matterId)))
+        .where(and(eq(stremthruLinks.userId, userId), eq(stremthruLinks.torrentFileId, torrentFileId)))
         .limit(1)
       return rows[0] ?? null
     },
@@ -377,13 +389,13 @@ export function createStremThruLinkRepo(db: Database): StremThruLinkRepo {
           id: generateId(),
           userId: input.userId,
           orgId: input.orgId,
-          matterId: input.matterId,
+          torrentFileId: input.torrentFileId,
           url: input.url,
           expiresAt: input.expiresAt,
           createdAt: input.now,
         })
         .onConflictDoUpdate({
-          target: [stremthruLinks.userId, stremthruLinks.matterId],
+          target: [stremthruLinks.userId, stremthruLinks.torrentFileId],
           set: { orgId: input.orgId, url: input.url, expiresAt: input.expiresAt, createdAt: input.now },
         })
     },

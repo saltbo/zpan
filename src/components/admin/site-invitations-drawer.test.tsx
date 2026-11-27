@@ -2,7 +2,7 @@ import type { SiteInvitation } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SiteInvitationsList } from './site-invitations-list'
+import { SiteInvitationsDrawer } from './site-invitations-drawer'
 
 class TestResizeObserver {
   observe() {}
@@ -22,12 +22,13 @@ vi.mock('@/hooks/use-clipboard', () => ({ useClipboard: () => ({ copy: vi.fn() }
 
 vi.mock('@/lib/api', () => ({
   listSiteInvitations: vi.fn(),
+  createSiteInvitation: vi.fn(),
   resendSiteInvitation: vi.fn(),
   revokeSiteInvitation: vi.fn(),
 }))
 
 import { toast } from 'sonner'
-import { listSiteInvitations, resendSiteInvitation, revokeSiteInvitation } from '@/lib/api'
+import { createSiteInvitation, listSiteInvitations, resendSiteInvitation, revokeSiteInvitation } from '@/lib/api'
 
 const invitation: SiteInvitation = {
   id: 'inv-1',
@@ -45,17 +46,17 @@ const invitation: SiteInvitation = {
   status: 'pending',
 }
 
-function renderList() {
+function renderDialog() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <SiteInvitationsList />
+      <SiteInvitationsDrawer open onOpenChange={vi.fn()} />
     </QueryClientProvider>,
   )
 }
 
 async function openRevokeConfirm() {
-  renderList()
+  renderDialog()
   fireEvent.click(await screen.findByRole('button', { name: 'admin.users.revokeInvite' }))
   return screen.findByText('admin.users.revokeInviteConfirm:guest@example.com')
 }
@@ -72,7 +73,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('SiteInvitationsList revoke', () => {
+describe('SiteInvitationsDrawer revoke', () => {
   it('asks for confirmation naming the email and revokes only after confirming', async () => {
     const description = await openRevokeConfirm()
     expect(revokeSiteInvitation).not.toHaveBeenCalled()
@@ -92,10 +93,27 @@ describe('SiteInvitationsList revoke', () => {
   })
 })
 
-describe('SiteInvitationsList errors', () => {
-  it('shows a failed resend above the list', async () => {
+describe('SiteInvitationsDrawer errors', () => {
+  it('shows a failed invite inline under the email field and clears it on edit', async () => {
+    vi.mocked(createSiteInvitation).mockRejectedValue(new Error('Configure email delivery before sending invitations'))
+    renderDialog()
+    const input = await screen.findByPlaceholderText('admin.users.inviteEmailPlaceholder')
+    fireEvent.change(input, { target: { value: 'new@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'admin.users.sendInvite' }))
+
+    const alert = await screen.findByText('Configure email delivery before sending invitations')
+    expect(alert.getAttribute('role')).toBe('alert')
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(input.getAttribute('aria-describedby')).toBe(alert.id)
+    expect(toast.error).not.toHaveBeenCalled()
+
+    fireEvent.change(input, { target: { value: 'other@example.com' } })
+    await waitFor(() => expect(screen.queryByText('Configure email delivery before sending invitations')).toBeNull())
+  })
+
+  it('shows a failed resend inline in the drawer', async () => {
     vi.mocked(resendSiteInvitation).mockRejectedValue(new Error('Configure email delivery before sending invitations'))
-    renderList()
+    renderDialog()
     fireEvent.click(await screen.findByRole('button', { name: 'admin.users.resendInvite' }))
 
     const message = await screen.findByText('Configure email delivery before sending invitations')
@@ -104,7 +122,7 @@ describe('SiteInvitationsList errors', () => {
   })
 })
 
-describe('SiteInvitationsList pagination', () => {
+describe('SiteInvitationsDrawer pagination', () => {
   const second: SiteInvitation = { ...invitation, id: 'inv-2', email: 'second@example.com' }
 
   beforeEach(() => {
@@ -115,8 +133,8 @@ describe('SiteInvitationsList pagination', () => {
     )
   })
 
-  it('requests the next page with the previous token and returns with Previous [spec: list-pagination/admin-tables]', async () => {
-    renderList()
+  it('requests the next page with the previous token and returns with Previous', async () => {
+    renderDialog()
     expect(await screen.findByText('guest@example.com')).toBeTruthy()
     expect(listSiteInvitations).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 20 })
     expect((screen.getByRole('button', { name: 'common.previousPage' }) as HTMLButtonElement).disabled).toBe(true)

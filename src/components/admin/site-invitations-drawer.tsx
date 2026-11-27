@@ -1,0 +1,309 @@
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AlertCircle, ClipboardCopy, Loader2, MailPlus, RotateCw, ShieldX } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
+import { ConfirmActionDialog } from '@/components/admin/confirm-action-dialog'
+import { CursorPagination } from '@/components/list/cursor-pagination'
+import { useClipboard } from '@/hooks/use-clipboard'
+import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
+import {
+  type ApiError,
+  createSiteInvitation,
+  listSiteInvitations,
+  resendSiteInvitation,
+  revokeSiteInvitation,
+} from '@/lib/api'
+import { Alert, AlertDescription } from '../ui/alert'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+
+interface SiteInvitationsDrawerProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
+
+function buildInviteLink(token: string): string {
+  return `${window.location.origin}/sign-up?invite=${encodeURIComponent(token)}`
+}
+
+function StatusBadge({ status }: { status: 'pending' | 'accepted' | 'expired' | 'revoked' }) {
+  const { t } = useTranslation()
+  const className =
+    status === 'accepted'
+      ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+      : status === 'pending'
+        ? 'bg-primary/10 text-primary'
+        : status === 'expired'
+          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+          : 'bg-muted text-muted-foreground'
+
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>
+      {t(`admin.users.inviteStatus.${status}`)}
+    </span>
+  )
+}
+
+export function SiteInvitationsDrawer({ open, onOpenChange }: SiteInvitationsDrawerProps) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const { copy } = useClipboard()
+  const [email, setEmail] = useState('')
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0])
+  const pager = useCursorPager(String(pageSize))
+  const [pendingRevoke, setPendingRevoke] = useState<{ id: string; email: string } | null>(null)
+
+  const invitationsQuery = useQuery({
+    queryKey: ['admin', 'site-invitations', pageSize, pager.pageToken],
+    queryFn: () => listSiteInvitations({ pageToken: pager.pageToken, pageSize }),
+    placeholderData: keepPreviousData,
+    enabled: open,
+  })
+  useStepBackFromEmptyPage(pager, invitationsQuery)
+
+  const createMutation = useMutation({
+    mutationFn: (nextEmail: string) => createSiteInvitation(nextEmail),
+    onSuccess: () => {
+      setEmail('')
+      queryClient.invalidateQueries({ queryKey: ['admin', 'site-invitations'] })
+      toast.success(t('admin.users.inviteCreated'))
+    },
+  })
+
+  const resendMutation = useMutation({
+    mutationFn: (id: string) => resendSiteInvitation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'site-invitations'] })
+      toast.success(t('admin.users.inviteResent'))
+    },
+  })
+
+  // Create and resend failures stay in the drawer, next to what failed, instead of
+  // a toast that the open drawer can hide. The server writes the message.
+  const createError = createMutation.error?.message
+  const resendError = resendMutation.error?.message
+
+  const revokeMutation = useMutation({
+    mutationFn: (id: string) => revokeSiteInvitation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'site-invitations'] })
+      toast.success(t('admin.users.inviteRevoked'))
+      setPendingRevoke(null)
+    },
+    onError: (error: ApiError | Error) => {
+      toast.error(error.message)
+    },
+  })
+
+  const items = invitationsQuery.data?.items ?? []
+  const isBusy = createMutation.isPending || resendMutation.isPending || revokeMutation.isPending
+
+  const pendingCount = useMemo(() => items.filter((item) => item.status === 'pending').length, [items])
+
+  async function handleCopy(token: string) {
+    try {
+      await copy(buildInviteLink(token), 'admin.users.inviteLinkCopied')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('common.error'))
+    }
+  }
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    resendMutation.reset()
+    createMutation.mutate(email.trim())
+  }
+
+  return (
+    <>
+      <AdminFormDrawer
+        open={open}
+        onOpenChange={(nextOpen) => {
+          onOpenChange(nextOpen)
+          if (!nextOpen) {
+            setEmail('')
+            pager.reset()
+            createMutation.reset()
+            resendMutation.reset()
+          }
+        }}
+        width="extra-wide"
+        title={t('admin.users.inviteDialogTitle')}
+        description={t('admin.users.inviteDialogDescription', { count: pendingCount })}
+        bodyClassName="grid auto-rows-min content-start gap-4"
+        footer={
+          <div className="w-full">
+            <CursorPagination
+              pageSize={pageSize}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              hasPrevious={pager.hasPrevious}
+              nextPageToken={invitationsQuery.data?.nextPageToken}
+              disabled={invitationsQuery.isFetching}
+              onPageSizeChange={setPageSize}
+              onPrevious={pager.previous}
+              onNext={pager.next}
+            />
+          </div>
+        }
+      >
+        <form onSubmit={handleSubmit} className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_auto] md:items-end">
+          <AdminFormField id="invite-email" label={t('admin.users.inviteEmail')}>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                if (createMutation.isError) createMutation.reset()
+              }}
+              aria-invalid={createError ? true : undefined}
+              aria-describedby={createError ? 'invite-email-error' : undefined}
+              placeholder={t('admin.users.inviteEmailPlaceholder')}
+              required
+            />
+          </AdminFormField>
+          <Button type="submit" disabled={createMutation.isPending || !email.trim()}>
+            {createMutation.isPending ? <Loader2 className="animate-spin" /> : <MailPlus />}
+            {t('admin.users.sendInvite')}
+          </Button>
+          {createError && (
+            <p id="invite-email-error" role="alert" className="text-sm text-destructive md:col-span-2">
+              {createError}
+            </p>
+          )}
+        </form>
+
+        {resendError && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertDescription>{resendError}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="px-4 py-3 text-left font-medium">{t('admin.users.inviteColEmail')}</th>
+                <th className="px-4 py-3 text-left font-medium">{t('admin.users.inviteColStatus')}</th>
+                <th className="hidden px-4 py-3 text-left font-medium md:table-cell">
+                  {t('admin.users.inviteColInvitedBy')}
+                </th>
+                <th className="hidden px-4 py-3 text-left font-medium lg:table-cell">
+                  {t('admin.users.inviteColCreatedAt')}
+                </th>
+                <th className="hidden px-4 py-3 text-left font-medium lg:table-cell">
+                  {t('admin.users.inviteColExpiresAt')}
+                </th>
+                <th className="px-4 py-3 text-right font-medium">{t('admin.users.colActions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invitationsQuery.isLoading && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                    {t('common.loading')}
+                  </td>
+                </tr>
+              )}
+
+              {!invitationsQuery.isLoading &&
+                items.map((invitation) => {
+                  const actionsDisabled = isBusy && resendMutation.variables !== invitation.id
+                  return (
+                    <tr key={invitation.id} className="border-b last:border-0 hover:bg-muted/30">
+                      <td className="px-4 py-3 font-medium">{invitation.email}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={invitation.status} />
+                      </td>
+                      <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
+                        {invitation.invitedByName}
+                      </td>
+                      <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
+                        {formatDate(invitation.createdAt)}
+                      </td>
+                      <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
+                        {formatDate(invitation.expiresAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => handleCopy(invitation.token)}
+                            title={t('admin.users.copyInviteLink')}
+                            aria-label={t('admin.users.copyInviteLink')}
+                          >
+                            <ClipboardCopy />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            disabled={invitation.status !== 'pending' || actionsDisabled}
+                            onClick={() => {
+                              createMutation.reset()
+                              resendMutation.mutate(invitation.id)
+                            }}
+                            title={t('admin.users.resendInvite')}
+                            aria-label={t('admin.users.resendInvite')}
+                          >
+                            <RotateCw
+                              className={
+                                resendMutation.isPending && resendMutation.variables === invitation.id
+                                  ? 'animate-spin'
+                                  : ''
+                              }
+                            />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            disabled={invitation.status !== 'pending' || actionsDisabled}
+                            onClick={() => setPendingRevoke({ id: invitation.id, email: invitation.email })}
+                            title={t('admin.users.revokeInvite')}
+                            aria-label={t('admin.users.revokeInvite')}
+                          >
+                            <ShieldX className="text-destructive" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+
+              {!invitationsQuery.isLoading && items.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                    {t('admin.users.noInvitations')}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </AdminFormDrawer>
+
+      <ConfirmActionDialog
+        open={pendingRevoke !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setPendingRevoke(null)
+        }}
+        title={t('admin.users.revokeInviteTitle')}
+        description={t('admin.users.revokeInviteConfirm', { email: pendingRevoke?.email ?? '' })}
+        confirmLabel={t('admin.users.revokeInvite')}
+        isPending={revokeMutation.isPending}
+        onConfirm={() => {
+          if (pendingRevoke) revokeMutation.mutate(pendingRevoke.id)
+        }}
+      />
+    </>
+  )
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+}

@@ -55,14 +55,3 @@ Feature: Site invitations
     When an admin invites an email address or resends an invitation
     Then the API responds 400 with a message to configure email first
     And no invitation is created
-
-  @site-invitations/list-apart-from-form @web
-  Scenario: Invitations are listed on the Users page, apart from the invite form
-    Given an authenticated admin opens Admin → Users
-    When they choose the Invitations tab
-    Then the invitations are listed on the page with previous, next, and a page size
-    And the tab is kept in the link, so reloading or sharing it opens the same tab
-    When they choose Invite User
-    Then a drawer holds only the invite form, with Cancel and Send Invite in its footer
-    When the invite is sent
-    Then the drawer closes and the Invitations tab shows the new invitation

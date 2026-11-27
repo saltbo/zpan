@@ -490,10 +490,12 @@ export const downloadTasks = sqliteTable(
     // Torrents (docs/design/torrents.md §3): the v1 infoHash once known, the
     // torrent this task fills or waits for, and its role: 'fill' for the task
     // whose download is the torrent's first, 'join' while it waits for another
-    // task's download.
+    // task's download. A StremThru add's task is list-only: it downloads the
+    // torrent for Torrents lists alone and writes no drive rows.
     infoHash: text('info_hash'),
     torrentId: text('torrent_id'),
     torrentRole: text('torrent_role'),
+    listOnly: integer('list_only', { mode: 'boolean' }).notNull().default(false),
   },
   (t) => [
     index('download_tasks_torrent_idx').on(t.torrentId, t.status),
@@ -818,8 +820,44 @@ export const torrentFiles = sqliteTable(
   ],
 )
 
-// stremthru_links — the playback link last issued to a user for a held file, so a
-// regenerated link is the same one (and charged once) while it has time left
+// workspace_torrents — one row per torrent a workspace holds, which is its
+// Torrents list (docs/design/torrents.md §3). The status columns carry what
+// happens before the entry has a torrent; once it has one, its status follows
+// the torrent's.
+export const workspaceTorrents = sqliteTable(
+  'workspace_torrents',
+  {
+    id: text('id').primaryKey(), // also the item id StremThru clients see
+    orgId: text('org_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    torrentId: text('torrent_id').references(() => torrents.id, { onDelete: 'cascade' }),
+    infoHash: text('info_hash'), // known at submit for a magnet, once metadata is reported for a torrent URL
+    source: text('source').notNull(), // download | stremthru
+    sourceUri: text('source_uri').notNull(),
+    displayName: text('display_name'), // shown before metadata, such as a magnet's dn
+    taskId: text('task_id'), // the download task the entry started; null when the torrent was on the instance
+    status: text('status').notNull(), // resolving | downloading | ready | failed
+    error: text('error'),
+    createdByActorType: text('created_by_actor_type').notNull(),
+    createdByActorRef: text('created_by_actor_ref').notNull(),
+    createdByActorIssuer: text('created_by_actor_issuer'),
+    lastPlayedAt: integer('last_played_at', { mode: 'timestamp_ms' }), // drives expiry of stremthru entries
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('workspace_torrents_org_torrent_uniq').on(t.orgId, t.torrentId),
+    index('workspace_torrents_org_created_idx').on(t.orgId, t.createdAt, t.id),
+    index('workspace_torrents_org_hash_idx').on(t.orgId, t.infoHash),
+    index('workspace_torrents_torrent_idx').on(t.torrentId),
+    index('workspace_torrents_task_idx').on(t.taskId),
+    index('workspace_torrents_source_played_idx').on(t.source, t.lastPlayedAt),
+  ],
+)
+
+// stremthru_links — the playback link last issued to a user for a torrent file,
+// so a regenerated link is the same one (and charged once) while it has time left
 export const stremthruLinks = sqliteTable(
   'stremthru_links',
   {
@@ -828,13 +866,15 @@ export const stremthruLinks = sqliteTable(
     orgId: text('org_id')
       .notNull()
       .references(() => organization.id, { onDelete: 'cascade' }),
-    matterId: text('matter_id').notNull(),
+    torrentFileId: text('torrent_file_id')
+      .notNull()
+      .references(() => torrentFiles.id, { onDelete: 'cascade' }),
     url: text('url').notNull(),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
-    uniqueIndex('stremthru_links_user_matter_uniq').on(t.userId, t.matterId),
+    uniqueIndex('stremthru_links_user_file_uniq').on(t.userId, t.torrentFileId),
     index('stremthru_links_expires_idx').on(t.expiresAt),
   ],
 )

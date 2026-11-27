@@ -187,10 +187,28 @@ describe('Admin torrents API', () => {
     const refused = await app.request(`/api/site/torrents/${held.id}`, { method: 'DELETE', headers: admin })
     expect(refused.status).toBe(409)
     const body = (await refused.json()) as { error: { message: string; details?: Array<{ reason?: string }> } }
-    expect(body.error.message).toContain('2 drive files still hold this torrent')
+    expect(body.error.message).toContain('2 drive files or Torrents list entries still hold this torrent')
     expect(JSON.stringify(body)).toContain('TORRENT_HELD')
     expect((await deps.torrents.get(held.id))?.status).toBe('ready')
     expect(s3Commands.join('\n')).not.toContain('a1a1')
+
+    // A Torrents list entry holds a torrent as a drive file does.
+    const listed = await seedTorrent(deps, 'e5'.repeat(20))
+    await deps.workspaceTorrents.insert({
+      orgId: workspace.orgId,
+      torrentId: listed.id,
+      infoHash: listed.infoHash,
+      source: 'stremthru',
+      sourceUri: `magnet:?xt=urn:btih:${listed.infoHash}`,
+      displayName: null,
+      taskId: null,
+      status: 'ready',
+      createdBy: { type: 'api_key', ref: 'key-1', issuer: null },
+      now: new Date(),
+    })
+    expect(await deps.torrents.countHolders(listed.id)).toBe(1)
+    const entryHeld = await app.request(`/api/site/torrents/${listed.id}`, { method: 'DELETE', headers: admin })
+    expect(entryHeld.status).toBe(409)
 
     const missing = await app.request('/api/site/torrents/nope', { method: 'DELETE', headers: admin })
     expect(missing.status).toBe(404)

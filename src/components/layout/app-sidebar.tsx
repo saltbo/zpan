@@ -9,6 +9,7 @@ import {
   FolderOpen,
   Image,
   ListChecks,
+  Magnet,
   Music,
   Share2,
   Trash2,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
 import { useBranding } from '@/components/branding/BrandingProvider'
+import { ProBadge } from '@/components/ProBadge'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -32,6 +34,7 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar'
 import { useSiteConfig } from '@/hooks/use-site-config'
+import { useEntitlement } from '@/hooks/useEntitlement'
 import { getActiveBackgroundJobCount, getIhostConfig } from '@/lib/api'
 import { useActiveOrganization, useSession } from '@/lib/auth-client'
 import { OrgSwitcher } from '../team/org-switcher'
@@ -46,6 +49,8 @@ export function AppSidebar() {
   const { data: siteConfig } = useSiteConfig()
   const siteName = siteConfig?.site.name ?? DEFAULT_SITE_NAME
   const { branding } = useBranding()
+  const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
+  const torrentsLocked = !entitlementLoading && !hasFeature('torrents')
   const { data: ihostConfig } = useQuery({
     queryKey: ['ihost', 'config', activeOrg?.id],
     queryFn: getIhostConfig,
@@ -68,6 +73,7 @@ export function AppSidebar() {
   const activeImageHost = pathname === '/image-host'
   const activeMovies = pathname.startsWith('/movies')
   const activeShows = pathname.startsWith('/shows')
+  const activeTorrents = pathname.startsWith('/torrents')
 
   return (
     <Sidebar>
@@ -98,6 +104,15 @@ export function AppSidebar() {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={activeTorrents}>
+                  <Link to="/torrents">
+                    <Magnet className="h-4 w-4" />
+                    <span>{t('nav.torrents')}</span>
+                    {torrentsLocked && <ProBadge className="ml-auto" />}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={activeFileType('photos')}>
                   <Link to="/files" search={{ type: 'photos' }}>
