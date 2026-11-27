@@ -84,6 +84,12 @@ Feature: Objects
     When the file object is created
     Then the API responds 422 without a payment offer
 
+  @objects/create-capacity-lookup-failed @api
+  Scenario: Creating a file over quota reports the quota when capacity offers cannot be loaded
+    Given a file would exceed the workspace quota and the bound store cannot be reached
+    When the file object is created
+    Then the API responds 422 with the standard quota error body
+
   @objects/create-file-too-large @api
   Scenario: Creating an oversized file is rejected
     Given a file larger than the 5 TiB maximum

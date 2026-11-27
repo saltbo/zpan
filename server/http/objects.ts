@@ -604,12 +604,13 @@ const objects = app
         requestedBytes: result.capacityRequired.requestedBytes,
       })
       if (!capacity.ok) {
-        // Paid capacity is optional. An instance without a bound Cloud store
-        // still enforces its local quota using the established 422 contract.
-        // Once a store is bound, however, Cloud failures must remain visible so
-        // callers do not mistake a broken payment path for exhausted capacity.
-        if (capacity.error.message === 'quota_store_binding_missing') throw quotaExceeded()
-        throw capacity.error
+        // Paid capacity is optional: the quota is exhausted either way, so a
+        // store that is unbound or unreachable falls back to the 422 contract.
+        // A Cloud failure is logged rather than shown to the uploader.
+        if (capacity.error.message !== 'quota_store_binding_missing') {
+          console.error(`objects.capacity_offer_lookup_failed error=${capacity.error.message}`)
+        }
+        throw quotaExceeded()
       }
       if (capacity.value.offers.length === 0) throw quotaExceeded()
       const requestHash = await createCapacityRequestHash(orgId, input)
