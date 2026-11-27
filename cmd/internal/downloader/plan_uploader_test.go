@@ -153,9 +153,20 @@ func (d *fakeDrive) AbortObjectUploadSession(context.Context, string, string, st
 	return nil
 }
 
+// DeleteObject answers as the server does to a task's upload token: it removes
+// a file and refuses a folder.
 func (d *fakeDrive) DeleteObject(_ context.Context, _ string, id string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	for key, entry := range d.entries {
+		if entry.id != id {
+			continue
+		}
+		if entry.folder {
+			return &client.StatusError{Method: "DELETE", Path: "/api/objects/" + id, Status: http.StatusForbidden, Message: "Forbidden"}
+		}
+		delete(d.entries, key)
+	}
 	d.deleted = append(d.deleted, id)
 	return nil
 }
@@ -450,9 +461,11 @@ func TestUploadPlanDeletesWhatItCreatedOnFailure(t *testing.T) {
 	}
 	// The video went up before the sidecar failed; the folder stays, since
 	// another task may have joined it.
-	video := drive.entry("Movies/Big Buck Bunny (2008)/bbb.mkv")
-	if len(drive.deleted) != 1 || drive.deleted[0] != video.id {
-		t.Fatalf("deleted = %v", drive.deleted)
+	if len(drive.deleted) != 1 || drive.entry("Movies/Big Buck Bunny (2008)/bbb.mkv") != nil {
+		t.Fatalf("deleted = %v, drive = %v", drive.deleted, drive.paths())
+	}
+	if drive.entry("Movies/Big Buck Bunny (2008)") == nil {
+		t.Fatalf("the folder should stay: %v", drive.paths())
 	}
 }
 

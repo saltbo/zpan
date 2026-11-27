@@ -218,3 +218,16 @@ Feature: Remote download tasks
     Given an existing downloader
     When an admin updates downloader credit billing
     Then the billing fields are persisted through the dedicated route
+
+  @download-tasks/failed-upload-cleanup @api
+  Scenario: A failed upload leaves none of the task's files behind
+    Given a task whose upload fails after some files went up
+    When the downloader cleans up
+    Then none of the files the task created remain in the drive or its trash
+    And the folders it created stay
+
+  @download-tasks/task-token-delete-scope @api
+  Scenario: A task upload token deletes only its own task's files
+    Given a task upload token
+    When it deletes a file another task or a user created, or any folder
+    Then the API responds 403

@@ -11,7 +11,7 @@ import { createStorageUsageRepo } from '../adapters/repos/storage-usage.js'
 import { cloudTrafficReports, downloadTasks, orgQuotaEntitlements, orgQuotas } from '../db/schema.js'
 import { currentTrafficPeriod } from '../domain/quota.js'
 import { adminHeaders, authedHeaders, createTestApp, seedBusinessLicense, seedProLicense } from '../test/setup.js'
-import { mintTaskUploadContext } from '../test/task-upload.js'
+import { mintSiblingTaskUploadToken, mintTaskUploadContext } from '../test/task-upload.js'
 import { type ConfirmUploadOptions, confirmUpload as confirmUploadUsecase } from '../usecases/object.js'
 import type {
   ActorIdentity,
@@ -3175,6 +3175,82 @@ describe('Objects API — error branches', () => {
     // DELETE /objects/:id requires objects:delete; a download-task-upload token
     // is authenticated but only carries upload lifecycle scopes.
     const res = await app.request('/api/objects/Mtasktrash', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${uploadToken}` },
+    })
+    expect(res.status).toBe(403)
+  })
+
+  it('lets a download-task-upload token delete a file its own task created [spec: download-tasks/failed-upload-cleanup]', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const { uploadToken } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
+    const taskHeaders = { Authorization: `Bearer ${uploadToken}` }
+    const id = await _uploadFile(app, taskHeaders, { name: 'partial.srt', parent: 'Remote' })
+
+    const res = await app.request(`/api/objects/${id}`, { method: 'DELETE', headers: taskHeaders })
+    expect(res.status).toBe(204)
+
+    // The partial file is gone from the drive and from the trash: the task never
+    // handed it to the user, so nothing is left for them to clean up.
+    const admin = await adminHeaders(app)
+    expect((await app.request(`/api/objects/${id}`, { headers: admin })).status).toBe(404)
+    const trash = (await (await app.request('/api/trash/objects', { headers: admin })).json()) as {
+      items: Array<{ id: string }>
+    }
+    expect(trash.items.map((item) => item.id)).not.toContain(id)
+  })
+
+  it('rejects a download-task-upload token deleting a file another task created [spec: download-tasks/task-token-delete-scope]', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const first = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
+    // The second task runs on the same downloader, so only the task tells them apart.
+    const second = await mintSiblingTaskUploadToken(app, first)
+    const id = await _uploadFile(
+      app,
+      { Authorization: `Bearer ${first.uploadToken}` },
+      {
+        name: 'first-task.mkv',
+        parent: 'Remote',
+      },
+    )
+
+    const res = await app.request(`/api/objects/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${second.uploadToken}` },
+    })
+    expect(res.status).toBe(403)
+    const admin = await adminHeaders(app)
+    expect((await app.request(`/api/objects/${id}`, { headers: admin })).status).toBe(200)
+  })
+
+  it('answers 404 when a download-task-upload token deletes an unknown object', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const { uploadToken } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
+
+    const res = await app.request('/api/objects/Mmissing', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${uploadToken}` },
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('rejects a download-task-upload token deleting a folder its own task created', async () => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const { uploadToken } = await mintTaskUploadContext(app, db, { targetFolder: 'Remote' })
+    const createRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${uploadToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Sintel', type: 'folder', dirtype: 1, parent: 'Remote' }),
+    })
+    expect(createRes.status).toBe(201)
+    const folder = (await createRes.json()) as { id: string }
+
+    // Another task may have joined the folder, so a task token never removes one.
+    const res = await app.request(`/api/objects/${folder.id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${uploadToken}` },
     })

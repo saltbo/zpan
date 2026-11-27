@@ -324,6 +324,7 @@ const APP_SCHEMA_SQL = `
     created_by_actor_type TEXT,
     created_by_actor_ref TEXT,
     created_by_actor_issuer TEXT,
+    created_by_task_id TEXT,
     metadata TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
