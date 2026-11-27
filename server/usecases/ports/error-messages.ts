@@ -265,6 +265,8 @@ export const ZH_ERROR_MESSAGES = {
   'time range cannot exceed {days} days': '时间范围不能超过 {days} 天',
 
   // Store, licensing, and cloud
+  'This workspace does not have enough storage for this file. Upgrade its storage to continue.':
+    '此空间的存储空间不足，无法上传该文件。升级存储后即可继续。',
   'Capacity offer does not increase the workspace quota': '该容量方案不会增加空间配额',
   'Cloud capacity purchase response is missing its resource identity': '云端容量购买响应缺少资源标识',
   'Invalid capacity offer': '容量方案无效',

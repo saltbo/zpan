@@ -147,7 +147,7 @@ request.
 
 ## Handle Capacity And Failures
 
-- On `402 CAPACITY_REQUIRED`, preserve the original create body and request
+- On `402` with reason `CAPACITY_REQUIRED`, preserve the original create body and request
   hash. Follow only the purchase operation and offer advertised by the live
   response. Use `$realmroot` for any discovered payer and controller-approved
   budget, then retry the unchanged create request after confirmed delivery.

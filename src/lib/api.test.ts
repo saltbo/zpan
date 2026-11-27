@@ -629,6 +629,42 @@ describe('api', () => {
       expect(headers.get('Content-Type')).toContain('application/json')
     })
 
+    it('surfaces the server message for a capacity offer, not the reason code', async () => {
+      const message = 'This workspace does not have enough storage for this file. Upgrade its storage to continue.'
+      vi.mocked(fetch).mockResolvedValueOnce(
+        makeResponse(
+          {
+            error: {
+              code: 402,
+              message,
+              status: 'RESOURCE_EXHAUSTED',
+              details: [
+                {
+                  '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+                  reason: 'CAPACITY_REQUIRED',
+                  domain: 'zpan.dev',
+                },
+              ],
+            },
+            requestHash: 'a'.repeat(64),
+            requestedBytes: 11,
+            usedBytes: 90,
+            quotaBytes: 100,
+            offers: [],
+          },
+          false,
+          402,
+        ),
+      )
+
+      const err = await createObject({ name: 'big.bin', size: 11, parent: '', dirtype: 0 }).catch((e) => e)
+
+      expect(err).toBeInstanceOf(ApiError)
+      expect(err.status).toBe(402)
+      expect(err.message).toBe(message)
+      expect(err.reason).toBe('CAPACITY_REQUIRED')
+    })
+
     it('omits an optional content type', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ id: 'new1', name: 'unknown.bin' }))
 
