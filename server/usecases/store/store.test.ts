@@ -370,17 +370,31 @@ describe('cloud-store usecase', () => {
 
     it('listPackages returns binding_missing when unbound', async () => {
       const { deps } = makeDeps({ binding: 'missing' })
-      expectError(await listPackages(deps, CLOUD), { httpStatus: 403, message: 'quota_store_binding_missing' })
+      expectError(await listPackages(deps, CLOUD), {
+        httpStatus: 403,
+        message: 'This site is not connected to a ZPan Cloud store',
+        reason: 'QUOTA_STORE_BINDING_MISSING',
+      })
     })
 
     it('listPackages surfaces a cloud error', async () => {
       const { deps } = makeDeps({ responses: [fail(503, { error: 'cloud_down' })] })
-      expectError(await listPackages(deps, CLOUD), { httpStatus: 502, message: 'cloud_down' })
+      const out = await listPackages(deps, CLOUD)
+      expectError(out, {
+        httpStatus: 502,
+        message: 'ZPan Cloud could not complete the request. Try again later.',
+        reason: 'CLOUD_DOWN',
+      })
+      expect(out.ok || out.error.meta.diagnostics).toEqual({ reason: 'EXTERNAL_ERROR', message: 'cloud_down' })
     })
 
     it('listPackages surfaces a malformed cloud response', async () => {
       const { deps } = makeDeps({ responses: [ok({ nope: true })] })
-      expectError(await listPackages(deps, CLOUD), { httpStatus: 502, message: 'invalid_cloud_response' })
+      expectError(await listPackages(deps, CLOUD), {
+        httpStatus: 502,
+        message: 'ZPan Cloud returned an unexpected response',
+        reason: 'INVALID_CLOUD_RESPONSE',
+      })
     })
 
     it('lists every standard capacity price that closes the workspace gap', async () => {
@@ -477,7 +491,11 @@ describe('cloud-store usecase', () => {
         origin: 'https://files.example',
         input: { packageId: 'pkg-1' },
       })
-      expectError(out, { httpStatus: 403, message: 'quota_store_binding_missing' })
+      expectError(out, {
+        httpStatus: 403,
+        message: 'This site is not connected to a ZPan Cloud store',
+        reason: 'QUOTA_STORE_BINDING_MISSING',
+      })
     })
 
     it('returns price_missing when the requested priceId is not on the product', async () => {
@@ -531,7 +549,11 @@ describe('cloud-store usecase', () => {
         origin: 'https://files.example',
         input: { packageId: 'pkg-1' },
       })
-      expectError(out, { httpStatus: 502, message: 'cloud_down' })
+      expectError(out, {
+        httpStatus: 502,
+        message: 'ZPan Cloud could not complete the request. Try again later.',
+        reason: 'CLOUD_DOWN',
+      })
     })
 
     it('allows a one-time (non-recurring) price without consulting quota', async () => {
@@ -599,7 +621,11 @@ describe('cloud-store usecase', () => {
 
       const out = await purchaseCapacity(deps, CLOUD, params)
 
-      expectError(out, { httpStatus: 403, message: 'quota_store_binding_missing' })
+      expectError(out, {
+        httpStatus: 403,
+        message: 'This site is not connected to a ZPan Cloud store',
+        reason: 'QUOTA_STORE_BINDING_MISSING',
+      })
       expect(createBoundCloudClient).not.toHaveBeenCalled()
     })
 
@@ -642,7 +668,11 @@ describe('cloud-store usecase', () => {
 
       const out = await purchaseCapacity(deps, CLOUD, params)
 
-      expectError(out, { httpStatus: 502, message: 'x402_receiver_not_active' })
+      expectError(out, {
+        httpStatus: 502,
+        message: 'ZPan Cloud could not complete the request. Try again later.',
+        reason: 'X402_RECEIVER_NOT_ACTIVE',
+      })
       expect(requests).toHaveLength(3)
     })
 
@@ -653,7 +683,11 @@ describe('cloud-store usecase', () => {
 
       const out = await purchaseCapacity(deps, CLOUD, params)
 
-      expectError(out, { httpStatus: 502, message: 'x402_receiver_not_found' })
+      expectError(out, {
+        httpStatus: 502,
+        message: 'ZPan Cloud could not complete the request. Try again later.',
+        reason: 'X402_RECEIVER_NOT_FOUND',
+      })
       expect(requests).toHaveLength(3)
     })
 
@@ -743,7 +777,11 @@ describe('cloud-store usecase', () => {
 
       const out = await purchaseCapacity(deps, CLOUD, params)
 
-      expectError(out, { httpStatus: 502, message: 'cloud_down' })
+      expectError(out, {
+        httpStatus: 502,
+        message: 'ZPan Cloud could not complete the request. Try again later.',
+        reason: 'CLOUD_DOWN',
+      })
       expect(updateCloudState).toHaveBeenCalledWith('intent-1', { status: 'created' })
     })
 
@@ -764,7 +802,11 @@ describe('cloud-store usecase', () => {
       })
 
       const first = await purchaseCapacity(deps, CLOUD, params)
-      expectError(first, { httpStatus: 502, message: 'cloud_down' })
+      expectError(first, {
+        httpStatus: 502,
+        message: 'ZPan Cloud could not complete the request. Try again later.',
+        reason: 'CLOUD_DOWN',
+      })
 
       const recovered = await purchaseCapacity(deps, CLOUD, {
         ...params,
@@ -1002,7 +1044,7 @@ describe('cloud-store usecase', () => {
       expectError(out, {
         httpStatus: 400,
         reason: 'X402_PAYMENT_PROOF_INVALID',
-        message: 'x402_payment_proof_invalid',
+        message: 'The payment could not be verified',
       })
     })
 
@@ -1097,7 +1139,11 @@ describe('cloud-store usecase', () => {
         orderId: 'order-1',
         origin: 'https://files.example',
       })
-      expectError(out, { httpStatus: 502, message: 'cloud_down' })
+      expectError(out, {
+        httpStatus: 502,
+        message: 'ZPan Cloud could not complete the request. Try again later.',
+        reason: 'CLOUD_DOWN',
+      })
     })
 
     it('cancelOrder cancels an owned order', async () => {

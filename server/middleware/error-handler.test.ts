@@ -1,7 +1,15 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { describe, expect, it } from 'vitest'
-import { AppError, msg, NameConflictError, textMessage } from '../usecases/ports'
+import {
+  AppError,
+  badGateway,
+  externalError,
+  msg,
+  NameConflictError,
+  ObjectUploadSessionError,
+  textMessage,
+} from '../usecases/ports'
 import { isHandledError, jsonError, requestLanguage, standaloneJsonError } from './error-handler'
 import type { Env } from './platform'
 
@@ -44,6 +52,33 @@ describe('jsonError', () => {
       message: 'DPoP proof jti has already been used',
       diagnostic: 'OAUTH_DPOP_REPLAY',
     })
+  })
+
+  it('answers an external failure with a product message and logs the service text [spec: error-messages/external-failure]', async () => {
+    const c = await ctx({ 'Accept-Language': 'zh-CN' })
+    const res = jsonError(c, externalError(badGateway, 'cloud_request_failed_504', 'Image upload failed'))
+    const body = await res.json()
+    expect(res.status).toBe(502)
+    expect(body).toMatchObject({
+      error: { message: 'ZPan Cloud 未能完成请求，请稍后再试。', details: [{ reason: 'CLOUD_REQUEST_FAILED' }] },
+    })
+    expect(JSON.stringify(body)).not.toContain('cloud_request_failed')
+    expect(c.get('errorLog')).toEqual({
+      reason: 'CLOUD_REQUEST_FAILED',
+      message: 'cloud_request_failed_504',
+      diagnostic: 'EXTERNAL_ERROR',
+    })
+  })
+
+  it('answers a storage failure with a product message and logs the provider error [spec: error-messages/external-failure]', async () => {
+    const c = await ctx({ 'Accept-Language': 'zh' })
+    const cause = 'Storage cleanup failed: AccessDenied: signature mismatch'
+    const res = jsonError(c, new ObjectUploadSessionError('storage_failure', cause))
+    const body = await res.json()
+    expect(res.status).toBe(502)
+    expect(body).toMatchObject({ error: { message: '存储服务未能完成请求', details: [{ reason: 'STORAGE_FAILURE' }] } })
+    expect(JSON.stringify(body)).not.toContain('AccessDenied')
+    expect(c.get('errorLog')).toEqual({ reason: 'STORAGE_FAILURE', message: cause })
   })
 
   it('renders a mapped domain error with its mapped status + reason', async () => {

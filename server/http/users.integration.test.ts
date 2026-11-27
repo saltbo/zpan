@@ -471,6 +471,68 @@ describe('PUT /api/users/me/avatar', () => {
     expect(res.status).toBe(503)
   })
 
+  describe('Cloud failures answer with a product message [spec: error-messages/external-failure]', () => {
+    async function upload(cloud: Response | null, language: string) {
+      const { app, db } = await createTestApp()
+      if (cloud) {
+        await seedBusinessLicense(db)
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () => cloud.clone()),
+        )
+      }
+      const headers = await authedHeaders(app)
+      const form = new FormData()
+      form.set('file', makeFile('image/png'))
+      const res = await app.request('/api/users/me/avatar', {
+        method: 'PUT',
+        headers: { ...headers, 'Accept-Language': language },
+        body: form,
+      })
+      return { status: res.status, body: (await res.json()) as ErrorBody }
+    }
+
+    type ErrorBody = { error: { message: string; details: { reason: string }[] } }
+    const cases = [
+      {
+        name: 'an unpaired instance',
+        cloud: null,
+        status: 503,
+        en: 'This needs a connection to ZPan Cloud',
+        zh: '需要连接 ZPan Cloud',
+      },
+      {
+        name: 'an inactive license',
+        cloud: Response.json({ error: 'license_inactive' }, { status: 403 }),
+        status: 403,
+        en: 'The license is not active',
+        zh: '授权未激活',
+        reason: 'LICENSE_INACTIVE',
+      },
+      {
+        name: 'a Cloud outage',
+        cloud: new Response('upstream exploded', { status: 502 }),
+        status: 500,
+        en: 'ZPan Cloud could not complete the request. Try again later.',
+        zh: 'ZPan Cloud 未能完成请求，请稍后再试。',
+        reason: 'CLOUD_REQUEST_FAILED',
+      },
+    ]
+
+    for (const c of cases) {
+      it(`answers ${c.name} in the request language, without the code`, async () => {
+        const en = await upload(c.cloud, 'en')
+        const zh = await upload(c.cloud, 'zh-CN')
+        expect(en.status).toBe(c.status)
+        expect(en.body.error.message).toBe(c.en)
+        expect(zh.body.error.message).toBe(c.zh)
+        expect(zh.body.error.details).toEqual(en.body.error.details)
+        if (c.reason) expect(en.body.error.details[0].reason).toBe(c.reason)
+        expect(JSON.stringify(en.body)).not.toMatch(/cloud_required|license_inactive|cloud_request_failed/)
+      })
+    }
+  })
+
   it('hosts the avatar on Cloud, writes user.image, returns the URL [spec: avatar/upload]', async () => {
     const { app, db } = await createTestApp()
     await seedBusinessLicense(db)

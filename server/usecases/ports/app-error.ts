@@ -1,5 +1,13 @@
 import { type CanonicalStatus, ErrorReason } from '@shared/schemas'
-import { type ErrorLanguage, type ErrorMessage, englishMessage, localizeMessage } from './error-messages'
+import {
+  type ErrorLanguage,
+  type ErrorMessage,
+  type ErrorText,
+  englishMessage,
+  errorCode,
+  localizeMessage,
+  productMessage,
+} from './error-messages'
 
 // A returned (or thrown) business error carrying everything the HTTP boundary
 // needs to render an AIP-193 body — without the usecase layer ever naming an
@@ -33,6 +41,27 @@ export class AppError extends Error {
 }
 
 type ExtraMeta = { metadata?: Record<string, string> }
+
+/**
+ * An error caused by text from outside the product: an adapter's or ZPan Cloud's
+ * error code, or an exception from a library or remote service. The response
+ * carries a product message (see `productMessage`) and, when the text is a code,
+ * that code as its `reason`; the text itself goes only to the server log.
+ */
+export function externalError(
+  factory: (message: ErrorMessage) => AppError,
+  text: string,
+  fallback: ErrorText,
+): AppError {
+  const message = productMessage(text, fallback)
+  const base = factory(message)
+  const code = errorCode(text)
+  return new AppError(base.httpStatus, message, {
+    ...base.meta,
+    reason: base.meta.reason ?? code?.toUpperCase(),
+    diagnostics: { reason: 'EXTERNAL_ERROR', message: text },
+  })
+}
 
 // Shared, cross-resource business errors. Each bakes in its HTTP status + AIP-193
 // reason once. Pass a resource-specific message (e.g. `notFound('Order not found')`)

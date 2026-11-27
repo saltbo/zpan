@@ -292,7 +292,21 @@ describe('email-config usecase', () => {
       expect(out.error.message).toBe('Email is disabled')
     })
 
-    it('falls back to "Unknown error" when a non-Error is thrown', async () => {
+    it('answers a provider failure with a product message and logs the provider text', async () => {
+      const send = vi.fn(async () => {
+        throw new Error('Invalid login: 535 5.7.8 Authentication failed')
+      })
+      const { deps } = makeDeps({ email: { send } })
+      const out = await sendTestEmail(deps, platform, 'recipient@example.com')
+      expect(out.ok).toBe(false)
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(400)
+      expect(out.error.message).toBe('The test email could not be sent. Check the email settings.')
+      expect(out.error.localizedMessage('zh')).toBe('测试邮件发送失败，请检查邮件设置。')
+      expect(out.error.meta.diagnostics?.message).toBe('Invalid login: 535 5.7.8 Authentication failed')
+    })
+
+    it('answers a non-Error throw with the same product message', async () => {
       const send = vi.fn(async () => {
         throw 'boom'
       })
@@ -301,7 +315,8 @@ describe('email-config usecase', () => {
       expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(400)
-      expect(out.error.message).toBe('Unknown error')
+      expect(out.error.message).toBe('The test email could not be sent. Check the email settings.')
+      expect(out.error.meta.diagnostics?.message).toBe('boom')
     })
   })
 })

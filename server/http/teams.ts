@@ -8,11 +8,9 @@ import {
   expired,
   forbidden,
   type InviteLinkInfo,
-  internalError,
-  noStorage,
+  imageUploadError,
   notFound,
   type PendingInvitation,
-  payloadTooLarge,
   textMessage,
   unsupportedMediaType,
 } from '../usecases/ports'
@@ -145,15 +143,6 @@ const updateEntitlementSchema = z.object({
 // status out of.
 function failureError(failure: { status: 400 | 404; error: string }) {
   return failure.status === 404 ? notFound(textMessage(failure.error)) : badRequest(textMessage(failure.error))
-}
-
-// Maps the image-upload gateway outcome ({ status, error }) to its error factory.
-function imageUploadError(status: 400 | 403 | 413 | 500 | 503, error: string) {
-  if (status === 413) return payloadTooLarge(textMessage(error))
-  if (status === 503) return noStorage(textMessage(error))
-  if (status === 403) return forbidden(textMessage(error))
-  if (status === 500) return internalError(textMessage(error))
-  return badRequest(textMessage(error))
 }
 
 // ── publicTeams ──────────────────────────────────────────────────────────────
@@ -356,7 +345,7 @@ export const teams = teamsApp
     })
     if (result.ok) return c.json({ url: result.url }, 200)
     if (result.reason === 'forbidden') throw forbidden()
-    throw imageUploadError(result.status, result.error)
+    throw imageUploadError(result)
   })
   .openapi(deleteLogoRoute, async (c) => {
     const result = await deleteTeamLogo(c.get('deps'), {

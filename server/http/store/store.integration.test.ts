@@ -1241,7 +1241,13 @@ describe('Quota Store API', () => {
     })
 
     expect(checkout.status).toBe(502)
-    await expect(checkout.json()).resolves.toMatchObject({ error: { code: 502, message: 'invalid_cloud_response' } })
+    await expect(checkout.json()).resolves.toMatchObject({
+      error: {
+        code: 502,
+        message: 'ZPan Cloud returned an unexpected response',
+        details: [{ reason: 'INVALID_CLOUD_RESPONSE' }],
+      },
+    })
     const calls = vi.mocked(fetch).mock.calls as Array<[URL, RequestInit]>
     expect(calls.some(([url, init]) => init.method === 'POST' && String(url).endsWith('/orders'))).toBe(false)
   })
@@ -1452,7 +1458,13 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toMatchObject({ error: { code: 502, message: 'invalid_cloud_response' } })
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        code: 502,
+        message: 'ZPan Cloud returned an unexpected response',
+        details: [{ reason: 'INVALID_CLOUD_RESPONSE' }],
+      },
+    })
   })
 
   it('surfaces Cloud checkout error responses [spec: quota-store/checkout-error-surfacing]', async () => {
@@ -1473,7 +1485,13 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toMatchObject({ error: { code: 502, message: 'cloud_down' } })
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        code: 502,
+        message: 'ZPan Cloud could not complete the request. Try again later.',
+        details: [{ reason: 'CLOUD_DOWN' }],
+      },
+    })
   })
 
   it('uses status errors when Cloud checkout error bodies have no string error', async () => {
@@ -1494,7 +1512,13 @@ describe('Quota Store API', () => {
     })
 
     expect(res.status).toBe(502)
-    await expect(res.json()).resolves.toMatchObject({ error: { code: 502, message: 'cloud_request_failed_504' } })
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        code: 502,
+        message: 'ZPan Cloud could not complete the request. Try again later.',
+        details: [{ reason: 'CLOUD_REQUEST_FAILED' }],
+      },
+    })
   })
 
   it('accepts current Cloud quota-change webhook tokens with audience equal to instance id', async () => {
@@ -2702,9 +2726,10 @@ describe('Quota Store API — storefront proxy error branches', () => {
 
     for (const res of [packages, creditProducts, targets, discount]) {
       expect(res.status).toBe(403)
-      const body = (await res.json()) as { error: { message: string; status: string } }
-      expect(body.error.message).toBe('quota_store_binding_missing')
+      const body = (await res.json()) as { error: { message: string; status: string; details: { reason: string }[] } }
+      expect(body.error.message).toBe('This site is not connected to a ZPan Cloud store')
       expect(body.error.status).toBe('PERMISSION_DENIED')
+      expect(body.error.details[0].reason).toBe('QUOTA_STORE_BINDING_MISSING')
     }
   })
 
@@ -2735,8 +2760,9 @@ describe('Quota Store API — storefront proxy error branches', () => {
 
     for (const res of [credits, ledger, billing, checkout, capacity, redeem]) {
       expect(res.status).toBe(403)
-      const body = (await res.json()) as { error: { message: string } }
-      expect(body.error.message).toBe('quota_store_binding_missing')
+      const body = (await res.json()) as { error: { message: string; details: { reason: string }[] } }
+      expect(body.error.message).toBe('This site is not connected to a ZPan Cloud store')
+      expect(body.error.details[0].reason).toBe('QUOTA_STORE_BINDING_MISSING')
     }
   })
 
@@ -2752,7 +2778,13 @@ describe('Quota Store API — storefront proxy error branches', () => {
     } as Response)
     const payment = await app.request('/api/store/orders/order-err/payments', { method: 'POST', headers })
     expect(payment.status).toBe(502)
-    await expect(payment.json()).resolves.toMatchObject({ error: { code: 502, message: 'cloud_boom' } })
+    await expect(payment.json()).resolves.toMatchObject({
+      error: {
+        code: 502,
+        message: 'ZPan Cloud could not complete the request. Try again later.',
+        details: [{ reason: 'CLOUD_BOOM' }],
+      },
+    })
 
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
@@ -2765,7 +2797,13 @@ describe('Quota Store API — storefront proxy error branches', () => {
       body: JSON.stringify({ status: 'canceled' }),
     })
     expect(cancel.status).toBe(502)
-    await expect(cancel.json()).resolves.toMatchObject({ error: { code: 502, message: 'cloud_boom' } })
+    await expect(cancel.json()).resolves.toMatchObject({
+      error: {
+        code: 502,
+        message: 'ZPan Cloud could not complete the request. Try again later.',
+        details: [{ reason: 'CLOUD_BOOM' }],
+      },
+    })
   })
 
   it('returns 403 (store not ready) for order endpoints when the store is not bound', async () => {
@@ -2784,8 +2822,9 @@ describe('Quota Store API — storefront proxy error branches', () => {
 
     for (const res of [orders, payment, cancel]) {
       expect(res.status).toBe(403)
-      const body = (await res.json()) as { error: { message: string } }
-      expect(body.error.message).toBe('quota_store_binding_missing')
+      const body = (await res.json()) as { error: { message: string; details: { reason: string }[] } }
+      expect(body.error.message).toBe('This site is not connected to a ZPan Cloud store')
+      expect(body.error.details[0].reason).toBe('QUOTA_STORE_BINDING_MISSING')
     }
   })
 })

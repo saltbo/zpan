@@ -480,15 +480,16 @@ export type PollPairingOutcome =
   | { ok: false; error: AppError }
 
 // A rejected pairing certificate always renders 502 INVALID_CERTIFICATE; the
-// specific rejection reason and any best-effort cloud-unbind failure ride along
-// as metadata for diagnostics.
+// rejection code rides along as metadata; a best-effort cloud-unbind failure goes
+// only to the server log.
 function invalidCertificate(
   certificateReason: CertificateRejectionReason | 'incomplete_response' | 'no_certificate',
   cloudUnbindError: string | null,
 ): AppError {
   return new AppError(502, 'Invalid certificate', {
     reason: 'INVALID_CERTIFICATE',
-    metadata: { certificateReason, ...(cloudUnbindError ? { cloudUnbindError } : {}) },
+    metadata: { certificateReason },
+    ...(cloudUnbindError ? { diagnostics: { reason: 'EXTERNAL_ERROR', message: cloudUnbindError } } : {}),
   })
 }
 
@@ -613,7 +614,7 @@ export async function unbindLicense(
       ok: false,
       error: new AppError(502, 'License unbound locally, but cloud unbind failed', {
         reason: 'CLOUD_UNBIND_FAILED',
-        metadata: { cloudUnbindError },
+        diagnostics: { reason: 'EXTERNAL_ERROR', message: cloudUnbindError },
       }),
     }
   }

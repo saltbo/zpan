@@ -25,7 +25,7 @@ import {
 import { initiatePairing, pollPairing, triggerRefresh, unbindLicense } from './licensing'
 
 // Asserts a rejected pairing carries the 502 INVALID_CERTIFICATE AppError with the
-// rejection reason (+ optional cloud-unbind failure) folded into metadata.
+// rejection reason in metadata; a cloud-unbind failure stays in server-only diagnostics.
 function expectInvalidCertificate(
   out: { ok: boolean } & Record<string, unknown>,
   expected: { certificateReason: string; cloudUnbindError?: string },
@@ -36,10 +36,8 @@ function expectInvalidCertificate(
   expect(error.httpStatus).toBe(502)
   expect(error.message).toBe('Invalid certificate')
   expect(error.meta.reason).toBe('INVALID_CERTIFICATE')
-  expect(error.meta.metadata).toEqual({
-    certificateReason: expected.certificateReason,
-    ...(expected.cloudUnbindError ? { cloudUnbindError: expected.cloudUnbindError } : {}),
-  })
+  expect(error.meta.metadata).toEqual({ certificateReason: expected.certificateReason })
+  expect(error.meta.diagnostics?.message).toBe(expected.cloudUnbindError)
 }
 
 const BASE_URL = 'https://cloud.zpan.space'
@@ -406,7 +404,8 @@ describe('unbindLicense', () => {
     if (!out.ok) {
       expect(out.error.httpStatus).toBe(502)
       expect(out.error.meta.reason).toBe('CLOUD_UNBIND_FAILED')
-      expect(out.error.meta.metadata).toEqual({ cloudUnbindError: 'Cloud unbind failed: 401' })
+      expect(out.error.meta.metadata).toBeUndefined()
+      expect(out.error.meta.diagnostics?.message).toBe('Cloud unbind failed: 401')
     }
     expect(binding.clearLicenseBinding).toHaveBeenCalledTimes(1)
   })
