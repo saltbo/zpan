@@ -197,9 +197,12 @@ StremThru is a self-hostable layer that puts many Debrid services behind one
 Store API. Community addons that support it can point at any base URL, so ZPan
 serves that API under `/stremthru`:
 
-- **MediaFusion**, including public instances such as ElfHosted, takes the base
-  URL in the credential as `{url}|{store_name}:{store_token}`, for example
-  `https://zpan.example.com/stremthru|zpan:<key>`. It calls `/v0/store/torz/*`.
+- **MediaFusion**, including public instances such as ElfHosted, reads the base
+  URL from its *API Token* field as `{url}|{store_name}:{store_token}`, for
+  example `https://zpan.example.com/stremthru|torbox:<key>`. Its separate
+  *Service URL* field is not used, and the store name must be one it lists
+  (Real-Debrid, Debrid-Link, AllDebrid, TorBox, Premiumize), which ZPan
+  ignores. It calls `/v0/store/torz/*` and checks hashes in batches of 80.
 - **Comet** reads the base URL from the `STREMTHRU_URL` environment variable,
   so it works with ZPan only on a self-hosted Comet. It calls the older
   `/v0/store/magnets/*` paths.
@@ -310,12 +313,12 @@ StremThru API and addon answer `PAYMENT_REQUIRED`.
 
 ## 13. Phases
 
-A spike comes first, because the plan rests on third-party clients accepting
-ZPan as a StremThru store. It points `mediafusion.elfhosted.com` at a ZPan
-preview that implements `user`, `torz/check`, `torz` add and get, and
-`link/generate` against one seeded torrent, and plays the file in Stremio. It
-also installs a minimal ZPan addon in AIOStreams. The phases follow only if
-both work.
+The plan rests on third-party clients accepting ZPan as a StremThru store,
+which a standalone spike confirmed against `mediafusion.elfhosted.com`: the
+public instance validated the credential, marked streams cached from
+`torz/check`, and on playback called `torz` add and `link/generate` and
+redirected to the returned link. Playback inside a Stremio client and the
+AIOStreams custom-addon path are still to be tried before phase 1.
 
 1. **Cache and instant transfer.** Tables, the `bt/` rules and gateway guard,
    the cache upload path in the downloader, checks 1 and 2, instant transfer
