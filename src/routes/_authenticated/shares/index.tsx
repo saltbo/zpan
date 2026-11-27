@@ -1,7 +1,7 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { ChevronDown, ClipboardCopy, FileIcon, FolderIcon, Globe2, Lock, Share2, XCircle } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { LoadErrorAlert } from '@/components/errors/load-error-alert'
@@ -22,6 +22,7 @@ import { useClipboard } from '@/hooks/use-clipboard'
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
 import { useServerEventSubscription } from '@/hooks/useServerEvents'
 import { listReceivedShares, listShares, revokeShare, type ShareListItem, setSharePrivacy } from '@/lib/api'
+import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/_authenticated/shares/')({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -69,11 +70,18 @@ export function SharesPage() {
   })
 
   const sharesQuery = useInfiniteQuery({
-    queryKey: ['shares', box, PAGE_SIZE, backendStatus],
-    queryFn: ({ pageParam }) =>
-      box === 'received' ? listReceivedShares(pageParam, PAGE_SIZE) : listShares(pageParam, PAGE_SIZE, backendStatus),
+    queryKey: ['shares', box, PAGE_SIZE, statusFilter],
+    queryFn: async ({ pageParam }) => {
+      if (box === 'received') return listReceivedShares(pageParam, PAGE_SIZE)
+      const page = await listShares(pageParam, PAGE_SIZE, backendStatus)
+      if (statusFilter !== 'active' && statusFilter !== 'expired') return page
+      return { ...page, items: page.items.filter((s) => computeDisplayStatus(s) === statusFilter) }
+    },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
+    // Keep the previous view's rows on screen while the next one loads, so the
+    // page layout and the filter the user just picked stay in place.
+    placeholderData: keepPreviousData,
   })
   const loadMoreRef = useInfiniteScroll<HTMLDivElement>({
     hasNextPage: sharesQuery.hasNextPage,
@@ -103,18 +111,9 @@ export function SharesPage() {
     onError: () => toast.error(t('shares.privacyError')),
   })
 
-  const filteredItems = useMemo(() => {
-    const items = sharesQuery.data?.pages.flatMap((page) => page.items) ?? []
-    if (statusFilter === 'active') {
-      return items.filter((s) => computeDisplayStatus(s) === 'active')
-    }
-    if (statusFilter === 'expired') {
-      return items.filter((s) => computeDisplayStatus(s) === 'expired')
-    }
-    return items
-  }, [sharesQuery.data, statusFilter])
-
   const items = sharesQuery.data?.pages.flatMap((page) => page.items) ?? []
+  const refreshing = sharesQuery.isPlaceholderData
+  const bodyClass = cn('transition-opacity', refreshing && 'opacity-50')
   const loadFailed = sharesQuery.isError && !sharesQuery.data
 
   function setStatus(status: StatusFilter) {
@@ -230,7 +229,7 @@ export function SharesPage() {
                   <th className="px-4 py-3 text-right font-medium">{t('shares.colActions')}</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody aria-busy={refreshing} className={bodyClass}>
                 {items.map((share) => (
                   <ReceivedShareRow key={share.token} share={share} />
                 ))}
@@ -258,8 +257,8 @@ export function SharesPage() {
                   <th className="px-4 py-3 text-right font-medium">{t('shares.colActions')}</th>
                 </tr>
               </thead>
-              <tbody>
-                {filteredItems.map((share) => (
+              <tbody aria-busy={refreshing} className={bodyClass}>
+                {items.map((share) => (
                   <ShareTableRow
                     key={share.token}
                     share={share}
@@ -275,7 +274,7 @@ export function SharesPage() {
                     privacyPending={privacyMutation.isPending && privacyMutation.variables?.token === share.token}
                   />
                 ))}
-                {filteredItems.length === 0 && (
+                {items.length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
                       <p className="font-medium">{t('shares.emptyState')}</p>

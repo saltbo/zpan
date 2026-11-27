@@ -129,3 +129,23 @@ describe('UsersPage infinite scroll', () => {
     expect(listUsers).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('UsersPage while searching', () => {
+  it('keeps the header, search field, and table mounted [spec: list-state/refetch-keeps-layout]', async () => {
+    vi.mocked(getUserQuotaById).mockResolvedValue({ used: 0, total: 1024, hasPersonalOrg: true })
+    vi.mocked(listUsers).mockResolvedValue({ items: [user('alice', 'Alice'), user('bob', 'Bob')], nextPageToken: null })
+
+    renderUsersPage()
+
+    const field = await screen.findByPlaceholderText('admin.users.searchPlaceholder')
+    field.focus()
+    fireEvent.change(field, { target: { value: 'bo' } })
+
+    expect(screen.queryByText('common.loading')).toBeNull()
+    expect(screen.getByPlaceholderText('admin.users.searchPlaceholder')).toBe(field)
+    expect(document.activeElement).toBe(field)
+    expect(screen.getByText('Bob')).toBeTruthy()
+    expect(screen.queryByText('Alice')).toBeNull()
+    expect(listUsers).toHaveBeenCalledTimes(1)
+  })
+})
