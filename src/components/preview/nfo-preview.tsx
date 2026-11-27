@@ -1,3 +1,4 @@
+import i18next from 'i18next'
 import { FileTextIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -64,7 +65,7 @@ export function NfoPreview({ url }: NfoPreviewProps) {
 
     fetch(url, { signal: controller.signal })
       .then((response) => {
-        if (!response.ok) throw new Error(`NFO download failed: ${response.status}`)
+        if (!response.ok) throw new Error(i18next.t('preview.loadError'))
         return response.text()
       })
       .then((content) => setDocument(parseNfo(content)))

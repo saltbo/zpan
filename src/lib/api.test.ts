@@ -1,5 +1,6 @@
 // Tests for src/lib/api.ts — covers all public API helper functions
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import i18n, { i18nReady } from '@/i18n'
 import {
   ApiError,
   abortObjectUpload,
@@ -192,6 +193,11 @@ function makeResponse(body: unknown, ok = true, status = 200): Response {
     json: async () => body,
   } as unknown as Response
 }
+
+beforeAll(async () => {
+  await i18nReady
+  await i18n.changeLanguage('en')
+})
 
 describe('api', () => {
   beforeEach(() => {
@@ -941,6 +947,19 @@ describe('api', () => {
       xhr.status = 403
       xhr.onload?.()
       await expect(promise).rejects.toThrow('Upload failed')
+    })
+
+    it('reports a failed S3 upload in the chosen language [spec: language/error-fallbacks]', async () => {
+      await i18n.changeLanguage('zh')
+      try {
+        const promise = uploadToS3('https://s3/presigned', new File(['x'], 'x.bin'))
+        const xhr = MockXMLHttpRequest.instances[0]
+        xhr.status = 403
+        xhr.onload?.()
+        await expect(promise).rejects.toThrow('上传失败')
+      } finally {
+        await i18n.changeLanguage('en')
+      }
     })
 
     it('reports upload progress', async () => {
@@ -2542,7 +2561,7 @@ describe('api', () => {
       )
 
       const promise = getSession()
-      const assertion = expect(promise).rejects.toThrow('Session request timed out')
+      const assertion = expect(promise).rejects.toThrow('The request timed out. Try again.')
       await vi.advanceTimersByTimeAsync(10_000)
 
       await assertion

@@ -1,4 +1,5 @@
 import { DirType } from '@shared/constants'
+import i18next from 'i18next'
 import { Upload } from 'lucide-react'
 import { forwardRef, useCallback, useImperativeHandle } from 'react'
 import { useDropzone } from 'react-dropzone'
@@ -159,7 +160,7 @@ async function uploadFile(
       })
   if (!created) return 'cancelled'
   const upload = created.upload
-  if (!upload) throw new Error('No upload instructions returned')
+  if (!upload) throw new Error(i18next.t('uploadPanel.failed'))
   if (ctx.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError')
 
   ctx.registerCleanup(async () => {

@@ -1,3 +1,4 @@
+import i18next from 'i18next'
 export interface EplistEndpoint {
   region: string
   endpoint: string
@@ -47,7 +48,7 @@ export function eplistEndpointUrl(endpoint: string): string {
 
 async function fetchEplistText(file: string): Promise<string> {
   const res = await fetch(`${EPLIST_RAW_BASE}/${file}`)
-  if (!res.ok) throw new Error(`Failed to load eplist ${file}: HTTP ${res.status}`)
+  if (!res.ok) throw new Error(i18next.t('common.loadError.title'))
   return res.text()
 }
 

@@ -118,7 +118,7 @@ function LinkInviteTab({ orgId }: { orgId: string }) {
       })
       if (!res.ok) {
         const body = await res.json()
-        throw new Error((body as { error?: { message?: string } }).error?.message ?? 'Failed to generate link')
+        throw new Error((body as { error?: { message?: string } }).error?.message ?? t('teams.invite.linkFailed'))
       }
       return res.json()
     },
@@ -187,7 +187,7 @@ function PendingInvitations({ orgId }: { orgId: string }) {
     queryKey: ['team-invitations', orgId],
     queryFn: async () => {
       const res = await teamsApi[':teamId'].invitations.$get({ param: { teamId: orgId } })
-      if (!res.ok) throw new Error('Failed to load invitations')
+      if (!res.ok) throw new Error(t('teams.invite.loadFailed'))
       const body = await res.json()
       return (body as { items: PendingInvitation[] }).items
     },

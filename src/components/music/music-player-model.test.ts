@@ -1,7 +1,13 @@
 import { DirType, ObjectStatus } from '@shared/constants'
 import type { StorageObject } from '@shared/types'
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import i18n, { i18nReady } from '@/i18n'
 import { isMusicPreviewFile, toPreviewFile } from './music-player-model'
+
+beforeAll(async () => {
+  await i18nReady
+  await i18n.changeLanguage('en')
+})
 
 function makeObject(overrides: Partial<StorageObject & { downloadUrl?: string }> = {}): StorageObject & {
   downloadUrl?: string
@@ -44,6 +50,6 @@ describe('music player model', () => {
   })
 
   it('fails when an object cannot be played because its download URL is missing', () => {
-    expect(() => toPreviewFile(makeObject({ downloadUrl: undefined }))).toThrow('Audio download URL is missing')
+    expect(() => toPreviewFile(makeObject({ downloadUrl: undefined }))).toThrow('Playback failed')
   })
 })

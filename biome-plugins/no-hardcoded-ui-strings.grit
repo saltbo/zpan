@@ -1,6 +1,9 @@
 // UX.md → Language: all visible text and every accessible name comes from the locale files.
 // Flags string literals in accessible-name and label props, toast messages, and JSX text that
 // contains a word. Units (KB, MB, GB, TB) and file names are not words here. Test files are skipped.
+// Also flags, in src/, an Error whose message is, or falls back to, an English phrase: those messages reach
+// toasts and the upload panel. Exempt: `must be used within` provider invariants, which only a
+// developer sees, and the media pipeline and subtitles, whose errors are logged and mapped to a reason.
 language js;
 
 or {
@@ -29,6 +32,17 @@ or {
     register_diagnostic(
       span = $text,
       message = "Visible text comes from the locale files (UX.md → Language). Use t('…') instead of JSX text."
+    )
+  },
+  `new Error($msg)` as $call where {
+    $filename <: not r".*\.test\.tsx?",
+    $filename <: r".*/src/.*",
+    $filename <: not r".*/src/lib/(?:media-pipeline|subtitles)/.*",
+    $msg <: r"(?s)(?:.*(?:\?\?|\|\|)\s*)?['\"`][^'\"`]*[A-Za-z]{2,}\s+[A-Za-z]{2,}[^'\"`]*['\"`]",
+    $msg <: not r"(?s).*must be used within.*",
+    register_diagnostic(
+      span = $call,
+      message = "Error text a user can see comes from the locale files (UX.md → Language). Use t('…') or i18next.t('…') instead of a string literal."
     )
   }
 }

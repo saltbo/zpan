@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import i18next from 'i18next'
 import { ExternalLink, GlobeLock } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -110,7 +111,7 @@ function parseRecords(value: string): Array<{ type: 'CNAME' | 'A' | 'AAAA'; valu
       const [rawType, ...valueParts] = line.split(/\s+/)
       const type = rawType.toUpperCase()
       if ((type !== 'CNAME' && type !== 'A' && type !== 'AAAA') || valueParts.length === 0) {
-        throw new Error(`Invalid DNS record: ${line}`)
+        throw new Error(i18next.t('admin.imageDomains.invalidRecord', { line }))
       }
       return { type, value: valueParts.join(' ') }
     })
