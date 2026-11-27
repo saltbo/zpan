@@ -360,7 +360,8 @@ The scraper parses each video with the same rules as the index (`SxxEyy`,
 root folder as the outermost folder, and settles its TMDB id in this order:
 
 1. **A `.nfo` in the download.** For a movie, `X.nfo` and then `movie.nfo` in
-   the video's folder; for an episode, `tvshow.nfo` in its show folder. The
+   the video's folder; for an episode, `tvshow.nfo` in its folder or the
+   nearest folder above it in the download. The
    first one with a TMDB id (`<uniqueid type="tmdb">` or `<tmdbid>`) names the
    match, unless its root element says it describes something else. An
    episode's own `.nfo` carries the episode id, not the series. Only the
@@ -368,8 +369,9 @@ root folder as the outermost folder, and settles its TMDB id in this order:
    skips comments, processing instructions, and declarations, so a malformed
    file still yields its id.
 2. **An id from the source**: a task tag `tmdb:<id>` or `imdb:<tt id>`, the
-   only place a task carries one today. An IMDb id is resolved through TMDB's
-   find endpoint.
+   only place a task carries one today. A `tmdb:` id names a show when the
+   download holds episodes and a movie otherwise; an IMDb id is resolved
+   through TMDB's find endpoint.
 3. **A search** for the parsed title in the configured language and then in
    English, with the parsed year (`year` for movies, `first_air_date_year` for
    shows) and then without it. A search with no results at all skips the
@@ -381,8 +383,11 @@ A video neither name classifies (such as `holiday-clip.mov`) is matched only
 through a `.nfo` or a source id, because a search for a title like that
 matches unrelated films. A sample (a video whose base name ends in `sample`,
 or one in a `Sample` folder) is not a video for matching; it uploads as an
-ordinary file. Every video of the download must match the same movie, or the
-download is uploaded unscraped.
+ordinary file. Every video of the download must match the same movie, or
+every episode the same show, or the download is uploaded unscraped, and so
+is a download that holds both a movie and episodes. In a download of
+episodes, a video neither name classifies is an extra and uploads as an
+ordinary file.
 
 A search result matches when its localized or original title has a Dice
 similarity of at least 0.85 to the parsed title (character bigrams after
@@ -418,15 +423,19 @@ and runs of spaces collapsed; `(Year)` is left out when TMDB has no date.
   Kodi and Jellyfin read any video name inside a movie folder and the
   `SxxEyy` already in an episode name. Files of the download that are not
   videos (subtitles, samples, extras) keep their path relative to the video
-  they sat next to.
+  they sat next to. For episodes that is the nearest folder above the file
+  that holds an episode, placed in that folder's lowest regular season, or
+  in the season the file's own name carries (`Show.S01E02.en.srt`); a file
+  above every episode goes in the show folder.
 - **Folders are reused.** The movie, show, and season folders are looked up
   by name in their parent before they are created, so a second version of a
   movie lands beside the first, and a later season or episode joins its
   show. The lookup is case-insensitive like live sibling names. The create
   uses `onConflict: fail`; a `409` means another task created the folder in
-  between, and the uploader looks it up again and uses it. An existing entry
-  of that name that is a file, not a folder, makes the download upload
-  unscraped.
+  between, and the uploader looks it up again and uses it. Every folder of
+  the layout is settled before any file goes up, so an existing entry of one
+  of those names that is a file, not a folder, makes the download upload
+  unscraped with nothing left behind.
 - **Video names still never collide.** A video whose name is taken in the
   reused folder is renamed by the server (`X (1).mkv`), as today, and its
   sidecars take the name it was given.
@@ -449,7 +458,7 @@ under the target folder.
 | Video | Written next to it | Written in the show folder |
 | --- | --- | --- |
 | Movie `X.mkv` | `X.nfo` (`<movie>`: title, originaltitle, year, plot, premiered, genre, runtime, `<uniqueid type="tmdb" default="true">`), `X-poster.jpg` (w780), `X-fanart.jpg` (w1280) | none |
-| Episode `X.mkv` | `X.nfo` (`<episodedetails>`: title, season, episode, plot, aired, `<uniqueid type="tmdb">` of the episode), `X-thumb.jpg` (still, w300) | `tvshow.nfo` (`<tvshow>`: title, originaltitle, year, plot, premiered, genre, `<uniqueid type="tmdb" default="true">`), `poster.jpg`, `fanart.jpg`, `seasonNN-poster.jpg` |
+| Episode `X.mkv` | `X.nfo` (`<episodedetails>`: title, season, episode, plot, aired, `<uniqueid type="tmdb">` of the episode), `X-thumb.jpg` (still, w300) | `tvshow.nfo` (`<tvshow>`: title, originaltitle, year, plot, premiered, genre, `<uniqueid type="tmdb" default="true">`), `poster.jpg` (w780), `fanart.jpg` (w1280), and `seasonNN-poster.jpg` (w780; `season00` for specials) for each season the download holds |
 
 - **Existing files win.** Sidecars are created with `onConflict: fail`. A
   live entry already at a sidecar path, such as the `tvshow.nfo` of a show
@@ -493,8 +502,12 @@ Writes:
   task's downloader since the task's current assignment, so two tasks of one
   downloader running at once into the same folder can write each other's
   objects. Any other folder in the target folder takes `media` only while it
-  has none (`409` otherwise); any other file is refused with `403`. The downloader
-  sets it after the video's sidecars exist, since it references their ids.
+  has none (`409` otherwise); any other file is refused with `403`. A
+  `tvshow` goes on a folder and a `movie` or `episode` on a file (`400`
+  otherwise). The downloader sets it after the video's sidecars exist, since
+  it references their ids, and takes an episode's series id from the
+  `tvshow.nfo` of the upload; a `409` on the show folder leaves the earlier
+  show data in place.
   No other caller writes metadata yet, and the object DTO does not carry it.
 - **Fingerprint.** Setting metadata bumps the matter's `updated_at`, so the
   [change detection](#3-change-detection) terms already cover it, and the
@@ -601,14 +614,15 @@ browser or the server.
 | --- | --- |
 | `GET /api/media/movies` | Live videos with `media.kind = movie`, a cursor page newest first (`created_at`, then `id`): matter id, path, `media`, `posterUrl` |
 | `GET /api/media/shows` | Live folders with `media.kind = tvshow`, the same page shape |
-| `GET /api/media/shows/{id}/episodes` | Live videos with `media.kind = episode` in that folder's subtree, ordered by season and episode |
+| `GET /api/media/shows/{id}` | One such folder, the same item shape; `404` for a folder that is not a live show |
+| `GET /api/media/shows/{id}/episodes` | Live videos with `media.kind = episode` in that folder's subtree, a cursor page (50 by default) ordered by season, episode, then `id`: matter id, path, `media`, `stillUrl` |
 
 Each item carries a short-lived inline URL for its `poster` (or `still`) when
 the image resolves to a live matter, metered as a download of that image; a
 missing image, or one the workspace's traffic quota does not allow, is
 omitted and the card shows the title on a placeholder. Fanart is not in the
-list, since a page would meter a backdrop for every card: the sheet fetches
-it through `GET /api/objects/{id}` when it opens. The lists use a partial
+list, since a page would meter a backdrop for every card: the movie sheet
+and the show page fetch it through `GET /api/objects/{id}` when they open. The lists use a partial
 expression index `matters_media_kind_idx` on
 `(org_id, metadata ->> '$.media.kind', created_at desc, id desc)` over live
 matters (`->>` rather than `json_extract`, because drizzle-kit splits a
@@ -619,8 +633,11 @@ feature gate, like scraping itself.
 
 A movie card opens a sheet with the fanart, title, year, genres, runtime,
 overview, and a play action that opens the video in the existing preview. A
-show card opens the show's seasons, each listing its episodes with still,
-number, title, and overview. The pages follow the list rules in
+show card opens the show's page (`/shows/<id>`), a page rather than a sheet
+because a show's episodes are a list of any length: the fanart, poster,
+title, year, genres, and overview, then the seasons, specials first, each
+listing its episodes with still, number, title, and overview; an episode
+plays in the existing preview. The pages follow the list rules in
 [UX.md](../../UX.md): the next cursor page loads as the user scrolls, and the
 open movie is in the URL (`/movies?movie=<id>`).
 

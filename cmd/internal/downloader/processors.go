@@ -110,8 +110,8 @@ func sourceMediaIDs(tags []string) (int, string) {
 	return tmdbID, imdbID
 }
 
-// scrapeProcessor matches a download to a TMDB movie and lays it out as
-// `Title (Year)/` with Kodi sidecars.
+// scrapeProcessor matches a download to a TMDB movie or show and lays it out
+// as `Title (Year)/` or `Show (Year)/Season NN/` with Kodi sidecars.
 type scrapeProcessor struct {
 	scraper    *mediascrape.Scraper
 	overlayDir string
@@ -135,7 +135,7 @@ func (p *scrapeProcessor) Process(ctx context.Context, result Result) (Result, e
 	}
 	upload := &UploadPlan{Folder: plan.Folder, Files: make([]PlannedFile, 0, len(plan.Files))}
 	for _, file := range plan.Files {
-		planned := PlannedFile{LocalPath: file.LocalPath, Path: file.Path, Size: file.Size, Video: file.Video}
+		planned := PlannedFile{LocalPath: file.LocalPath, Path: file.Path, Size: file.Size, Video: file.Video, Keep: file.Keep}
 		if file.Sidecar != nil {
 			planned.Sidecar = &PlannedSidecar{Video: file.Sidecar.Video, Suffix: file.Sidecar.Suffix}
 		}

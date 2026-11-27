@@ -2538,5 +2538,15 @@
   "movies.play": "Play",
   "movies.runtime": "{{minutes}} min",
   "movies.genres": "Genres",
-  "downloads.events.download_task_scrape_skipped": "Uploaded without media scraping"
+  "downloads.events.download_task_scrape_skipped": "Uploaded without media scraping",
+  "nav.shows": "TV Shows",
+  "shows.title": "TV Shows",
+  "shows.emptyTitle": "No TV shows yet",
+  "shows.emptyHint": "Episodes downloaded by a downloader with media scraping turned on appear here under their show.",
+  "shows.season": "Season {{number}}",
+  "shows.specials": "Specials",
+  "shows.episodeNumber": "Episode {{number}}",
+  "shows.playEpisode": "Play {{code}} {{title}}",
+  "shows.noEpisodesTitle": "No episodes",
+  "shows.noEpisodesHint": "The episodes of this show were moved out of its folder or deleted."
 }

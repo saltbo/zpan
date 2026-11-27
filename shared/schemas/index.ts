@@ -156,7 +156,13 @@ export {
   errorResponseSchema,
 } from './errors'
 export { base62IdSchema, imageTokenSchema, opaqueIdSchema, opaqueTokenSchema, shareTokenSchema } from './id'
-export type { MatterMetadata, MediaMetadata, MovieMediaMetadata } from './matter-metadata'
+export type {
+  EpisodeMediaMetadata,
+  MatterMetadata,
+  MediaMetadata,
+  MovieMediaMetadata,
+  TvShowMediaMetadata,
+} from './matter-metadata'
 export {
   episodeMediaMetadataSchema,
   MATTER_METADATA_MAX_BYTES,

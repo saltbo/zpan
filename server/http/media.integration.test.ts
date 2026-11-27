@@ -331,6 +331,169 @@ describe('GET /api/media/movies [spec: media-catalog/movies]', () => {
   })
 })
 
+function tvshow(overrides: Record<string, unknown> = {}) {
+  return { kind: 'tvshow', tmdb: { id: 1396, type: 'tv' }, title: 'Breaking Bad', year: 2008, ...overrides }
+}
+
+function episode(season: number, number: number, overrides: Record<string, unknown> = {}) {
+  return { kind: 'episode', tmdb: { id: 1396, type: 'tv' }, season, episode: number, ...overrides }
+}
+
+describe('GET /api/media/shows [spec: media-catalog/shows]', () => {
+  it('lists scraped show folders newest first, paged, with poster URLs', async () => {
+    const { app, db, orgId } = await setup()
+    await insertMatter(db, orgId, {
+      id: 'show-poster',
+      name: 'poster.jpg',
+      parent: 'TV/Old (2008)',
+      type: 'image/jpeg',
+    })
+    await insertMatter(db, orgId, {
+      id: 'show-old',
+      name: 'Old (2008)',
+      parent: 'TV',
+      folder: true,
+      createdAt: 1000,
+      metadata: { media: tvshow({ title: 'Old', poster: 'show-poster' }) },
+    })
+    await insertMatter(db, orgId, {
+      id: 'show-new',
+      name: 'New (2024)',
+      parent: 'TV',
+      folder: true,
+      createdAt: 2000,
+      metadata: { media: tvshow({ title: 'New' }) },
+    })
+    await insertMatter(db, orgId, { id: 'a-movie', name: 'm.mkv', createdAt: 3000, metadata: { media: movie() } })
+    await insertMatter(db, orgId, {
+      id: 'trashed-show',
+      name: 'Gone',
+      folder: true,
+      createdAt: 4000,
+      trashedAt: Date.now(),
+      metadata: { media: tvshow() },
+    })
+    const headers = await adminHeaders(app)
+
+    const first = await app.request('/api/media/shows?pageSize=1', { headers })
+    expect(first.status).toBe(200)
+    const firstPage = (await first.json()) as { items: Record<string, unknown>[]; nextPageToken: string | null }
+    expect(firstPage.items).toEqual([{ id: 'show-new', path: 'TV/New (2024)', media: tvshow({ title: 'New' }) }])
+
+    const second = await app.request(`/api/media/shows?pageSize=1&pageToken=${firstPage.nextPageToken}`, { headers })
+    const secondPage = (await second.json()) as { items: Record<string, unknown>[]; nextPageToken: string | null }
+    expect(secondPage.items).toEqual([
+      {
+        id: 'show-old',
+        path: 'TV/Old (2008)',
+        media: tvshow({ title: 'Old', poster: 'show-poster' }),
+        posterUrl: 'https://images.example.com/key/show-poster',
+      },
+    ])
+    expect(secondPage.nextPageToken).toBeNull()
+
+    const one = await app.request('/api/media/shows/show-old', { headers })
+    expect(one.status).toBe(200)
+    await expect(one.json()).resolves.toEqual(secondPage.items[0])
+  })
+
+  it("lists a show's episodes in its subtree by season and episode, paged, with still URLs", async () => {
+    const { app, db, orgId } = await setup()
+    await insertMatter(db, orgId, {
+      id: 'show',
+      name: 'BB (2008)',
+      parent: 'TV',
+      folder: true,
+      metadata: { media: tvshow() },
+    })
+    await insertMatter(db, orgId, {
+      id: 'still',
+      name: 'e-thumb.jpg',
+      parent: 'TV/BB (2008)/Season 01',
+      type: 'image/jpeg',
+    })
+    const episodes: [string, string, number, number][] = [
+      ['s2e1', 'TV/BB (2008)/Season 02', 2, 1],
+      ['s1e10', 'TV/BB (2008)/Season 01', 1, 10],
+      ['s1e2', 'TV/BB (2008)/Season 01', 1, 2],
+      ['s0e1', 'TV/BB (2008)/Season 00', 0, 1],
+    ]
+    for (const [id, parent, season, number] of episodes) {
+      await insertMatter(db, orgId, {
+        id,
+        name: `${id}.mkv`,
+        parent,
+        metadata: { media: episode(season, number, id === 's1e2' ? { still: 'still', title: 'Two' } : {}) },
+      })
+    }
+    // A sibling folder whose name extends the show's, a trashed episode, and a plain video stay out.
+    await insertMatter(db, orgId, {
+      id: 'sibling',
+      name: 'x.mkv',
+      parent: 'TV/BB (2008)-2',
+      metadata: { media: episode(1, 1) },
+    })
+    await insertMatter(db, orgId, {
+      id: 'trashed',
+      name: 't.mkv',
+      parent: 'TV/BB (2008)/Season 01',
+      trashedAt: Date.now(),
+      metadata: { media: episode(1, 1) },
+    })
+    await insertMatter(db, orgId, { id: 'plain', name: 'p.mkv', parent: 'TV/BB (2008)/Season 01' })
+    const headers = await adminHeaders(app)
+
+    const ids: string[] = []
+    let token: string | null = null
+    let first: Record<string, unknown>[] = []
+    do {
+      const query: string = token ? `&pageToken=${token}` : ''
+      const res = await app.request(`/api/media/shows/show/episodes?pageSize=2${query}`, { headers })
+      expect(res.status).toBe(200)
+      const page = (await res.json()) as { items: Record<string, unknown>[]; nextPageToken: string | null }
+      if (!token) first = page.items
+      ids.push(...page.items.map((item) => item.id as string))
+      token = page.nextPageToken
+    } while (token)
+    expect(ids).toEqual(['s0e1', 's1e2', 's1e10', 's2e1'])
+    expect(first[1]).toEqual({
+      id: 's1e2',
+      path: 'TV/BB (2008)/Season 01/s1e2.mkv',
+      media: episode(1, 2, { still: 'still', title: 'Two' }),
+      stillUrl: 'https://images.example.com/key/still',
+    })
+  })
+
+  it('answers 404 for a folder that is not a live show', async () => {
+    const { app, db, orgId } = await setup()
+    await insertMatter(db, orgId, { id: 'plain-folder', name: 'P', folder: true })
+    await insertMatter(db, orgId, { id: 'a-movie', name: 'm.mkv', metadata: { media: movie() } })
+    const headers = await adminHeaders(app)
+    for (const id of ['plain-folder', 'a-movie', 'missing']) {
+      expect((await app.request(`/api/media/shows/${id}/episodes`, { headers })).status).toBe(404)
+      expect((await app.request(`/api/media/shows/${id}`, { headers })).status).toBe(404)
+    }
+  })
+})
+
+describe('task media kinds [spec: download-scraping/show-metadata]', () => {
+  it('takes show media on folders and episode media on files only', async () => {
+    const { app, uploadToken } = await setup()
+    const folderId = await uploadAsTask(app, uploadToken, {
+      name: 'BB (2008)',
+      type: 'folder',
+      dirtype: 1,
+      parent: 'Movies',
+    })
+    const videoId = await uploadAsTask(app, uploadToken, { name: 'e.mkv', parent: 'Movies/BB (2008)' })
+
+    expect((await putMedia(app, uploadToken, folderId, episode(1, 1))).status).toBe(400)
+    expect((await putMedia(app, uploadToken, videoId, tvshow())).status).toBe(400)
+    expect((await putMedia(app, uploadToken, folderId, tvshow())).status).toBe(200)
+    expect((await putMedia(app, uploadToken, videoId, episode(1, 1))).status).toBe(200)
+  })
+})
+
 describe('scrape skipped activity [spec: download-scraping/fallback]', () => {
   it('records why a download was uploaded without scraping in the task timeline', async () => {
     const { app, taskId, downloaderToken } = await setup()

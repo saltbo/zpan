@@ -9,6 +9,7 @@ import {
   exists,
   getTableColumns,
   gt,
+  gte,
   inArray,
   isNotNull,
   isNull,
@@ -1001,9 +1002,56 @@ export function createMatterRepo(db: Database): MatterRepo {
       const last = items.at(-1)
       return { items, nextBoundary: hasMore && last ? { createdAt: last.createdAt, id: last.id } : null }
     },
+
+    async listEpisodePage(orgId, params) {
+      const season = sql<number>`${matters.metadata} ->> '$.media.season'`
+      const episode = sql<number>`${matters.metadata} ->> '$.media.episode'`
+      const conditions = [
+        eq(matters.orgId, orgId),
+        eq(matters.dirtype, DirType.FILE),
+        subtreeRange(params.folderPath),
+        sql`${matters.metadata} ->> '$.media.kind' = 'episode'`,
+        ...liveConditions(),
+      ]
+      if (params.after) {
+        const { season: afterSeason, episode: afterEpisode, id } = params.after
+        conditions.push(sql`(${season}, ${episode}, ${matters.id}) > (${afterSeason}, ${afterEpisode}, ${id})`)
+      }
+      const rows = await db
+        .select()
+        .from(matters)
+        .where(and(...conditions))
+        .orderBy(asc(season), asc(episode), asc(matters.id))
+        .limit(params.pageSize + 1)
+      const hasMore = rows.length > params.pageSize
+      const items = (hasMore ? rows.slice(0, params.pageSize) : rows).map(toMatter)
+      const last = items.at(-1)
+      const media = last?.metadata?.media
+      return {
+        items,
+        nextBoundary:
+          hasMore && last && media?.kind === 'episode'
+            ? { season: media.season, episode: media.episode, id: last.id }
+            : null,
+      }
+    },
   }
 
   return repo
+}
+
+// Matters anywhere under the folder at path: `parent` = path or starts with
+// `path/`, as one range over the (org_id, parent) index rather than LIKE,
+// since folder names may hold % or _. '0' is the code point right after '/',
+// so under SQLite's binary collation [path, path0) holds path, every string
+// starting with `path/`, and siblings such as `path-2` that sort before
+// `path/`; the residual test drops those siblings.
+function subtreeRange(path: string): SQL {
+  return and(
+    gte(matters.parent, path),
+    lt(matters.parent, `${path}0`),
+    or(eq(matters.parent, path), gte(matters.parent, `${path}/`)),
+  ) as SQL
 }
 
 // Live matters, spelled with literals so SQLite can use the partial

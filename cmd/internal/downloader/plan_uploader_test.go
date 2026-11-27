@@ -38,6 +38,8 @@ type fakeDrive struct {
 	// raceFolder makes the first create of this folder name answer 409 after
 	// another task created it.
 	raceFolder string
+	// hasMedia holds the folders whose media the server keeps: a write answers 409.
+	hasMedia map[string]bool
 }
 
 type driveEntry struct {
@@ -163,6 +165,9 @@ func (d *fakeDrive) FindObject(_ context.Context, _ string, parent, name string)
 func (d *fakeDrive) PutMediaMetadata(_ context.Context, _ string, id string, media any) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if d.hasMedia[id] {
+		return &client.StatusError{Method: "PUT", Path: "/api/objects/" + id + "/metadata/media", Status: http.StatusConflict, Message: "exists"}
+	}
 	data, err := json.Marshal(media)
 	if err != nil {
 		return err
@@ -204,13 +209,18 @@ func (d *fakeDrive) entry(p string) *driveEntry {
 
 func (d *fakeDrive) media(t *testing.T, id string) movieMedia {
 	t.Helper()
+	var media movieMedia
+	d.decodeMedia(t, id, &media)
+	return media
+}
+
+func (d *fakeDrive) decodeMedia(t *testing.T, id string, out any) {
+	t.Helper()
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	var media movieMedia
-	if err := json.Unmarshal(d.metadata[id], &media); err != nil {
+	if err := json.Unmarshal(d.metadata[id], out); err != nil {
 		t.Fatalf("metadata of %s: %v", id, err)
 	}
-	return media
 }
 
 func (d *fakeDrive) scrapeNotices() []string {

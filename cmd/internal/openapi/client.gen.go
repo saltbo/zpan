@@ -1746,13 +1746,13 @@ func (e EmptyImageDomainSettingsEnabled) Valid() bool {
 
 // Defines values for EpisodeMediaMetadataKind.
 const (
-	Episode EpisodeMediaMetadataKind = "episode"
+	EpisodeMediaMetadataKindEpisode EpisodeMediaMetadataKind = "episode"
 )
 
 // Valid indicates whether the value is a known member of the EpisodeMediaMetadataKind enum.
 func (e EpisodeMediaMetadataKind) Valid() bool {
 	switch e {
-	case Episode:
+	case EpisodeMediaMetadataKindEpisode:
 		return true
 	default:
 		return false
@@ -5835,6 +5835,19 @@ type EntitlementResult struct {
 	OrgId       string           `json:"orgId"`
 }
 
+// Episode defines model for Episode.
+type Episode struct {
+	// Id The video's matter id.
+	Id    string               `json:"id"`
+	Media EpisodeMediaMetadata `json:"media"`
+
+	// Path Slash-delimited path within the workspace.
+	Path string `json:"path"`
+
+	// StillUrl Short-lived URL of the episode still. Absent when the still is missing.
+	StillUrl *string `json:"stillUrl,omitempty"`
+}
+
 // EpisodeMediaMetadata defines model for EpisodeMediaMetadata.
 type EpisodeMediaMetadata struct {
 	Aired    *string                  `json:"aired,omitempty"`
@@ -5859,6 +5872,12 @@ type EpisodeMediaMetadataKind string
 
 // EpisodeMediaMetadataTmdbType defines model for EpisodeMediaMetadata.Tmdb.Type.
 type EpisodeMediaMetadataTmdbType string
+
+// EpisodePage defines model for EpisodePage.
+type EpisodePage struct {
+	Items         []Episode `json:"items"`
+	NextPageToken *string   `json:"nextPageToken"`
+}
 
 // Error defines model for Error.
 type Error struct {
@@ -6160,7 +6179,7 @@ type Movie struct {
 	Id    string             `json:"id"`
 	Media MovieMediaMetadata `json:"media"`
 
-	// Path Slash-delimited path of the video within the workspace.
+	// Path Slash-delimited path within the workspace.
 	Path string `json:"path"`
 
 	// PosterUrl Short-lived URL of the poster image. Absent when the poster is missing.
@@ -6480,6 +6499,25 @@ type ShareView struct {
 	Views            int    `json:"views"`
 }
 
+// Show defines model for Show.
+type Show struct {
+	// Id The show folder's matter id.
+	Id    string              `json:"id"`
+	Media TvShowMediaMetadata `json:"media"`
+
+	// Path Slash-delimited path within the workspace.
+	Path string `json:"path"`
+
+	// PosterUrl Short-lived URL of the poster image. Absent when the poster is missing.
+	PosterUrl *string `json:"posterUrl,omitempty"`
+}
+
+// ShowPage defines model for ShowPage.
+type ShowPage struct {
+	Items         []Show  `json:"items"`
+	NextPageToken *string `json:"nextPageToken"`
+}
+
 // SignupMode defines model for SignupMode.
 type SignupMode string
 
@@ -6775,14 +6813,17 @@ type TrashObjectPage struct {
 
 // TvShowMediaMetadata defines model for TvShowMediaMetadata.
 type TvShowMediaMetadata struct {
+	// Fanart Matter id of the fanart image.
 	Fanart        *string                 `json:"fanart,omitempty"`
 	Genres        *[]string               `json:"genres,omitempty"`
 	Kind          TvShowMediaMetadataKind `json:"kind"`
 	OriginalTitle *string                 `json:"originalTitle,omitempty"`
 	Overview      *string                 `json:"overview,omitempty"`
-	Poster        *string                 `json:"poster,omitempty"`
-	Title         string                  `json:"title"`
-	Tmdb          struct {
+
+	// Poster Matter id of the poster image.
+	Poster *string `json:"poster,omitempty"`
+	Title  string  `json:"title"`
+	Tmdb   struct {
 		Id   int                         `json:"id"`
 		Type TvShowMediaMetadataTmdbType `json:"type"`
 	} `json:"tmdb"`
@@ -7370,6 +7411,18 @@ type CreateMediaLibraryJSONBody struct {
 
 // ListMoviesParams defines parameters for ListMovies.
 type ListMoviesParams struct {
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+}
+
+// ListShowsParams defines parameters for ListShows.
+type ListShowsParams struct {
+	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+}
+
+// ListShowEpisodesParams defines parameters for ListShowEpisodes.
+type ListShowEpisodesParams struct {
 	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 }
@@ -11600,6 +11653,15 @@ type ClientInterface interface {
 	// ListMovies request
 	ListMovies(ctx context.Context, params *ListMoviesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListShows request
+	ListShows(ctx context.Context, params *ListShowsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetShow request
+	GetShow(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListShowEpisodes request
+	ListShowEpisodes(ctx context.Context, id string, params *ListShowEpisodesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListNotifications request
 	ListNotifications(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -12786,6 +12848,42 @@ func (c *Client) CreateMediaLibraryScan(ctx context.Context, id string, reqEdito
 
 func (c *Client) ListMovies(ctx context.Context, params *ListMoviesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListMoviesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListShows(ctx context.Context, params *ListShowsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListShowsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetShow(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetShowRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListShowEpisodes(ctx context.Context, id string, params *ListShowEpisodesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListShowEpisodesRequest(c.Server, id, params)
 	if err != nil {
 		return nil, err
 	}
@@ -16719,6 +16817,179 @@ func NewListMoviesRequest(server string, params *ListMoviesParams) (*http.Reques
 	}
 
 	operationPath := fmt.Sprintf("/api/media/movies")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListShowsRequest generates requests for ListShows
+func NewListShowsRequest(server string, params *ListShowsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/media/shows")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.PageSize != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageSize", *params.PageSize, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.PageToken != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetShowRequest generates requests for GetShow
+func NewGetShowRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/media/shows/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListShowEpisodesRequest generates requests for ListShowEpisodes
+func NewListShowEpisodesRequest(server string, id string, params *ListShowEpisodesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/media/shows/%s/episodes", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -22702,6 +22973,15 @@ type ClientWithResponsesInterface interface {
 	// ListMoviesWithResponse request
 	ListMoviesWithResponse(ctx context.Context, params *ListMoviesParams, reqEditors ...RequestEditorFn) (*ListMoviesResponse, error)
 
+	// ListShowsWithResponse request
+	ListShowsWithResponse(ctx context.Context, params *ListShowsParams, reqEditors ...RequestEditorFn) (*ListShowsResponse, error)
+
+	// GetShowWithResponse request
+	GetShowWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetShowResponse, error)
+
+	// ListShowEpisodesWithResponse request
+	ListShowEpisodesWithResponse(ctx context.Context, id string, params *ListShowEpisodesParams, reqEditors ...RequestEditorFn) (*ListShowEpisodesResponse, error)
+
 	// ListNotificationsWithResponse request
 	ListNotificationsWithResponse(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*ListNotificationsResponse, error)
 
@@ -24611,6 +24891,101 @@ func (r ListMoviesResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListMoviesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListShowsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShowPage
+	JSON400      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListShowsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListShowsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListShowsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetShowResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Show
+	JSON400      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetShowResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetShowResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetShowResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListShowEpisodesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *EpisodePage
+	JSON400      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r ListShowEpisodesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListShowEpisodesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListShowEpisodesResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -29403,6 +29778,33 @@ func (c *ClientWithResponses) ListMoviesWithResponse(ctx context.Context, params
 	return ParseListMoviesResponse(rsp)
 }
 
+// ListShowsWithResponse request returning *ListShowsResponse
+func (c *ClientWithResponses) ListShowsWithResponse(ctx context.Context, params *ListShowsParams, reqEditors ...RequestEditorFn) (*ListShowsResponse, error) {
+	rsp, err := c.ListShows(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListShowsResponse(rsp)
+}
+
+// GetShowWithResponse request returning *GetShowResponse
+func (c *ClientWithResponses) GetShowWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetShowResponse, error) {
+	rsp, err := c.GetShow(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetShowResponse(rsp)
+}
+
+// ListShowEpisodesWithResponse request returning *ListShowEpisodesResponse
+func (c *ClientWithResponses) ListShowEpisodesWithResponse(ctx context.Context, id string, params *ListShowEpisodesParams, reqEditors ...RequestEditorFn) (*ListShowEpisodesResponse, error) {
+	rsp, err := c.ListShowEpisodes(ctx, id, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListShowEpisodesResponse(rsp)
+}
+
 // ListNotificationsWithResponse request returning *ListNotificationsResponse
 func (c *ClientWithResponses) ListNotificationsWithResponse(ctx context.Context, params *ListNotificationsParams, reqEditors ...RequestEditorFn) (*ListNotificationsResponse, error) {
 	rsp, err := c.ListNotifications(ctx, params, reqEditors...)
@@ -32738,6 +33140,119 @@ func ParseListMoviesResponse(rsp *http.Response) (*ListMoviesResponse, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListShowsResponse parses an HTTP response from a ListShowsWithResponse call
+func ParseListShowsResponse(rsp *http.Response) (*ListShowsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListShowsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShowPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetShowResponse parses an HTTP response from a GetShowWithResponse call
+func ParseGetShowResponse(rsp *http.Response) (*GetShowResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetShowResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Show
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListShowEpisodesResponse parses an HTTP response from a ListShowEpisodesWithResponse call
+func ParseListShowEpisodesResponse(rsp *http.Response) (*ListShowEpisodesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListShowEpisodesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest EpisodePage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
