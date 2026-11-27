@@ -1100,6 +1100,7 @@
   "admin.auth.colCode": "Code",
   "admin.auth.colStatus": "Status",
   "admin.auth.colUsedBy": "Used By",
+  "admin.auth.deletedUser": "Deleted user",
   "admin.auth.colExpiresAt": "Expires At",
   "admin.auth.colCreatedAt": "Created At",
   "admin.auth.colActions": "Actions",

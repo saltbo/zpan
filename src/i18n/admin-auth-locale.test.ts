@@ -27,6 +27,7 @@ const ADMIN_AUTH_KEYS = [
   'admin.auth.colCode',
   'admin.auth.colStatus',
   'admin.auth.colUsedBy',
+  'admin.auth.deletedUser',
   'admin.auth.colExpiresAt',
   'admin.auth.colCreatedAt',
   'admin.auth.colActions',

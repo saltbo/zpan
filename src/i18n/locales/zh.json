@@ -1100,6 +1100,7 @@
   "admin.auth.colCode": "邀请码",
   "admin.auth.colStatus": "状态",
   "admin.auth.colUsedBy": "使用者",
+  "admin.auth.deletedUser": "已删除的用户",
   "admin.auth.colExpiresAt": "过期时间",
   "admin.auth.colCreatedAt": "创建时间",
   "admin.auth.colActions": "操作",
