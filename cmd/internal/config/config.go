@@ -28,6 +28,7 @@ type Config struct {
 	QBittorrentURL        string
 	QBittorrentUser       string
 	QBittorrentPass       string
+	QBittorrentAPIKey     string
 	SeedEnabled           bool
 	SeedDuration          time.Duration
 	SeedCacheLimit        int64
@@ -92,7 +93,8 @@ func Load(v *viper.Viper) (Config, error) {
 	aria2Configured := explicitValue(v, "downloader.aria2.url") || explicitValue(v, "downloader.aria2.secret")
 	qbittorrentConfigured := explicitValue(v, "downloader.qbittorrent.url") ||
 		explicitValue(v, "downloader.qbittorrent.username") ||
-		explicitValue(v, "downloader.qbittorrent.password")
+		explicitValue(v, "downloader.qbittorrent.password") ||
+		explicitValue(v, "downloader.qbittorrent.api_key")
 	Defaults(v)
 
 	interval, err := time.ParseDuration(v.GetString("downloader.poll_interval"))
@@ -123,6 +125,7 @@ func Load(v *viper.Viper) (Config, error) {
 		QBittorrentURL:     v.GetString("downloader.qbittorrent.url"),
 		QBittorrentUser:    v.GetString("downloader.qbittorrent.username"),
 		QBittorrentPass:    v.GetString("downloader.qbittorrent.password"),
+		QBittorrentAPIKey:  strings.TrimSpace(v.GetString("downloader.qbittorrent.api_key")),
 		SeedEnabled:        v.GetBool("downloader.seed.enabled"),
 		SeedDuration:       seedDuration,
 		SeedCacheLimit:     seedCacheLimit,
@@ -140,7 +143,8 @@ func Load(v *viper.Viper) (Config, error) {
 		QBittorrentConfigured: qbittorrentConfigured &&
 			(v.GetString("downloader.qbittorrent.url") != DefaultQBittorrentURL ||
 				v.GetString("downloader.qbittorrent.username") != "" ||
-				v.GetString("downloader.qbittorrent.password") != ""),
+				v.GetString("downloader.qbittorrent.password") != "" ||
+				strings.TrimSpace(v.GetString("downloader.qbittorrent.api_key")) != ""),
 	}
 	if cfg.ServerURL == "" {
 		return Config{}, errors.New("server_url is required")
@@ -280,6 +284,9 @@ func configYAML(cfg Config, includeRuntimeHints bool) string {
 		if cfg.QBittorrentPass != "" {
 			fmt.Fprintf(&b, "    password: %s\n", yamlString(cfg.QBittorrentPass))
 		}
+		if cfg.QBittorrentAPIKey != "" {
+			fmt.Fprintf(&b, "    api_key: %s\n", yamlString(cfg.QBittorrentAPIKey))
+		}
 	}
 	if includeRuntimeHints {
 		b.WriteString("\n")
@@ -295,6 +302,8 @@ func configYAML(cfg Config, includeRuntimeHints bool) string {
 		fmt.Fprintf(&b, "  #   url: %s\n", yamlString(DefaultQBittorrentURL))
 		fmt.Fprintf(&b, "  #   username: %s\n", yamlString("admin"))
 		fmt.Fprintf(&b, "  #   password: %s\n", yamlString("password"))
+		b.WriteString("  #   # Or authenticate with a qBittorrent WebUI API key instead:\n")
+		fmt.Fprintf(&b, "  #   # api_key: %s\n", yamlString("your-qbittorrent-api-key"))
 		b.WriteString("\n")
 		b.WriteString("  # To upload movies as \"Title (Year)/\" with posters and .nfo files,\n")
 		b.WriteString("  # add a TMDB API Read Access Token and uncomment this block.\n")

@@ -3,6 +3,7 @@ package downloader
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -996,4 +997,16 @@ func mustPanic(t *testing.T, fn func()) {
 		}
 	}()
 	fn()
+}
+
+func TestWaitForDownloaderStopsWhenEngineRejectsCredentials(t *testing.T) {
+	d := &lifecycleDownloader{name: "qbittorrent", checkErr: fmt.Errorf("%w: wrong password", ErrEngineRejectedCredentials)}
+	started := time.Now()
+	err := waitForDownloader(context.Background(), d)
+	if !errors.Is(err, ErrEngineRejectedCredentials) {
+		t.Fatalf("expected rejected credentials error, got %v", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("expected the wait to stop at once, took %s", elapsed)
+	}
 }
