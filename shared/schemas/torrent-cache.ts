@@ -1,4 +1,5 @@
 import { z } from '@hono/zod-openapi'
+import { ADMIN_TORRENT_STATUSES } from './admin-torrents'
 
 export const torrentCacheConfigSchema = z
   .object({
@@ -109,3 +110,15 @@ export const torrentVerifyJobRequestSchema = z.object({
 })
 
 export type TorrentVerifyJobRequest = z.infer<typeof torrentVerifyJobRequestSchema>
+
+// The cached torrent a drive file references (docs/design/torrent-cache.md §9).
+export const objectTorrentSchema = z
+  .object({
+    infoHash: z.string().describe('Lowercase hex v1 infoHash'),
+    name: z.string(),
+    status: z.enum(ADMIN_TORRENT_STATUSES),
+    verified: z.enum(['full', 'sampled']).nullable().describe('How verification passed; null until it has'),
+  })
+  .openapi('ObjectTorrent')
+
+export type ObjectTorrent = z.infer<typeof objectTorrentSchema>

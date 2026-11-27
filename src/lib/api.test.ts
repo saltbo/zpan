@@ -65,6 +65,7 @@ import {
   getOAuthConsentContext,
   getObject,
   getObjectCreator,
+  getObjectTorrent,
   getProfile,
   getSession,
   getShare,
@@ -316,6 +317,25 @@ describe('api', () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
 
       await expect(getObjectCreator('missing')).rejects.toThrow('not found')
+    })
+  })
+
+  describe('getObjectTorrent', () => {
+    it('fetches the cached torrent of a file', async () => {
+      const torrent = { infoHash: 'ab'.repeat(20), name: 'Big Buck Bunny', status: 'ready', verified: 'full' }
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(torrent))
+
+      await expect(getObjectTorrent('id1')).resolves.toEqual(torrent)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toBe('/api/objects/id1/torrent')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws ApiError when the file is not a cached torrent file', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'not found' }, false, 404))
+
+      await expect(getObjectTorrent('plain')).rejects.toBeInstanceOf(ApiError)
     })
   })
 

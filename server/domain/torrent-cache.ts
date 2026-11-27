@@ -2,7 +2,9 @@
 // Cached bytes live under the reserved prefix `bt/`; a drive file whose object is
 // under it is a reference to the cache, not an owner of the bytes.
 
-export const TORRENT_CACHE_PREFIX = 'bt/'
+import { isTorrentCacheKey, TORRENT_CACHE_PREFIX } from '@shared/constants'
+
+export { isTorrentCacheKey, TORRENT_CACHE_PREFIX }
 
 export const TORRENT_STATUSES = ['downloading', 'verifying', 'ready', 'invalid', 'evicting'] as const
 export type TorrentStatus = (typeof TORRENT_STATUSES)[number]
@@ -10,8 +12,11 @@ export type TorrentStatus = (typeof TORRENT_STATUSES)[number]
 export const DEFAULT_TORRENT_FOLDER = 'Media'
 export const DEFAULT_TORRENT_CACHE_RETENTION_DAYS = 30
 
-export function isTorrentCacheKey(key: string): boolean {
-  return key.startsWith(TORRENT_CACHE_PREFIX)
+// The infoHash of the torrent a cache key belongs to, or null for any other key.
+export function torrentInfoHashOfKey(key: string): string | null {
+  if (!isTorrentCacheKey(key)) return null
+  const infoHash = key.slice(TORRENT_CACHE_PREFIX.length).split('/')[0]
+  return infoHash || null
 }
 
 export function torrentFileObjectKey(infoHash: string, fileIdx: number): string {

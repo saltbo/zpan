@@ -83,3 +83,12 @@ export const FREE_SOCIAL_LOGIN_LIMIT = 1
 // Free plan allows up to this many downloaders per instance.
 // The 2nd downloader requires the downloaders_unlimited feature.
 export const FREE_DOWNLOADER_LIMIT = 1
+
+// Cached torrent bytes live under this reserved object-key prefix; a drive file
+// whose object is under it references the cache and its content is read-only
+// (docs/design/torrent-cache.md).
+export const TORRENT_CACHE_PREFIX = 'bt/'
+
+export function isTorrentCacheKey(key: string): boolean {
+  return key.startsWith(TORRENT_CACHE_PREFIX)
+}

@@ -7,9 +7,10 @@
  * promise-bridge contract (prompt → choose/cancel) by exercising the closure
  * manually, and the sticky-strategy logic via the ref-based path.
  */
+import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { isNameConflictError } from '@/lib/api'
-import { withConflictRetry } from './use-conflict-resolver'
+import { useConflictResolver, withConflictRetry } from './use-conflict-resolver'
 
 // ─── withConflictRetry ────────────────────────────────────────────────────────
 
@@ -189,5 +190,41 @@ describe('withConflictRetry', () => {
     expect(prompt).toHaveBeenCalledTimes(2)
     // run was called: once initial, once after first retry — then cancelled
     expect(run).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('read-only conflicts', () => {
+  it('tells the prompt when the existing file comes from the torrent cache', async () => {
+    const fakeError = Object.assign(new Error('conflict'), {
+      metadata: { conflictingName: 'movie.mkv', conflictingReadOnly: 'true' },
+    })
+    vi.mocked(isNameConflictError).mockImplementation((e) => e === fakeError)
+    const run = vi.fn().mockRejectedValueOnce(fakeError).mockResolvedValueOnce('kept')
+    const prompt = vi.fn().mockResolvedValue({ strategy: 'rename', applyToAll: false })
+
+    await withConflictRetry(prompt, 'file', run)
+
+    expect(prompt).toHaveBeenCalledWith({ kind: 'file', name: 'movie.mkv', showApplyToAll: undefined, readOnly: true })
+  })
+
+  it('asks again instead of applying a sticky replace to a cached file', async () => {
+    const { result } = renderHook(() => useConflictResolver())
+    let first: Promise<unknown> = Promise.resolve()
+    act(() => {
+      first = result.current.prompt({ kind: 'file', name: 'a.mkv' })
+    })
+    act(() => result.current.dialogState.onApplyToAllChange(true))
+    act(() => result.current.dialogState.onChoose('replace'))
+    await expect(first).resolves.toEqual({ strategy: 'replace', applyToAll: true })
+
+    await expect(result.current.prompt({ kind: 'file', name: 'b.mkv' })).resolves.toEqual({
+      strategy: 'replace',
+      applyToAll: true,
+    })
+
+    act(() => {
+      void result.current.prompt({ kind: 'file', name: 'movie.mkv', readOnly: true })
+    })
+    expect(result.current.dialogState.request).toEqual({ kind: 'file', name: 'movie.mkv', readOnly: true })
   })
 })
