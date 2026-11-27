@@ -336,7 +336,7 @@ public instance validated the credential, marked streams cached from
 redirected to the returned link, which Stremio Web played.
 
 1. **Cache and instant transfer.** Tables, the `bt/` rules and gateway guard,
-   the cache upload path and layout submission in the downloader, checks 1 and
+   the cache upload path and `layout.json` upload in the downloader, checks 1 and
    2, instant transfer on task submit, storage-usage reconcile, eviction, the
    drive and downloads changes, and the admin Torrents page.
 2. **Verification.** The `torrent_verify` job and the sharing gate.
