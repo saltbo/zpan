@@ -708,6 +708,20 @@
       "when": 1795761038419,
       "tag": "0101_torrent-cache",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "6",
+      "when": 1795762674483,
+      "tag": "0102_drop-media-scrapes",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "6",
+      "when": 1795762675269,
+      "tag": "0103_remove-media-scraper-data",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 // The media-libraries resource usecase (/api/media-libraries): list, mark a
 // folder as a library (writing its library.json and queueing the first scan),
-// remove it (purging library.json), and request a rescan or a TMDB scrape.
+// remove it (purging library.json), and request a rescan.
 
 import { DirType, ObjectStatus } from '@shared/constants'
 import type { BackgroundJob } from '@shared/types'
@@ -13,15 +13,11 @@ import {
 import { formatError } from '../lib/errors'
 import type { Deps } from './deps'
 import { createMediaLibraryIndex, purgeMediaLibraryIndex } from './media-library-index'
-import { enqueueMediaLibraryScan, enqueueMediaLibraryScrape } from './media-library-jobs'
-import { TMDB_NOT_CONFIGURED_MESSAGE } from './media-library-scrape'
+import { enqueueMediaLibraryScan } from './media-library-scan'
 import {
   type ActorIdentity,
   badRequest,
   conflict,
-  failedPrecondition,
-  type MediaLibraryFolder,
-  type MediaLibraryState,
   type MediaLibraryView,
   msg,
   notFound,
@@ -97,7 +93,6 @@ export async function createMediaLibrary(
     ...record,
     folder: { path: folderPath, name: folder.name, trashed: false },
     scanning: true,
-    scraping: false,
   }
   // The library exists either way, and the sweep scans a library that has no
   // fingerprint yet, so a failed enqueue only delays the first index.
@@ -126,35 +121,18 @@ export async function scanMediaLibrary(
   deps: Pick<Deps, 'mediaLibraries' | 'backgroundJobs' | 'jobQueue'>,
   input: Requester & { libraryId: string },
 ): Promise<BackgroundJob> {
-  const library = await availableLibrary(deps, input)
-  if (library.scanning) {
-    throw conflict('A scan of this media library is already queued or running', 'MEDIA_LIBRARY_SCAN_IN_PROGRESS')
-  }
-  return enqueueMediaLibraryScan(deps, { library, userId: input.userId, createdBy: input.createdBy })
-}
-
-export async function scrapeMediaLibrary(
-  deps: Pick<Deps, 'mediaLibraries' | 'backgroundJobs' | 'jobQueue' | 'tmdb'>,
-  input: Requester & { libraryId: string },
-): Promise<BackgroundJob> {
-  const library = await availableLibrary(deps, input)
-  if (library.scraping) {
-    throw conflict('A scrape of this media library is already queued or running', 'MEDIA_LIBRARY_SCRAPE_IN_PROGRESS')
-  }
-  if (!(await deps.tmdb.getConfig()))
-    throw failedPrecondition(TMDB_NOT_CONFIGURED_MESSAGE, 'MEDIA_SCRAPER_NOT_CONFIGURED')
-  return enqueueMediaLibraryScrape(deps, { library, userId: input.userId, createdBy: input.createdBy })
-}
-
-async function availableLibrary(
-  deps: Pick<Deps, 'mediaLibraries'>,
-  input: { orgId: string; libraryId: string },
-): Promise<MediaLibraryState & { folder: MediaLibraryFolder }> {
   const library = await deps.mediaLibraries.get(input.orgId, input.libraryId)
   if (!library) throw notFound('Media library not found')
   const { folder } = library
   if (!folder || folder.trashed) {
     throw conflict('The media library folder is in trash or no longer exists', 'MEDIA_LIBRARY_FOLDER_UNAVAILABLE')
   }
-  return { ...library, folder }
+  if (library.scanning) {
+    throw conflict('A scan of this media library is already queued or running', 'MEDIA_LIBRARY_SCAN_IN_PROGRESS')
+  }
+  return enqueueMediaLibraryScan(deps, {
+    library: { ...library, folder },
+    userId: input.userId,
+    createdBy: input.createdBy,
+  })
 }

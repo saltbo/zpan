@@ -151,3 +151,24 @@ Feature: Media libraries
     Given a media library scan message on the background job queue
     When the Workers queue consumer receives it
     Then the scan job completes and the index matter exists in D1
+
+  @media-library/index-tmdb-from-metadata @api
+  Scenario: The index takes each video's TMDB id from its file metadata
+    Given a scanned media library with a video the filename parser alone describes
+    When a downloader writes media metadata on that video and the sweep runs
+    Then the rewritten library.json gives that item _media.tmdb from the metadata
+    And nothing else from the metadata appears in the index
+
+  @media-library/no-server-scraping @api
+  Scenario: The server does not scrape media libraries
+    Given a licensed workspace with a media library
+    When a user or an administrator looks for server-side metadata scraping
+    Then the scrapes endpoint and the scraping settings endpoint do not exist
+    And site settings, the folder menu, and the task list offer no metadata scraping
+
+  @media-library/scrapes-table-dropped @api
+  Scenario: Upgrading drops the server scraper's table, settings, and jobs
+    Given a database at the schema before server scraping was removed, holding scrape rows, scraper settings, and a scrape job
+    When the migrations are applied
+    Then media_scrapes, the scraper system options, and the scrape job are gone
+    And a scan and the sweep still publish the library's index

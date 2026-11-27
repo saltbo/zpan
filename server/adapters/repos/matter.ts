@@ -19,7 +19,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import { generateId, generateToken } from '../../../shared/ids'
-import { matters, mediaScrapes } from '../../db/schema'
+import { matters } from '../../db/schema'
 import {
   type AtomicQuery,
   D1_MAX_BOUND_PARAMS,
@@ -741,9 +741,6 @@ export function createMatterRepo(db: Database): MatterRepo {
             })
             .where(and(eq(matters.orgId, orgId), inArray(matters.id, batch), isNull(matters.purgedAt))),
         ),
-        ...idChunks(rows.map((row) => row.id)).map((batch) =>
-          db.delete(mediaScrapes).where(inArray(mediaScrapes.matterId, batch)),
-        ),
         ...matterChanges(
           orgId,
           rows.map((row) => row.id),
@@ -928,31 +925,6 @@ export function createMatterRepo(db: Database): MatterRepo {
 
     findActiveConflict(orgId, parent, name, excludeId) {
       return findActiveConflict(orgId, parent, name, excludeId)
-    },
-
-    // Two bound parameters per path plus two fixed ones, so 40 paths stay under D1's 100.
-    async findActiveAt(orgId, paths) {
-      const found: Matter[] = []
-      for (const batch of chunk(paths, 40)) {
-        const rows = await db
-          .select()
-          .from(matters)
-          .where(
-            and(
-              eq(matters.orgId, orgId),
-              eq(matters.status, ObjectStatus.ACTIVE),
-              isNull(matters.trashedAt),
-              isNull(matters.purgedAt),
-              or(
-                ...batch.map((path) =>
-                  and(eq(matters.parent, path.parent), sql`lower(${matters.name}) = lower(${path.name})`),
-                ),
-              ),
-            ),
-          )
-        found.push(...rows.map(toMatter))
-      }
-      return found
     },
 
     planConflictResolution(orgId, parent, name, strategy, options) {

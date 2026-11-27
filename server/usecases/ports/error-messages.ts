@@ -139,9 +139,6 @@ export const ZH_ERROR_MESSAGES = {
   'Only folders can be media libraries': '只有文件夹可以设为媒体库',
   'Folder is already a media library': '该文件夹已是媒体库',
   'A scan of this media library is already queued or running': '该媒体库的扫描已在排队或进行中',
-  'A scrape of this media library is already queued or running': '该媒体库的元数据刮削已在排队或进行中',
-  'TMDB is not configured. An administrator can add a TMDB access token in the scraping settings.':
-    '尚未配置 TMDB。管理员可以在刮削设置中添加 TMDB 访问令牌。',
   'The media library folder is in trash or no longer exists': '媒体库文件夹已在回收站中或已不存在',
   'Media libraries cannot be nested: "{path}" is a media library': '媒体库不能嵌套：“{path}”已是媒体库',
   '"{path}" already exists; rename or remove it to make this folder a media library':

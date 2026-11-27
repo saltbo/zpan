@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   updateSiteCaptcha,
   updateSiteIdentity,
-  updateSiteMediaScraping,
   updateSiteQuotas,
   updateSiteRegistration,
   updateSiteWebDav,
@@ -16,7 +15,6 @@ import { SettingsPage } from './index'
 
 const state = vi.hoisted(() => ({
   whiteLabel: true,
-  mediaLibrary: true,
   settings: {
     identity: { name: 'ZPan', description: 'File hosting', publicUrl: 'https://zpan.example.com' },
     registration: { configuredMode: 'open', effectiveMode: 'open' },
@@ -41,7 +39,6 @@ const state = vi.hoisted(() => ({
       lastVerifiedAt: null,
       error: null,
     },
-    mediaScraping: { language: 'ja-JP' as const, tmdbTokenConfigured: true },
   },
 }))
 
@@ -64,17 +61,13 @@ vi.mock('@/hooks/use-site-settings', () => ({
 }))
 vi.mock('@/hooks/use-site-config', () => ({ siteConfigQueryKey: ['site', 'config'] }))
 vi.mock('@/hooks/useEntitlement', () => ({
-  useEntitlement: () => ({
-    hasFeature: (feature: string) =>
-      feature === 'white_label' ? state.whiteLabel : feature === 'media_library' ? state.mediaLibrary : true,
-  }),
+  useEntitlement: () => ({ hasFeature: (feature: string) => feature !== 'white_label' || state.whiteLabel }),
 }))
 vi.mock('@/lib/api', () => ({
   updateSiteIdentity: vi.fn(),
   updateSiteRegistration: vi.fn(),
   updateSiteWebDav: vi.fn(),
   updateSiteCaptcha: vi.fn(),
-  updateSiteMediaScraping: vi.fn(),
   updateSiteQuotas: vi.fn(),
   verifySiteWebDav: vi.fn(),
 }))
@@ -114,7 +107,6 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   state.whiteLabel = true
-  state.mediaLibrary = true
   state.settings.registration = { configuredMode: 'open', effectiveMode: 'open' }
 })
 
@@ -206,38 +198,6 @@ describe('SettingsPage', () => {
     )
   })
 
-  it('saves the scraping language and sends a TMDB token only when one is entered [spec: media-scraping/settings]', async () => {
-    vi.mocked(updateSiteMediaScraping).mockResolvedValue(state.settings.mediaScraping)
-    const view = renderSettingsPage()
-    expect(view.getByText('日本語 (日本) · ja-JP · admin.settings.tmdbTokenConfigured')).toBeTruthy()
-
-    openSection(view, 'admin.settings.scrapingTitle')
-    expect(view.getByLabelText('admin.settings.tmdbAccessToken')).toHaveProperty('placeholder', '••••••••')
-    fireEvent.click(view.getByRole('button', { name: 'common.save' }))
-    await waitFor(() => expect(updateSiteMediaScraping).toHaveBeenCalledWith({ language: 'ja-JP' }))
-
-    openSection(view, 'admin.settings.scrapingTitle')
-    fireEvent.change(view.getByLabelText('admin.settings.tmdbAccessToken'), { target: { value: ' new-token ' } })
-    fireEvent.click(view.getByRole('button', { name: 'common.save' }))
-    await waitFor(() =>
-      expect(updateSiteMediaScraping).toHaveBeenLastCalledWith({ language: 'ja-JP', tmdbAccessToken: 'new-token' }),
-    )
-  })
-
-  it('lets an administrator without the media library feature change the language and remove the token [spec: media-scraping/settings]', async () => {
-    state.mediaLibrary = false
-    vi.mocked(updateSiteMediaScraping).mockResolvedValue({ language: 'ja-JP', tmdbTokenConfigured: false })
-    const view = renderSettingsPage()
-    openSection(view, 'admin.settings.scrapingTitle')
-
-    expect(view.getByText('admin.settings.scrapingUpgradeHint')).toBeTruthy()
-    expect(view.getByLabelText('admin.settings.tmdbAccessToken')).toHaveProperty('disabled', false)
-    fireEvent.click(view.getByRole('button', { name: 'admin.settings.tmdbAccessTokenRemove' }))
-    await waitFor(() =>
-      expect(updateSiteMediaScraping).toHaveBeenCalledWith({ language: 'ja-JP', tmdbAccessToken: '' }),
-    )
-  })
-
   it('shows invite code management when registration is invite-only [spec: invite-codes/admin-console-visibility]', () => {
     state.settings.registration = { configuredMode: 'invite_only', effectiveMode: 'invite_only' }
     const view = renderSettingsPage()
@@ -257,6 +217,11 @@ describe('SettingsPage', () => {
   ])('hides invite code management when registration is %s', (configuredMode, effectiveMode) => {
     state.settings.registration = { configuredMode, effectiveMode }
     expect(renderSettingsPage().queryByText('invite-codes')).toBeNull()
+  })
+
+  it('offers no metadata scraping settings [spec: media-library/no-server-scraping]', () => {
+    const view = renderSettingsPage()
+    expect(view.container.textContent).not.toMatch(/scraping|tmdb/i)
   })
 
   it('shows email configuration on the settings page', () => {

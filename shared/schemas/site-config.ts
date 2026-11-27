@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { MEDIA_SCRAPER_LANGUAGES } from '../media-scraper'
 
 export const signupModeSchema = z.enum(['open', 'invite_only', 'closed']).openapi('SignupMode')
 export const captchaProviderSchema = z
@@ -291,15 +290,6 @@ export const imageDomainProviderResponseSchema = z
   })
   .openapi('ImageDomainProviderResponse')
 
-export const mediaScraperLanguageSchema = z.enum(MEDIA_SCRAPER_LANGUAGES).openapi('MediaScraperLanguage')
-
-export const siteMediaScrapingSettingsSchema = z
-  .object({
-    language: mediaScraperLanguageSchema.describe('TMDB language tag the metadata is scraped in.'),
-    tmdbTokenConfigured: z.boolean().describe('Whether a TMDB API Read Access Token is saved.'),
-  })
-  .openapi('SiteMediaScrapingSettings')
-
 export const siteSettingsSchema = z
   .object({
     identity: siteIdentitySettingsSchema,
@@ -307,7 +297,6 @@ export const siteSettingsSchema = z
     captcha: siteCaptchaSettingsSchema,
     quotas: siteQuotaSettingsSchema,
     webdav: siteWebDavSettingsSchema,
-    mediaScraping: siteMediaScrapingSettingsSchema,
   })
   .openapi('SiteSettings')
 
@@ -323,13 +312,6 @@ export const updateSiteCaptchaSchema = z
   })
   .openapi('UpdateSiteCaptcha')
 export const updateSiteQuotasSchema = siteQuotaSettingsSchema
-export const updateSiteMediaScrapingSchema = z
-  .object({
-    language: mediaScraperLanguageSchema,
-    // Omitted keeps the saved token; an empty string removes it.
-    tmdbAccessToken: z.string().max(1024).optional(),
-  })
-  .openapi('UpdateSiteMediaScraping')
 export const updateSiteWebDavSchema = z
   .object({
     enabled: z.boolean(),
@@ -354,7 +336,6 @@ export type SiteRegistrationSettings = z.infer<typeof siteRegistrationSettingsSc
 export type SiteCaptchaSettings = z.infer<typeof siteCaptchaSettingsSchema>
 export type SiteQuotaSettings = z.infer<typeof siteQuotaSettingsSchema>
 export type SiteWebDavSettings = z.infer<typeof siteWebDavSettingsSchema>
-export type SiteMediaScrapingSettings = z.infer<typeof siteMediaScrapingSettingsSchema>
 export type EmailSettings = z.infer<typeof emailSettingsSchema>
 export type UpdateEmailSettingsInput = z.infer<typeof updateEmailSettingsSchema>
 export type CreateTestEmailInput = z.infer<typeof createTestEmailSchema>
@@ -367,4 +348,3 @@ export type UpdateSiteRegistrationInput = z.infer<typeof updateSiteRegistrationS
 export type UpdateSiteCaptchaInput = z.infer<typeof updateSiteCaptchaSchema>
 export type UpdateSiteQuotasInput = z.infer<typeof updateSiteQuotasSchema>
 export type UpdateSiteWebDavInput = z.infer<typeof updateSiteWebDavSchema>
-export type UpdateSiteMediaScrapingInput = z.infer<typeof updateSiteMediaScrapingSchema>

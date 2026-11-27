@@ -7,7 +7,7 @@ import { createBackgroundJobRepo } from '../adapters/repos/background-job'
 import { createMatterRepo } from '../adapters/repos/matter'
 import { createMediaLibraryRepo } from '../adapters/repos/media-library'
 import { joinMatterPath, serializeMediaLibraryFeed } from '../domain/media-library'
-import { authedHeaders, createTestApp, seedProLicense } from '../test/setup'
+import { adminHeaders, authedHeaders, createTestApp, seedProLicense } from '../test/setup'
 import { createMediaLibraryIndex } from '../usecases/media-library-index'
 import { sweepMediaLibraries } from '../usecases/media-library-scan'
 
@@ -234,6 +234,84 @@ describe('media libraries API', () => {
 
     await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
     expect(await scanJobs(ctx.db, ctx.orgId)).toHaveLength(2)
+  })
+
+  it('publishes the tmdb id of a video from its file metadata at the next sweep, and nothing else from it [spec: media-library/index-tmdb-from-metadata]', async () => {
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    const sintel = await ctx.add('Movies/Sintel (2010)', 'Sintel.2010.480p.mp4')
+    await ctx.add('Movies', 'Dune (2021).mkv')
+    expect((await ctx.createLibrary(movies.id)).status).toBe(201)
+    await waitForScans(ctx.db, ctx.orgId)
+    const before = await readIndex(ctx, 'Movies')
+    expect(before.feed.items.map((item) => item._media)).toEqual([
+      { type: 'movie', title: 'Dune', year: 2021 },
+      { type: 'movie', title: 'Sintel', year: 2010 },
+    ])
+
+    // Age the rows so the metadata write lands in a later second than the fingerprint saw.
+    await ctx.db.run(sql`UPDATE matters SET updated_at = updated_at - 60 WHERE org_id = ${ctx.orgId}`)
+    const written = await ctx.matters.setMediaMetadata(
+      ctx.orgId,
+      sintel.id,
+      {
+        kind: 'movie',
+        tmdb: { id: 45745, type: 'movie' },
+        title: '寻龙记',
+        originalTitle: 'Sintel',
+        year: 2010,
+        overview: 'A lonely young woman searches for her baby dragon.',
+        genres: ['Animation'],
+        runtime: 15,
+        poster: 'poster00000000000000000',
+      },
+      { onlyIfAbsent: false },
+    )
+    expect(written).toBe(true)
+    await sweepMediaLibraries(ctx.deps, { cloudBaseUrl: ZPAN_CLOUD_URL_DEFAULT })
+    const jobs = await waitForScans(ctx.db, ctx.orgId)
+    expect(jobs.map((job) => job.status)).toEqual(['completed', 'completed'])
+
+    const after = await readIndex(ctx, 'Movies')
+    expect(after.feed.items.map((item) => [item.content_text, item.title, item._media])).toEqual([
+      ['Dune (2021).mkv', 'Dune', { type: 'movie', title: 'Dune', year: 2021 }],
+      [
+        'Sintel (2010)/Sintel.2010.480p.mp4',
+        'Sintel',
+        { type: 'movie', title: 'Sintel', year: 2010, tmdb: { id: 45745, type: 'movie' } },
+      ],
+    ])
+    const text = new TextDecoder().decode(objects.get(after.matter.object))
+    expect(text).not.toContain('寻龙记')
+    expect(text).not.toContain('poster00000000000000000')
+  })
+
+  it('offers no server-side scraping endpoints or settings [spec: media-library/no-server-scraping]', async () => {
+    const site = await createTestApp()
+    const admin = await adminHeaders(site.app)
+    const ctx = await setup()
+    const movies = await ctx.add('', 'Movies', 'folder')
+    const created = await ctx.createLibrary(movies.id)
+    expect(created.status).toBe(201)
+    const library = (await created.json()) as Record<string, unknown>
+    expect(library).not.toHaveProperty('scraping')
+
+    const scrape = await ctx.app.request(`/api/media-libraries/${library.id}/scrapes`, {
+      method: 'POST',
+      headers: ctx.headers,
+    })
+    expect(scrape.status).toBe(404)
+    const settings = await site.app.request('/api/site/settings', { headers: admin })
+    expect(settings.status).toBe(200)
+    expect(await settings.json()).not.toHaveProperty('mediaScraping')
+    const update = await site.app.request('/api/site/settings/media-scraping', {
+      method: 'PUT',
+      headers: { ...admin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language: 'en-US', tmdbAccessToken: 'token' }),
+    })
+    expect(update.status).toBe(404)
+    const spec = (await (await ctx.app.request('/api/openapi.json')).json()) as { paths: Record<string, unknown> }
+    expect(Object.keys(spec.paths).filter((path) => /scrap/i.test(path))).toEqual([])
   })
 
   it('keeps the library when its first scan cannot be queued and lets the sweep scan it [spec: media-library/first-scan-enqueue-failure]', async () => {

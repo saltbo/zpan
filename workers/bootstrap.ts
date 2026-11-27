@@ -15,7 +15,7 @@ import { platformContext } from '../server/platform/context'
 import { runBackgroundJob } from '../server/usecases/background-job'
 import type { Deps } from '../server/usecases/deps'
 import type { BackgroundJobMessage, CacheService } from '../server/usecases/ports'
-import { DirType, ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
+import { DirType } from '../shared/constants'
 import { handleScheduled } from './scheduled'
 
 interface Env {
@@ -201,10 +201,9 @@ export default {
   },
 
   async queue(batch: MessageBatch<BackgroundJobMessage>, env: Env): Promise<void> {
-    const { deps, platform } = runtimeFor(env)
-    const runtime = { cloudBaseUrl: platform.getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT }
+    const { deps } = runtimeFor(env)
     for (const message of batch.messages) {
-      await runBackgroundJob(deps, message.body, runtime)
+      await runBackgroundJob(deps, message.body)
       message.ack()
     }
   },
