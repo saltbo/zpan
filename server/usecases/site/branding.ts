@@ -49,6 +49,8 @@ export type ThemeUpdate = Partial<Record<ThemeField, string>>
 
 export type BrandingUploadResult = { ok: true; url: string } | { ok: false; status: 400 | 413; error: string }
 
+type BrandingImageField = 'logo' | 'favicon'
+
 // The parsed, already-validated PUT payload. Multipart parsing, theme/color
 // validation, and the wordmark-length check are http concerns; this usecase
 // receives the extracted Files and primitive values and owns every write +
@@ -62,11 +64,11 @@ export type BrandingUpdateInput = {
 }
 
 // On an image-upload failure the handler maps `status`/`error` straight to its
-// response (400 invalid type, 413 too large). On success the freshly-read config
+// response (400 invalid type, 413 too large) and names `field`, the rejected image. On success the freshly-read config
 // is returned for serialization.
 export type BrandingUpdateOutcome =
   | { ok: true; config: BrandingConfig; changedFields: string[] }
-  | { ok: false; status: 400 | 413; error: string }
+  | { ok: false; status: 400 | 413; error: string; field: BrandingImageField }
 
 export async function readBranding(deps: Pick<BrandingDeps, 'systemOptions'>): Promise<BrandingConfig> {
   const keys = Object.values(BRANDING_KEYS)
@@ -103,13 +105,13 @@ export async function applyBrandingUpdate(
 
   if (logoFile) {
     const result = await uploadBrandingImage(deps, 'logo', logoFile)
-    if (!result.ok) return { ok: false, status: result.status, error: result.error }
+    if (!result.ok) return { ...result, field: 'logo' }
     changedFields.push('logo')
   }
 
   if (faviconFile) {
     const result = await uploadBrandingImage(deps, 'favicon', faviconFile)
-    if (!result.ok) return { ok: false, status: result.status, error: result.error }
+    if (!result.ok) return { ...result, field: 'favicon' }
     changedFields.push('favicon')
   }
 
@@ -151,7 +153,7 @@ export async function resetBranding(deps: BrandingDeps, params: { field: Brandin
 // inline through the public, cached GET /api/configz response.
 export async function uploadBrandingImage(
   deps: Pick<BrandingDeps, 'systemOptions'>,
-  field: 'logo' | 'favicon',
+  field: BrandingImageField,
   file: File,
 ): Promise<BrandingUploadResult> {
   const allowedMimes = field === 'logo' ? LOGO_MIMES : FAVICON_MIMES

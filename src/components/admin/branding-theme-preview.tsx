@@ -72,6 +72,7 @@ export function ThemeColorInput({
   placeholder,
   value,
   disabled,
+  error,
   onChange,
 }: {
   id: string
@@ -79,26 +80,31 @@ export function ThemeColorInput({
   placeholder: string
   value: string
   disabled: boolean
+  error?: string
   onChange: (value: string) => void
 }) {
   return (
-    <AdminFormField id={id} label={label} className={cn(disabled && 'opacity-60')}>
-      <div className="flex gap-2">
-        <Input
-          id={id}
-          type="color"
-          value={HEX6_RE.test(value) ? value : '#000000'}
-          disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
-          className="w-12 shrink-0 px-1 py-1"
-        />
-        <Input
-          value={value}
-          disabled={disabled}
-          placeholder={placeholder}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      </div>
+    <AdminFormField id={id} label={label} error={error} className={cn(disabled && 'opacity-60')}>
+      {(controlProps) => (
+        <div className="flex gap-2">
+          <Input
+            {...controlProps}
+            type="color"
+            value={HEX6_RE.test(value) ? value : '#000000'}
+            disabled={disabled}
+            onChange={(event) => onChange(event.target.value)}
+            className="w-12 shrink-0 px-1 py-1"
+          />
+          <Input
+            aria-invalid={controlProps['aria-invalid']}
+            aria-describedby={controlProps['aria-describedby']}
+            value={value}
+            disabled={disabled}
+            placeholder={placeholder}
+            onChange={(event) => onChange(event.target.value)}
+          />
+        </div>
+      )}
     </AdminFormField>
   )
 }

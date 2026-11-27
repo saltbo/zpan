@@ -115,3 +115,9 @@ Feature: Branding
     Given stored branding
     When an admin resets a text field
     Then the field is cleared
+
+  @branding/rejection-field @api
+  Scenario: A rejected branding save names the field it concerns
+    Given an admin with Pro
+    When they submit an invalid color, a custom theme missing a color, a wordmark that is too long, or a logo or favicon of the wrong type or size
+    Then the API rejects it and names the submitted field that caused it

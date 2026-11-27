@@ -42,3 +42,11 @@ Feature: Form errors
     Then the server's message appears under that field and the drawer stays open
     When the server rejects the save for a reason that names no field in the form
     Then its reason appears above the save button
+
+  @form-errors/branding @web
+  Scenario: A rejected branding save shows its reason under the logo, favicon or color it concerns
+    Given an admin opens the branding drawer
+    When the server rejects the save because of the logo, the favicon or a theme color
+    Then the server's message appears under that field and the drawer stays open
+    When the server rejects the save for a reason that names no field in the drawer
+    Then its reason appears above the save button
