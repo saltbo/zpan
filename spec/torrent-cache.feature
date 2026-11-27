@@ -141,6 +141,12 @@ Feature: Torrent cache
     When its details are opened
     Then they show it is cached, with its torrent and verification state, and its content cannot be replaced
 
+  @torrent-cache/downloader-fills-cache @downloader
+  Scenario: A capable downloader fills the cache
+    Given a downloader that reports the torrent-cache capability
+    When it completes a magnet download
+    Then the torrent's files and info dictionary are in the cache and the task finishes by instant transfer
+
   @torrent-cache/layout-replay @api
   Scenario: A second holder gets the scraped layout
     Given a cached torrent whose first download was scraped

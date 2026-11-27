@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/autobrr/go-qbittorrent"
@@ -40,6 +42,7 @@ func New(cfg downloader.Config) (downloader.Downloader, error) {
 		BtTrackers: cfg.Aria2.BtTrackers,
 		Managed:    !cfg.QBittorrent.Configured && (cfg.Engine == "" || cfg.Engine == "auto" || cfg.Engine == "qbittorrent"),
 		GeoIP:      cfg.GeoIP,
+		export:     &exportSupport{},
 	}, nil
 }
 
@@ -55,6 +58,17 @@ type QBittorrent struct {
 	Managed    bool
 	GeoIP      geoip.Resolver
 	cmd        *exec.Cmd
+	// export remembers whether the Web API has torrents/export; nil probes
+	// every time.
+	export *exportSupport
+}
+
+// torrents/export arrived in Web API 2.8.14 (qBittorrent 4.5.0).
+var exportMinVersion = [3]int{2, 8, 14}
+
+type exportSupport struct {
+	mu        sync.Mutex
+	known, ok bool
 }
 
 func (q QBittorrent) Name() string {
@@ -329,6 +343,102 @@ func (q QBittorrent) Download(ctx context.Context, task downloader.DownloadTask,
 	return q.resultFromTorrent(ctx, qbt, task, taskDir, torrent)
 }
 
+// TorrentMetadata exports the task's .torrent file from qBittorrent, which
+// answers only once the metadata is resolved. A finished download that
+// qBittorrent no longer holds is read from the copy kept beside it.
+func (q QBittorrent) TorrentMetadata(ctx context.Context, task downloader.DownloadTask) ([]byte, error) {
+	taskDir := filepath.Join(q.Dir, task.ID)
+	qbt, err := q.login(ctx)
+	if err != nil {
+		return nil, err
+	}
+	torrent, ok, err := q.findTask(ctx, qbt, task)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return core.ReadMetadata(taskDir, "")
+	}
+	if strings.EqualFold(string(torrent.State), string(qbittorrent.TorrentStateMetaDl)) || torrent.State == "forcedMetaDL" {
+		return nil, downloader.ErrTorrentMetadataPending
+	}
+	data, err := qbt.ExportTorrentCtx(ctx, torrent.Hash)
+	if exportPending(err) {
+		return nil, downloader.ErrTorrentMetadataPending
+	}
+	if err != nil {
+		// Not found here means a Web API without torrents/export, since the
+		// torrent itself was just found.
+		return nil, fmt.Errorf("export torrent metadata: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, downloader.ErrTorrentMetadataPending
+	}
+	return data, nil
+}
+
+// exportPending is qBittorrent's 409 for a torrent whose metadata it has not
+// downloaded yet. The client reports the status only in the message.
+func exportPending(err error) bool {
+	return err != nil && errors.Is(err, qbittorrent.ErrUnexpectedStatus) && strings.Contains(err.Error(), "status code: 409")
+}
+
+// CanExportTorrentMetadata reports whether the Web API has torrents/export, so
+// the downloader advertises the torrent cache only when it can fill it. A
+// failed probe is not remembered.
+func (q QBittorrent) CanExportTorrentMetadata(ctx context.Context) bool {
+	if q.export != nil {
+		q.export.mu.Lock()
+		defer q.export.mu.Unlock()
+		if q.export.known {
+			return q.export.ok
+		}
+	}
+	qbt, err := q.login(ctx)
+	if err != nil {
+		return false
+	}
+	version, err := qbt.GetWebAPIVersionCtx(ctx)
+	if err != nil {
+		return false
+	}
+	ok := webAPIVersionAtLeast(version, exportMinVersion)
+	if q.export != nil {
+		q.export.known, q.export.ok = true, ok
+	}
+	return ok
+}
+
+func webAPIVersionAtLeast(version string, min [3]int) bool {
+	parts := strings.SplitN(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(version), "v")), ".", 3)
+	for i := 0; i < 3; i++ {
+		value := 0
+		if i < len(parts) {
+			digits := parts[i]
+			if cut := strings.IndexFunc(digits, func(r rune) bool { return r < '0' || r > '9' }); cut >= 0 {
+				digits = digits[:cut]
+			}
+			n, err := strconv.Atoi(digits)
+			if err != nil {
+				return false
+			}
+			value = n
+		}
+		if value != min[i] {
+			return value > min[i]
+		}
+	}
+	return true
+}
+
+// keepMetadata saves the .torrent file beside the download before qBittorrent
+// forgets the torrent, so a cache upload can still register it.
+func keepMetadata(ctx context.Context, qbt *qbittorrent.Client, taskDir string, hash string) {
+	if data, err := qbt.ExportTorrentCtx(ctx, hash); err == nil && len(data) > 0 {
+		_ = core.SaveMetadata(taskDir, data)
+	}
+}
+
 func (q QBittorrent) resultFromTorrent(
 	ctx context.Context,
 	qbt *qbittorrent.Client,
@@ -351,6 +461,7 @@ func (q QBittorrent) resultFromTorrent(
 		}
 		return result, nil
 	}
+	keepMetadata(ctx, qbt, taskDir, torrent.Hash)
 	_ = qbt.DeleteTorrentsCtx(ctx, []string{torrent.Hash}, false)
 	return result, nil
 }
@@ -638,15 +749,12 @@ func qbittorrentTrackers(ctx context.Context, qbt *qbittorrent.Client, torrent q
 	}
 	out := make([]downloader.Tracker, 0, min(len(trackers), 20))
 	for _, tracker := range trackers {
-		peers := int64(tracker.NumPeers)
-		seeds := int64(tracker.NumSeeds)
-		leechers := int64(tracker.NumLeechers)
 		out = append(out, downloader.Tracker{
 			URL:      tracker.Url,
 			Status:   fmt.Sprint(tracker.Status),
-			Peers:    &peers,
-			Seeds:    &seeds,
-			Leechers: &leechers,
+			Peers:    trackerCount(tracker.NumPeers),
+			Seeds:    trackerCount(tracker.NumSeeds),
+			Leechers: trackerCount(tracker.NumLeechers),
 			Message:  tracker.Message,
 		})
 		if len(out) >= 20 {
@@ -654,6 +762,16 @@ func qbittorrentTrackers(ctx context.Context, qbt *qbittorrent.Client, torrent q
 		}
 	}
 	return out
+}
+
+// trackerCount is a tracker's count, or nil for the -1 qBittorrent reports
+// while it has not heard from the tracker.
+func trackerCount(value int) *int64 {
+	if value < 0 {
+		return nil
+	}
+	count := int64(value)
+	return &count
 }
 
 func qbittorrentPeers(ctx context.Context, qbt *qbittorrent.Client, hash string, geoIP geoip.Resolver) []downloader.Peer {

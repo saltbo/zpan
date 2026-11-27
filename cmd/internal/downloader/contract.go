@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/saltbo/zpan/pkg/geoip"
@@ -269,6 +270,23 @@ type Downloader interface {
 	Check(ctx context.Context) error
 	InspectTask(ctx context.Context, task DownloadTask) (TaskSnapshot, bool, error)
 	Download(ctx context.Context, task DownloadTask, progress ProgressReporter) (Result, error)
+}
+
+// ErrTorrentMetadataPending means the engine has not resolved the torrent's
+// metadata yet, as for a magnet still fetching it from peers.
+var ErrTorrentMetadataPending = errors.New("torrent metadata is not resolved yet")
+
+// TorrentMetadataSource is an engine that can hand over a torrent task's
+// .torrent file, during the download and after it finished. A downloader whose
+// engine is one reports the torrent-cache capability.
+type TorrentMetadataSource interface {
+	TorrentMetadata(ctx context.Context, task DownloadTask) ([]byte, error)
+}
+
+// TorrentMetadataExportProbe is a TorrentMetadataSource whose engine may lack
+// the export, such as a qBittorrent older than 4.5; it says whether it has it.
+type TorrentMetadataExportProbe interface {
+	CanExportTorrentMetadata(ctx context.Context) bool
 }
 
 type TaskResetter interface {

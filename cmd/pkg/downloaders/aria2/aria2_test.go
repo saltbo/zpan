@@ -16,6 +16,7 @@ import (
 	"github.com/Braurbeki/arigo"
 	"github.com/cenkalti/rpc2"
 	"github.com/saltbo/zpan/internal/downloader"
+	"github.com/saltbo/zpan/pkg/torrentmeta"
 )
 
 func downloadTask(id, sourceType, sourceURI string) downloader.DownloadTask {
@@ -599,5 +600,39 @@ func TestResultFromAria2FilesWrapsSingleFileBTTask(t *testing.T) {
 	}
 	if result.Name != "Iron.Lung.2026.1080p.WEBRip.10Bit.DDP.5.1.x265-NeoNoir" {
 		t.Fatalf("expected torrent name wrapper dir, got %s", result.Name)
+	}
+}
+
+func TestAria2TorrentMetadataReadsOnlyThisTorrentsFile(t *testing.T) {
+	dir := t.TempDir()
+	a := Aria2{Dir: dir}
+	info := []byte("d4:name1:ae")
+	data := append(append([]byte("d4:info"), info...), 'e')
+	hash := torrentmeta.InfoHash(info)
+	magnet := downloadTask("task-1", "magnet", "magnet:?xt=urn:btih:"+hash)
+	taskDir := filepath.Join(dir, "task-1")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.TorrentMetadata(context.Background(), magnet); !errors.Is(err, downloader.ErrTorrentMetadataPending) {
+		t.Fatalf("err = %v", err)
+	}
+	// Some other .torrent in the folder is not this torrent's metadata.
+	if err := os.WriteFile(filepath.Join(taskDir, "payload.torrent"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.TorrentMetadata(context.Background(), magnet); !errors.Is(err, downloader.ErrTorrentMetadataPending) {
+		t.Fatalf("err = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(taskDir, hash+".torrent"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := a.TorrentMetadata(context.Background(), magnet); err != nil || string(got) != string(data) {
+		t.Fatalf("data = %q, %v", got, err)
+	}
+	// An http task has no metadata, and says so rather than staying pending.
+	_, err := a.TorrentMetadata(context.Background(), downloadTask("task-1", "http", "https://example.com/a"))
+	if err == nil || errors.Is(err, downloader.ErrTorrentMetadataPending) {
+		t.Fatalf("http err = %v", err)
 	}
 }

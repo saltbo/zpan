@@ -73,6 +73,11 @@ func (t DownloadTask) UploadToken() string {
 	return t.Status.Assignment.UploadToken
 }
 
+// TorrentCache reports whether the task fills the torrent cache.
+func (t DownloadTask) TorrentCache() bool {
+	return t.Status.Assignment != nil && t.Status.Assignment.TorrentCache
+}
+
 func (t DownloadTask) DeleteRequested() bool {
 	return t.Control != nil && t.Control.Action == "delete"
 }
@@ -112,6 +117,9 @@ type DownloadTaskAssignment struct {
 	DownloaderID string `json:"downloaderId"`
 	AssignedAt   string `json:"assignedAt"`
 	UploadToken  string `json:"uploadToken,omitempty"`
+	// TorrentCache is set when the task is assigned in cache mode: its files go
+	// up through the torrent cache API instead of the object API.
+	TorrentCache bool `json:"torrentCache,omitempty"`
 }
 
 type DownloadTaskOutput struct {
@@ -820,8 +828,13 @@ func (e *StatusError) Error() string {
 
 // IsConflict reports whether err is a 409 from the API.
 func IsConflict(err error) bool {
-	var status *StatusError
-	return errors.As(err, &status) && status.Status == http.StatusConflict
+	return IsStatus(err, http.StatusConflict)
+}
+
+// IsStatus reports whether err is an API response with the status.
+func IsStatus(err error, status int) bool {
+	var statusErr *StatusError
+	return errors.As(err, &statusErr) && statusErr.Status == status
 }
 
 func expectStatus(method string, path string, actual int, body []byte, expected ...int) error {

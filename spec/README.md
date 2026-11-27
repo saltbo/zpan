@@ -61,7 +61,8 @@ decision, recorded in [ROADMAP.md](../ROADMAP.md#community-vs-pro-vs-business).
 
 - One `.feature` file per capability (`storages.feature`, `site-invitations.feature`, …).
 - Each scenario carries two tags: the **id** `@<capability>/<slug>` and the **layer**
-  that proves it (`@domain` / `@usecase` / `@web` / `@api` / `@e2e`):
+  that proves it (`@domain` / `@usecase` / `@web` / `@api` / `@e2e`, or `@downloader`
+  for the Go downloader's `*_test.go` in `cmd/`):
 
   ```gherkin
   @storages/create-records-activity @api

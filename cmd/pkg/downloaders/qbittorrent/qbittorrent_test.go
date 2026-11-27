@@ -2,6 +2,7 @@ package qbittorrent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -283,6 +284,15 @@ func TestQBittorrentTrackersMapsTorrentTrackersAndLimits(t *testing.T) {
 	}
 }
 
+func TestQBittorrentTrackersLeaveOutUnknownCounts(t *testing.T) {
+	out := qbittorrentTrackers(context.Background(), nil, qbittorrent.Torrent{Trackers: []qbittorrent.TorrentTracker{
+		{Url: "udp://tracker/announce", NumPeers: -1, NumSeeds: -1, NumLeechers: 0},
+	}})
+	if out[0].Peers != nil || out[0].Seeds != nil || out[0].Leechers == nil || *out[0].Leechers != 0 {
+		t.Fatalf("unexpected tracker: %#v", out[0])
+	}
+}
+
 func TestQBittorrentTagHelpers(t *testing.T) {
 	if !torrentHasTag("one, ztid=task-1 ,two", qbittorrentTrackingTag("task-1")) {
 		t.Fatal("expected tracking tag match")
@@ -312,5 +322,89 @@ func TestQBittorrentDetailOmitsSeedingETA(t *testing.T) {
 	}
 	if detail.ETASeconds != nil {
 		t.Fatalf("expected seeding detail without ETA, got %#v", detail.ETASeconds)
+	}
+}
+
+// fakeQBittorrent answers the Web API calls TorrentMetadata and
+// CanExportTorrentMetadata make.
+func fakeQBittorrent(t *testing.T, webAPIVersion string, exportStatus int, state string) (*httptest.Server, *int) {
+	t.Helper()
+	versionCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "sid"})
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/app/webapiVersion":
+			versionCalls++
+			_, _ = w.Write([]byte(webAPIVersion))
+		case "/api/v2/torrents/info":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `[{"hash":"abc","state":%q,"tags":"zpan-task-task-1"}]`, state)
+		case "/api/v2/torrents/export":
+			w.WriteHeader(exportStatus)
+			if exportStatus == http.StatusOK {
+				_, _ = w.Write([]byte("d4:infod4:name1:aee"))
+			}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server, &versionCalls
+}
+
+func TestQBittorrentTorrentMetadataTellsPendingFromUnsupported(t *testing.T) {
+	task := downloadTask("task-1", "magnet", "magnet:?xt=urn:btih:abc")
+	for name, tc := range map[string]struct {
+		status  int
+		state   string
+		pending bool
+		ok      bool
+	}{
+		"exported":         {status: http.StatusOK, state: "downloading", ok: true},
+		"metadata pending": {status: http.StatusConflict, state: "downloading", pending: true},
+		"fetching":         {status: http.StatusOK, state: "metaDL", pending: true},
+		"no export":        {status: http.StatusNotFound, state: "downloading"},
+		"server error":     {status: http.StatusInternalServerError, state: "downloading"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			server, _ := fakeQBittorrent(t, "2.11.2", tc.status, tc.state)
+			q := QBittorrent{URL: server.URL, Dir: t.TempDir()}
+			data, err := q.TorrentMetadata(context.Background(), task)
+			switch {
+			case tc.ok:
+				if err != nil || string(data) != "d4:infod4:name1:aee" {
+					t.Fatalf("data = %q, %v", data, err)
+				}
+			case tc.pending:
+				if !errors.Is(err, downloader.ErrTorrentMetadataPending) {
+					t.Fatalf("err = %v, want pending", err)
+				}
+			default:
+				if err == nil || errors.Is(err, downloader.ErrTorrentMetadataPending) {
+					t.Fatalf("err = %v, want a failure that is not pending", err)
+				}
+			}
+		})
+	}
+}
+
+func TestQBittorrentReportsExportOnlyFromWebAPI2814(t *testing.T) {
+	for version, want := range map[string]bool{"2.8.14": true, "2.11.2": true, "v3.0": true, "2.8.13": false, "2.8": false, "x": false} {
+		server, calls := fakeQBittorrent(t, version, http.StatusOK, "downloading")
+		q := QBittorrent{URL: server.URL, export: &exportSupport{}}
+		if got := q.CanExportTorrentMetadata(context.Background()); got != want {
+			t.Errorf("version %s: export = %v, want %v", version, got, want)
+		}
+		// The answer is remembered.
+		q.CanExportTorrentMetadata(context.Background())
+		if *calls != 1 {
+			t.Errorf("version %s: probed %d times", version, *calls)
+		}
+	}
+	unreachable := QBittorrent{URL: "http://127.0.0.1:1", export: &exportSupport{}}
+	if unreachable.CanExportTorrentMetadata(context.Background()) || unreachable.export.known {
+		t.Fatal("an unreachable qBittorrent was remembered as able to export")
 	}
 }
