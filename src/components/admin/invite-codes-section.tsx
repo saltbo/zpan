@@ -16,9 +16,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCursorPager, useStepBackFromEmptyPage } from '@/hooks/use-cursor-pager'
 import { deleteInviteCode, generateInviteCodes, listInviteCodes } from '@/lib/api'
+import { formLevelError, type ServerFieldMap, serverFieldError } from '@/lib/form-errors'
 
 const inviteCodesQueryKey = ['admin', 'invite-codes'] as const
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
+const SERVER_FIELDS: ServerFieldMap<'count' | 'expiresInDays'> = { count: 'count', expiresInDays: 'expiresInDays' }
 
 type CodeStatus = 'used' | 'expired' | 'available'
 
@@ -108,8 +110,15 @@ export function InviteCodesSection() {
       toast.success(t('admin.auth.codesGenerated'))
       setDrawerOpen(false)
     },
-    onError: (err) => toast.error(err.message),
   })
+  const fieldError = serverFieldError(generateMutation.error, SERVER_FIELDS)
+  const errorFor = (field: 'count' | 'expiresInDays') => (fieldError?.field === field ? fieldError.message : undefined)
+  const formError = formLevelError(generateMutation.error, SERVER_FIELDS)
+
+  function handleDrawerOpenChange(open: boolean) {
+    setDrawerOpen(open)
+    if (!open) generateMutation.reset()
+  }
 
   const deleteMutation = useMutation({
     mutationFn: deleteInviteCode,
@@ -238,7 +247,7 @@ export function InviteCodesSection() {
 
       <AdminFormDrawer
         open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+        onOpenChange={handleDrawerOpenChange}
         title={t('admin.auth.generateTitle')}
         description={t('admin.auth.inviteCodesDescription')}
         bodyClassName="grid auto-rows-min content-start gap-4"
@@ -248,9 +257,10 @@ export function InviteCodesSection() {
             generateMutation.mutate()
           },
         }}
+        error={formError}
         footer={
           <>
-            <Button type="button" variant="outline" onClick={() => setDrawerOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => handleDrawerOpenChange(false)}>
               {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={generateMutation.isPending}>
@@ -259,7 +269,7 @@ export function InviteCodesSection() {
           </>
         }
       >
-        <AdminFormField id="invite-code-count" label={t('admin.auth.codeCount')} required>
+        <AdminFormField id="invite-code-count" error={errorFor('count')} label={t('admin.auth.codeCount')} required>
           <Input
             type="number"
             min={1}
@@ -271,6 +281,7 @@ export function InviteCodesSection() {
         </AdminFormField>
         <AdminFormField
           id="invite-code-expires"
+          error={errorFor('expiresInDays')}
           label={t('admin.auth.expiresInDays')}
           help={t('admin.auth.expiresInDaysHint')}
         >

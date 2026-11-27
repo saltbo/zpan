@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { type EmailConfigData, getEmailConfig, saveEmailConfig, testEmail } from '@/lib/api'
+import { formLevelError, type ServerFieldMap, serverFieldError } from '@/lib/form-errors'
 
 const emailConfigQueryKey = ['admin', 'email-config'] as const
 
@@ -30,6 +31,17 @@ interface FormState {
   smtpSecure: boolean
   httpUrl: string
   httpApiKey: string
+}
+
+const SERVER_FIELDS: ServerFieldMap<keyof FormState> = {
+  provider: 'provider',
+  from: 'from',
+  'smtp.host': 'smtpHost',
+  'smtp.port': 'smtpPort',
+  'smtp.user': 'smtpUser',
+  'smtp.pass': 'smtpPass',
+  'http.url': 'httpUrl',
+  'http.apiKey': 'httpApiKey',
 }
 
 const emptyForm: FormState = {
@@ -161,8 +173,10 @@ export function EmailConfigSection() {
       setConfigOpen(false)
       toast.success(t('admin.auth.emailSaved'))
     },
-    onError: (err) => toast.error(err.message),
   })
+  const fieldError = serverFieldError(saveMutation.error, SERVER_FIELDS)
+  const errorFor = (field: keyof FormState) => (fieldError?.field === field ? fieldError.message : undefined)
+  const formError = formLevelError(saveMutation.error, SERVER_FIELDS)
 
   const testMutation = useMutation({
     mutationFn: testEmail,
@@ -179,6 +193,7 @@ export function EmailConfigSection() {
   function closeConfigDrawer() {
     setConfigOpen(false)
     setForm(savedForm)
+    saveMutation.reset()
   }
 
   if (isLoading) {
@@ -243,6 +258,7 @@ export function EmailConfigSection() {
             saveMutation.mutate()
           },
         }}
+        error={formError}
         footer={
           <>
             <Button type="button" variant="outline" onClick={closeConfigDrawer} disabled={saveMutation.isPending}>
@@ -271,7 +287,7 @@ export function EmailConfigSection() {
           onCheckedChange={(requireEmailVerification) => update({ requireEmailVerification })}
         />
 
-        <AdminFormField id="email-provider" label={t('admin.auth.emailProvider')} required>
+        <AdminFormField id="email-provider" error={errorFor('provider')} label={t('admin.auth.emailProvider')} required>
           <Select value={form.provider} onValueChange={(v) => update({ provider: v as ProviderType })}>
             <SelectTrigger id="email-provider">
               <SelectValue placeholder={t('admin.auth.emailProviderPlaceholder')} />
@@ -284,7 +300,7 @@ export function EmailConfigSection() {
           </Select>
         </AdminFormField>
 
-        <AdminFormField id="email-from" label={t('admin.auth.emailFrom')} required>
+        <AdminFormField id="email-from" error={errorFor('from')} label={t('admin.auth.emailFrom')} required>
           <Input
             type="email"
             value={form.from}
@@ -296,14 +312,14 @@ export function EmailConfigSection() {
         {form.provider === 'smtp' ? (
           <>
             <div className="grid grid-cols-2 gap-4">
-              <AdminFormField id="smtp-host" label={t('admin.auth.smtpHost')} required>
+              <AdminFormField id="smtp-host" error={errorFor('smtpHost')} label={t('admin.auth.smtpHost')} required>
                 <Input
                   value={form.smtpHost}
                   placeholder={t('admin.auth.smtpHostPlaceholder')}
                   onChange={(e) => update({ smtpHost: e.target.value })}
                 />
               </AdminFormField>
-              <AdminFormField id="smtp-port" label={t('admin.auth.smtpPort')} required>
+              <AdminFormField id="smtp-port" error={errorFor('smtpPort')} label={t('admin.auth.smtpPort')} required>
                 <Input
                   type="number"
                   value={form.smtpPort}
@@ -312,14 +328,14 @@ export function EmailConfigSection() {
                 />
               </AdminFormField>
             </div>
-            <AdminFormField id="smtp-user" label={t('admin.auth.smtpUser')}>
+            <AdminFormField id="smtp-user" error={errorFor('smtpUser')} label={t('admin.auth.smtpUser')}>
               <Input
                 value={form.smtpUser}
                 placeholder={t('admin.auth.smtpUserPlaceholder')}
                 onChange={(e) => update({ smtpUser: e.target.value })}
               />
             </AdminFormField>
-            <AdminFormField id="smtp-pass" label={t('admin.auth.smtpPass')}>
+            <AdminFormField id="smtp-pass" error={errorFor('smtpPass')} label={t('admin.auth.smtpPass')}>
               <Input
                 type="password"
                 value={form.smtpPass}
@@ -338,14 +354,19 @@ export function EmailConfigSection() {
           </>
         ) : form.provider === 'http' ? (
           <>
-            <AdminFormField id="email-http-url" label={t('admin.auth.httpUrl')} required>
+            <AdminFormField id="email-http-url" error={errorFor('httpUrl')} label={t('admin.auth.httpUrl')} required>
               <Input
                 value={form.httpUrl}
                 placeholder={t('admin.auth.httpUrlPlaceholder')}
                 onChange={(e) => update({ httpUrl: e.target.value })}
               />
             </AdminFormField>
-            <AdminFormField id="email-http-api-key" label={t('admin.auth.httpApiKey')} required>
+            <AdminFormField
+              id="email-http-api-key"
+              error={errorFor('httpApiKey')}
+              label={t('admin.auth.httpApiKey')}
+              required
+            >
               <Input
                 type="password"
                 value={form.httpApiKey}
