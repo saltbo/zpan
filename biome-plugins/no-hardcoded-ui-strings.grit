@@ -1,16 +1,16 @@
 // UX.md → Language: all visible text and every accessible name comes from the locale files.
-// Flags string literals in accessible-name attributes, toast messages, and JSX text that
+// Flags string literals in accessible-name and label props, toast messages, and JSX text that
 // contains a word. Units (KB, MB, GB, TB) and file names are not words here. Test files are skipped.
 language js;
 
 or {
   JsxAttribute(name = $name, initializer = $value) as $attr where {
     $filename <: not r".*\.test\.tsx?",
-    $name <: or { "aria-label", "aria-description", "aria-roledescription", "aria-valuetext", "title", "alt" },
+    $name <: or { "aria-label", "aria-description", "aria-roledescription", "aria-valuetext", "title", "alt", "label", "description", "badge", "tooltip", "actionLabel" },
     $value <: r"=\s*['\"].*[A-Za-z].*['\"]",
     register_diagnostic(
       span = $attr,
-      message = "Accessible names come from the locale files (UX.md → Language). Use t('…') instead of a string literal."
+      message = "Accessible names and labels come from the locale files (UX.md → Language). Use t('…') instead of a string literal."
     )
   },
   `toast.$method($msg)` as $call where {

@@ -587,6 +587,7 @@
   "admin.overview.topUsers.description": "Personal spaces ranked by current used capacity.",
   "admin.overview.topUsers.empty": "No personal-space usage snapshot is available.",
   "admin.overview.topUsers.badge": "Top 10",
+  "admin.overview.badge30Days": "30D",
   "admin.overview.backends.title": "Storage backends",
   "admin.overview.backends.description": "Current capacity and write status for each backend.",
   "admin.overview.backends.empty": "No storage backends have been configured.",

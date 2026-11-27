@@ -23,7 +23,13 @@ describe('no hard-coded UI strings lint [spec: language/no-hard-coded-strings]',
   it('rejects a string literal in an aria-label', () => {
     const { failed, output } = lint('export const A = () => <button type="button" aria-label="Help" />\n')
     expect(failed).toBe(true)
-    expect(output).toContain('Accessible names come from the locale files')
+    expect(output).toContain('Accessible names and labels come from the locale files')
+  })
+
+  it('rejects a string literal in a label prop such as badge', () => {
+    const { failed, output } = lint('import { Card } from \'./card\'\nexport const A = () => <Card badge="30D" />\n')
+    expect(failed).toBe(true)
+    expect(output).toContain('Accessible names and labels come from the locale files')
   })
 
   it('rejects a string literal in a toast', () => {

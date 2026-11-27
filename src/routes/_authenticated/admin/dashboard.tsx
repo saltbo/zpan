@@ -199,7 +199,7 @@ function UserTrendCard({ overview }: { overview: AdminOverview }) {
       className="xl:col-span-8"
       title={t('admin.overview.users.trendTitle')}
       description={t('admin.overview.users.trendDescription')}
-      badge="30D"
+      badge={t('admin.overview.badge30Days')}
     >
       {hasData ? (
         <div className="h-72 min-w-0" role="img" aria-label={t('admin.overview.users.trendAriaLabel')}>
@@ -290,7 +290,7 @@ function UserActivityCard({ overview }: { overview: AdminOverview }) {
       className="xl:col-span-4"
       title={t('admin.overview.users.activityTitle')}
       description={t('admin.overview.users.activityDescription')}
-      badge="30D"
+      badge={t('admin.overview.badge30Days')}
     >
       {total > 0 ? (
         <div className="grid min-h-72 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_10rem] xl:grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_10rem]">
@@ -351,7 +351,7 @@ function StorageTrendCard({ overview }: { overview: AdminOverview }) {
       className="xl:col-span-8"
       title={t('admin.overview.storage.trendTitle')}
       description={t('admin.overview.storage.trendDescription')}
-      badge="30D"
+      badge={t('admin.overview.badge30Days')}
     >
       {hasData ? (
         <div className="h-72 min-w-0" role="img" aria-label={t('admin.overview.storage.trendAriaLabel')}>
