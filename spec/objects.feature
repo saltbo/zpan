@@ -228,6 +228,13 @@ Feature: Objects
     When an object is renamed to it
     Then the API responds 409 NAME_CONFLICT
 
+  @objects/rename-race @api
+  Scenario: A rename that loses a race for the name conflicts
+    Given two folders in one parent
+    When both are renamed to the same new name at once
+    Then one rename succeeds and the other responds 409 NAME_CONFLICT
+    And the folder whose rename failed keeps its name and its contents
+
   @objects/move-conflict @api
   Scenario: Moving into a collision conflicts
     Given a destination with a colliding name

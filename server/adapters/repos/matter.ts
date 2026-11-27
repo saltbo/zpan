@@ -156,21 +156,22 @@ export function createMatterRepo(db: Database): MatterRepo {
       .where(and(eq(matters.orgId, orgId), eq(matters.parent, folderPath), isNull(matters.purgedAt)))
   }
 
-  async function cascadeParentPath(orgId: string, oldPath: string, newPath: string): Promise<void> {
-    // Direct children: parent = oldPath → parent = newPath
-    await db
-      .update(matters)
-      .set({ parent: newPath, updatedAt: new Date() })
-      .where(and(eq(matters.orgId, orgId), eq(matters.parent, oldPath), isNull(matters.purgedAt)))
-
-    // Deeper descendants: parent starts with 'oldPath/' → replace prefix.
-    await db
-      .update(matters)
-      .set({
-        parent: sql`${newPath} || SUBSTR(${matters.parent}, LENGTH(${oldPath}) + 1)`,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(matters.orgId, orgId), isNull(matters.purgedAt), descendantParentCondition(oldPath)))
+  function cascadeParentPathQueries(orgId: string, oldPath: string, newPath: string, now: Date): AtomicQuery[] {
+    return [
+      // Direct children: parent = oldPath → parent = newPath
+      db
+        .update(matters)
+        .set({ parent: newPath, updatedAt: now })
+        .where(and(eq(matters.orgId, orgId), eq(matters.parent, oldPath), isNull(matters.purgedAt))),
+      // Deeper descendants: parent starts with 'oldPath/' → replace prefix.
+      db
+        .update(matters)
+        .set({
+          parent: sql`${newPath} || SUBSTR(${matters.parent}, LENGTH(${oldPath}) + 1)`,
+          updatedAt: now,
+        })
+        .where(and(eq(matters.orgId, orgId), isNull(matters.purgedAt), descendantParentCondition(oldPath))),
+    ]
   }
 
   /**
@@ -534,19 +535,25 @@ export function createMatterRepo(db: Database): MatterRepo {
             })
           : requestedName
 
-      if (isFolder && (renamed || moved)) {
-        const oldPath = buildPath(existing.parent, existing.name)
-        const newPath = buildPath(newParent, newName)
-        await cascadeParentPath(orgId, oldPath, newPath)
-      }
-
-      await executeWriteTransaction(db, [
-        db
-          .update(matters)
-          .set({ name: newName, parent: newParent, updatedAt: now })
-          .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt))),
-        ...matterChanges(orgId, [id], now, moved ? 'moved' : renamed ? 'renamed' : 'updated'),
-      ])
+      // The row goes first and the descendants follow in the same transaction, so
+      // losing a race for the name fails on the row and rewrites no descendant.
+      await withNameUniqueness(orgId, newParent, newName, id, () =>
+        executeWriteTransaction(db, [
+          db
+            .update(matters)
+            .set({ name: newName, parent: newParent, updatedAt: now })
+            .where(and(eq(matters.id, id), eq(matters.orgId, orgId), isNull(matters.purgedAt))),
+          ...(isFolder && (renamed || moved)
+            ? cascadeParentPathQueries(
+                orgId,
+                buildPath(existing.parent, existing.name),
+                buildPath(newParent, newName),
+                now,
+              )
+            : []),
+          ...matterChanges(orgId, [id], now, moved ? 'moved' : renamed ? 'renamed' : 'updated'),
+        ]),
+      )
 
       const updated = { ...existing, name: newName, parent: newParent, updatedAt: now }
 
@@ -712,7 +719,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         if (isFolder) {
           const oldPath = buildPath(existing.parent, existing.name)
           const newPath = buildPath(existing.parent, finalName)
-          await cascadeParentPath(orgId, oldPath, newPath)
+          await executeWriteTransaction(db, cascadeParentPathQueries(orgId, oldPath, newPath, now))
         }
       }
 

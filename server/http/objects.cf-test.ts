@@ -222,6 +222,40 @@ describe('[CF] Objects upload + trash lifecycle (D1)', () => {
     expect(gone.status).toBe(404)
   })
 
+  it('answers 409 NAME_CONFLICT, never 500, to a rename that loses a race for the name [spec: objects/rename-race]', async () => {
+    const { app, db } = await buildAppWithDb()
+    const { headers, orgId } = await signUp(app, db)
+    const storageId = `st-cf-race-${Date.now()}`
+    await insertStorage(db, storageId)
+    const now = Date.now()
+    const a = `cf-race-a-${now}`
+    const b = `cf-race-b-${now}`
+    await db.run(sql`
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      VALUES
+        (${a}, ${orgId}, ${a}, 'A', 'folder', 0, 1, '', '', ${storageId}, 'active', ${now}, ${now}),
+        (${b}, ${orgId}, ${b}, 'B', 'folder', 0, 1, '', '', ${storageId}, 'active', ${now}, ${now})
+    `)
+    const rename = (id: string) =>
+      app.request(`/api/objects/${id}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Shared' }),
+      })
+
+    const responses = await Promise.all([rename(a), rename(b)])
+
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 409])
+    const loser = responses.find((r) => r.status === 409)!
+    const body = (await loser.json()) as {
+      error: { code: number; status: string; details: Array<{ reason: string; metadata: Record<string, string> }> }
+    }
+    expect(body.error.code).toBe(409)
+    expect(body.error.status).toBe('ALREADY_EXISTS')
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
+    expect(body.error.details[0].metadata.conflictingName).toBe('Shared')
+  })
+
   it('trashes, restores, and purges a folder holding more items than D1 binds per statement [spec: objects/trash-large-folder]', async () => {
     const { app, db } = await buildAppWithDb()
     const { headers, orgId } = await signUp(app, db)
