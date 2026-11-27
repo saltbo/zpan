@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AdminFormDrawer, AdminFormField } from '@/components/admin/admin-form-drawer'
+import { DATA_UNITS, DataAmountInput, type DataUnit } from '@/components/admin/data-amount-input'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { grantOrgEntitlement, grantUserEntitlement, updateOrgEntitlement, updateUserEntitlement } from '@/lib/api'
 
@@ -27,14 +27,6 @@ interface GrantEntitlementDrawerProps {
   onOpenChange: (open: boolean) => void
   target: EntitlementTarget | null
   entitlement?: EditableEntitlement | null
-}
-
-const QUOTA_UNITS = ['MB', 'GB', 'TB'] as const
-type QuotaUnit = (typeof QUOTA_UNITS)[number]
-const UNIT_BYTES: Record<QuotaUnit, number> = {
-  MB: 1024 * 1024,
-  GB: 1024 * 1024 * 1024,
-  TB: 1024 * 1024 * 1024 * 1024,
 }
 
 type GrantPayload = { bytes: number; expiresAt: string | null; note: string | null }
@@ -62,12 +54,12 @@ function targetBinding(target: EntitlementTarget) {
   }
 }
 
-function bytesToAmountUnit(bytes: number): { amount: string; unit: QuotaUnit } {
-  for (const unit of ['TB', 'GB', 'MB'] as QuotaUnit[]) {
-    const factor = UNIT_BYTES[unit]
+function bytesToAmountUnit(bytes: number): { amount: string; unit: DataUnit } {
+  for (const unit of ['TB', 'GB', 'MB'] as DataUnit[]) {
+    const factor = DATA_UNITS[unit]
     if (bytes % factor === 0) return { amount: String(bytes / factor), unit }
   }
-  return { amount: String(bytes / UNIT_BYTES.GB), unit: 'GB' }
+  return { amount: String(bytes / DATA_UNITS.GB), unit: 'GB' }
 }
 
 function isoToDatetimeLocal(iso: string | null): string {
@@ -93,7 +85,7 @@ export function GrantEntitlementDrawer({ open, onOpenChange, target, entitlement
   const queryClient = useQueryClient()
   const isEdit = !!entitlement
   const [amount, setAmount] = useState('')
-  const [unit, setUnit] = useState<QuotaUnit>('GB')
+  const [unit, setUnit] = useState<DataUnit>('GB')
   const [expiresAt, setExpiresAt] = useState('')
   const [note, setNote] = useState('')
 
@@ -119,7 +111,7 @@ export function GrantEntitlementDrawer({ open, onOpenChange, target, entitlement
       const value = Number(amount)
       if (!Number.isFinite(value) || value <= 0) throw new Error(t('admin.entitlement.positiveQuotaRequired'))
       const payload: GrantPayload = {
-        bytes: Math.round(value * UNIT_BYTES[unit]),
+        bytes: Math.round(value * DATA_UNITS[unit]),
         expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
         note: note.trim() || null,
       }
@@ -174,32 +166,20 @@ export function GrantEntitlementDrawer({ open, onOpenChange, target, entitlement
         </>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_96px]">
-        <AdminFormField id="entitlement-amount" label={t('admin.entitlement.amount')}>
-          <Input
-            type="number"
-            min="0.1"
-            step="0.1"
+      <AdminFormField id="entitlement-amount" label={t('admin.entitlement.amount')} required>
+        <div>
+          <DataAmountInput
+            id="entitlement-amount"
+            min={0.1}
+            step={0.1}
             value={amount}
-            onChange={(event) => setAmount(event.target.value)}
+            unit={unit}
             required
+            onValueChange={setAmount}
+            onUnitChange={setUnit}
           />
-        </AdminFormField>
-        <AdminFormField id="entitlement-unit" label={t('admin.entitlement.unit')}>
-          <Select value={unit} onValueChange={(value) => setUnit(value as QuotaUnit)}>
-            <SelectTrigger id="entitlement-unit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {QUOTA_UNITS.map((item) => (
-                <SelectItem key={item} value={item}>
-                  {item}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </AdminFormField>
-      </div>
+        </div>
+      </AdminFormField>
       <AdminFormField id="entitlement-expires" label={t('admin.entitlement.expires')}>
         <Input type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
       </AdminFormField>

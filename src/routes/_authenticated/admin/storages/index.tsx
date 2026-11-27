@@ -27,6 +27,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { AdminFormDrawer, AdminFormField, AdminSwitchField } from '@/components/admin/admin-form-drawer'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
+import { DATA_UNITS, DataAmountInput, type DataUnit } from '@/components/admin/data-amount-input'
 import { DeleteStorageDialog } from '@/components/admin/delete-storage-dialog'
 import { StorageFormDrawer } from '@/components/admin/storage-form-drawer'
 import { ProBadge } from '@/components/ProBadge'
@@ -91,10 +92,8 @@ type StorageTestStepState = 'done' | 'failed' | 'active' | 'pending'
 type StorageFilter = (typeof STORAGE_FILTERS)[number]
 
 const TEST_CONTENT = 'zpan storage connection test\n'
-const DATA_UNITS = { MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 } as const
 const DISPLAY_DATA_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const
 
-type DataUnit = keyof typeof DATA_UNITS
 type BillingForm = {
   capacityValue: string
   capacityUnit: DataUnit
@@ -1154,58 +1153,6 @@ function egressBillingPayload(form: BillingForm) {
     unitBytes: Math.max(1, Math.floor(Number(form.unitValue))) * DATA_UNITS[form.unit],
     creditsPerUnit: Math.max(1, Math.floor(Number(form.credits))),
   }
-}
-
-function DataAmountInput({
-  id,
-  describedBy,
-  value,
-  unit,
-  min,
-  placeholder,
-  disabled,
-  required,
-  onValueChange,
-  onUnitChange,
-}: {
-  id: string
-  describedBy?: string
-  value: string
-  unit: DataUnit
-  min: number
-  placeholder?: string
-  disabled?: boolean
-  required?: boolean
-  onValueChange: (value: string) => void
-  onUnitChange: (unit: DataUnit) => void
-}) {
-  return (
-    <div className="flex h-9 w-48 items-center overflow-hidden rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 has-disabled:pointer-events-none has-disabled:opacity-50 dark:bg-input/30">
-      <Input
-        id={id}
-        aria-describedby={describedBy}
-        type="number"
-        min={min}
-        step={1}
-        value={value}
-        placeholder={placeholder}
-        disabled={disabled}
-        aria-required={required ? true : undefined}
-        onChange={(event) => onValueChange(event.target.value)}
-        className="h-8 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-      />
-      <Select value={unit} disabled={disabled} onValueChange={(nextUnit) => onUnitChange(nextUnit as DataUnit)}>
-        <SelectTrigger className="h-8 w-20 rounded-none border-0 border-l bg-transparent px-2 shadow-none focus-visible:ring-0">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="MB">MB</SelectItem>
-          <SelectItem value="GB">GB</SelectItem>
-          <SelectItem value="TB">TB</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-  )
 }
 
 function bytesToUnit(bytes: number): DataUnit {
