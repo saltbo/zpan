@@ -31,6 +31,8 @@ const ADMIN_USERS_KEYS = [
   'admin.users.noUsers',
   'admin.users.roleAdmin',
   'admin.users.roleMember',
+  'admin.users.tabUsers',
+  'admin.users.tabInvitations',
   'admin.users.inviteUser',
   'admin.users.inviteDialogTitle',
   'admin.users.inviteDialogDescription',
@@ -62,7 +64,6 @@ const INTERPOLATED_KEYS: Record<string, string[]> = {
   'admin.users.selectedUsers': ['{{count}}'],
   'admin.users.selectUser': ['{{name}}'],
   'admin.users.batchStatusUpdated': ['{{count}}'],
-  'admin.users.inviteDialogDescription': ['{{count}}'],
 }
 
 describe('admin.users locale keys — presence', () => {
