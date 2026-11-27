@@ -1,9 +1,9 @@
-// Completing a cache download (docs/design/torrent-cache.md §6, §7): check 2,
+// Completing a cache download (docs/design/torrents.md §6, §7): check 2,
 // then piece verification (check 3) and the requester's instant transfer.
 
 import type { CompleteTaskTorrentInput, TorrentVerifyJobRequest } from '@shared/schemas'
 import { type ActorIdentity, type BackgroundJobMessage, badRequest, conflict, type DownloadTaskRecord } from '../ports'
-import { completeFromCache, fillingTask, fillingTorrent } from './fill'
+import { completeByTransfer, fillingTask, fillingTorrent } from './fill'
 import { processTorrentVerify, type TorrentVerifyDeps } from './verify'
 
 // Check 2: the uploaded files' count, paths, and sizes match the dictionary
@@ -38,7 +38,7 @@ export async function completeTaskTorrent(
   if (params.backgroundJobs) await deps.jobQueue.dispatch(message)
   else await processTorrentVerify(deps, message)
   const current = (await deps.torrents.get(torrent.id)) ?? { ...torrent, status: 'verifying' as const }
-  await completeFromCache(deps, task, current, now, { source: true })
+  await completeByTransfer(deps, task, current, now, { source: true })
 }
 
 async function createVerifyJob(

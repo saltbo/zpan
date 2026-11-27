@@ -157,12 +157,14 @@ export const downloadTaskSchema = z
           downloaderId: opaqueIdSchema,
           assignedAt: z.string().nullable().optional(),
           uploadToken: z.string().optional(),
-          // Present only when the task is assigned in torrent cache mode: the
-          // downloader uploads through the torrent cache API, not the object API.
+          // Present only when the task is assigned as a torrent's fill: the
+          // downloader uploads through the torrent upload API, not the object
+          // API. The name is the downloader protocol's until one upload path
+          // replaces it (docs/design/torrents.md §14).
           torrentCache: z
             .literal(true)
             .optional()
-            .describe('Upload through the torrent cache API (/api/downloads/tasks/{id}/torrent) instead of objects'),
+            .describe('Upload through the torrent upload API (/api/downloads/tasks/{id}/torrent) instead of objects'),
           executor: actorAttributionSchema.optional(),
         })
         .nullable(),

@@ -18,7 +18,7 @@ import { enqueueArchiveJob, processArchiveJob } from './archive-processing'
 import type { Deps } from './deps'
 import { processMediaLibraryScan } from './media-library-scan'
 import type { ActorIdentity, BackgroundJobMessage, ListBackgroundJobsOptions } from './ports'
-import { processTorrentVerify } from './torrent-cache/verify'
+import { processTorrentVerify } from './torrents/verify'
 
 type JobType = BackgroundJobRequest['type']
 type JobProcessor<T extends JobType> = (

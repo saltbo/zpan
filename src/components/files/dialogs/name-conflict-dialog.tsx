@@ -16,8 +16,6 @@ export interface ConflictRequest {
   kind: 'file' | 'folder'
   name: string
   showApplyToAll?: boolean
-  // The existing file comes from the torrent cache; its content can't be replaced.
-  readOnly?: boolean
 }
 
 export interface ConflictChoice {
@@ -35,8 +33,7 @@ interface Props {
 
 /**
  * Finder-style conflict dialog. Folder conflicts cannot be resolved by 'replace'
- * in v1 — only 'rename' (Keep Both) and Cancel are offered. A file from the
- * torrent cache shows 'replace' disabled with the reason. The "Apply to all"
+ * in v1 — only 'rename' (Keep Both) and Cancel are offered. The "Apply to all"
  * checkbox is shown only when the caller passes showApplyToAll.
  */
 export function NameConflictDialog({ request, applyToAll, onApplyToAllChange, onChoose, onCancel }: Props) {
@@ -56,10 +53,6 @@ export function NameConflictDialog({ request, applyToAll, onApplyToAllChange, on
               : t('files.conflictFileMessage', { name: request.name })}
           </DialogDescription>
         </DialogHeader>
-
-        {!isFolder && request.readOnly && (
-          <p className="text-sm text-muted-foreground">{t('files.conflictReadOnlyHint', { name: request.name })}</p>
-        )}
 
         {request.showApplyToAll && (
           <div className="flex items-center gap-2 py-2">
@@ -85,9 +78,8 @@ export function NameConflictDialog({ request, applyToAll, onApplyToAllChange, on
             <Button
               variant="destructive"
               type="button"
-              disabled={request.readOnly}
               onClick={() => onChoose('replace')}
-              title={request.readOnly ? undefined : t('files.conflictReplaceHint')}
+              title={t('files.conflictReplaceHint')}
             >
               {t('files.conflictReplace')}
             </Button>

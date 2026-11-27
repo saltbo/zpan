@@ -12,7 +12,7 @@ import { reconcileImageDomains } from '../server/usecases/site/image-domain-prov
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/site/instance-telemetry'
 import { runLicensingRefresh } from '../server/usecases/site/licensing'
 import { syncPendingCloudTrafficReports } from '../server/usecases/store/traffic-metering'
-import { evictTorrentCache } from '../server/usecases/torrent-cache/eviction'
+import { evictTorrents } from '../server/usecases/torrents/eviction'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../shared/constants'
 
 // Subset of the worker Env used by the scheduled handler.
@@ -46,7 +46,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
       syncPendingCloudTrafficReports(deps, { cloudBaseUrl }),
       syncPendingRemoteDownloadUsageReports(deps, { cloudBaseUrl }),
       backgroundJobsEnabled(platform) ? sweepMediaLibraries(deps, { cloudBaseUrl }) : undefined,
-      evictTorrentCache(deps),
+      evictTorrents(deps),
     ])
     return
   }

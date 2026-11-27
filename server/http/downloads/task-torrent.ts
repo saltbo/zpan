@@ -1,41 +1,31 @@
-// The torrent cache upload API: a downloader that reported the `torrent-cache`
-// capability and was assigned a task in cache mode (assignment.torrentCache)
-// uploads through these routes, authorized by the task's upload token, instead of
-// the object API (docs/design/torrent-cache.md §6).
+// The torrent upload API: a downloader that reported the fill capability and
+// was assigned a task as a torrent's fill (assignment.torrentCache) uploads the
+// torrent's files through these routes, authorized by the task's upload token,
+// instead of the object API. One upload path replaces it
+// (docs/design/torrents.md §14).
 
 import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   completeTaskTorrentSchema,
   completeTorrentFileUploadSchema,
-  createTorrentSidecarUploadSchema,
   downloadTaskSchema,
   opaqueIdSchema,
   registerTaskTorrentSchema,
-  TORRENT_LAYOUT_MAX_BYTES,
-  TORRENT_SIDECAR_MAX_COUNT,
   taskTorrentRegistrationSchema,
   torrentFileUploadSchema,
-  torrentLayoutSchema,
 } from '@shared/schemas'
-import { bodyLimit } from 'hono/body-limit'
-import { jsonError } from '../../middleware/error-handler'
 import type { AuthPrincipal } from '../../middleware/platform'
 import { backgroundJobsEnabled } from '../../platform/interface'
 import { getDownloadTask } from '../../usecases/downloads/downloads'
-import { forbidden, payloadTooLarge } from '../../usecases/ports'
-import { completeTaskTorrent } from '../../usecases/torrent-cache/complete'
+import { forbidden } from '../../usecases/ports'
+import { completeTaskTorrent } from '../../usecases/torrents/complete'
 import {
   abortTorrentFileUpload,
   completeTorrentFileUpload,
   createTorrentFileUpload,
   registerTaskTorrent,
-} from '../../usecases/torrent-cache/fill'
-import {
-  completeTorrentSidecarUpload,
-  createTorrentSidecarUpload,
-  putTaskTorrentLayout,
-} from '../../usecases/torrent-cache/layout-upload'
+} from '../../usecases/torrents/fill'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 import { createRouter } from '../router'
 
@@ -48,28 +38,19 @@ const policy = {
 const taskParams = z.object({ id: opaqueIdSchema })
 const fileParams = z.object({ id: opaqueIdSchema, fileIdx: z.coerce.number().int().min(0) })
 
-const sidecarParams = z.object({
-  id: opaqueIdSchema,
-  n: z.coerce
-    .number()
-    .int()
-    .min(0)
-    .max(TORRENT_SIDECAR_MAX_COUNT - 1),
-})
-
 const errors = {
   400: errorResponse('Metadata or files do not match the torrent'),
   401: errorResponse('Unauthorized'),
   403: errorResponse('Forbidden'),
   404: errorResponse('Not found'),
-  409: errorResponse('Task is not filling the torrent cache'),
+  409: errorResponse('Task is not filling a torrent'),
 }
 
 const registerRoute = authRoute(policy, {
   operationId: 'registerTaskTorrent',
-  summary: "Register a cache download's info dictionary",
+  summary: "Register a torrent download's info dictionary",
   description:
-    "Uploads the torrent's bencoded info dictionary. Its SHA-1 must equal the task's infoHash. The outcome says whether to upload the files into the cache, drop the task, or upload into the drive.",
+    "Uploads the torrent's bencoded info dictionary. Its SHA-1 must equal the task's infoHash. The outcome says whether to upload the torrent's files, drop the task, or upload into the drive.",
   tags: ['Download Tasks'],
   method: 'put',
   path: '/{id}/torrent',
@@ -79,7 +60,7 @@ const registerRoute = authRoute(policy, {
 
 const createFileUploadRoute = authRoute(policy, {
   operationId: 'createTorrentFileUpload',
-  summary: 'Start uploading a torrent file into the cache',
+  summary: 'Start uploading a torrent file',
   tags: ['Download Tasks'],
   method: 'post',
   path: '/{id}/torrent/files/{fileIdx}/uploads',
@@ -111,56 +92,9 @@ const completeFileUploadRoute = authRoute(policy, {
   },
 })
 
-const createSidecarUploadRoute = authRoute(policy, {
-  operationId: 'createTorrentSidecarUpload',
-  summary: 'Start uploading a sidecar into the cache',
-  description:
-    'Presigns a single PUT for a sidecar the scraper wrote (an .nfo or an image), stored as bt/<infoHash>/x/<n> beside the torrent.',
-  tags: ['Download Tasks'],
-  method: 'post',
-  path: '/{id}/torrent/sidecars/{n}/uploads',
-  request: { params: sidecarParams, ...jsonBody(createTorrentSidecarUploadSchema) },
-  responses: { 201: jsonContent(torrentFileUploadSchema, 'Presigned upload'), ...errors },
-})
-
-const completeSidecarUploadRoute = authRoute(policy, {
-  operationId: 'completeTorrentSidecarUpload',
-  summary: 'Complete a sidecar upload',
-  tags: ['Download Tasks'],
-  method: 'post',
-  path: '/{id}/torrent/sidecars/{n}/completions',
-  request: { params: sidecarParams },
-  responses: {
-    200: jsonContent(z.object({ n: z.number().int(), size: z.number().int() }), 'Uploaded sidecar'),
-    ...errors,
-  },
-})
-
-const putLayoutRoute = authRoute(policy, {
-  operationId: 'putTaskTorrentLayout',
-  summary: "Store a scraped cache download's upload layout",
-  description:
-    'Stores the upload plan as bt/<infoHash>/layout.json, which every instant transfer of the torrent replays. Every torrent file it names must be in the torrent and every sidecar uploaded.',
-  tags: ['Download Tasks'],
-  method: 'put',
-  path: '/{id}/torrent/layout',
-  middleware: [
-    bodyLimit({
-      maxSize: TORRENT_LAYOUT_MAX_BYTES,
-      onError: (c) => jsonError(c, payloadTooLarge('Layout is too large')),
-    }),
-  ] as const,
-  request: { params: taskParams, ...jsonBody(torrentLayoutSchema) },
-  responses: {
-    200: jsonContent(z.object({ entries: z.number().int() }), 'Stored layout'),
-    ...errors,
-    413: errorResponse('Layout is larger than 8 MiB'),
-  },
-})
-
 const completeRoute = authRoute(policy, {
   operationId: 'completeTaskTorrent',
-  summary: 'Complete a cache download',
+  summary: 'Complete a torrent download',
   description:
     'Checks the uploaded files against the info dictionary, queues piece verification, and completes the task by instant transfer into its folder.',
   tags: ['Download Tasks'],
@@ -200,23 +134,6 @@ export const taskTorrentRoute = createRouter()
     const { id, fileIdx, uploadId } = c.req.valid('param')
     await abortTorrentFileUpload(c.get('deps'), { ...uploader(c.get('principal'), id), fileIdx, uploadId })
     return c.body(null, 204)
-  })
-  .openapi(createSidecarUploadRoute, async (c) => {
-    const { id, n } = c.req.valid('param')
-    const { size } = c.req.valid('json')
-    return c.json(
-      await createTorrentSidecarUpload(c.get('deps'), { ...uploader(c.get('principal'), id), n, size }),
-      201,
-    )
-  })
-  .openapi(completeSidecarUploadRoute, async (c) => {
-    const { id, n } = c.req.valid('param')
-    return c.json(await completeTorrentSidecarUpload(c.get('deps'), { ...uploader(c.get('principal'), id), n }), 200)
-  })
-  .openapi(putLayoutRoute, async (c) => {
-    const { id } = c.req.valid('param')
-    const layout = c.req.valid('json')
-    return c.json(await putTaskTorrentLayout(c.get('deps'), { ...uploader(c.get('principal'), id), layout }), 200)
   })
   .openapi(completeRoute, async (c) => {
     const { id } = c.req.valid('param')

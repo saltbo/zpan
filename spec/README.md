@@ -50,7 +50,7 @@ who want a web UI over their own buckets.
   of Nextcloud Office.
 - Browse a server's local directories, as File Browser does.
 - Ship native desktop or mobile clients from this repository.
-- Run remote downloads as a cloud execution service, or offer the torrent cache
+- Run remote downloads as a cloud execution service, or offer Torrents
   on Managed or any public multi-tenant instance.
 
 **Editions.** Community is free and open source. Pro and Business are paid

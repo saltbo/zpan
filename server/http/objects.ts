@@ -10,7 +10,6 @@ import {
   cursorPageSchema,
   errorResponseSchema,
   mediaMetadataSchema,
-  objectTorrentSchema,
   objectUploadInstructionsSchema,
   opaqueIdSchema,
   patchMatterSchema,
@@ -56,7 +55,6 @@ import {
   unauthorized,
 } from '../usecases/ports'
 import { describeCapacityRequirement } from '../usecases/store/store'
-import { getObjectTorrent } from '../usecases/torrent-cache/object-torrent'
 import { recordDownloadIssued } from '../usecases/transfer-activity'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 import { decodeOptionalPageToken, directoryCursorCodec, encodeNextPageToken, pageQueryFingerprint } from './page-token'
@@ -411,23 +409,6 @@ const getObjectCreatorRoute = authRoute(
   },
 )
 
-const getObjectTorrentRoute = authRoute(
-  { scopes: [AuthorizationScope.OBJECTS_READ], minTeamRole: 'viewer' },
-  {
-    operationId: 'getObjectTorrent',
-    summary: 'Get the cached torrent a file references',
-    tags: ['Objects'],
-    method: 'get',
-    path: '/{id}/torrent',
-    request: { params: idParam },
-    responses: {
-      200: jsonContent(objectTorrentSchema, 'The cached torrent the file comes from'),
-      400: errorResponse('No active organization'),
-      404: errorResponse('Not found, or not a cached torrent file'),
-    },
-  },
-)
-
 const patchObjectRoute = authRoute(
   { scopes: [AuthorizationScope.OBJECTS_UPDATE], minTeamRole: 'editor' },
   {
@@ -599,11 +580,6 @@ const objects = app
     })
     if (!result.ok) throw result.error
     return c.json(result.creator, 200)
-  })
-  .openapi(getObjectTorrentRoute, async (c) => {
-    const orgId = c.get('orgId')
-    if (!orgId) throw badRequest('No active organization')
-    return c.json(await getObjectTorrent(c.get('deps'), { orgId, objectId: c.req.valid('param').id }), 200)
   })
   .openapi(createObjectRoute, async (c) => {
     const orgId = c.get('orgId')

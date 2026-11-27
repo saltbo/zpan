@@ -1,0 +1,89 @@
+import { z } from '@hono/zod-openapi'
+
+// ─── Torrent upload API (a downloader filling a torrent) ────────────────────
+
+const int64 = () => z.number().int().min(0).openapi({ type: 'integer', format: 'int64' })
+
+// Base64 of the bencoded info dictionary; 8 MiB covers the piece hashes of a
+// torrent of several terabytes.
+export const registerTaskTorrentSchema = z.object({
+  info: z
+    .string()
+    .min(4)
+    .max(8 * 1024 * 1024)
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/, 'Base64 expected')
+    .describe("Base64 of the torrent's bencoded info dictionary. Its SHA-1 must equal the task's infoHash."),
+})
+
+export type RegisterTaskTorrentInput = z.infer<typeof registerTaskTorrentSchema>
+
+export const taskTorrentFileSchema = z.object({
+  fileIdx: z.number().int().min(0).describe('Position of the file in the info dictionary'),
+  path: z.string().describe('Path inside the torrent'),
+  size: int64(),
+})
+
+export const taskTorrentRegistrationSchema = z
+  .object({
+    outcome: z
+      .enum(['fill', 'joined', 'completed', 'drive'])
+      .describe(
+        'fill: upload every file through the torrent upload API. joined: another download of this torrent is in progress; drop the task. completed: the torrent was already on the instance and the task is done. drive: the torrent cannot be filled; upload through the object API as before.',
+      ),
+    infoHash: z.string(),
+    name: z.string(),
+    files: z.array(taskTorrentFileSchema).describe('Files to upload; padding files are left out'),
+  })
+  .openapi('TaskTorrentRegistration')
+
+export type TaskTorrentRegistration = z.infer<typeof taskTorrentRegistrationSchema>
+
+export const torrentFileUploadSchema = z
+  .object({
+    uploadId: z.string().nullable().describe('S3 multipart upload id; null for a single PUT'),
+    partSize: int64(),
+    expiresAt: z.string(),
+    parts: z.array(
+      z.object({
+        partNumber: z.number().int().min(1),
+        url: z.string(),
+        offset: int64(),
+        length: int64(),
+      }),
+    ),
+  })
+  .openapi('TorrentFileUpload')
+
+export type TorrentFileUpload = z.infer<typeof torrentFileUploadSchema>
+
+export const completeTorrentFileUploadSchema = z.object({
+  uploadId: z.string().min(1).nullable().optional(),
+  parts: z
+    .array(z.object({ partNumber: z.number().int().min(1).max(10_000), etag: z.string().min(1) }))
+    .max(10_000)
+    .optional()
+    .describe('Part ETags of a multipart upload'),
+})
+
+export type CompleteTorrentFileUploadInput = z.infer<typeof completeTorrentFileUploadSchema>
+
+export const completeTaskTorrentSchema = z.object({
+  files: z
+    .array(z.object({ path: z.string().min(1).max(4096), size: int64() }))
+    .max(100_000)
+    .describe('The files the downloader uploaded; they must match the info dictionary'),
+})
+
+export type CompleteTaskTorrentInput = z.infer<typeof completeTaskTorrentSchema>
+
+export const torrentVerifyJobRequestSchema = z.object({
+  type: z.literal('torrent_verify'),
+  torrentId: z.string().min(1),
+  // Verify a sample of pieces whatever the storage: set when no queue runs and
+  // the job is processed within the completing request.
+  sample: z.boolean().optional(),
+  // Carried by the messages that continue a full verification: the next piece.
+  resume: z.object({ nextPiece: z.number().int().nonnegative() }).optional(),
+})
+
+export type TorrentVerifyJobRequest = z.infer<typeof torrentVerifyJobRequestSchema>

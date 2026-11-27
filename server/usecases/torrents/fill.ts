@@ -1,19 +1,19 @@
-// Filling the torrent cache from downloads (docs/design/torrent-cache.md §6, §7).
+// Filling Torrents from downloads (docs/design/torrents.md §4, §7).
 //
 // A magnet task knows its infoHash at submit; a torrent_url task learns it when
 // its downloader registers the info dictionary. With the infoHash known, a ready
 // torrent completes the task at once by instant transfer, a downloading or
 // verifying one attaches the task as a 'join', and otherwise a downloader that
-// reports the `torrent-cache` capability downloads it into the cache as a 'fill':
-// it registers the info dictionary (check 1), uploads every file to
-// bt/<infoHash>/<fileIdx> through presigned uploads, and completes the torrent
-// (check 2). When the download was scraped, its sidecars and upload layout go up
-// before completion (layout.ts). Completion moves the torrent to verifying, queues torrent_verify
-// (check 3), and gives the requester its files by instant transfer.
+// reports the fill capability downloads it as the torrent's 'fill': it registers
+// the info dictionary (check 1), uploads every file to its bt/<infoHash>/<id>
+// entry through presigned uploads, and completes the torrent (check 2).
+// Completion moves the torrent to verifying, queues torrent_verify (check 3),
+// and gives the requester its files by instant transfer. Until the downloader
+// uploads through the object API (docs/design/torrents.md §14), a fill records
+// the torrent's own tree only: no sidecars, folders, or media.
 
 import type { CompleteTorrentFileUploadInput, TaskTorrentRegistration, TorrentFileUpload } from '@shared/schemas'
 import { hasFeature } from '../../domain/licensing'
-import { torrentInfoObjectKey } from '../../domain/torrent-cache'
 import {
   parseMagnetInfoHash,
   parseTorrentInfo,
@@ -21,14 +21,15 @@ import {
   toHex,
   torrentFileMime,
 } from '../../domain/torrent-info'
+import { torrentInfoObjectKey } from '../../domain/torrents'
 import type { Deps } from '../deps'
 import { badRequest, conflict, type DownloadTaskRecord, forbidden, notFound, type TorrentRecord } from '../ports'
 import { loadBindingState } from '../site/licensing'
 import { transferTorrent } from './instant-transfer'
-import { clearTorrentExtras } from './layout'
 
-export const TORRENT_CACHE_CAPABILITY = 'torrent-cache'
-export const TORRENT_CACHE_INVALID_MESSAGE = 'The cached download failed verification'
+// Reported by a downloader that fills torrents through the upload API below.
+export const TORRENT_FILL_CAPABILITY = 'torrent-cache'
+export const TORRENT_INVALID_MESSAGE = 'The torrent failed verification'
 
 const TORRENT_SOURCE_TYPES = ['magnet', 'torrent_url']
 const TERMINAL_STATUSES = ['completed', 'failed', 'canceled']
@@ -61,13 +62,13 @@ export function submittedInfoHash(source: { type: string; uri: string }): string
   return source.type === 'magnet' ? parseMagnetInfoHash(source.uri) : null
 }
 
-export async function torrentCacheEnabled(deps: Pick<Deps, 'licenseBinding' | 'licenseCloudBaseUrl'>) {
-  return hasFeature('torrent_cache', await loadBindingState(deps))
+export async function torrentsEnabled(deps: Pick<Deps, 'licenseBinding' | 'licenseCloudBaseUrl'>) {
+  return hasFeature('torrents', await loadBindingState(deps))
 }
 
-// ─── Serving tasks from the cache ────────────────────────────────────────────
+// ─── Serving tasks from torrents on the instance ─────────────────────────────
 
-export type CacheServeOutcome = 'completed' | 'failed' | 'joined' | 'miss'
+export type TorrentServeOutcome = 'completed' | 'failed' | 'joined' | 'miss'
 
 // A downloading torrent whose filling task stopped filling it is abandoned: the
 // next download of the same infoHash takes it over instead of waiting.
@@ -77,7 +78,7 @@ async function fillerActive(deps: TorrentFillDeps, torrent: TorrentRecord): Prom
   return (
     !!source &&
     source.torrentId === torrent.id &&
-    source.torrentCacheRole === 'fill' &&
+    source.torrentRole === 'fill' &&
     !TERMINAL_STATUSES.includes(source.status)
   )
 }
@@ -89,15 +90,15 @@ async function joinTorrent(deps: TorrentFillDeps, task: DownloadTaskRecord, torr
     assignedAt: null,
     infoHash: torrent.infoHash,
     torrentId: torrent.id,
-    torrentCacheRole: 'join',
-    torrentCacheEvent: 'cache_joined',
+    torrentRole: 'join',
+    torrentEvent: 'cache_joined',
     updatedAt: now,
   })
 }
 
-// Completes a task by instant transfer of a cached torrent into its target
+// Completes a task by instant transfer of a torrent into its target
 // folder, or fails it with the transfer's error (such as the quota error).
-export async function completeFromCache(
+export async function completeByTransfer(
   deps: TorrentFillDeps,
   task: DownloadTaskRecord,
   torrent: TorrentRecord,
@@ -129,7 +130,7 @@ export async function completeFromCache(
     status: 'completed',
     infoHash: torrent.infoHash,
     torrentId: torrent.id,
-    ...(options.source ? {} : { torrentCacheEvent: 'cache_hit' as const }),
+    ...(options.source ? {} : { torrentEvent: 'cache_hit' as const }),
     errorCode: null,
     errorMessage: null,
     downloadCompletedAt: task.downloadCompletedAt ?? now,
@@ -142,15 +143,15 @@ export async function completeFromCache(
 
 // At submit and before assignment: completes the task from a ready torrent, or
 // joins it to one in progress. 'miss' leaves the task to be downloaded.
-export async function serveTaskFromCache(
+export async function serveTaskFromTorrents(
   deps: TorrentFillDeps,
   task: DownloadTaskRecord,
   now = new Date(),
-): Promise<CacheServeOutcome> {
+): Promise<TorrentServeOutcome> {
   if (!task.infoHash || !isTorrentSource(task.sourceType)) return 'miss'
   const torrent = await deps.torrents.getByInfoHash(task.infoHash)
   if (!torrent || torrent.sourceTaskId === task.id) return 'miss'
-  if (torrent.status === 'ready') return completeFromCache(deps, task, torrent, now)
+  if (torrent.status === 'ready') return completeByTransfer(deps, task, torrent, now)
   if (torrent.status === 'verifying' || (torrent.status === 'downloading' && (await fillerActive(deps, torrent)))) {
     await joinTorrent(deps, task, torrent, now)
     return 'joined'
@@ -168,7 +169,7 @@ export async function settleJoinedTasks(deps: TorrentFillDeps, now = new Date(),
 async function settleJoinedTask(deps: TorrentFillDeps, task: DownloadTaskRecord, now: Date): Promise<void> {
   const torrent = task.torrentId ? await deps.torrents.get(task.torrentId) : null
   if (torrent?.status === 'ready') {
-    await completeFromCache(deps, task, torrent, now)
+    await completeByTransfer(deps, task, torrent, now)
     return
   }
   if (torrent?.status === 'invalid') {
@@ -176,20 +177,20 @@ async function settleJoinedTask(deps: TorrentFillDeps, task: DownloadTaskRecord,
     return
   }
   if (torrent?.status === 'downloading' && (await fillerActive(deps, torrent))) return
-  await deps.downloadTasks.setFields(task.id, { torrentId: null, torrentCacheRole: null, updatedAt: now })
+  await deps.downloadTasks.setFields(task.id, { torrentId: null, torrentRole: null, updatedAt: now })
 }
 
 async function failInvalid(deps: TorrentFillDeps, task: DownloadTaskRecord, now: Date): Promise<void> {
   await deps.downloadTasks.setFields(task.id, {
     status: 'failed',
-    errorCode: 'TORRENT_CACHE_INVALID',
-    errorMessage: TORRENT_CACHE_INVALID_MESSAGE,
+    errorCode: 'TORRENT_INVALID',
+    errorMessage: TORRENT_INVALID_MESSAGE,
     finishedAt: now,
     updatedAt: now,
   })
 }
 
-// ─── Cache upload API ────────────────────────────────────────────────────────
+// ─── Torrent upload API ──────────────────────────────────────────────────────
 
 export async function fillingTask(
   deps: TorrentFillDeps,
@@ -197,8 +198,8 @@ export async function fillingTask(
 ): Promise<DownloadTaskRecord> {
   const task = await deps.downloadTasks.findRecord(params.taskId)
   if (!task || task.assignedDownloaderId !== params.downloaderId) throw forbidden()
-  if (task.torrentCacheRole !== 'fill' || !FILL_UPLOAD_STATUSES.includes(task.status)) {
-    throw conflict('Task is not filling the torrent cache', 'TORRENT_CACHE_NOT_FILLING')
+  if (task.torrentRole !== 'fill' || !FILL_UPLOAD_STATUSES.includes(task.status)) {
+    throw conflict('Task is not filling a torrent', 'TORRENT_NOT_FILLING')
   }
   return task
 }
@@ -284,7 +285,7 @@ export async function registerTaskTorrent(
     return startFill(deps, task, torrent, bytes, info, now)
   }
   if (torrent.status === 'ready') {
-    await completeFromCache(deps, task, torrent, now)
+    await completeByTransfer(deps, task, torrent, now)
     return registration('completed', infoHash, info)
   }
   if (torrent.status === 'verifying' || (torrent.status === 'downloading' && (await fillerActive(deps, torrent)))) {
@@ -293,16 +294,13 @@ export async function registerTaskTorrent(
   }
   if (torrent.status === 'downloading') {
     // The download that started this torrent stopped; this one takes it over
-    // and lays it out itself. The clear comes first: if it fails, the torrent
-    // still names the stopped download, so the retry takes over and clears again
-    // instead of continuing as this task's own fill over the old layout.
-    await clearTorrentExtras(deps, torrent)
+    // and uploads the same entries again.
     await deps.torrents.setSource(torrent.id, { taskId: task.id, downloaderId: params.downloaderId }, now)
     return startFill(deps, task, torrent, bytes, info, now)
   }
-  // Invalid or being evicted: the cache cannot take it, so the task uploads into
+  // Invalid or being evicted: the torrent cannot be filled, so the task uploads into
   // the drive the way a downloader without the capability does.
-  await deps.downloadTasks.setFields(task.id, { infoHash, torrentId: null, torrentCacheRole: null, updatedAt: now })
+  await deps.downloadTasks.setFields(task.id, { infoHash, torrentId: null, torrentRole: null, updatedAt: now })
   return registration('drive', infoHash, info)
 }
 
@@ -401,7 +399,7 @@ export async function abortTorrentFileUpload(
 // complete by instant transfer.
 export async function completeJoinedTasks(deps: TorrentFillDeps, torrent: TorrentRecord, now = new Date()) {
   const tasks = await deps.downloadTasks.listByTorrent(torrent.id, 'join', ['queued'])
-  for (const task of tasks) await completeFromCache(deps, task, torrent, now)
+  for (const task of tasks) await completeByTransfer(deps, task, torrent, now)
 }
 
 // Verification failed: the torrent never reaches another workspace, and the tasks

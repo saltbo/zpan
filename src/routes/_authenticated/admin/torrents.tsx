@@ -1,4 +1,4 @@
-import type { AdminTorrent, TorrentCacheSettings } from '@shared/schemas'
+import type { AdminTorrent, TorrentSettings } from '@shared/schemas'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { Settings2, Trash2 } from 'lucide-react'
@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { ConfirmActionDialog } from '@/components/admin/confirm-action-dialog'
-import { TorrentCacheSettingsDrawer } from '@/components/admin/torrent-cache-settings-drawer'
+import { TorrentSettingsDrawer } from '@/components/admin/torrent-settings-drawer'
 import { LoadErrorAlert } from '@/components/errors/load-error-alert'
 import { CursorPagination } from '@/components/list/cursor-pagination'
 import { ProBadge } from '@/components/ProBadge'
@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCursorPager } from '@/hooks/use-cursor-pager'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { evictCachedTorrent, getTorrentCacheSettings, listCachedTorrents } from '@/lib/api'
+import { evictCachedTorrent, getTorrentSettings, listCachedTorrents } from '@/lib/api'
 import { formatSize } from '@/lib/format'
 import { numberOptionParam } from '@/lib/list-search'
 
@@ -34,17 +34,17 @@ export const Route = createFileRoute('/_authenticated/admin/torrents')({
   component: AdminTorrentsPage,
 })
 
-const SETTINGS_QUERY_KEY = ['admin', 'torrent-cache-settings']
+const SETTINGS_QUERY_KEY = ['admin', 'torrent-settings']
 
 export function AdminTorrentsPage() {
   const { t } = useTranslation()
   const { hasFeature, isLoading: entitlementLoading } = useEntitlement()
-  const enabled = hasFeature('torrent_cache')
+  const enabled = hasFeature('torrents')
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const settingsQuery = useQuery({
     queryKey: SETTINGS_QUERY_KEY,
-    queryFn: getTorrentCacheSettings,
+    queryFn: getTorrentSettings,
     enabled,
   })
 
@@ -66,7 +66,7 @@ export function AdminTorrentsPage() {
 
       {entitlementLoading ? null : !enabled ? (
         <UpgradeHint
-          feature="torrent_cache"
+          feature="torrents"
           title={t('admin.torrents.upgradeTitle')}
           description={t('admin.torrents.upgradeDescription')}
           actionLabel={t('admin.torrents.upgradeButton')}
@@ -76,11 +76,7 @@ export function AdminTorrentsPage() {
           <CacheSettingsSummary settings={settingsQuery.data} />
           <TorrentTable />
           {settingsQuery.data && (
-            <TorrentCacheSettingsDrawer
-              open={settingsOpen}
-              onOpenChange={setSettingsOpen}
-              settings={settingsQuery.data}
-            />
+            <TorrentSettingsDrawer open={settingsOpen} onOpenChange={setSettingsOpen} settings={settingsQuery.data} />
           )}
         </>
       )}
@@ -88,11 +84,11 @@ export function AdminTorrentsPage() {
   )
 }
 
-function CacheSettingsSummary({ settings }: { settings: TorrentCacheSettings | undefined }) {
+function CacheSettingsSummary({ settings }: { settings: TorrentSettings | undefined }) {
   const { t } = useTranslation()
   if (!settings) return null
   return (
-    <p className="text-sm text-muted-foreground" data-testid="torrent-cache-settings-summary">
+    <p className="text-sm text-muted-foreground" data-testid="torrent-settings-summary">
       {t('admin.torrents.settings.summary', {
         days: settings.retentionDays,
         capacity:

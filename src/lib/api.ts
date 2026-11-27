@@ -28,22 +28,19 @@ import type {
   OAuthConsentSubmit,
   OAuthGrant,
   OAuthGrantList,
-  ObjectTorrent,
   PatchStorageInput,
   PresignObjectUploadPartsInput,
   PublicProfile,
   PublicUser,
   RedeemGiftCardResponse,
   ReplaceStorageInput,
-  ReplaceTorrentCacheConfigInput,
-  ReplaceTorrentCacheSettingsInput,
+  ReplaceTorrentSettingsInput,
   ShareObjectItem,
   ShareObjectsResponse,
   ShareReadmeResponse,
   SiteConfig,
   SiteSettings,
-  TorrentCacheConfig,
-  TorrentCacheSettings,
+  TorrentSettings,
   TvShowMediaMetadata,
   UpdateDownloaderCreditBillingInput,
   UpdateDownloaderInput,
@@ -118,7 +115,7 @@ import {
   adminQuotas,
   adminSiteInvitations,
   adminTeams,
-  adminTorrentCacheSettingsApi,
+  adminTorrentSettingsApi,
   adminTorrentsApi,
   announcementsApi,
   authedSharesApi,
@@ -150,7 +147,6 @@ import {
   storageUsageApi,
   system,
   teamsApi,
-  torrentCacheConfigApi,
   trash,
   userQuotas,
   users,
@@ -295,7 +291,7 @@ function toErrorBody(status: number, raw: unknown): ApiErrorBody {
 const SESSION_REQUEST_TIMEOUT_MS = 10_000
 
 export function isNameConflictError(err: unknown): err is ApiError & {
-  metadata: { conflictingName: string; conflictingId: string; conflictingReadOnly?: 'true' }
+  metadata: { conflictingName: string; conflictingId: string }
 } {
   return err instanceof ApiError && err.status === 409 && err.reason === 'NAME_CONFLICT'
 }
@@ -340,10 +336,6 @@ export function getObject(id: string) {
 
 export function getObjectCreator(id: string) {
   return unwrap<ActorProfile>(objects[':id'].creator.$get({ param: { id } }))
-}
-
-export function getObjectTorrent(id: string) {
-  return unwrap<ObjectTorrent>(objects[':id'].torrent.$get({ param: { id } }))
 }
 
 // POST /api/objects returns a folder, or a file draft with `upload` instructions:
@@ -1204,16 +1196,7 @@ export function updateIhostConfig(data: { customDomain?: string | null; refererA
   return unwrap<IhostConfigResponse>(ihostConfigApi.index.$put({ json: { enabled: true, ...data } }))
 }
 
-// Workspace torrent settings
-export function getTorrentCacheConfig() {
-  return unwrap<TorrentCacheConfig>(torrentCacheConfigApi.index.$get())
-}
-
-export function replaceTorrentCacheConfig(input: ReplaceTorrentCacheConfigInput) {
-  return unwrap<TorrentCacheConfig>(torrentCacheConfigApi.index.$put({ json: input }))
-}
-
-// Admin torrent cache: every cached torrent, eviction, retention and capacity.
+// Admin Torrents: every torrent on the instance, eviction, retention and capacity.
 
 export function listCachedTorrents(opts: CursorPageRequest = {}) {
   return unwrap<CursorPage<AdminTorrent>>(adminTorrentsApi.index.$get({ query: cursorQuery(opts) }))
@@ -1223,12 +1206,12 @@ export function evictCachedTorrent(id: string) {
   return discard(adminTorrentsApi[':id'].$delete({ param: { id } }))
 }
 
-export function getTorrentCacheSettings() {
-  return unwrap<TorrentCacheSettings>(adminTorrentCacheSettingsApi.index.$get())
+export function getTorrentSettings() {
+  return unwrap<TorrentSettings>(adminTorrentSettingsApi.index.$get())
 }
 
-export function replaceTorrentCacheSettings(input: ReplaceTorrentCacheSettingsInput) {
-  return unwrap<TorrentCacheSettings>(adminTorrentCacheSettingsApi.index.$put({ json: input }))
+export function replaceTorrentSettings(input: ReplaceTorrentSettingsInput) {
+  return unwrap<TorrentSettings>(adminTorrentSettingsApi.index.$put({ json: input }))
 }
 
 export function deleteIhostConfig() {

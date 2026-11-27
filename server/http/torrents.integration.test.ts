@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { encodeDavPathSegment } from '../domain/webdav.js'
 import { authedHeaders, createTestApp } from '../test/setup.js'
-import { evictTorrentCache } from '../usecases/torrent-cache/eviction.js'
-import { transferTorrent } from '../usecases/torrent-cache/instant-transfer.js'
+import { evictTorrents } from '../usecases/torrents/eviction.js'
+import { transferTorrent } from '../usecases/torrents/instant-transfer.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>
 
@@ -26,11 +26,11 @@ beforeEach(() => {
         },
       }) as unknown as ReturnType<S3Service['createClient']>,
   )
-  vi.spyOn(S3Service.prototype, 'putObject').mockImplementation(async (_storage, key) => {
+  vi.spyOn(S3Service.prototype, 'putObject').mockImplementation(async (_storage, key, _body, _type, length) => {
     s3Commands.push(`PutObjectCommand ${key}`)
-    return 0
+    return length ?? 0
   })
-  vi.spyOn(S3Service.prototype, 'listTorrentCacheKeys').mockResolvedValue([])
+  vi.spyOn(S3Service.prototype, 'listTorrentKeys').mockResolvedValue([])
 })
 
 function cacheCommands(): string[] {
@@ -62,6 +62,11 @@ async function personalWorkspace(db: TestApp['db']) {
       (${`plan-${workspace.id}`}, ${workspace.id}, 'storage', 'plan', 'test', ${`plan:${workspace.id}`}, 1000000, ${now}, NULL, 'active', '{"packageName":"Test Plan"}', ${now}, ${now})
   `)
   return { orgId: workspace.id, slug: workspace.slug, userId: user.id, email: user.email }
+}
+
+// The object key of each file of a torrent, by file index.
+async function fileKeys(deps: TestApp['deps'], torrentId: string): Promise<string[]> {
+  return (await deps.torrents.listFiles(torrentId)).map((file) => file.objectKey)
 }
 
 async function cachedTorrent(
@@ -101,8 +106,8 @@ function basicHeaders(username: string, password: string, extra?: Record<string,
   return { Authorization: `Basic ${btoa(`${username}:${password}`)}`, ...extra }
 }
 
-describe('torrent cache references', () => {
-  it('purges, copies, renames, and moves transferred files without touching the cached bytes [spec: torrent-cache/cached-files-keep-bytes]', async () => {
+describe('drive files that reference a torrent', () => {
+  it('purges, copies, renames, and moves transferred files without touching the cached bytes [spec: torrents/transferred-files-keep-bytes]', async () => {
     const { app, db, deps, auth } = await createTestApp()
     const headers = { ...(await authedHeaders(app)), 'Content-Type': 'application/json' }
     await seedStorage(db)
@@ -160,7 +165,7 @@ describe('torrent cache references', () => {
     })
     expect(davCopy.status).toBe(201)
 
-    const cachedKey = `bt/${'a1'.repeat(20)}/1`
+    const cachedKey = (await fileKeys(deps, torrent.id))[1]
     expect(await fileRow(db, workspace.orgId, 'renamed.mkv')).toEqual([
       { id: two.id, object: cachedKey, parent: '', status: 'active' },
     ])
@@ -172,108 +177,87 @@ describe('torrent cache references', () => {
     expect(await storageUsed(db)).toBe(300)
   })
 
-  it('rejects a WebDAV overwrite of a transferred file [spec: torrent-cache/cached-files-read-only]', async () => {
+  it('gives an overwritten file an object of its own and leaves the torrent untouched [spec: torrents/overwrite-writes-owned-object]', async () => {
     const { app, db, deps, auth } = await createTestApp()
-    await authedHeaders(app)
+    const headers = { ...(await authedHeaders(app)), 'Content-Type': 'application/json' }
     await seedStorage(db)
     const workspace = await personalWorkspace(db)
-    const torrent = await cachedTorrent(deps, 'b2'.repeat(20), [{ path: 'movie.mkv', size: 50 }])
+    const torrent = await cachedTorrent(deps, 'b2'.repeat(20), [
+      { path: 'movie.mkv', size: 50 },
+      { path: 'extra.mkv', size: 30 },
+    ])
+    const keys = await fileKeys(deps, torrent.id)
     await transferTorrent(deps, {
       torrentId: torrent.id,
       orgId: workspace.orgId,
       userId: workspace.userId,
       targetFolder: '',
     })
+    expect(await storageUsed(db)).toBe(80)
+
+    // WebDAV PUT over a referencing file.
     // biome-ignore lint/suspicious/noExplicitAny: better-auth plugin API is not fully typed
     const { key } = (await (auth.api as any).createApiKey({
       body: { configId: 'webdav', userId: workspace.userId, permissions: { objects: ['read', 'create', 'update'] } },
     })) as { key: string }
-
-    const res = await app.request(`/dav/${workspace.slug}/${encodeDavPathSegment(torrent.name)}/movie.mkv`, {
+    const [before] = await fileRow(db, workspace.orgId, 'movie.mkv')
+    const put = await app.request(`/dav/${workspace.slug}/${encodeDavPathSegment(torrent.name)}/movie.mkv`, {
       method: 'PUT',
       headers: basicHeaders(workspace.email, key, { 'Content-Type': 'video/x-matroska', 'Content-Length': '9' }),
       body: 'new bytes',
     })
+    expect(put.status).toBe(204)
+    const [overwritten] = await fileRow(db, workspace.orgId, 'movie.mkv')
+    expect(overwritten.id).toBe(before.id)
+    expect(overwritten.object).not.toMatch(/^bt\//)
+    expect(overwritten.object.startsWith(`${workspace.orgId}/`)).toBe(true)
+    expect(s3Commands).toContain(`PutObjectCommand ${overwritten.object}`)
 
-    expect(res.status).toBe(409)
-    expect(await fileRow(db, workspace.orgId, 'movie.mkv')).toMatchObject([{ object: `bt/${'b2'.repeat(20)}/0` }])
-    expect(s3Commands.filter((command) => command.startsWith('PutObjectCommand'))).toEqual([])
+    // A web upload that replaces the other referencing file.
+    vi.spyOn(S3Service.prototype, 'presignUpload').mockResolvedValue('https://upload.example.com/part')
+    vi.spyOn(S3Service.prototype, 'headObject').mockResolvedValue({
+      size: 4,
+      contentType: 'video/x-matroska',
+      etag: 'abc',
+    })
+    const [extra] = await fileRow(db, workspace.orgId, 'extra.mkv')
+    const draft = await app.request('/api/objects', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        name: 'extra.mkv',
+        type: 'video/x-matroska',
+        size: 4,
+        parent: extra.parent,
+        dirtype: 0,
+        onConflict: 'replace',
+      }),
+    })
+    expect(draft.status).toBe(201)
+    const created = (await draft.json()) as { id: string; upload: { sessionId: string } }
+    const completed = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
+    })
+    expect(completed.status).toBe(200)
+    const [replaced] = await fileRow(db, workspace.orgId, 'extra.mkv')
+    expect(replaced.id).toBe(created.id)
+    expect(replaced.object).not.toMatch(/^bt\//)
+
+    // The torrent's objects were never written or deleted, and still count once;
+    // the storage now also holds the two owned objects.
+    expect(cacheCommands()).toEqual([])
+    expect(await fileKeys(deps, torrent.id)).toEqual(keys)
+    expect(await deps.torrents.get(torrent.id)).toMatchObject({ status: 'ready' })
+    expect(await storageUsed(db)).toBe(80 + 9 + 4)
+    const [quota] = await db.all<{ used: number }>(sql`SELECT used FROM org_quotas WHERE org_id = ${workspace.orgId}`)
+    expect(quota.used).toBe(9 + 4)
   })
 })
 
-describe('cached file torrent', () => {
-  it('returns the torrent of a transferred file and not found for other files', async () => {
-    const { app, db, deps } = await createTestApp()
-    const headers = { ...(await authedHeaders(app)), 'Content-Type': 'application/json' }
-    await seedStorage(db)
-    const workspace = await personalWorkspace(db)
-    const infoHash = 'c3'.repeat(20)
-    const torrent = await cachedTorrent(deps, infoHash, [{ path: 'movie.mkv', size: 50 }])
-    await transferTorrent(deps, {
-      torrentId: torrent.id,
-      orgId: workspace.orgId,
-      userId: workspace.userId,
-      targetFolder: '',
-    })
-    const [movie] = await fileRow(db, workspace.orgId, 'movie.mkv')
-
-    const res = await app.request(`/api/objects/${movie.id}/torrent`, { headers })
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ infoHash, name: torrent.name, status: 'ready', verified: 'full' })
-
-    const folder = await app.request('/api/objects', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ name: 'Plain', type: 'folder', dirtype: 1 }),
-    })
-    const plain = (await folder.json()) as { id: string }
-    expect((await app.request(`/api/objects/${plain.id}/torrent`, { headers })).status).toBe(404)
-    expect((await app.request('/api/objects/missing/torrent', { headers })).status).toBe(404)
-  })
-
-  it('marks a name conflict with a transferred file as read-only', async () => {
-    const { app, db, deps } = await createTestApp()
-    const headers = { ...(await authedHeaders(app)), 'Content-Type': 'application/json' }
-    await seedStorage(db)
-    const workspace = await personalWorkspace(db)
-    const torrent = await cachedTorrent(deps, 'd4'.repeat(20), [{ path: 'movie.mkv', size: 50 }])
-    await transferTorrent(deps, {
-      torrentId: torrent.id,
-      orgId: workspace.orgId,
-      userId: workspace.userId,
-      targetFolder: '',
-    })
-    const [movie] = await fileRow(db, workspace.orgId, 'movie.mkv')
-
-    const copy = await app.request(`/api/objects/${movie.id}/copies`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ parent: movie.parent, onConflict: 'fail' }),
-    })
-    expect(copy.status).toBe(409)
-    const body = (await copy.json()) as {
-      error: { details: Array<{ reason: string; metadata: Record<string, string> }> }
-    }
-    expect(body.error.details[0]).toMatchObject({
-      reason: 'NAME_CONFLICT',
-      metadata: { conflictingName: 'movie.mkv', conflictingId: movie.id, conflictingReadOnly: 'true' },
-    })
-
-    const folder = { name: 'Plain', type: 'folder', dirtype: 1 }
-    await app.request('/api/objects', { method: 'POST', headers, body: JSON.stringify(folder) })
-    const again = await app.request('/api/objects', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ ...folder, onConflict: 'fail' }),
-    })
-    expect(again.status).toBe(409)
-    const plain = (await again.json()) as { error: { details: Array<{ metadata: Record<string, string> }> } }
-    expect(plain.error.details[0].metadata.conflictingReadOnly).toBeUndefined()
-  })
-})
-
-describe('torrent cache eviction', () => {
-  it('deletes only torrents no drive file holds once their retention has passed [spec: torrent-cache/eviction]', async () => {
+describe('torrent eviction', () => {
+  it('deletes only torrents no drive file holds once their retention has passed [spec: torrents/eviction]', async () => {
     const { app, db, deps } = await createTestApp()
     const headers = await authedHeaders(app)
     await seedStorage(db)
@@ -281,6 +265,7 @@ describe('torrent cache eviction', () => {
     const now = new Date()
     const monthAgo = new Date(now.getTime() - 31 * DAY)
     const unheld = await cachedTorrent(deps, 'c3'.repeat(20), [{ path: 'unheld.mkv', size: 10 }], monthAgo)
+    const [unheldKey] = await fileKeys(deps, unheld.id)
     const trashed = await cachedTorrent(deps, 'd4'.repeat(20), [{ path: 'trashed.mkv', size: 20 }], monthAgo)
     const live = await cachedTorrent(deps, 'e5'.repeat(20), [{ path: 'live.mkv', size: 40 }], monthAgo)
     for (const torrent of [trashed, live]) {
@@ -297,76 +282,16 @@ describe('torrent cache eviction', () => {
     expect((await app.request(`/api/objects/${trashedFile.id}`, { method: 'DELETE', headers })).status).toBe(204)
     expect(await storageUsed(db)).toBe(70)
 
-    expect(await evictTorrentCache(deps, now)).toBe(1)
+    expect(await evictTorrents(deps, now)).toBe(1)
 
     const unheldHash = 'c3'.repeat(20)
     expect(cacheCommands().sort()).toEqual(
-      [
-        `DeleteObjectCommand bt/${unheldHash}/0`,
-        `DeleteObjectCommand bt/${unheldHash}/info`,
-        `DeleteObjectCommand bt/${unheldHash}/layout.json`,
-      ].sort(),
+      [`DeleteObjectCommand ${unheldKey}`, `DeleteObjectCommand bt/${unheldHash}/info`].sort(),
     )
     expect(await deps.torrents.get(unheld.id)).toBeNull()
     expect(await deps.torrents.listFiles(unheld.id)).toEqual([])
     expect(await deps.torrents.get(trashed.id)).toMatchObject({ status: 'ready' })
     expect(await deps.torrents.get(live.id)).toMatchObject({ status: 'ready' })
     expect(await storageUsed(db)).toBe(60)
-  })
-})
-
-describe('workspace torrent folder', () => {
-  async function member(app: TestApp['app'], db: TestApp['db'], orgId: string, email: string, role: string) {
-    const headers = await authedHeaders(app, email)
-    const [{ userId }] = await db.all<{ userId: string }>(sql`SELECT id AS userId FROM user WHERE email = ${email}`)
-    await db.run(sql`
-      INSERT INTO member (id, organization_id, user_id, role) VALUES (${`member-${role}`}, ${orgId}, ${userId}, ${role})
-    `)
-    const active = await app.request('/api/auth/organization/set-active', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ organizationId: orgId }),
-    })
-    expect(active.status).toBe(200)
-    const cookie = active.headers
-      .getSetCookie()
-      .map((value) => value.split(';')[0])
-      .join('; ')
-    return { ...headers, Cookie: cookie || headers.Cookie, 'Content-Type': 'application/json' }
-  }
-
-  it('reads Media by default and lets only admins change it [spec: torrent-cache/workspace-folder]', async () => {
-    const { app, db } = await createTestApp()
-    const now = Date.now()
-    await db.run(sql`
-      INSERT INTO organization (id, name, slug, metadata, created_at, updated_at)
-      VALUES ('team-1', 'Team', 'team', '{}', ${now}, ${now})
-    `)
-    const admin = await member(app, db, 'team-1', 'admin@example.com', 'admin')
-    const editor = await member(app, db, 'team-1', 'editor@example.com', 'editor')
-
-    for (const headers of [admin, editor]) {
-      const res = await app.request('/api/torrent-cache/config', { headers })
-      expect(res.status).toBe(200)
-      expect(await res.json()).toEqual({ folder: 'Media' })
-    }
-
-    const saved = await app.request('/api/torrent-cache/config', {
-      method: 'PUT',
-      headers: admin,
-      body: JSON.stringify({ folder: ' Movies/Incoming/ ' }),
-    })
-    expect(saved.status).toBe(200)
-    expect(await saved.json()).toEqual({ folder: 'Movies/Incoming' })
-
-    const refused = await app.request('/api/torrent-cache/config', {
-      method: 'PUT',
-      headers: editor,
-      body: JSON.stringify({ folder: 'Elsewhere' }),
-    })
-    expect(refused.status).toBe(403)
-
-    const read = await app.request('/api/torrent-cache/config', { headers: editor })
-    expect(await read.json()).toEqual({ folder: 'Movies/Incoming' })
   })
 })

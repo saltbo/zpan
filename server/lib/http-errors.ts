@@ -83,7 +83,6 @@ export function mapDomainError(error: unknown): DomainErrorMapping | null {
   if (error instanceof NameConflictError) {
     const metadata: Record<string, string> = { conflictingName: error.conflictingName }
     if (error.conflictingId) metadata.conflictingId = error.conflictingId
-    if (error.conflictingReadOnly) metadata.conflictingReadOnly = 'true'
     return mapping(409, error.message, { reason: ErrorReason.NAME_CONFLICT, status: 'ALREADY_EXISTS', metadata })
   }
   if (error instanceof ObjectUploadSessionError) {

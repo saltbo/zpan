@@ -1,4 +1,4 @@
-// The StremThru Store API (docs/design/torrent-cache.md §8), served under
+// The StremThru Store API (docs/design/torrents.md §8), served under
 // /stremthru so community addons such as MediaFusion and Comet use ZPan as their
 // Debrid store. Every endpoint exists under both /v0/store/torz (MediaFusion) and
 // /v0/store/magnets (Comet). Responses use StremThru's `{data}` and
@@ -21,7 +21,7 @@ import {
   removeTorz,
   type StoreCaller,
   toStremThruError,
-} from '../usecases/torrent-cache/stremthru'
+} from '../usecases/torrents/stremthru'
 
 type StoreEnv = Env & { Variables: { storeCaller: StoreCaller } }
 type StoreContext = Context<StoreEnv>

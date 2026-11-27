@@ -356,33 +356,22 @@ const APP_SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS torrents_status_accessed_idx ON torrents(status, last_accessed_at);
   CREATE TABLE IF NOT EXISTS torrent_files (
+    id TEXT PRIMARY KEY,
     torrent_id TEXT NOT NULL REFERENCES torrents(id) ON DELETE CASCADE,
-    file_idx INTEGER NOT NULL,
-    path TEXT NOT NULL,
-    size INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    file_idx INTEGER,
+    path TEXT,
+    layout_path TEXT NOT NULL,
+    size INTEGER NOT NULL DEFAULT 0,
     mime TEXT NOT NULL DEFAULT '',
     storage_id TEXT NOT NULL,
-    object_key TEXT NOT NULL,
-    uploaded_at INTEGER,
-    PRIMARY KEY (torrent_id, file_idx)
+    object_key TEXT,
+    media TEXT,
+    uploaded_at INTEGER
   );
+  CREATE UNIQUE INDEX IF NOT EXISTS torrent_files_torrent_idx_uniq ON torrent_files(torrent_id, file_idx);
+  CREATE INDEX IF NOT EXISTS torrent_files_torrent_layout_idx ON torrent_files(torrent_id, layout_path);
   CREATE UNIQUE INDEX IF NOT EXISTS torrent_files_storage_object_uniq ON torrent_files(storage_id, object_key);
-  CREATE TABLE IF NOT EXISTS torrent_extra_objects (
-    torrent_id TEXT NOT NULL REFERENCES torrents(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    size INTEGER NOT NULL,
-    storage_id TEXT NOT NULL,
-    object_key TEXT NOT NULL,
-    uploaded_at INTEGER NOT NULL,
-    PRIMARY KEY (torrent_id, name)
-  );
-  CREATE INDEX IF NOT EXISTS torrent_extra_objects_storage_idx ON torrent_extra_objects(storage_id);
-  CREATE TABLE IF NOT EXISTS torrent_cache_configs (
-    org_id TEXT PRIMARY KEY REFERENCES organization(id) ON DELETE CASCADE,
-    folder TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
   CREATE TABLE IF NOT EXISTS stremthru_links (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -817,7 +806,7 @@ const APP_SCHEMA_SQL = `
     deleted_at INTEGER,
     info_hash TEXT,
     torrent_id TEXT,
-    torrent_cache_role TEXT
+    torrent_role TEXT
   );
   CREATE INDEX IF NOT EXISTS download_tasks_torrent_idx ON download_tasks(torrent_id, status);
   CREATE INDEX IF NOT EXISTS download_tasks_org_created_idx ON download_tasks(org_id, created_at);

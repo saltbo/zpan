@@ -3,8 +3,7 @@ import type { StorageObject } from '@shared/types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getObjectCreator, getObjectTorrent } from '@/lib/api'
-import { NameConflictDialog } from './dialogs/name-conflict-dialog'
+import { getObjectCreator } from '@/lib/api'
 import { FileDetailsSheet } from './file-details-sheet'
 import type { MediaLibraryActions } from './types'
 
@@ -15,10 +14,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('./file-icon', () => ({ FileIcon: () => <span data-testid="file-icon" /> }))
-vi.mock('@/lib/api', () => ({
-  getObjectCreator: vi.fn(),
-  getObjectTorrent: vi.fn(),
-}))
+vi.mock('@/lib/api', () => ({ getObjectCreator: vi.fn() }))
 
 const item: StorageObject = {
   id: 'file-1',
@@ -126,85 +122,5 @@ describe('FileDetailsSheet', () => {
     )
     expect(screen.getByText('mediaLibrary.notScanned')).toBeTruthy()
     expect(screen.getByText('/Movies/library.json')).toBeTruthy()
-  })
-
-  it('marks a transferred file as cached with its torrent and verification, and keeps its content from being replaced [spec: torrent-cache/drive-cached-mark]', async () => {
-    vi.mocked(getObjectCreator).mockResolvedValue({ ...item.createdBy!, name: 'Report Agent', image: null })
-    const infoHash = 'ab'.repeat(20)
-    vi.mocked(getObjectTorrent).mockResolvedValue({
-      infoHash,
-      name: 'Big Buck Bunny',
-      status: 'ready',
-      verified: 'full',
-    })
-    const cached: StorageObject = { ...item, id: 'cached-1', name: 'movie.mkv', object: `bt/${infoHash}/0` }
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <FileDetailsSheet item={cached} onOpenChange={vi.fn()} />
-      </QueryClientProvider>,
-    )
-
-    expect(screen.getByText('files.torrent.mark')).toBeTruthy()
-    expect(await screen.findByText('Big Buck Bunny')).toBeTruthy()
-    expect(screen.getByText(infoHash)).toBeTruthy()
-    expect(screen.getByText('files.torrent.status.ready')).toBeTruthy()
-    expect(screen.getByText('files.torrent.verified.full')).toBeTruthy()
-    expect(screen.getByText('files.torrent.readOnly')).toBeTruthy()
-    expect(getObjectTorrent).toHaveBeenCalledWith('cached-1')
-    cleanup()
-
-    // Uploading or moving a same-named file onto it cannot replace it.
-    render(
-      <NameConflictDialog
-        request={{ kind: 'file', name: 'movie.mkv', readOnly: true }}
-        applyToAll={false}
-        onApplyToAllChange={vi.fn()}
-        onChoose={vi.fn()}
-        onCancel={vi.fn()}
-      />,
-    )
-    expect((screen.getByRole('button', { name: 'files.conflictReplace' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: 'files.conflictKeepBoth' }) as HTMLButtonElement).disabled).toBe(false)
-    expect(screen.getByText('files.conflictReadOnlyHint:{"name":"movie.mkv"}')).toBeTruthy()
-  })
-
-  it('shows an unverified torrent and a torrent that cannot be loaded', async () => {
-    vi.mocked(getObjectCreator).mockResolvedValue({ ...item.createdBy!, name: 'Report Agent', image: null })
-    const renderCached = (id: string) =>
-      render(
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <FileDetailsSheet item={{ ...item, id, object: `bt/${'cd'.repeat(20)}/1` }} onOpenChange={vi.fn()} />
-        </QueryClientProvider>,
-      )
-
-    vi.mocked(getObjectTorrent).mockResolvedValueOnce({
-      infoHash: 'cd'.repeat(20),
-      name: 'Sintel',
-      status: 'verifying',
-      verified: null,
-    })
-    renderCached('cached-2')
-    expect(await screen.findByText('files.torrent.status.verifying')).toBeTruthy()
-    expect(screen.getByText('files.torrent.verified.none')).toBeTruthy()
-    cleanup()
-
-    vi.mocked(getObjectTorrent).mockRejectedValueOnce(new Error('Not found'))
-    renderCached('cached-3')
-    expect(await screen.findByText('files.torrent.loadFailed')).toBeTruthy()
-    expect(screen.getByText('files.torrent.mark')).toBeTruthy()
-  })
-
-  it('shows no torrent mark for an ordinary file', () => {
-    vi.mocked(getObjectCreator).mockResolvedValue({ ...item.createdBy!, name: 'Report Agent', image: null })
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <FileDetailsSheet item={item} onOpenChange={vi.fn()} />
-      </QueryClientProvider>,
-    )
-
-    expect(screen.queryByText('files.torrent.mark')).toBeNull()
-    expect(screen.queryByText('files.torrent.readOnly')).toBeNull()
-    expect(getObjectTorrent).not.toHaveBeenCalled()
   })
 })

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { opaqueIdSchema } from './id'
-import { torrentVerifyJobRequestSchema } from './torrent-cache'
+import { torrentVerifyJobRequestSchema } from './torrents'
 
 export const backgroundJobStatusSchema = z.enum(['queued', 'running', 'completed', 'failed', 'canceled'])
 export type BackgroundJobStatusInput = z.infer<typeof backgroundJobStatusSchema>

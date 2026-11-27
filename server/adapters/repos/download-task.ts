@@ -168,9 +168,9 @@ function appendScrapeSkippedEvent(
   ))`
 }
 
-// The task was served by the torrent cache: completed by instant transfer, or
+// The task was served by a torrent already on the instance: completed by instant transfer, or
 // joined to a download already in progress.
-function appendTorrentCacheEvent(
+function appendTorrentEvent(
   events: SQL,
   input: { type: 'cache_hit' | 'cache_joined'; now: Date; attempt: SQL; category: SQL; billedBytes: SQL },
 ): SQL {
@@ -286,7 +286,7 @@ function toRecord(row: DownloadTaskRow): DownloadTaskRecord {
     deletedAt: row.deletedAt,
     infoHash: row.infoHash,
     torrentId: row.torrentId,
-    torrentCacheRole: row.torrentCacheRole as DownloadTaskRecord['torrentCacheRole'],
+    torrentRole: row.torrentRole as DownloadTaskRecord['torrentRole'],
   }
 }
 
@@ -327,7 +327,7 @@ function toDownloadTask(row: DownloadTaskRow, control?: { action: 'delete'; requ
             downloaderId: row.assignedDownloaderId,
             assignedAt: row.assignedAt?.toISOString() ?? null,
             executor: fallbackActorAttribution({ type: 'device', ref: row.assignedDownloaderId, issuer: null }),
-            ...(row.torrentCacheRole === 'fill' ? { torrentCache: true as const } : {}),
+            ...(row.torrentRole === 'fill' ? { torrentCache: true as const } : {}),
           }
         : null,
       progress: runtime?.progress ?? emptyTaskProgress(),
@@ -357,7 +357,7 @@ function toDownloadTask(row: DownloadTaskRow, control?: { action: 'delete'; requ
 }
 
 // A task waiting for another task's torrent download is not assignable.
-const notJoined = sql`${downloadTasks.torrentCacheRole} IS NOT 'join'`
+const notJoined = sql`${downloadTasks.torrentRole} IS NOT 'join'`
 
 export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
   async function findRow(id: string): Promise<DownloadTaskRow | null> {
@@ -662,9 +662,9 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
           errorMessage: fields.errorMessage,
         })
       }
-      const { scrapeSkippedReason, torrentCacheEvent, ...columns } = fields
-      if (torrentCacheEvent) {
-        events = appendTorrentCacheEvent(events, { type: torrentCacheEvent, now, attempt, category, billedBytes })
+      const { scrapeSkippedReason, torrentEvent, ...columns } = fields
+      if (torrentEvent) {
+        events = appendTorrentEvent(events, { type: torrentEvent, now, attempt, category, billedBytes })
       }
       if (scrapeSkippedReason) {
         events = appendScrapeSkippedEvent(events, {
@@ -699,11 +699,11 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
     async claimQueued(id, downloaderId, now, options = {}) {
       const row = await findRow(id)
       if (!row || row.status !== 'queued' || row.assignedDownloaderId !== null) return false
-      if (row.torrentCacheRole === 'join') return false
+      if (row.torrentRole === 'join') return false
       const update = db
         .update(downloadTasks)
         .set({
-          ...(options.torrentCacheRole === undefined ? {} : { torrentCacheRole: options.torrentCacheRole }),
+          ...(options.torrentRole === undefined ? {} : { torrentRole: options.torrentRole }),
           status: 'assigned',
           assignedDownloaderId: downloaderId,
           assignedAt: now,
@@ -837,7 +837,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         .where(
           and(
             eq(downloadTasks.torrentId, torrentId),
-            eq(downloadTasks.torrentCacheRole, role),
+            eq(downloadTasks.torrentRole, role),
             inArray(downloadTasks.status, statuses),
             isNull(downloadTasks.deletedAt),
           ),
@@ -853,7 +853,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
         .where(
           and(
             eq(downloadTasks.status, 'queued'),
-            eq(downloadTasks.torrentCacheRole, 'join'),
+            eq(downloadTasks.torrentRole, 'join'),
             isNull(downloadTasks.deletedAt),
             // Still pending: verifying, or downloading by a task that is still filling it.
             sql`NOT EXISTS (
@@ -867,7 +867,7 @@ export function createDownloadTaskRepo(db: Database): DownloadTaskRepo {
                       SELECT 1 FROM download_tasks AS filler
                       WHERE filler.id = ${torrents.sourceTaskId}
                         AND filler.torrent_id = ${torrents.id}
-                        AND filler.torrent_cache_role = 'fill'
+                        AND filler.torrent_role = 'fill'
                         AND filler.deleted_at IS NULL
                         AND filler.status NOT IN ('completed', 'failed', 'canceled')
                     )

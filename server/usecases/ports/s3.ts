@@ -60,14 +60,14 @@ export interface S3Gateway {
     contentType: string,
     contentLength?: number,
   ): Promise<number>
-  // Both refuse torrent cache keys (`bt/…`) with TorrentCacheDeletionRefusedError.
+  // Both refuse torrent keys (`bt/…`) with TorrentDeletionRefusedError.
   deleteObject(storage: S3StorageCredentials, key: string): Promise<void>
   deleteObjects(storage: S3StorageCredentials, keys: string[]): Promise<void>
-  // The only deletion of torrent cache keys, called by cache eviction alone.
-  evictTorrentCacheObjects(storage: S3StorageCredentials, keys: string[]): Promise<void>
-  // Every key under a torrent cache prefix (`bt/…`), so eviction also finds
+  // The only deletion of torrent keys, called by torrent eviction alone.
+  evictTorrentObjects(storage: S3StorageCredentials, keys: string[]): Promise<void>
+  // Every key under a torrent prefix (`bt/…`), so eviction also finds
   // objects no row records, such as an upload that arrived late.
-  listTorrentCacheKeys(storage: S3StorageCredentials, prefix: string): Promise<string[]>
+  listTorrentKeys(storage: S3StorageCredentials, prefix: string): Promise<string[]>
 }
 
 export class S3ObjectNotFoundError extends Error {
@@ -77,9 +77,9 @@ export class S3ObjectNotFoundError extends Error {
   }
 }
 
-export class TorrentCacheDeletionRefusedError extends Error {
+export class TorrentDeletionRefusedError extends Error {
   constructor(readonly key: string) {
-    super(`Refusing to delete torrent cache object ${key} outside eviction`)
-    this.name = 'TorrentCacheDeletionRefusedError'
+    super(`Refusing to delete torrent object ${key} outside eviction`)
+    this.name = 'TorrentDeletionRefusedError'
   }
 }

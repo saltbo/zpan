@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../server/adapters/gateways/s3'
 import { createBackgroundJobRepo } from '../server/adapters/repos/background-job'
-import { createTorrentRepo } from '../server/adapters/repos/torrent-cache'
+import { createTorrentRepo } from '../server/adapters/repos/torrents'
 import { createCloudflarePlatform } from '../server/platform/cloudflare'
 import { buildTorrent, fileBytes } from '../server/test/torrent-fixture'
 import type { BackgroundJobMessage } from '../server/usecases/ports'
@@ -37,7 +37,6 @@ describe('[CF] torrent_verify on the Workers queue', () => {
       { path: 'E02.mkv', bytes: fileBytes(40_000, 12) },
     ])
     const objects = new Map<string, Uint8Array>([[`bt/${fixture.infoHash}/info`, fixture.info]])
-    for (const file of fixture.files) objects.set(`bt/${fixture.infoHash}/${file.fileIdx}`, file.bytes)
     vi.spyOn(S3Service.prototype, 'getObjectBytes').mockImplementation(async (_s, key) => {
       const bytes = objects.get(key)
       if (!bytes) throw new Error('NoSuchKey')
@@ -64,6 +63,9 @@ describe('[CF] torrent_verify on the Workers queue', () => {
         mime: '',
       })),
     })
+    for (const file of await torrents.listFiles(torrent.id)) {
+      objects.set(file.objectKey, fixture.files[file.fileIdx].bytes)
+    }
     const request = { type: 'torrent_verify' as const, torrentId: torrent.id }
     const job = await createBackgroundJobRepo(db).create({ orgId, userId, type: request.type, metadata: request })
     const message: BackgroundJobMessage = {

@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { S3Service } from '../adapters/gateways/s3.js'
 import { authedHeaders, createTestApp, seedProLicense } from '../test/setup.js'
-import { transferTorrent } from '../usecases/torrent-cache/instant-transfer.js'
+import { transferTorrent } from '../usecases/torrents/instant-transfer.js'
 
 type TestApp = Awaited<ReturnType<typeof createTestApp>>
 
@@ -15,13 +15,13 @@ const SUBTITLE = new TextEncoder().encode('1\n00:00:01,000 --> 00:00:02,000\nHi\
 // An in-memory bucket: a presigned download URL names the object, and fetching
 // it in the test reads that object's bytes.
 let objects: Map<string, Uint8Array>
+// The object keys of the ready torrent's files, by file index.
+let cachedKeys: string[]
 
 beforeEach(() => {
   vi.restoreAllMocks()
-  objects = new Map([
-    [`bt/${CACHED_HASH}/0`, VIDEO],
-    [`bt/${CACHED_HASH}/1`, SUBTITLE],
-  ])
+  objects = new Map()
+  cachedKeys = []
   let signed = 0
   vi.spyOn(S3Service.prototype, 'presignDownload').mockImplementation(
     async (_storage, key, filename, ttl) =>
@@ -79,7 +79,7 @@ async function createKey(ctx: TestApp, headers: Record<string, string>, orgId: s
 }
 
 async function readyTorrent(deps: TestApp['deps']) {
-  return deps.torrents.create({
+  const torrent = await deps.torrents.create({
     infoHash: CACHED_HASH,
     storageId: STORAGE_ID,
     name: 'Show S01',
@@ -91,6 +91,10 @@ async function readyTorrent(deps: TestApp['deps']) {
       { fileIdx: 1, path: 'Subs/Show.S01E01.srt', size: SUBTITLE.length, mime: 'application/x-subrip' },
     ],
   })
+  cachedKeys = (await deps.torrents.listFiles(torrent.id)).map((file) => file.objectKey)
+  objects.set(cachedKeys[0], VIDEO)
+  objects.set(cachedKeys[1], SUBTITLE)
+  return torrent
 }
 
 async function setup(options: { licensed?: boolean } = {}) {
@@ -141,7 +145,7 @@ async function trafficUsed(db: TestApp['db'], orgId: string): Promise<number> {
 }
 
 describe('StremThru Store API', () => {
-  it('reports a ready torrent as cached with its files and an unknown hash as unknown [spec: torrent-cache/stremthru-check]', async () => {
+  it('reports a ready torrent as cached with its files and an unknown hash as unknown [spec: torrents/stremthru-check]', async () => {
     const { call } = await setup()
 
     const res = await call(`/v0/store/torz/check?hash=${CACHED_HASH},${UNKNOWN_HASH}&sid=tt0903747:1:1`)
@@ -183,7 +187,7 @@ describe('StremThru Store API', () => {
     expect(tooMany.status).toBe(400)
   })
 
-  it('transfers a cached torrent on add and generates a link that downloads the chosen file [spec: torrent-cache/stremthru-add-and-play]', async () => {
+  it('transfers a cached torrent on add and generates a link that downloads the chosen file [spec: torrents/stremthru-add-and-play]', async () => {
     const { call, db, owner } = await setup()
 
     const added = await call('/v0/store/torz', {
@@ -204,11 +208,11 @@ describe('StremThru Store API', () => {
       [1, 'Show.S01E01.srt', 'string'],
     ])
     expect(await activeFiles(db, owner.orgId)).toEqual([
-      expect.objectContaining({ name: 'Show.S01E01.mkv', parent: 'Media/Show S01', object: `bt/${CACHED_HASH}/0` }),
+      expect.objectContaining({ name: 'Show.S01E01.mkv', parent: 'Media/Show S01', object: cachedKeys[0] }),
       expect.objectContaining({
         name: 'Show.S01E01.srt',
         parent: 'Media/Show S01/Subs',
-        object: `bt/${CACHED_HASH}/1`,
+        object: cachedKeys[1],
       }),
     ])
 
@@ -249,7 +253,7 @@ describe('StremThru Store API', () => {
     expect(listed.data.items[0]).toMatchObject({ id: torz.id, hash: UNKNOWN_HASH, status: 'queued' })
   })
 
-  it('returns the issued link again within its lifetime and charges traffic once [spec: torrent-cache/stremthru-link-metered-once]', async () => {
+  it('returns the issued link again within its lifetime and charges traffic once [spec: torrents/stremthru-link-metered-once]', async () => {
     const start = Date.now()
     const hour = 60 * 60 * 1000
     vi.useFakeTimers({ toFake: ['Date'] })
@@ -292,7 +296,7 @@ describe('StremThru Store API', () => {
     expect(await trafficUsed(db, owner.orgId)).toBe(VIDEO.length * 2)
   })
 
-  it('moves the files of a removed torrent to the trash and keeps the cached torrent [spec: torrent-cache/stremthru-remove-trashes]', async () => {
+  it('moves the files of a removed torrent to the trash and keeps the cached torrent [spec: torrents/stremthru-remove-trashes]', async () => {
     const { call, db, deps, owner, torrent } = await setup()
     const torz = (
       await json<{ data: Torz }>(
@@ -309,7 +313,7 @@ describe('StremThru Store API', () => {
     const trashRoots = await deps.matter.listTrashedRoots(owner.orgId)
     expect(trashRoots.map((matter) => matter.name)).toEqual(['Show S01'])
     expect(await deps.torrents.get(torrent.id)).toMatchObject({ status: 'ready' })
-    expect(objects.has(`bt/${CACHED_HASH}/0`)).toBe(true)
+    expect(objects.has(cachedKeys[0])).toBe(true)
     const listed = await json<{ data: { items: Torz[]; total_items: number } }>(await call('/v0/store/torz'))
     expect(listed.data.total_items).toBe(0)
     expect((await call(`/v0/store/torz/${torz.id}`)).status).toBe(404)
@@ -323,7 +327,7 @@ describe('StremThru Store API', () => {
     expect(await json(stale)).toEqual({ error: { code: 'NOT_FOUND', message: 'File not found' } })
   })
 
-  it('answers missing and revoked keys with UNAUTHORIZED and an unlicensed instance with PAYMENT_REQUIRED [spec: torrent-cache/stremthru-auth]', async () => {
+  it('answers missing and revoked keys with UNAUTHORIZED and an unlicensed instance with PAYMENT_REQUIRED [spec: torrents/stremthru-auth]', async () => {
     const licensed = await setup()
     const missing = await licensed.app.request('/stremthru/v0/store/user')
     const revoke = await licensed.app.request('/api/auth/api-key/delete', {
@@ -369,7 +373,6 @@ describe('StremThru Store API', () => {
 
     const objectsRes = await ctx.app.request('/api/objects?parent=', { headers: bearer })
     const tasks = await ctx.app.request('/api/downloads/tasks', { headers: bearer })
-    const folder = await ctx.app.request('/api/torrent-cache/config', { headers: bearer })
     const dav = await ctx.app.request('/dav/', {
       method: 'PROPFIND',
       headers: { Authorization: `Basic ${btoa(`stremthru-owner@example.com:${ctx.key.key}`)}` },
@@ -378,7 +381,6 @@ describe('StremThru Store API', () => {
 
     expect(objectsRes.status).toBe(403)
     expect(tasks.status).toBe(403)
-    expect(folder.status).toBe(403)
     expect(dav.status).toBe(401)
     expect(store.status).toBe(200)
     const lines = log.mock.calls.map((args) => args.join(' '))
@@ -550,7 +552,7 @@ describe('StremThru removal and re-adding', () => {
   })
 })
 
-// Request shapes recorded from the addons (docs/design/torrent-cache.md §8 and the
+// Request shapes recorded from the addons (docs/design/torrents.md §8 and the
 // spike on PR #674): MediaFusion calls /v0/store/torz with the store header pair
 // and checks in batches of 80 with `sid`; Comet calls the older /v0/store/magnets
 // paths with `client_ip`, posts `magnet`, and generates links on the store root.

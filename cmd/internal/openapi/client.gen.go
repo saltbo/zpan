@@ -2059,54 +2059,6 @@ func (e MovieMediaMetadataTmdbType) Valid() bool {
 	}
 }
 
-// Defines values for ObjectTorrentStatus.
-const (
-	ObjectTorrentStatusDownloading ObjectTorrentStatus = "downloading"
-	ObjectTorrentStatusEvicting    ObjectTorrentStatus = "evicting"
-	ObjectTorrentStatusInvalid     ObjectTorrentStatus = "invalid"
-	ObjectTorrentStatusReady       ObjectTorrentStatus = "ready"
-	ObjectTorrentStatusVerifying   ObjectTorrentStatus = "verifying"
-)
-
-// Valid indicates whether the value is a known member of the ObjectTorrentStatus enum.
-func (e ObjectTorrentStatus) Valid() bool {
-	switch e {
-	case ObjectTorrentStatusDownloading:
-		return true
-	case ObjectTorrentStatusEvicting:
-		return true
-	case ObjectTorrentStatusInvalid:
-		return true
-	case ObjectTorrentStatusReady:
-		return true
-	case ObjectTorrentStatusVerifying:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ObjectTorrentVerified.
-const (
-	ObjectTorrentVerifiedFull        ObjectTorrentVerified = "full"
-	ObjectTorrentVerifiedLessThannil ObjectTorrentVerified = "<nil>"
-	ObjectTorrentVerifiedSampled     ObjectTorrentVerified = "sampled"
-)
-
-// Valid indicates whether the value is a known member of the ObjectTorrentVerified enum.
-func (e ObjectTorrentVerified) Valid() bool {
-	switch e {
-	case ObjectTorrentVerifiedFull:
-		return true
-	case ObjectTorrentVerifiedLessThannil:
-		return true
-	case ObjectTorrentVerifiedSampled:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for PublicAuthProviderType.
 const (
 	PublicAuthProviderTypeBuiltin PublicAuthProviderType = "builtin"
@@ -2344,165 +2296,15 @@ func (e TaskTorrentRegistrationOutcome) Valid() bool {
 	}
 }
 
-// Defines values for TorrentLayoutVersion.
-const (
-	TorrentLayoutVersionN1 TorrentLayoutVersion = 1
-)
-
-// Valid indicates whether the value is a known member of the TorrentLayoutVersion enum.
-func (e TorrentLayoutVersion) Valid() bool {
-	switch e {
-	case TorrentLayoutVersionN1:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TorrentLayoutEpisodeMediaKind.
-const (
-	TorrentLayoutEpisodeMediaKindEpisode TorrentLayoutEpisodeMediaKind = "episode"
-)
-
-// Valid indicates whether the value is a known member of the TorrentLayoutEpisodeMediaKind enum.
-func (e TorrentLayoutEpisodeMediaKind) Valid() bool {
-	switch e {
-	case TorrentLayoutEpisodeMediaKindEpisode:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TorrentLayoutEpisodeMediaTmdbType.
-const (
-	TorrentLayoutEpisodeMediaTmdbTypeTv TorrentLayoutEpisodeMediaTmdbType = "tv"
-)
-
-// Valid indicates whether the value is a known member of the TorrentLayoutEpisodeMediaTmdbType enum.
-func (e TorrentLayoutEpisodeMediaTmdbType) Valid() bool {
-	switch e {
-	case TorrentLayoutEpisodeMediaTmdbTypeTv:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TorrentLayoutFolderKind.
-const (
-	Folder TorrentLayoutFolderKind = "folder"
-)
-
-// Valid indicates whether the value is a known member of the TorrentLayoutFolderKind enum.
-func (e TorrentLayoutFolderKind) Valid() bool {
-	switch e {
-	case Folder:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TorrentLayoutFolderMediaKind.
-const (
-	TorrentLayoutFolderMediaKindTvshow TorrentLayoutFolderMediaKind = "tvshow"
-)
-
-// Valid indicates whether the value is a known member of the TorrentLayoutFolderMediaKind enum.
-func (e TorrentLayoutFolderMediaKind) Valid() bool {
-	switch e {
-	case TorrentLayoutFolderMediaKindTvshow:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TorrentLayoutFolderMediaTmdbType.
-const (
-	TorrentLayoutFolderMediaTmdbTypeTv TorrentLayoutFolderMediaTmdbType = "tv"
-)
-
-// Valid indicates whether the value is a known member of the TorrentLayoutFolderMediaTmdbType enum.
-func (e TorrentLayoutFolderMediaTmdbType) Valid() bool {
-	switch e {
-	case TorrentLayoutFolderMediaTmdbTypeTv:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TorrentLayoutMovieMediaKind.
-const (
-	TorrentLayoutMovieMediaKindMovie TorrentLayoutMovieMediaKind = "movie"
-)
-
-// Valid indicates whether the value is a known member of the TorrentLayoutMovieMediaKind enum.
-func (e TorrentLayoutMovieMediaKind) Valid() bool {
-	switch e {
-	case TorrentLayoutMovieMediaKindMovie:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TorrentLayoutMovieMediaTmdbType.
-const (
-	TorrentLayoutMovieMediaTmdbTypeMovie TorrentLayoutMovieMediaTmdbType = "movie"
-)
-
-// Valid indicates whether the value is a known member of the TorrentLayoutMovieMediaTmdbType enum.
-func (e TorrentLayoutMovieMediaTmdbType) Valid() bool {
-	switch e {
-	case TorrentLayoutMovieMediaTmdbTypeMovie:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TorrentLayoutSidecarKind.
-const (
-	Sidecar TorrentLayoutSidecarKind = "sidecar"
-)
-
-// Valid indicates whether the value is a known member of the TorrentLayoutSidecarKind enum.
-func (e TorrentLayoutSidecarKind) Valid() bool {
-	switch e {
-	case Sidecar:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TorrentLayoutTorrentFileKind.
-const (
-	TorrentFile TorrentLayoutTorrentFileKind = "torrent-file"
-)
-
-// Valid indicates whether the value is a known member of the TorrentLayoutTorrentFileKind enum.
-func (e TorrentLayoutTorrentFileKind) Valid() bool {
-	switch e {
-	case TorrentFile:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for TvShowMediaMetadataKind.
 const (
-	TvShowMediaMetadataKindTvshow TvShowMediaMetadataKind = "tvshow"
+	Tvshow TvShowMediaMetadataKind = "tvshow"
 )
 
 // Valid indicates whether the value is a known member of the TvShowMediaMetadataKind enum.
 func (e TvShowMediaMetadataKind) Valid() bool {
 	switch e {
-	case TvShowMediaMetadataKindTvshow:
+	case Tvshow:
 		return true
 	default:
 		return false
@@ -3072,101 +2874,99 @@ func (e PresignImageHostingUploadJSONBodyMime) Valid() bool {
 
 // Defines values for GetOAuthConsentContext200JSONResponseBodyScopes.
 const (
-	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsCreate        GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsDelete        GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsRead          GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsUpdate        GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesAuditEventsRead            GetOAuthConsentContext200JSONResponseBodyScopes = "audit-events:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersDelete        GetOAuthConsentContext200JSONResponseBodyScopes = "auth-providers:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersRead          GetOAuthConsentContext200JSONResponseBodyScopes = "auth-providers:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersUpdate        GetOAuthConsentContext200JSONResponseBodyScopes = "auth-providers:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsCreate       GetOAuthConsentContext200JSONResponseBodyScopes = "background-jobs:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsRead         GetOAuthConsentContext200JSONResponseBodyScopes = "background-jobs:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsUpdate       GetOAuthConsentContext200JSONResponseBodyScopes = "background-jobs:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesBrandingUpdate             GetOAuthConsentContext200JSONResponseBodyScopes = "branding:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksCancel        GetOAuthConsentContext200JSONResponseBodyScopes = "download-tasks:cancel"
-	GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksCreate        GetOAuthConsentContext200JSONResponseBodyScopes = "download-tasks:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksRead          GetOAuthConsentContext200JSONResponseBodyScopes = "download-tasks:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersCreate          GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersDelete          GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersRead            GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersUpdate          GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigRead            GetOAuthConsentContext200JSONResponseBodyScopes = "email-config:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigTest            GetOAuthConsentContext200JSONResponseBodyScopes = "email-config:test"
-	GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigUpdate          GetOAuthConsentContext200JSONResponseBodyScopes = "email-config:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderRead    GetOAuthConsentContext200JSONResponseBodyScopes = "image-domain-provider:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderTest    GetOAuthConsentContext200JSONResponseBodyScopes = "image-domain-provider:test"
-	GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderUpdate  GetOAuthConsentContext200JSONResponseBodyScopes = "image-domain-provider:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigDelete   GetOAuthConsentContext200JSONResponseBodyScopes = "image-hosting-config:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigRead     GetOAuthConsentContext200JSONResponseBodyScopes = "image-hosting-config:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigUpdate   GetOAuthConsentContext200JSONResponseBodyScopes = "image-hosting-config:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesImagesCreate               GetOAuthConsentContext200JSONResponseBodyScopes = "images:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesImagesDelete               GetOAuthConsentContext200JSONResponseBodyScopes = "images:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesImagesRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "images:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesImagesUpdate               GetOAuthConsentContext200JSONResponseBodyScopes = "images:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesImagesUpload               GetOAuthConsentContext200JSONResponseBodyScopes = "images:upload"
-	GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesCreate          GetOAuthConsentContext200JSONResponseBodyScopes = "invite-codes:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesDelete          GetOAuthConsentContext200JSONResponseBodyScopes = "invite-codes:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesRead            GetOAuthConsentContext200JSONResponseBodyScopes = "invite-codes:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesLicensingRead              GetOAuthConsentContext200JSONResponseBodyScopes = "licensing:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesLicensingUpdate            GetOAuthConsentContext200JSONResponseBodyScopes = "licensing:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesCreate       GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesDelete       GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesRead         GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesUpdate       GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesNotificationsRead          GetOAuthConsentContext200JSONResponseBodyScopes = "notifications:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesNotificationsUpdate        GetOAuthConsentContext200JSONResponseBodyScopes = "notifications:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsCreate          GetOAuthConsentContext200JSONResponseBodyScopes = "oauth-grants:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsDelete          GetOAuthConsentContext200JSONResponseBodyScopes = "oauth-grants:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsRead            GetOAuthConsentContext200JSONResponseBodyScopes = "oauth-grants:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesObjectsCreate              GetOAuthConsentContext200JSONResponseBodyScopes = "objects:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesObjectsDelete              GetOAuthConsentContext200JSONResponseBodyScopes = "objects:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesObjectsPurge               GetOAuthConsentContext200JSONResponseBodyScopes = "objects:purge"
-	GetOAuthConsentContext200JSONResponseBodyScopesObjectsRead                GetOAuthConsentContext200JSONResponseBodyScopes = "objects:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesObjectsUpdate              GetOAuthConsentContext200JSONResponseBodyScopes = "objects:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesQuotaPurchase              GetOAuthConsentContext200JSONResponseBodyScopes = "quota:purchase"
-	GetOAuthConsentContext200JSONResponseBodyScopesQuotaRead                  GetOAuthConsentContext200JSONResponseBodyScopes = "quota:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesSharesCreate               GetOAuthConsentContext200JSONResponseBodyScopes = "shares:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesSharesDelete               GetOAuthConsentContext200JSONResponseBodyScopes = "shares:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesSharesRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "shares:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesSiteAnalyticsRead          GetOAuthConsentContext200JSONResponseBodyScopes = "site-analytics:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsCreate      GetOAuthConsentContext200JSONResponseBodyScopes = "site-invitations:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsDelete      GetOAuthConsentContext200JSONResponseBodyScopes = "site-invitations:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsRead        GetOAuthConsentContext200JSONResponseBodyScopes = "site-invitations:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesSiteSettingsRead           GetOAuthConsentContext200JSONResponseBodyScopes = "site-settings:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesSiteSettingsUpdate         GetOAuthConsentContext200JSONResponseBodyScopes = "site-settings:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesStorageUsageRead           GetOAuthConsentContext200JSONResponseBodyScopes = "storage-usage:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesStoragesCreate             GetOAuthConsentContext200JSONResponseBodyScopes = "storages:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesStoragesDelete             GetOAuthConsentContext200JSONResponseBodyScopes = "storages:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesStoragesRead               GetOAuthConsentContext200JSONResponseBodyScopes = "storages:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesStoragesUpdate             GetOAuthConsentContext200JSONResponseBodyScopes = "storages:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesStoreCreate                GetOAuthConsentContext200JSONResponseBodyScopes = "store:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesStoreRead                  GetOAuthConsentContext200JSONResponseBodyScopes = "store:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesStoreUpdate                GetOAuthConsentContext200JSONResponseBodyScopes = "store:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesSystemRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "system:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsCreate     GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsDelete     GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsRead       GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsUpdate     GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesTeamInvitationsCreate      GetOAuthConsentContext200JSONResponseBodyScopes = "team-invitations:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesTeamInvitationsRead        GetOAuthConsentContext200JSONResponseBodyScopes = "team-invitations:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesTeamMembersCreate          GetOAuthConsentContext200JSONResponseBodyScopes = "team-members:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesTeamsCreate                GetOAuthConsentContext200JSONResponseBodyScopes = "teams:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesTeamsRead                  GetOAuthConsentContext200JSONResponseBodyScopes = "teams:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesTeamsUpdate                GetOAuthConsentContext200JSONResponseBodyScopes = "teams:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheConfigRead     GetOAuthConsentContext200JSONResponseBodyScopes = "torrent-cache-config:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheConfigUpdate   GetOAuthConsentContext200JSONResponseBodyScopes = "torrent-cache-config:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheSettingsRead   GetOAuthConsentContext200JSONResponseBodyScopes = "torrent-cache-settings:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheSettingsUpdate GetOAuthConsentContext200JSONResponseBodyScopes = "torrent-cache-settings:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesTorrentsDelete             GetOAuthConsentContext200JSONResponseBodyScopes = "torrents:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesTorrentsRead               GetOAuthConsentContext200JSONResponseBodyScopes = "torrents:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsCreate     GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:create"
-	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsDelete     GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:delete"
-	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsRead       GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsUpdate     GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesUsersRead                  GetOAuthConsentContext200JSONResponseBodyScopes = "users:read"
-	GetOAuthConsentContext200JSONResponseBodyScopesUsersUpdate                GetOAuthConsentContext200JSONResponseBodyScopes = "users:update"
-	GetOAuthConsentContext200JSONResponseBodyScopesWorkspacesDiscover         GetOAuthConsentContext200JSONResponseBodyScopes = "workspaces:discover"
+	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsCreate       GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsDelete       GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsRead         GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesAnnouncementsUpdate       GetOAuthConsentContext200JSONResponseBodyScopes = "announcements:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesAuditEventsRead           GetOAuthConsentContext200JSONResponseBodyScopes = "audit-events:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersDelete       GetOAuthConsentContext200JSONResponseBodyScopes = "auth-providers:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersRead         GetOAuthConsentContext200JSONResponseBodyScopes = "auth-providers:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesAuthProvidersUpdate       GetOAuthConsentContext200JSONResponseBodyScopes = "auth-providers:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsCreate      GetOAuthConsentContext200JSONResponseBodyScopes = "background-jobs:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsRead        GetOAuthConsentContext200JSONResponseBodyScopes = "background-jobs:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesBackgroundJobsUpdate      GetOAuthConsentContext200JSONResponseBodyScopes = "background-jobs:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesBrandingUpdate            GetOAuthConsentContext200JSONResponseBodyScopes = "branding:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksCancel       GetOAuthConsentContext200JSONResponseBodyScopes = "download-tasks:cancel"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksCreate       GetOAuthConsentContext200JSONResponseBodyScopes = "download-tasks:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadTasksRead         GetOAuthConsentContext200JSONResponseBodyScopes = "download-tasks:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersCreate         GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersDelete         GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersRead           GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesDownloadersUpdate         GetOAuthConsentContext200JSONResponseBodyScopes = "downloaders:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigRead           GetOAuthConsentContext200JSONResponseBodyScopes = "email-config:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigTest           GetOAuthConsentContext200JSONResponseBodyScopes = "email-config:test"
+	GetOAuthConsentContext200JSONResponseBodyScopesEmailConfigUpdate         GetOAuthConsentContext200JSONResponseBodyScopes = "email-config:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderRead   GetOAuthConsentContext200JSONResponseBodyScopes = "image-domain-provider:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderTest   GetOAuthConsentContext200JSONResponseBodyScopes = "image-domain-provider:test"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageDomainProviderUpdate GetOAuthConsentContext200JSONResponseBodyScopes = "image-domain-provider:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigDelete  GetOAuthConsentContext200JSONResponseBodyScopes = "image-hosting-config:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigRead    GetOAuthConsentContext200JSONResponseBodyScopes = "image-hosting-config:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesImageHostingConfigUpdate  GetOAuthConsentContext200JSONResponseBodyScopes = "image-hosting-config:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesImagesCreate              GetOAuthConsentContext200JSONResponseBodyScopes = "images:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesImagesDelete              GetOAuthConsentContext200JSONResponseBodyScopes = "images:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesImagesRead                GetOAuthConsentContext200JSONResponseBodyScopes = "images:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesImagesUpdate              GetOAuthConsentContext200JSONResponseBodyScopes = "images:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesImagesUpload              GetOAuthConsentContext200JSONResponseBodyScopes = "images:upload"
+	GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesCreate         GetOAuthConsentContext200JSONResponseBodyScopes = "invite-codes:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesDelete         GetOAuthConsentContext200JSONResponseBodyScopes = "invite-codes:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesInviteCodesRead           GetOAuthConsentContext200JSONResponseBodyScopes = "invite-codes:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesLicensingRead             GetOAuthConsentContext200JSONResponseBodyScopes = "licensing:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesLicensingUpdate           GetOAuthConsentContext200JSONResponseBodyScopes = "licensing:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesCreate      GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesDelete      GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesRead        GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesMediaLibrariesUpdate      GetOAuthConsentContext200JSONResponseBodyScopes = "media-libraries:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesNotificationsRead         GetOAuthConsentContext200JSONResponseBodyScopes = "notifications:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesNotificationsUpdate       GetOAuthConsentContext200JSONResponseBodyScopes = "notifications:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsCreate         GetOAuthConsentContext200JSONResponseBodyScopes = "oauth-grants:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsDelete         GetOAuthConsentContext200JSONResponseBodyScopes = "oauth-grants:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesOauthGrantsRead           GetOAuthConsentContext200JSONResponseBodyScopes = "oauth-grants:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesObjectsCreate             GetOAuthConsentContext200JSONResponseBodyScopes = "objects:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesObjectsDelete             GetOAuthConsentContext200JSONResponseBodyScopes = "objects:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesObjectsPurge              GetOAuthConsentContext200JSONResponseBodyScopes = "objects:purge"
+	GetOAuthConsentContext200JSONResponseBodyScopesObjectsRead               GetOAuthConsentContext200JSONResponseBodyScopes = "objects:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesObjectsUpdate             GetOAuthConsentContext200JSONResponseBodyScopes = "objects:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesQuotaPurchase             GetOAuthConsentContext200JSONResponseBodyScopes = "quota:purchase"
+	GetOAuthConsentContext200JSONResponseBodyScopesQuotaRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "quota:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesSharesCreate              GetOAuthConsentContext200JSONResponseBodyScopes = "shares:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesSharesDelete              GetOAuthConsentContext200JSONResponseBodyScopes = "shares:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesSharesRead                GetOAuthConsentContext200JSONResponseBodyScopes = "shares:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteAnalyticsRead         GetOAuthConsentContext200JSONResponseBodyScopes = "site-analytics:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsCreate     GetOAuthConsentContext200JSONResponseBodyScopes = "site-invitations:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsDelete     GetOAuthConsentContext200JSONResponseBodyScopes = "site-invitations:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteInvitationsRead       GetOAuthConsentContext200JSONResponseBodyScopes = "site-invitations:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteSettingsRead          GetOAuthConsentContext200JSONResponseBodyScopes = "site-settings:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesSiteSettingsUpdate        GetOAuthConsentContext200JSONResponseBodyScopes = "site-settings:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesStorageUsageRead          GetOAuthConsentContext200JSONResponseBodyScopes = "storage-usage:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoragesCreate            GetOAuthConsentContext200JSONResponseBodyScopes = "storages:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoragesDelete            GetOAuthConsentContext200JSONResponseBodyScopes = "storages:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoragesRead              GetOAuthConsentContext200JSONResponseBodyScopes = "storages:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoragesUpdate            GetOAuthConsentContext200JSONResponseBodyScopes = "storages:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoreCreate               GetOAuthConsentContext200JSONResponseBodyScopes = "store:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoreRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "store:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesStoreUpdate               GetOAuthConsentContext200JSONResponseBodyScopes = "store:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesSystemRead                GetOAuthConsentContext200JSONResponseBodyScopes = "system:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsCreate    GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsDelete    GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsRead      GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamEntitlementsUpdate    GetOAuthConsentContext200JSONResponseBodyScopes = "team-entitlements:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamInvitationsCreate     GetOAuthConsentContext200JSONResponseBodyScopes = "team-invitations:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamInvitationsRead       GetOAuthConsentContext200JSONResponseBodyScopes = "team-invitations:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamMembersCreate         GetOAuthConsentContext200JSONResponseBodyScopes = "team-members:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamsCreate               GetOAuthConsentContext200JSONResponseBodyScopes = "teams:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamsRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "teams:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesTeamsUpdate               GetOAuthConsentContext200JSONResponseBodyScopes = "teams:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesTorrentSettingsRead       GetOAuthConsentContext200JSONResponseBodyScopes = "torrent-settings:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesTorrentSettingsUpdate     GetOAuthConsentContext200JSONResponseBodyScopes = "torrent-settings:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesTorrentsDelete            GetOAuthConsentContext200JSONResponseBodyScopes = "torrents:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesTorrentsRead              GetOAuthConsentContext200JSONResponseBodyScopes = "torrents:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsCreate    GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:create"
+	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsDelete    GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:delete"
+	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsRead      GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesUserEntitlementsUpdate    GetOAuthConsentContext200JSONResponseBodyScopes = "user-entitlements:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesUsersRead                 GetOAuthConsentContext200JSONResponseBodyScopes = "users:read"
+	GetOAuthConsentContext200JSONResponseBodyScopesUsersUpdate               GetOAuthConsentContext200JSONResponseBodyScopes = "users:update"
+	GetOAuthConsentContext200JSONResponseBodyScopesWorkspacesDiscover        GetOAuthConsentContext200JSONResponseBodyScopes = "workspaces:discover"
 )
 
 // Valid indicates whether the value is a known member of the GetOAuthConsentContext200JSONResponseBodyScopes enum.
@@ -3336,13 +3136,9 @@ func (e GetOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesTeamsUpdate:
 		return true
-	case GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheConfigRead:
+	case GetOAuthConsentContext200JSONResponseBodyScopesTorrentSettingsRead:
 		return true
-	case GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheConfigUpdate:
-		return true
-	case GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheSettingsRead:
-		return true
-	case GetOAuthConsentContext200JSONResponseBodyScopesTorrentCacheSettingsUpdate:
+	case GetOAuthConsentContext200JSONResponseBodyScopesTorrentSettingsUpdate:
 		return true
 	case GetOAuthConsentContext200JSONResponseBodyScopesTorrentsDelete:
 		return true
@@ -3369,101 +3165,99 @@ func (e GetOAuthConsentContext200JSONResponseBodyScopes) Valid() bool {
 
 // Defines values for ListOAuthGrants200JSONResponseBodyItemsScopes.
 const (
-	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsCreate        ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsDelete        ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsRead          ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsUpdate        ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesAuditEventsRead            ListOAuthGrants200JSONResponseBodyItemsScopes = "audit-events:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersDelete        ListOAuthGrants200JSONResponseBodyItemsScopes = "auth-providers:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersRead          ListOAuthGrants200JSONResponseBodyItemsScopes = "auth-providers:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersUpdate        ListOAuthGrants200JSONResponseBodyItemsScopes = "auth-providers:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsCreate       ListOAuthGrants200JSONResponseBodyItemsScopes = "background-jobs:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "background-jobs:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsUpdate       ListOAuthGrants200JSONResponseBodyItemsScopes = "background-jobs:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesBrandingUpdate             ListOAuthGrants200JSONResponseBodyItemsScopes = "branding:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCancel        ListOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:cancel"
-	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCreate        ListOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksRead          ListOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersCreate          ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersDelete          ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersRead            ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersUpdate          ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigRead            ListOAuthGrants200JSONResponseBodyItemsScopes = "email-config:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigTest            ListOAuthGrants200JSONResponseBodyItemsScopes = "email-config:test"
-	ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigUpdate          ListOAuthGrants200JSONResponseBodyItemsScopes = "email-config:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderRead    ListOAuthGrants200JSONResponseBodyItemsScopes = "image-domain-provider:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderTest    ListOAuthGrants200JSONResponseBodyItemsScopes = "image-domain-provider:test"
-	ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderUpdate  ListOAuthGrants200JSONResponseBodyItemsScopes = "image-domain-provider:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigDelete   ListOAuthGrants200JSONResponseBodyItemsScopes = "image-hosting-config:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigRead     ListOAuthGrants200JSONResponseBodyItemsScopes = "image-hosting-config:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigUpdate   ListOAuthGrants200JSONResponseBodyItemsScopes = "image-hosting-config:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesImagesCreate               ListOAuthGrants200JSONResponseBodyItemsScopes = "images:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesImagesDelete               ListOAuthGrants200JSONResponseBodyItemsScopes = "images:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesImagesRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "images:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesImagesUpdate               ListOAuthGrants200JSONResponseBodyItemsScopes = "images:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesImagesUpload               ListOAuthGrants200JSONResponseBodyItemsScopes = "images:upload"
-	ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesCreate          ListOAuthGrants200JSONResponseBodyItemsScopes = "invite-codes:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesDelete          ListOAuthGrants200JSONResponseBodyItemsScopes = "invite-codes:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesRead            ListOAuthGrants200JSONResponseBodyItemsScopes = "invite-codes:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesLicensingRead              ListOAuthGrants200JSONResponseBodyItemsScopes = "licensing:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesLicensingUpdate            ListOAuthGrants200JSONResponseBodyItemsScopes = "licensing:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesCreate       ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesDelete       ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesUpdate       ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesNotificationsRead          ListOAuthGrants200JSONResponseBodyItemsScopes = "notifications:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesNotificationsUpdate        ListOAuthGrants200JSONResponseBodyItemsScopes = "notifications:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsCreate          ListOAuthGrants200JSONResponseBodyItemsScopes = "oauth-grants:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsDelete          ListOAuthGrants200JSONResponseBodyItemsScopes = "oauth-grants:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsRead            ListOAuthGrants200JSONResponseBodyItemsScopes = "oauth-grants:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsCreate              ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsDelete              ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsPurge               ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:purge"
-	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsRead                ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsUpdate              ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesQuotaPurchase              ListOAuthGrants200JSONResponseBodyItemsScopes = "quota:purchase"
-	ListOAuthGrants200JSONResponseBodyItemsScopesQuotaRead                  ListOAuthGrants200JSONResponseBodyItemsScopes = "quota:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSharesCreate               ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSharesDelete               ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSharesRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSiteAnalyticsRead          ListOAuthGrants200JSONResponseBodyItemsScopes = "site-analytics:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsCreate      ListOAuthGrants200JSONResponseBodyItemsScopes = "site-invitations:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsDelete      ListOAuthGrants200JSONResponseBodyItemsScopes = "site-invitations:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsRead        ListOAuthGrants200JSONResponseBodyItemsScopes = "site-invitations:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSiteSettingsRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "site-settings:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSiteSettingsUpdate         ListOAuthGrants200JSONResponseBodyItemsScopes = "site-settings:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesStorageUsageRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "storage-usage:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesCreate             ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesDelete             ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesRead               ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesUpdate             ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesStoreCreate                ListOAuthGrants200JSONResponseBodyItemsScopes = "store:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesStoreRead                  ListOAuthGrants200JSONResponseBodyItemsScopes = "store:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesStoreUpdate                ListOAuthGrants200JSONResponseBodyItemsScopes = "store:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesSystemRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "system:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsCreate     ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsDelete     ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsRead       ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsUpdate     ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTeamInvitationsCreate      ListOAuthGrants200JSONResponseBodyItemsScopes = "team-invitations:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTeamInvitationsRead        ListOAuthGrants200JSONResponseBodyItemsScopes = "team-invitations:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTeamMembersCreate          ListOAuthGrants200JSONResponseBodyItemsScopes = "team-members:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsCreate                ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsRead                  ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsUpdate                ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheConfigRead     ListOAuthGrants200JSONResponseBodyItemsScopes = "torrent-cache-config:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheConfigUpdate   ListOAuthGrants200JSONResponseBodyItemsScopes = "torrent-cache-config:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheSettingsRead   ListOAuthGrants200JSONResponseBodyItemsScopes = "torrent-cache-settings:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheSettingsUpdate ListOAuthGrants200JSONResponseBodyItemsScopes = "torrent-cache-settings:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentsDelete             ListOAuthGrants200JSONResponseBodyItemsScopes = "torrents:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentsRead               ListOAuthGrants200JSONResponseBodyItemsScopes = "torrents:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsCreate     ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:create"
-	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsDelete     ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:delete"
-	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsRead       ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsUpdate     ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesUsersRead                  ListOAuthGrants200JSONResponseBodyItemsScopes = "users:read"
-	ListOAuthGrants200JSONResponseBodyItemsScopesUsersUpdate                ListOAuthGrants200JSONResponseBodyItemsScopes = "users:update"
-	ListOAuthGrants200JSONResponseBodyItemsScopesWorkspacesDiscover         ListOAuthGrants200JSONResponseBodyItemsScopes = "workspaces:discover"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsCreate       ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsDelete       ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAnnouncementsUpdate       ListOAuthGrants200JSONResponseBodyItemsScopes = "announcements:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAuditEventsRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "audit-events:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersDelete       ListOAuthGrants200JSONResponseBodyItemsScopes = "auth-providers:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "auth-providers:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesAuthProvidersUpdate       ListOAuthGrants200JSONResponseBodyItemsScopes = "auth-providers:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsCreate      ListOAuthGrants200JSONResponseBodyItemsScopes = "background-jobs:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsRead        ListOAuthGrants200JSONResponseBodyItemsScopes = "background-jobs:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesBackgroundJobsUpdate      ListOAuthGrants200JSONResponseBodyItemsScopes = "background-jobs:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesBrandingUpdate            ListOAuthGrants200JSONResponseBodyItemsScopes = "branding:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCancel       ListOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:cancel"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksCreate       ListOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadTasksRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "download-tasks:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersCreate         ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersDelete         ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesDownloadersUpdate         ListOAuthGrants200JSONResponseBodyItemsScopes = "downloaders:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "email-config:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigTest           ListOAuthGrants200JSONResponseBodyItemsScopes = "email-config:test"
+	ListOAuthGrants200JSONResponseBodyItemsScopesEmailConfigUpdate         ListOAuthGrants200JSONResponseBodyItemsScopes = "email-config:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderRead   ListOAuthGrants200JSONResponseBodyItemsScopes = "image-domain-provider:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderTest   ListOAuthGrants200JSONResponseBodyItemsScopes = "image-domain-provider:test"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageDomainProviderUpdate ListOAuthGrants200JSONResponseBodyItemsScopes = "image-domain-provider:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigDelete  ListOAuthGrants200JSONResponseBodyItemsScopes = "image-hosting-config:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigRead    ListOAuthGrants200JSONResponseBodyItemsScopes = "image-hosting-config:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImageHostingConfigUpdate  ListOAuthGrants200JSONResponseBodyItemsScopes = "image-hosting-config:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImagesCreate              ListOAuthGrants200JSONResponseBodyItemsScopes = "images:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImagesDelete              ListOAuthGrants200JSONResponseBodyItemsScopes = "images:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImagesRead                ListOAuthGrants200JSONResponseBodyItemsScopes = "images:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImagesUpdate              ListOAuthGrants200JSONResponseBodyItemsScopes = "images:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesImagesUpload              ListOAuthGrants200JSONResponseBodyItemsScopes = "images:upload"
+	ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesCreate         ListOAuthGrants200JSONResponseBodyItemsScopes = "invite-codes:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesDelete         ListOAuthGrants200JSONResponseBodyItemsScopes = "invite-codes:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesInviteCodesRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "invite-codes:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesLicensingRead             ListOAuthGrants200JSONResponseBodyItemsScopes = "licensing:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesLicensingUpdate           ListOAuthGrants200JSONResponseBodyItemsScopes = "licensing:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesCreate      ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesDelete      ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesRead        ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesMediaLibrariesUpdate      ListOAuthGrants200JSONResponseBodyItemsScopes = "media-libraries:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesNotificationsRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "notifications:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesNotificationsUpdate       ListOAuthGrants200JSONResponseBodyItemsScopes = "notifications:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsCreate         ListOAuthGrants200JSONResponseBodyItemsScopes = "oauth-grants:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsDelete         ListOAuthGrants200JSONResponseBodyItemsScopes = "oauth-grants:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesOauthGrantsRead           ListOAuthGrants200JSONResponseBodyItemsScopes = "oauth-grants:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsCreate             ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsDelete             ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsPurge              ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:purge"
+	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsRead               ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesObjectsUpdate             ListOAuthGrants200JSONResponseBodyItemsScopes = "objects:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesQuotaPurchase             ListOAuthGrants200JSONResponseBodyItemsScopes = "quota:purchase"
+	ListOAuthGrants200JSONResponseBodyItemsScopesQuotaRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "quota:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSharesCreate              ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSharesDelete              ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSharesRead                ListOAuthGrants200JSONResponseBodyItemsScopes = "shares:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteAnalyticsRead         ListOAuthGrants200JSONResponseBodyItemsScopes = "site-analytics:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsCreate     ListOAuthGrants200JSONResponseBodyItemsScopes = "site-invitations:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsDelete     ListOAuthGrants200JSONResponseBodyItemsScopes = "site-invitations:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteInvitationsRead       ListOAuthGrants200JSONResponseBodyItemsScopes = "site-invitations:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteSettingsRead          ListOAuthGrants200JSONResponseBodyItemsScopes = "site-settings:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSiteSettingsUpdate        ListOAuthGrants200JSONResponseBodyItemsScopes = "site-settings:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStorageUsageRead          ListOAuthGrants200JSONResponseBodyItemsScopes = "storage-usage:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesCreate            ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesDelete            ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesRead              ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoragesUpdate            ListOAuthGrants200JSONResponseBodyItemsScopes = "storages:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoreCreate               ListOAuthGrants200JSONResponseBodyItemsScopes = "store:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoreRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "store:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesStoreUpdate               ListOAuthGrants200JSONResponseBodyItemsScopes = "store:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesSystemRead                ListOAuthGrants200JSONResponseBodyItemsScopes = "system:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsCreate    ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsDelete    ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsRead      ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamEntitlementsUpdate    ListOAuthGrants200JSONResponseBodyItemsScopes = "team-entitlements:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamInvitationsCreate     ListOAuthGrants200JSONResponseBodyItemsScopes = "team-invitations:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamInvitationsRead       ListOAuthGrants200JSONResponseBodyItemsScopes = "team-invitations:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamMembersCreate         ListOAuthGrants200JSONResponseBodyItemsScopes = "team-members:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsCreate               ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTeamsUpdate               ListOAuthGrants200JSONResponseBodyItemsScopes = "teams:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentSettingsRead       ListOAuthGrants200JSONResponseBodyItemsScopes = "torrent-settings:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentSettingsUpdate     ListOAuthGrants200JSONResponseBodyItemsScopes = "torrent-settings:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentsDelete            ListOAuthGrants200JSONResponseBodyItemsScopes = "torrents:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesTorrentsRead              ListOAuthGrants200JSONResponseBodyItemsScopes = "torrents:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsCreate    ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:create"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsDelete    ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:delete"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsRead      ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUserEntitlementsUpdate    ListOAuthGrants200JSONResponseBodyItemsScopes = "user-entitlements:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUsersRead                 ListOAuthGrants200JSONResponseBodyItemsScopes = "users:read"
+	ListOAuthGrants200JSONResponseBodyItemsScopesUsersUpdate               ListOAuthGrants200JSONResponseBodyItemsScopes = "users:update"
+	ListOAuthGrants200JSONResponseBodyItemsScopesWorkspacesDiscover        ListOAuthGrants200JSONResponseBodyItemsScopes = "workspaces:discover"
 )
 
 // Valid indicates whether the value is a known member of the ListOAuthGrants200JSONResponseBodyItemsScopes enum.
@@ -3633,13 +3427,9 @@ func (e ListOAuthGrants200JSONResponseBodyItemsScopes) Valid() bool {
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesTeamsUpdate:
 		return true
-	case ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheConfigRead:
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTorrentSettingsRead:
 		return true
-	case ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheConfigUpdate:
-		return true
-	case ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheSettingsRead:
-		return true
-	case ListOAuthGrants200JSONResponseBodyItemsScopesTorrentCacheSettingsUpdate:
+	case ListOAuthGrants200JSONResponseBodyItemsScopesTorrentSettingsUpdate:
 		return true
 	case ListOAuthGrants200JSONResponseBodyItemsScopesTorrentsDelete:
 		return true
@@ -4365,31 +4155,31 @@ func (e PatchStorageJSONBodyStatus) Valid() bool {
 
 // Defines values for PatchStorageJSONBodyStatusReason.
 const (
-	PatchStorageJSONBodyStatusReasonAuthenticationFailed PatchStorageJSONBodyStatusReason = "authentication_failed"
-	PatchStorageJSONBodyStatusReasonBucketNotFound       PatchStorageJSONBodyStatusReason = "bucket_not_found"
-	PatchStorageJSONBodyStatusReasonCors                 PatchStorageJSONBodyStatusReason = "cors"
-	PatchStorageJSONBodyStatusReasonLessThannil          PatchStorageJSONBodyStatusReason = "<nil>"
-	PatchStorageJSONBodyStatusReasonNetworkError         PatchStorageJSONBodyStatusReason = "network_error"
-	PatchStorageJSONBodyStatusReasonPermissionDenied     PatchStorageJSONBodyStatusReason = "permission_denied"
-	PatchStorageJSONBodyStatusReasonUnknown              PatchStorageJSONBodyStatusReason = "unknown"
+	AuthenticationFailed PatchStorageJSONBodyStatusReason = "authentication_failed"
+	BucketNotFound       PatchStorageJSONBodyStatusReason = "bucket_not_found"
+	Cors                 PatchStorageJSONBodyStatusReason = "cors"
+	LessThannil          PatchStorageJSONBodyStatusReason = "<nil>"
+	NetworkError         PatchStorageJSONBodyStatusReason = "network_error"
+	PermissionDenied     PatchStorageJSONBodyStatusReason = "permission_denied"
+	Unknown              PatchStorageJSONBodyStatusReason = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the PatchStorageJSONBodyStatusReason enum.
 func (e PatchStorageJSONBodyStatusReason) Valid() bool {
 	switch e {
-	case PatchStorageJSONBodyStatusReasonAuthenticationFailed:
+	case AuthenticationFailed:
 		return true
-	case PatchStorageJSONBodyStatusReasonBucketNotFound:
+	case BucketNotFound:
 		return true
-	case PatchStorageJSONBodyStatusReasonCors:
+	case Cors:
 		return true
-	case PatchStorageJSONBodyStatusReasonLessThannil:
+	case LessThannil:
 		return true
-	case PatchStorageJSONBodyStatusReasonNetworkError:
+	case NetworkError:
 		return true
-	case PatchStorageJSONBodyStatusReasonPermissionDenied:
+	case PermissionDenied:
 		return true
-	case PatchStorageJSONBodyStatusReasonUnknown:
+	case Unknown:
 		return true
 	default:
 		return false
@@ -4551,13 +4341,13 @@ func (e CreateTeamInviteLinkJSONBodyRole) Valid() bool {
 
 // Defines values for JoinTeam200JSONResponseBodyOk.
 const (
-	True JoinTeam200JSONResponseBodyOk = true
+	JoinTeam200JSONResponseBodyOkTrue JoinTeam200JSONResponseBodyOk = true
 )
 
 // Valid indicates whether the value is a known member of the JoinTeam200JSONResponseBodyOk enum.
 func (e JoinTeam200JSONResponseBodyOk) Valid() bool {
 	switch e {
-	case True:
+	case JoinTeam200JSONResponseBodyOkTrue:
 		return true
 	default:
 		return false
@@ -5821,7 +5611,7 @@ type DownloadTask struct {
 			DownloaderId string            `json:"downloaderId"`
 			Executor     *ActorAttribution `json:"executor,omitempty"`
 
-			// TorrentCache Upload through the torrent cache API (/api/downloads/tasks/{id}/torrent) instead of objects
+			// TorrentCache Upload through the torrent upload API (/api/downloads/tasks/{id}/torrent) instead of objects
 			TorrentCache *DownloadTaskStatusAssignmentTorrentCache `json:"torrentCache,omitempty"`
 			UploadToken  *string                                   `json:"uploadToken,omitempty"`
 		} `json:"assignment"`
@@ -5931,7 +5721,7 @@ type DownloadTaskControlAction string
 // DownloadTaskSpecSourceType defines model for DownloadTask.Spec.Source.Type.
 type DownloadTaskSpecSourceType string
 
-// DownloadTaskStatusAssignmentTorrentCache Upload through the torrent cache API (/api/downloads/tasks/{id}/torrent) instead of objects
+// DownloadTaskStatusAssignmentTorrentCache Upload through the torrent upload API (/api/downloads/tasks/{id}/torrent) instead of objects
 type DownloadTaskStatusAssignmentTorrentCache bool
 
 // DownloadTaskStatusBillingState defines model for DownloadTask.Status.Billing.State.
@@ -6610,23 +6400,6 @@ type ObjectPage struct {
 	NextPageToken *string          `json:"nextPageToken"`
 }
 
-// ObjectTorrent defines model for ObjectTorrent.
-type ObjectTorrent struct {
-	// InfoHash Lowercase hex v1 infoHash
-	InfoHash string              `json:"infoHash"`
-	Name     string              `json:"name"`
-	Status   ObjectTorrentStatus `json:"status"`
-
-	// Verified How verification passed; null until it has
-	Verified *ObjectTorrentVerified `json:"verified"`
-}
-
-// ObjectTorrentStatus defines model for ObjectTorrent.Status.
-type ObjectTorrentStatus string
-
-// ObjectTorrentVerified How verification passed; null until it has
-type ObjectTorrentVerified string
-
 // PendingInvitation defines model for PendingInvitation.
 type PendingInvitation struct {
 	CreatedAt string  `json:"createdAt"`
@@ -7101,11 +6874,11 @@ type TaskTorrentRegistration struct {
 	InfoHash string `json:"infoHash"`
 	Name     string `json:"name"`
 
-	// Outcome fill: upload every file through the cache API. joined: another download of this torrent is in progress; drop the task. completed: the torrent was already cached and the task is done. drive: the cache cannot take this torrent; upload through the object API as before.
+	// Outcome fill: upload every file through the torrent upload API. joined: another download of this torrent is in progress; drop the task. completed: the torrent was already on the instance and the task is done. drive: the torrent cannot be filled; upload through the object API as before.
 	Outcome TaskTorrentRegistrationOutcome `json:"outcome"`
 }
 
-// TaskTorrentRegistrationOutcome fill: upload every file through the cache API. joined: another download of this torrent is in progress; drop the task. completed: the torrent was already cached and the task is done. drive: the cache cannot take this torrent; upload through the object API as before.
+// TaskTorrentRegistrationOutcome fill: upload every file through the torrent upload API. joined: another download of this torrent is in progress; drop the task. completed: the torrent was already on the instance and the task is done. drive: the torrent cannot be filled; upload through the object API as before.
 type TaskTorrentRegistrationOutcome string
 
 // TeamInvitationList defines model for TeamInvitationList.
@@ -7149,21 +6922,6 @@ type TeamSummary struct {
 	Slug        string  `json:"slug"`
 }
 
-// TorrentCacheConfig defines model for TorrentCacheConfig.
-type TorrentCacheConfig struct {
-	// Folder Workspace folder that cached torrents are transferred into, slash-delimited. Empty is the root.
-	Folder string `json:"folder"`
-}
-
-// TorrentCacheSettings defines model for TorrentCacheSettings.
-type TorrentCacheSettings struct {
-	// CapacityBytes Total cache size above which unheld torrents are evicted oldest first; null for no limit
-	CapacityBytes int64 `json:"capacityBytes"`
-
-	// RetentionDays Days an unheld torrent stays cached after its last access. Defaults to 30.
-	RetentionDays int `json:"retentionDays"`
-}
-
 // TorrentFileUpload defines model for TorrentFileUpload.
 type TorrentFileUpload struct {
 	ExpiresAt string `json:"expiresAt"`
@@ -7179,143 +6937,13 @@ type TorrentFileUpload struct {
 	UploadId *string `json:"uploadId"`
 }
 
-// TorrentLayout defines model for TorrentLayout.
-type TorrentLayout struct {
-	Entries []TorrentLayout_Entries_Item `json:"entries"`
-	Version TorrentLayoutVersion         `json:"version"`
-}
+// TorrentSettings defines model for TorrentSettings.
+type TorrentSettings struct {
+	// CapacityBytes Total cache size above which unheld torrents are evicted oldest first; null for no limit
+	CapacityBytes int64 `json:"capacityBytes"`
 
-// TorrentLayout_Entries_Item defines model for TorrentLayout.entries.Item.
-type TorrentLayout_Entries_Item struct {
-	union json.RawMessage
-}
-
-// TorrentLayoutVersion defines model for TorrentLayout.Version.
-type TorrentLayoutVersion float32
-
-// TorrentLayoutEpisodeMedia defines model for TorrentLayoutEpisodeMedia.
-type TorrentLayoutEpisodeMedia struct {
-	Aired    *string                       `json:"aired,omitempty"`
-	Episode  int                           `json:"episode"`
-	Kind     TorrentLayoutEpisodeMediaKind `json:"kind"`
-	Overview *string                       `json:"overview,omitempty"`
-	Season   int                           `json:"season"`
-
-	// Still Layout path of the sidecar image
-	Still *string `json:"still,omitempty"`
-	Title *string `json:"title,omitempty"`
-
-	// Tmdb The series.
-	Tmdb struct {
-		Id   int                               `json:"id"`
-		Type TorrentLayoutEpisodeMediaTmdbType `json:"type"`
-	} `json:"tmdb"`
-}
-
-// TorrentLayoutEpisodeMediaKind defines model for TorrentLayoutEpisodeMedia.Kind.
-type TorrentLayoutEpisodeMediaKind string
-
-// TorrentLayoutEpisodeMediaTmdbType defines model for TorrentLayoutEpisodeMedia.Tmdb.Type.
-type TorrentLayoutEpisodeMediaTmdbType string
-
-// TorrentLayoutFolder defines model for TorrentLayoutFolder.
-type TorrentLayoutFolder struct {
-	Kind TorrentLayoutFolderKind `json:"kind"`
-
-	// Media A show folder's media
-	Media *struct {
-		// Fanart Layout path of the sidecar image
-		Fanart        *string                      `json:"fanart,omitempty"`
-		Genres        *[]string                    `json:"genres,omitempty"`
-		Kind          TorrentLayoutFolderMediaKind `json:"kind"`
-		OriginalTitle *string                      `json:"originalTitle,omitempty"`
-		Overview      *string                      `json:"overview,omitempty"`
-
-		// Poster Layout path of the sidecar image
-		Poster *string `json:"poster,omitempty"`
-		Title  string  `json:"title"`
-		Tmdb   struct {
-			Id   int                              `json:"id"`
-			Type TorrentLayoutFolderMediaTmdbType `json:"type"`
-		} `json:"tmdb"`
-		Year *int `json:"year,omitempty"`
-	} `json:"media,omitempty"`
-	Path string `json:"path"`
-}
-
-// TorrentLayoutFolderKind defines model for TorrentLayoutFolder.Kind.
-type TorrentLayoutFolderKind string
-
-// TorrentLayoutFolderMediaKind defines model for TorrentLayoutFolder.Media.Kind.
-type TorrentLayoutFolderMediaKind string
-
-// TorrentLayoutFolderMediaTmdbType defines model for TorrentLayoutFolder.Media.Tmdb.Type.
-type TorrentLayoutFolderMediaTmdbType string
-
-// TorrentLayoutMovieMedia defines model for TorrentLayoutMovieMedia.
-type TorrentLayoutMovieMedia struct {
-	// Fanart Layout path of the sidecar image
-	Fanart        *string                     `json:"fanart,omitempty"`
-	Genres        *[]string                   `json:"genres,omitempty"`
-	Kind          TorrentLayoutMovieMediaKind `json:"kind"`
-	OriginalTitle *string                     `json:"originalTitle,omitempty"`
-	Overview      *string                     `json:"overview,omitempty"`
-
-	// Poster Layout path of the sidecar image
-	Poster *string `json:"poster,omitempty"`
-
-	// Runtime Minutes.
-	Runtime *int   `json:"runtime,omitempty"`
-	Title   string `json:"title"`
-	Tmdb    struct {
-		Id   int                             `json:"id"`
-		Type TorrentLayoutMovieMediaTmdbType `json:"type"`
-	} `json:"tmdb"`
-	Year *int `json:"year,omitempty"`
-}
-
-// TorrentLayoutMovieMediaKind defines model for TorrentLayoutMovieMedia.Kind.
-type TorrentLayoutMovieMediaKind string
-
-// TorrentLayoutMovieMediaTmdbType defines model for TorrentLayoutMovieMedia.Tmdb.Type.
-type TorrentLayoutMovieMediaTmdbType string
-
-// TorrentLayoutSidecar defines model for TorrentLayoutSidecar.
-type TorrentLayoutSidecar struct {
-	Kind TorrentLayoutSidecarKind `json:"kind"`
-
-	// Path Where the sidecar goes; an entry already at its name wins
-	Path string `json:"path"`
-
-	// Sidecar The uploaded sidecar, stored as bt/<infoHash>/x/<n>
-	Sidecar int `json:"sidecar"`
-
-	// Video Layout path of the video it is named after: it takes the name that video was given
-	Video *string `json:"video,omitempty"`
-}
-
-// TorrentLayoutSidecarKind defines model for TorrentLayoutSidecar.Kind.
-type TorrentLayoutSidecarKind string
-
-// TorrentLayoutTorrentFile defines model for TorrentLayoutTorrentFile.
-type TorrentLayoutTorrentFile struct {
-	// FileIdx Position of the file in the info dictionary
-	FileIdx int                          `json:"fileIdx"`
-	Kind    TorrentLayoutTorrentFileKind `json:"kind"`
-
-	// Media A movie's or an episode's media
-	Media *TorrentLayoutTorrentFile_Media `json:"media,omitempty"`
-
-	// Path Where the file goes; a taken name is renamed, as `X (1).mkv`
-	Path string `json:"path"`
-}
-
-// TorrentLayoutTorrentFileKind defines model for TorrentLayoutTorrentFile.Kind.
-type TorrentLayoutTorrentFileKind string
-
-// TorrentLayoutTorrentFile_Media A movie's or an episode's media
-type TorrentLayoutTorrentFile_Media struct {
-	union json.RawMessage
+	// RetentionDays Days an unheld torrent stays cached after its last access. Defaults to 30.
+	RetentionDays int `json:"retentionDays"`
 }
 
 // TransferResult defines model for TransferResult.
@@ -7936,11 +7564,6 @@ type CompleteTorrentFileUploadJSONBody struct {
 	UploadId *string `json:"uploadId,omitempty"`
 }
 
-// CreateTorrentSidecarUploadJSONBody defines parameters for CreateTorrentSidecarUpload.
-type CreateTorrentSidecarUploadJSONBody struct {
-	Size int64 `json:"size"`
-}
-
 // UpdateImageHostingConfigJSONBody defines parameters for UpdateImageHostingConfig.
 type UpdateImageHostingConfigJSONBody struct {
 	CustomDomain     *string                                 `json:"customDomain,omitempty"`
@@ -8384,8 +8007,8 @@ type SaveImageDomainProvider200JSONResponseBodySuccess bool
 // TestImageDomainProvider200JSONResponseBodySuccess defines parameters for TestImageDomainProvider.
 type TestImageDomainProvider200JSONResponseBodySuccess bool
 
-// ReplaceTorrentCacheSettingsJSONBody defines parameters for ReplaceTorrentCacheSettings.
-type ReplaceTorrentCacheSettingsJSONBody struct {
+// ReplaceTorrentSettingsJSONBody defines parameters for ReplaceTorrentSettings.
+type ReplaceTorrentSettingsJSONBody struct {
 	CapacityBytes int64 `json:"capacityBytes"`
 	RetentionDays int   `json:"retentionDays"`
 }
@@ -8573,12 +8196,6 @@ type JoinTeamJSONBody struct {
 // JoinTeam200JSONResponseBodyOk defines parameters for JoinTeam.
 type JoinTeam200JSONResponseBodyOk bool
 
-// ReplaceTorrentCacheConfigJSONBody defines parameters for ReplaceTorrentCacheConfig.
-type ReplaceTorrentCacheConfigJSONBody struct {
-	// Folder Workspace folder that cached torrents are transferred into, slash-delimited. Empty is the root.
-	Folder string `json:"folder"`
-}
-
 // ListTrashObjectsParams defines parameters for ListTrashObjects.
 type ListTrashObjectsParams struct {
 	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
@@ -8669,12 +8286,6 @@ type CompleteTaskTorrentJSONRequestBody CompleteTaskTorrentJSONBody
 // CompleteTorrentFileUploadJSONRequestBody defines body for CompleteTorrentFileUpload for application/json ContentType.
 type CompleteTorrentFileUploadJSONRequestBody CompleteTorrentFileUploadJSONBody
 
-// PutTaskTorrentLayoutJSONRequestBody defines body for PutTaskTorrentLayout for application/json ContentType.
-type PutTaskTorrentLayoutJSONRequestBody = TorrentLayout
-
-// CreateTorrentSidecarUploadJSONRequestBody defines body for CreateTorrentSidecarUpload for application/json ContentType.
-type CreateTorrentSidecarUploadJSONRequestBody CreateTorrentSidecarUploadJSONBody
-
 // UpdateImageHostingConfigJSONRequestBody defines body for UpdateImageHostingConfig for application/json ContentType.
 type UpdateImageHostingConfigJSONRequestBody UpdateImageHostingConfigJSONBody
 
@@ -8762,8 +8373,8 @@ type UpdateSiteQuotasJSONRequestBody = SiteQuotaSettings
 // UpdateSiteRegistrationJSONRequestBody defines body for UpdateSiteRegistration for application/json ContentType.
 type UpdateSiteRegistrationJSONRequestBody = UpdateSiteRegistration
 
-// ReplaceTorrentCacheSettingsJSONRequestBody defines body for ReplaceTorrentCacheSettings for application/json ContentType.
-type ReplaceTorrentCacheSettingsJSONRequestBody ReplaceTorrentCacheSettingsJSONBody
+// ReplaceTorrentSettingsJSONRequestBody defines body for ReplaceTorrentSettings for application/json ContentType.
+type ReplaceTorrentSettingsJSONRequestBody ReplaceTorrentSettingsJSONBody
 
 // UpdateSiteWebDavJSONRequestBody defines body for UpdateSiteWebDav for application/json ContentType.
 type UpdateSiteWebDavJSONRequestBody = UpdateSiteWebDav
@@ -8806,9 +8417,6 @@ type CreateTeamInviteLinkJSONRequestBody CreateTeamInviteLinkJSONBody
 
 // JoinTeamJSONRequestBody defines body for JoinTeam for application/json ContentType.
 type JoinTeamJSONRequestBody JoinTeamJSONBody
-
-// ReplaceTorrentCacheConfigJSONRequestBody defines body for ReplaceTorrentCacheConfig for application/json ContentType.
-type ReplaceTorrentCacheConfigJSONRequestBody ReplaceTorrentCacheConfigJSONBody
 
 // RestoreObjectJSONRequestBody defines body for RestoreObject for application/json ContentType.
 type RestoreObjectJSONRequestBody RestoreObjectJSONBody
@@ -11500,214 +11108,6 @@ func (t *PublicCaptcha) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsTorrentLayoutFolder returns the union data inside the TorrentLayout_Entries_Item as a TorrentLayoutFolder
-func (t TorrentLayout_Entries_Item) AsTorrentLayoutFolder() (TorrentLayoutFolder, error) {
-	var body TorrentLayoutFolder
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTorrentLayoutFolder overwrites any union data inside the TorrentLayout_Entries_Item as the provided TorrentLayoutFolder
-func (t *TorrentLayout_Entries_Item) FromTorrentLayoutFolder(v TorrentLayoutFolder) error {
-	v.Kind = "folder"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTorrentLayoutFolder performs a merge with any union data inside the TorrentLayout_Entries_Item, using the provided TorrentLayoutFolder
-func (t *TorrentLayout_Entries_Item) MergeTorrentLayoutFolder(v TorrentLayoutFolder) error {
-	v.Kind = "folder"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsTorrentLayoutTorrentFile returns the union data inside the TorrentLayout_Entries_Item as a TorrentLayoutTorrentFile
-func (t TorrentLayout_Entries_Item) AsTorrentLayoutTorrentFile() (TorrentLayoutTorrentFile, error) {
-	var body TorrentLayoutTorrentFile
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTorrentLayoutTorrentFile overwrites any union data inside the TorrentLayout_Entries_Item as the provided TorrentLayoutTorrentFile
-func (t *TorrentLayout_Entries_Item) FromTorrentLayoutTorrentFile(v TorrentLayoutTorrentFile) error {
-	v.Kind = "torrent-file"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTorrentLayoutTorrentFile performs a merge with any union data inside the TorrentLayout_Entries_Item, using the provided TorrentLayoutTorrentFile
-func (t *TorrentLayout_Entries_Item) MergeTorrentLayoutTorrentFile(v TorrentLayoutTorrentFile) error {
-	v.Kind = "torrent-file"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsTorrentLayoutSidecar returns the union data inside the TorrentLayout_Entries_Item as a TorrentLayoutSidecar
-func (t TorrentLayout_Entries_Item) AsTorrentLayoutSidecar() (TorrentLayoutSidecar, error) {
-	var body TorrentLayoutSidecar
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTorrentLayoutSidecar overwrites any union data inside the TorrentLayout_Entries_Item as the provided TorrentLayoutSidecar
-func (t *TorrentLayout_Entries_Item) FromTorrentLayoutSidecar(v TorrentLayoutSidecar) error {
-	v.Kind = "sidecar"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTorrentLayoutSidecar performs a merge with any union data inside the TorrentLayout_Entries_Item, using the provided TorrentLayoutSidecar
-func (t *TorrentLayout_Entries_Item) MergeTorrentLayoutSidecar(v TorrentLayoutSidecar) error {
-	v.Kind = "sidecar"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t TorrentLayout_Entries_Item) Discriminator() (string, error) {
-	var discriminator struct {
-		Discriminator string `json:"kind"`
-	}
-	err := json.Unmarshal(t.union, &discriminator)
-	return discriminator.Discriminator, err
-}
-
-func (t TorrentLayout_Entries_Item) ValueByDiscriminator() (interface{}, error) {
-	discriminator, err := t.Discriminator()
-	if err != nil {
-		return nil, err
-	}
-	switch discriminator {
-	case "folder":
-		return t.AsTorrentLayoutFolder()
-	case "sidecar":
-		return t.AsTorrentLayoutSidecar()
-	case "torrent-file":
-		return t.AsTorrentLayoutTorrentFile()
-	default:
-		return nil, errors.New("unknown discriminator value: " + discriminator)
-	}
-}
-
-func (t TorrentLayout_Entries_Item) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *TorrentLayout_Entries_Item) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsTorrentLayoutMovieMedia returns the union data inside the TorrentLayoutTorrentFile_Media as a TorrentLayoutMovieMedia
-func (t TorrentLayoutTorrentFile_Media) AsTorrentLayoutMovieMedia() (TorrentLayoutMovieMedia, error) {
-	var body TorrentLayoutMovieMedia
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTorrentLayoutMovieMedia overwrites any union data inside the TorrentLayoutTorrentFile_Media as the provided TorrentLayoutMovieMedia
-func (t *TorrentLayoutTorrentFile_Media) FromTorrentLayoutMovieMedia(v TorrentLayoutMovieMedia) error {
-	v.Kind = "movie"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTorrentLayoutMovieMedia performs a merge with any union data inside the TorrentLayoutTorrentFile_Media, using the provided TorrentLayoutMovieMedia
-func (t *TorrentLayoutTorrentFile_Media) MergeTorrentLayoutMovieMedia(v TorrentLayoutMovieMedia) error {
-	v.Kind = "movie"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsTorrentLayoutEpisodeMedia returns the union data inside the TorrentLayoutTorrentFile_Media as a TorrentLayoutEpisodeMedia
-func (t TorrentLayoutTorrentFile_Media) AsTorrentLayoutEpisodeMedia() (TorrentLayoutEpisodeMedia, error) {
-	var body TorrentLayoutEpisodeMedia
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTorrentLayoutEpisodeMedia overwrites any union data inside the TorrentLayoutTorrentFile_Media as the provided TorrentLayoutEpisodeMedia
-func (t *TorrentLayoutTorrentFile_Media) FromTorrentLayoutEpisodeMedia(v TorrentLayoutEpisodeMedia) error {
-	v.Kind = "episode"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTorrentLayoutEpisodeMedia performs a merge with any union data inside the TorrentLayoutTorrentFile_Media, using the provided TorrentLayoutEpisodeMedia
-func (t *TorrentLayoutTorrentFile_Media) MergeTorrentLayoutEpisodeMedia(v TorrentLayoutEpisodeMedia) error {
-	v.Kind = "episode"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t TorrentLayoutTorrentFile_Media) Discriminator() (string, error) {
-	var discriminator struct {
-		Discriminator string `json:"kind"`
-	}
-	err := json.Unmarshal(t.union, &discriminator)
-	return discriminator.Discriminator, err
-}
-
-func (t TorrentLayoutTorrentFile_Media) ValueByDiscriminator() (interface{}, error) {
-	discriminator, err := t.Discriminator()
-	if err != nil {
-		return nil, err
-	}
-	switch discriminator {
-	case "episode":
-		return t.AsTorrentLayoutEpisodeMedia()
-	case "movie":
-		return t.AsTorrentLayoutMovieMedia()
-	default:
-		return nil, errors.New("unknown discriminator value: " + discriminator)
-	}
-}
-
-func (t TorrentLayoutTorrentFile_Media) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *TorrentLayoutTorrentFile_Media) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
 // AsSmtpEmailSettings returns the union data inside the UpdateEmailSettings as a SmtpEmailSettings
 func (t UpdateEmailSettings) AsSmtpEmailSettings() (SmtpEmailSettings, error) {
 	var body SmtpEmailSettings
@@ -12435,19 +11835,6 @@ type ClientInterface interface {
 	// AbortTorrentFileUpload request
 	AbortTorrentFileUpload(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PutTaskTorrentLayoutWithBody request with any body
-	PutTaskTorrentLayoutWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PutTaskTorrentLayout(ctx context.Context, id string, body PutTaskTorrentLayoutJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CompleteTorrentSidecarUpload request
-	CompleteTorrentSidecarUpload(ctx context.Context, id string, n int, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateTorrentSidecarUploadWithBody request with any body
-	CreateTorrentSidecarUploadWithBody(ctx context.Context, id string, n int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateTorrentSidecarUpload(ctx context.Context, id string, n int, body CreateTorrentSidecarUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// StreamEvents request
 	StreamEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -12562,9 +11949,6 @@ type ClientInterface interface {
 	ReplaceObjectMediaMetadataWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	ReplaceObjectMediaMetadata(ctx context.Context, id string, body ReplaceObjectMediaMetadataJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetObjectTorrent request
-	GetObjectTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TransferObjectWithBody request with any body
 	TransferObjectWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -12791,13 +12175,13 @@ type ClientInterface interface {
 
 	UpdateSiteRegistration(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetTorrentCacheSettings request
-	GetTorrentCacheSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetTorrentSettings request
+	GetTorrentSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ReplaceTorrentCacheSettingsWithBody request with any body
-	ReplaceTorrentCacheSettingsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ReplaceTorrentSettingsWithBody request with any body
+	ReplaceTorrentSettingsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	ReplaceTorrentCacheSettings(ctx context.Context, body ReplaceTorrentCacheSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ReplaceTorrentSettings(ctx context.Context, body ReplaceTorrentSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateSiteWebDavWithBody request with any body
 	UpdateSiteWebDavWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -12943,14 +12327,6 @@ type ClientInterface interface {
 	JoinTeamWithBody(ctx context.Context, teamId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	JoinTeam(ctx context.Context, teamId string, body JoinTeamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetTorrentCacheConfig request
-	GetTorrentCacheConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ReplaceTorrentCacheConfigWithBody request with any body
-	ReplaceTorrentCacheConfigWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	ReplaceTorrentCacheConfig(ctx context.Context, body ReplaceTorrentCacheConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListTrashObjects request
 	ListTrashObjects(ctx context.Context, params *ListTrashObjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -13610,66 +12986,6 @@ func (c *Client) AbortTorrentFileUpload(ctx context.Context, id string, fileIdx 
 	return c.Client.Do(req)
 }
 
-func (c *Client) PutTaskTorrentLayoutWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutTaskTorrentLayoutRequestWithBody(c.Server, id, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PutTaskTorrentLayout(ctx context.Context, id string, body PutTaskTorrentLayoutJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutTaskTorrentLayoutRequest(c.Server, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CompleteTorrentSidecarUpload(ctx context.Context, id string, n int, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCompleteTorrentSidecarUploadRequest(c.Server, id, n)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateTorrentSidecarUploadWithBody(ctx context.Context, id string, n int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateTorrentSidecarUploadRequestWithBody(c.Server, id, n, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateTorrentSidecarUpload(ctx context.Context, id string, n int, body CreateTorrentSidecarUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateTorrentSidecarUploadRequest(c.Server, id, n, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) StreamEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewStreamEventsRequest(c.Server)
 	if err != nil {
@@ -14152,18 +13468,6 @@ func (c *Client) ReplaceObjectMediaMetadataWithBody(ctx context.Context, id stri
 
 func (c *Client) ReplaceObjectMediaMetadata(ctx context.Context, id string, body ReplaceObjectMediaMetadataJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReplaceObjectMediaMetadataRequest(c.Server, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetObjectTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetObjectTorrentRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -15158,8 +14462,8 @@ func (c *Client) UpdateSiteRegistration(ctx context.Context, body UpdateSiteRegi
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetTorrentCacheSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetTorrentCacheSettingsRequest(c.Server)
+func (c *Client) GetTorrentSettings(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTorrentSettingsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -15170,8 +14474,8 @@ func (c *Client) GetTorrentCacheSettings(ctx context.Context, reqEditors ...Requ
 	return c.Client.Do(req)
 }
 
-func (c *Client) ReplaceTorrentCacheSettingsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReplaceTorrentCacheSettingsRequestWithBody(c.Server, contentType, body)
+func (c *Client) ReplaceTorrentSettingsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceTorrentSettingsRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -15182,8 +14486,8 @@ func (c *Client) ReplaceTorrentCacheSettingsWithBody(ctx context.Context, conten
 	return c.Client.Do(req)
 }
 
-func (c *Client) ReplaceTorrentCacheSettings(ctx context.Context, body ReplaceTorrentCacheSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReplaceTorrentCacheSettingsRequest(c.Server, body)
+func (c *Client) ReplaceTorrentSettings(ctx context.Context, body ReplaceTorrentSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceTorrentSettingsRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -15820,42 +15124,6 @@ func (c *Client) JoinTeamWithBody(ctx context.Context, teamId string, contentTyp
 
 func (c *Client) JoinTeam(ctx context.Context, teamId string, body JoinTeamJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewJoinTeamRequest(c.Server, teamId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetTorrentCacheConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetTorrentCacheConfigRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ReplaceTorrentCacheConfigWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReplaceTorrentCacheConfigRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ReplaceTorrentCacheConfig(ctx context.Context, body ReplaceTorrentCacheConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReplaceTorrentCacheConfigRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -17617,148 +16885,6 @@ func NewAbortTorrentFileUploadRequest(server string, id string, fileIdx int, upl
 	return req, nil
 }
 
-// NewPutTaskTorrentLayoutRequest calls the generic PutTaskTorrentLayout builder with application/json body
-func NewPutTaskTorrentLayoutRequest(server string, id string, body PutTaskTorrentLayoutJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPutTaskTorrentLayoutRequestWithBody(server, id, "application/json", bodyReader)
-}
-
-// NewPutTaskTorrentLayoutRequestWithBody generates requests for PutTaskTorrentLayout with any type of body
-func NewPutTaskTorrentLayoutRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/layout", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewCompleteTorrentSidecarUploadRequest generates requests for CompleteTorrentSidecarUpload
-func NewCompleteTorrentSidecarUploadRequest(server string, id string, n int) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "n", n, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/sidecars/%s/completions", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateTorrentSidecarUploadRequest calls the generic CreateTorrentSidecarUpload builder with application/json body
-func NewCreateTorrentSidecarUploadRequest(server string, id string, n int, body CreateTorrentSidecarUploadJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateTorrentSidecarUploadRequestWithBody(server, id, n, "application/json", bodyReader)
-}
-
-// NewCreateTorrentSidecarUploadRequestWithBody generates requests for CreateTorrentSidecarUpload with any type of body
-func NewCreateTorrentSidecarUploadRequestWithBody(server string, id string, n int, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "n", n, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/sidecars/%s/uploads", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewStreamEventsRequest generates requests for StreamEvents
 func NewStreamEventsRequest(server string) (*http.Request, error) {
 	var err error
@@ -19247,40 +18373,6 @@ func NewReplaceObjectMediaMetadataRequestWithBody(server string, id string, cont
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewGetObjectTorrentRequest generates requests for GetObjectTorrent
-func NewGetObjectTorrentRequest(server string, id string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/objects/%s/torrent", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -22106,8 +21198,8 @@ func NewUpdateSiteRegistrationRequestWithBody(server string, contentType string,
 	return req, nil
 }
 
-// NewGetTorrentCacheSettingsRequest generates requests for GetTorrentCacheSettings
-func NewGetTorrentCacheSettingsRequest(server string) (*http.Request, error) {
+// NewGetTorrentSettingsRequest generates requests for GetTorrentSettings
+func NewGetTorrentSettingsRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -22115,7 +21207,7 @@ func NewGetTorrentCacheSettingsRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/site/settings/torrent-cache")
+	operationPath := fmt.Sprintf("/api/site/settings/torrents")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -22133,19 +21225,19 @@ func NewGetTorrentCacheSettingsRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewReplaceTorrentCacheSettingsRequest calls the generic ReplaceTorrentCacheSettings builder with application/json body
-func NewReplaceTorrentCacheSettingsRequest(server string, body ReplaceTorrentCacheSettingsJSONRequestBody) (*http.Request, error) {
+// NewReplaceTorrentSettingsRequest calls the generic ReplaceTorrentSettings builder with application/json body
+func NewReplaceTorrentSettingsRequest(server string, body ReplaceTorrentSettingsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewReplaceTorrentCacheSettingsRequestWithBody(server, "application/json", bodyReader)
+	return NewReplaceTorrentSettingsRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewReplaceTorrentCacheSettingsRequestWithBody generates requests for ReplaceTorrentCacheSettings with any type of body
-func NewReplaceTorrentCacheSettingsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewReplaceTorrentSettingsRequestWithBody generates requests for ReplaceTorrentSettings with any type of body
+func NewReplaceTorrentSettingsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -22153,7 +21245,7 @@ func NewReplaceTorrentCacheSettingsRequestWithBody(server string, contentType st
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/site/settings/torrent-cache")
+	operationPath := fmt.Sprintf("/api/site/settings/torrents")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -23811,73 +22903,6 @@ func NewJoinTeamRequestWithBody(server string, teamId string, contentType string
 	return req, nil
 }
 
-// NewGetTorrentCacheConfigRequest generates requests for GetTorrentCacheConfig
-func NewGetTorrentCacheConfigRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/torrent-cache/config")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewReplaceTorrentCacheConfigRequest calls the generic ReplaceTorrentCacheConfig builder with application/json body
-func NewReplaceTorrentCacheConfigRequest(server string, body ReplaceTorrentCacheConfigJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewReplaceTorrentCacheConfigRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewReplaceTorrentCacheConfigRequestWithBody generates requests for ReplaceTorrentCacheConfig with any type of body
-func NewReplaceTorrentCacheConfigRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/torrent-cache/config")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewListTrashObjectsRequest generates requests for ListTrashObjects
 func NewListTrashObjectsRequest(server string, params *ListTrashObjectsParams) (*http.Request, error) {
 	var err error
@@ -24614,19 +23639,6 @@ type ClientWithResponsesInterface interface {
 	// AbortTorrentFileUploadWithResponse request
 	AbortTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*AbortTorrentFileUploadResponse, error)
 
-	// PutTaskTorrentLayoutWithBodyWithResponse request with any body
-	PutTaskTorrentLayoutWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutTaskTorrentLayoutResponse, error)
-
-	PutTaskTorrentLayoutWithResponse(ctx context.Context, id string, body PutTaskTorrentLayoutJSONRequestBody, reqEditors ...RequestEditorFn) (*PutTaskTorrentLayoutResponse, error)
-
-	// CompleteTorrentSidecarUploadWithResponse request
-	CompleteTorrentSidecarUploadWithResponse(ctx context.Context, id string, n int, reqEditors ...RequestEditorFn) (*CompleteTorrentSidecarUploadResponse, error)
-
-	// CreateTorrentSidecarUploadWithBodyWithResponse request with any body
-	CreateTorrentSidecarUploadWithBodyWithResponse(ctx context.Context, id string, n int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTorrentSidecarUploadResponse, error)
-
-	CreateTorrentSidecarUploadWithResponse(ctx context.Context, id string, n int, body CreateTorrentSidecarUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTorrentSidecarUploadResponse, error)
-
 	// StreamEventsWithResponse request
 	StreamEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error)
 
@@ -24741,9 +23753,6 @@ type ClientWithResponsesInterface interface {
 	ReplaceObjectMediaMetadataWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceObjectMediaMetadataResponse, error)
 
 	ReplaceObjectMediaMetadataWithResponse(ctx context.Context, id string, body ReplaceObjectMediaMetadataJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceObjectMediaMetadataResponse, error)
-
-	// GetObjectTorrentWithResponse request
-	GetObjectTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetObjectTorrentResponse, error)
 
 	// TransferObjectWithBodyWithResponse request with any body
 	TransferObjectWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TransferObjectResponse, error)
@@ -24970,13 +23979,13 @@ type ClientWithResponsesInterface interface {
 
 	UpdateSiteRegistrationWithResponse(ctx context.Context, body UpdateSiteRegistrationJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSiteRegistrationResponse, error)
 
-	// GetTorrentCacheSettingsWithResponse request
-	GetTorrentCacheSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTorrentCacheSettingsResponse, error)
+	// GetTorrentSettingsWithResponse request
+	GetTorrentSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTorrentSettingsResponse, error)
 
-	// ReplaceTorrentCacheSettingsWithBodyWithResponse request with any body
-	ReplaceTorrentCacheSettingsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheSettingsResponse, error)
+	// ReplaceTorrentSettingsWithBodyWithResponse request with any body
+	ReplaceTorrentSettingsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceTorrentSettingsResponse, error)
 
-	ReplaceTorrentCacheSettingsWithResponse(ctx context.Context, body ReplaceTorrentCacheSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheSettingsResponse, error)
+	ReplaceTorrentSettingsWithResponse(ctx context.Context, body ReplaceTorrentSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceTorrentSettingsResponse, error)
 
 	// UpdateSiteWebDavWithBodyWithResponse request with any body
 	UpdateSiteWebDavWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSiteWebDavResponse, error)
@@ -25122,14 +24131,6 @@ type ClientWithResponsesInterface interface {
 	JoinTeamWithBodyWithResponse(ctx context.Context, teamId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*JoinTeamResponse, error)
 
 	JoinTeamWithResponse(ctx context.Context, teamId string, body JoinTeamJSONRequestBody, reqEditors ...RequestEditorFn) (*JoinTeamResponse, error)
-
-	// GetTorrentCacheConfigWithResponse request
-	GetTorrentCacheConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTorrentCacheConfigResponse, error)
-
-	// ReplaceTorrentCacheConfigWithBodyWithResponse request with any body
-	ReplaceTorrentCacheConfigWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheConfigResponse, error)
-
-	ReplaceTorrentCacheConfigWithResponse(ctx context.Context, body ReplaceTorrentCacheConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheConfigResponse, error)
 
 	// ListTrashObjectsWithResponse request
 	ListTrashObjectsWithResponse(ctx context.Context, params *ListTrashObjectsParams, reqEditors ...RequestEditorFn) (*ListTrashObjectsResponse, error)
@@ -26342,117 +25343,6 @@ func (r AbortTorrentFileUploadResponse) ContentType() string {
 	return ""
 }
 
-type PutTaskTorrentLayoutResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Entries int `json:"entries"`
-	}
-	JSON400 *Error
-	JSON401 *Error
-	JSON403 *Error
-	JSON404 *Error
-	JSON409 *Error
-	JSON413 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r PutTaskTorrentLayoutResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PutTaskTorrentLayoutResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r PutTaskTorrentLayoutResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type CompleteTorrentSidecarUploadResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		N    int `json:"n"`
-		Size int `json:"size"`
-	}
-	JSON400 *Error
-	JSON401 *Error
-	JSON403 *Error
-	JSON404 *Error
-	JSON409 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CompleteTorrentSidecarUploadResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CompleteTorrentSidecarUploadResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CompleteTorrentSidecarUploadResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type CreateTorrentSidecarUploadResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *TorrentFileUpload
-	JSON400      *Error
-	JSON401      *Error
-	JSON403      *Error
-	JSON404      *Error
-	JSON409      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateTorrentSidecarUploadResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateTorrentSidecarUploadResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CreateTorrentSidecarUploadResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type StreamEventsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -27621,38 +26511,6 @@ func (r ReplaceObjectMediaMetadataResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ReplaceObjectMediaMetadataResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type GetObjectTorrentResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *ObjectTorrent
-	JSON400      *Error
-	JSON404      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetObjectTorrentResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetObjectTorrentResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetObjectTorrentResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -29598,14 +28456,14 @@ func (r UpdateSiteRegistrationResponse) ContentType() string {
 	return ""
 }
 
-type GetTorrentCacheSettingsResponse struct {
+type GetTorrentSettingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TorrentCacheSettings
+	JSON200      *TorrentSettings
 }
 
 // Status returns HTTPResponse.Status
-func (r GetTorrentCacheSettingsResponse) Status() string {
+func (r GetTorrentSettingsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -29613,7 +28471,7 @@ func (r GetTorrentCacheSettingsResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetTorrentCacheSettingsResponse) StatusCode() int {
+func (r GetTorrentSettingsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -29621,22 +28479,22 @@ func (r GetTorrentCacheSettingsResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetTorrentCacheSettingsResponse) ContentType() string {
+func (r GetTorrentSettingsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
 }
 
-type ReplaceTorrentCacheSettingsResponse struct {
+type ReplaceTorrentSettingsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *TorrentCacheSettings
+	JSON200      *TorrentSettings
 	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
-func (r ReplaceTorrentCacheSettingsResponse) Status() string {
+func (r ReplaceTorrentSettingsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -29644,7 +28502,7 @@ func (r ReplaceTorrentCacheSettingsResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ReplaceTorrentCacheSettingsResponse) StatusCode() int {
+func (r ReplaceTorrentSettingsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -29652,7 +28510,7 @@ func (r ReplaceTorrentCacheSettingsResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ReplaceTorrentCacheSettingsResponse) ContentType() string {
+func (r ReplaceTorrentSettingsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -30943,70 +29801,6 @@ func (r JoinTeamResponse) ContentType() string {
 	return ""
 }
 
-type GetTorrentCacheConfigResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *TorrentCacheConfig
-	JSON401      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r GetTorrentCacheConfigResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetTorrentCacheConfigResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetTorrentCacheConfigResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type ReplaceTorrentCacheConfigResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *TorrentCacheConfig
-	JSON400      *Error
-	JSON401      *Error
-	JSON403      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r ReplaceTorrentCacheConfigResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ReplaceTorrentCacheConfigResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ReplaceTorrentCacheConfigResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type ListTrashObjectsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -31860,49 +30654,6 @@ func (c *ClientWithResponses) AbortTorrentFileUploadWithResponse(ctx context.Con
 	return ParseAbortTorrentFileUploadResponse(rsp)
 }
 
-// PutTaskTorrentLayoutWithBodyWithResponse request with arbitrary body returning *PutTaskTorrentLayoutResponse
-func (c *ClientWithResponses) PutTaskTorrentLayoutWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutTaskTorrentLayoutResponse, error) {
-	rsp, err := c.PutTaskTorrentLayoutWithBody(ctx, id, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePutTaskTorrentLayoutResponse(rsp)
-}
-
-func (c *ClientWithResponses) PutTaskTorrentLayoutWithResponse(ctx context.Context, id string, body PutTaskTorrentLayoutJSONRequestBody, reqEditors ...RequestEditorFn) (*PutTaskTorrentLayoutResponse, error) {
-	rsp, err := c.PutTaskTorrentLayout(ctx, id, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePutTaskTorrentLayoutResponse(rsp)
-}
-
-// CompleteTorrentSidecarUploadWithResponse request returning *CompleteTorrentSidecarUploadResponse
-func (c *ClientWithResponses) CompleteTorrentSidecarUploadWithResponse(ctx context.Context, id string, n int, reqEditors ...RequestEditorFn) (*CompleteTorrentSidecarUploadResponse, error) {
-	rsp, err := c.CompleteTorrentSidecarUpload(ctx, id, n, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCompleteTorrentSidecarUploadResponse(rsp)
-}
-
-// CreateTorrentSidecarUploadWithBodyWithResponse request with arbitrary body returning *CreateTorrentSidecarUploadResponse
-func (c *ClientWithResponses) CreateTorrentSidecarUploadWithBodyWithResponse(ctx context.Context, id string, n int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateTorrentSidecarUploadResponse, error) {
-	rsp, err := c.CreateTorrentSidecarUploadWithBody(ctx, id, n, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateTorrentSidecarUploadResponse(rsp)
-}
-
-func (c *ClientWithResponses) CreateTorrentSidecarUploadWithResponse(ctx context.Context, id string, n int, body CreateTorrentSidecarUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateTorrentSidecarUploadResponse, error) {
-	rsp, err := c.CreateTorrentSidecarUpload(ctx, id, n, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateTorrentSidecarUploadResponse(rsp)
-}
-
 // StreamEventsWithResponse request returning *StreamEventsResponse
 func (c *ClientWithResponses) StreamEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error) {
 	rsp, err := c.StreamEvents(ctx, reqEditors...)
@@ -32262,15 +31013,6 @@ func (c *ClientWithResponses) ReplaceObjectMediaMetadataWithResponse(ctx context
 		return nil, err
 	}
 	return ParseReplaceObjectMediaMetadataResponse(rsp)
-}
-
-// GetObjectTorrentWithResponse request returning *GetObjectTorrentResponse
-func (c *ClientWithResponses) GetObjectTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetObjectTorrentResponse, error) {
-	rsp, err := c.GetObjectTorrent(ctx, id, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetObjectTorrentResponse(rsp)
 }
 
 // TransferObjectWithBodyWithResponse request with arbitrary body returning *TransferObjectResponse
@@ -32990,30 +31732,30 @@ func (c *ClientWithResponses) UpdateSiteRegistrationWithResponse(ctx context.Con
 	return ParseUpdateSiteRegistrationResponse(rsp)
 }
 
-// GetTorrentCacheSettingsWithResponse request returning *GetTorrentCacheSettingsResponse
-func (c *ClientWithResponses) GetTorrentCacheSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTorrentCacheSettingsResponse, error) {
-	rsp, err := c.GetTorrentCacheSettings(ctx, reqEditors...)
+// GetTorrentSettingsWithResponse request returning *GetTorrentSettingsResponse
+func (c *ClientWithResponses) GetTorrentSettingsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTorrentSettingsResponse, error) {
+	rsp, err := c.GetTorrentSettings(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetTorrentCacheSettingsResponse(rsp)
+	return ParseGetTorrentSettingsResponse(rsp)
 }
 
-// ReplaceTorrentCacheSettingsWithBodyWithResponse request with arbitrary body returning *ReplaceTorrentCacheSettingsResponse
-func (c *ClientWithResponses) ReplaceTorrentCacheSettingsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheSettingsResponse, error) {
-	rsp, err := c.ReplaceTorrentCacheSettingsWithBody(ctx, contentType, body, reqEditors...)
+// ReplaceTorrentSettingsWithBodyWithResponse request with arbitrary body returning *ReplaceTorrentSettingsResponse
+func (c *ClientWithResponses) ReplaceTorrentSettingsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceTorrentSettingsResponse, error) {
+	rsp, err := c.ReplaceTorrentSettingsWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseReplaceTorrentCacheSettingsResponse(rsp)
+	return ParseReplaceTorrentSettingsResponse(rsp)
 }
 
-func (c *ClientWithResponses) ReplaceTorrentCacheSettingsWithResponse(ctx context.Context, body ReplaceTorrentCacheSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheSettingsResponse, error) {
-	rsp, err := c.ReplaceTorrentCacheSettings(ctx, body, reqEditors...)
+func (c *ClientWithResponses) ReplaceTorrentSettingsWithResponse(ctx context.Context, body ReplaceTorrentSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceTorrentSettingsResponse, error) {
+	rsp, err := c.ReplaceTorrentSettings(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseReplaceTorrentCacheSettingsResponse(rsp)
+	return ParseReplaceTorrentSettingsResponse(rsp)
 }
 
 // UpdateSiteWebDavWithBodyWithResponse request with arbitrary body returning *UpdateSiteWebDavResponse
@@ -33477,32 +32219,6 @@ func (c *ClientWithResponses) JoinTeamWithResponse(ctx context.Context, teamId s
 		return nil, err
 	}
 	return ParseJoinTeamResponse(rsp)
-}
-
-// GetTorrentCacheConfigWithResponse request returning *GetTorrentCacheConfigResponse
-func (c *ClientWithResponses) GetTorrentCacheConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetTorrentCacheConfigResponse, error) {
-	rsp, err := c.GetTorrentCacheConfig(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetTorrentCacheConfigResponse(rsp)
-}
-
-// ReplaceTorrentCacheConfigWithBodyWithResponse request with arbitrary body returning *ReplaceTorrentCacheConfigResponse
-func (c *ClientWithResponses) ReplaceTorrentCacheConfigWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheConfigResponse, error) {
-	rsp, err := c.ReplaceTorrentCacheConfigWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseReplaceTorrentCacheConfigResponse(rsp)
-}
-
-func (c *ClientWithResponses) ReplaceTorrentCacheConfigWithResponse(ctx context.Context, body ReplaceTorrentCacheConfigJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceTorrentCacheConfigResponse, error) {
-	rsp, err := c.ReplaceTorrentCacheConfig(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseReplaceTorrentCacheConfigResponse(rsp)
 }
 
 // ListTrashObjectsWithResponse request returning *ListTrashObjectsResponse
@@ -35194,201 +33910,6 @@ func ParseAbortTorrentFileUploadResponse(rsp *http.Response) (*AbortTorrentFileU
 	return response, nil
 }
 
-// ParsePutTaskTorrentLayoutResponse parses an HTTP response from a PutTaskTorrentLayoutWithResponse call
-func ParsePutTaskTorrentLayoutResponse(rsp *http.Response) (*PutTaskTorrentLayoutResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PutTaskTorrentLayoutResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Entries int `json:"entries"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON413 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCompleteTorrentSidecarUploadResponse parses an HTTP response from a CompleteTorrentSidecarUploadWithResponse call
-func ParseCompleteTorrentSidecarUploadResponse(rsp *http.Response) (*CompleteTorrentSidecarUploadResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CompleteTorrentSidecarUploadResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			N    int `json:"n"`
-			Size int `json:"size"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateTorrentSidecarUploadResponse parses an HTTP response from a CreateTorrentSidecarUploadWithResponse call
-func ParseCreateTorrentSidecarUploadResponse(rsp *http.Response) (*CreateTorrentSidecarUploadResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateTorrentSidecarUploadResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest TorrentFileUpload
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseStreamEventsResponse parses an HTTP response from a StreamEventsWithResponse call
 func ParseStreamEventsResponse(rsp *http.Response) (*StreamEventsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -36803,46 +35324,6 @@ func ParseReplaceObjectMediaMetadataResponse(rsp *http.Response) (*ReplaceObject
 			return nil, err
 		}
 		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetObjectTorrentResponse parses an HTTP response from a GetObjectTorrentWithResponse call
-func ParseGetObjectTorrentResponse(rsp *http.Response) (*GetObjectTorrentResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetObjectTorrentResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ObjectTorrent
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
 
 	}
 
@@ -38988,22 +37469,22 @@ func ParseUpdateSiteRegistrationResponse(rsp *http.Response) (*UpdateSiteRegistr
 	return response, nil
 }
 
-// ParseGetTorrentCacheSettingsResponse parses an HTTP response from a GetTorrentCacheSettingsWithResponse call
-func ParseGetTorrentCacheSettingsResponse(rsp *http.Response) (*GetTorrentCacheSettingsResponse, error) {
+// ParseGetTorrentSettingsResponse parses an HTTP response from a GetTorrentSettingsWithResponse call
+func ParseGetTorrentSettingsResponse(rsp *http.Response) (*GetTorrentSettingsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetTorrentCacheSettingsResponse{
+	response := &GetTorrentSettingsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TorrentCacheSettings
+		var dest TorrentSettings
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -39014,22 +37495,22 @@ func ParseGetTorrentCacheSettingsResponse(rsp *http.Response) (*GetTorrentCacheS
 	return response, nil
 }
 
-// ParseReplaceTorrentCacheSettingsResponse parses an HTTP response from a ReplaceTorrentCacheSettingsWithResponse call
-func ParseReplaceTorrentCacheSettingsResponse(rsp *http.Response) (*ReplaceTorrentCacheSettingsResponse, error) {
+// ParseReplaceTorrentSettingsResponse parses an HTTP response from a ReplaceTorrentSettingsWithResponse call
+func ParseReplaceTorrentSettingsResponse(rsp *http.Response) (*ReplaceTorrentSettingsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ReplaceTorrentCacheSettingsResponse{
+	response := &ReplaceTorrentSettingsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TorrentCacheSettings
+		var dest TorrentSettings
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40631,86 +39112,6 @@ func ParseJoinTeamResponse(rsp *http.Response) (*JoinTeamResponse, error) {
 			return nil, err
 		}
 		response.JSON410 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetTorrentCacheConfigResponse parses an HTTP response from a GetTorrentCacheConfigWithResponse call
-func ParseGetTorrentCacheConfigResponse(rsp *http.Response) (*GetTorrentCacheConfigResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetTorrentCacheConfigResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TorrentCacheConfig
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseReplaceTorrentCacheConfigResponse parses an HTTP response from a ReplaceTorrentCacheConfigWithResponse call
-func ParseReplaceTorrentCacheConfigResponse(rsp *http.Response) (*ReplaceTorrentCacheConfigResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ReplaceTorrentCacheConfigResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TorrentCacheConfig
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
 
 	}
 

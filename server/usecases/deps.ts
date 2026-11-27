@@ -52,7 +52,6 @@ import type {
   SystemOptionsRepo,
   TeamInviteRepo,
   TeamRepo,
-  TorrentCacheConfigRepo,
   TorrentRepo,
   UserAdminRepo,
   WebDavPathRepo,
@@ -113,7 +112,6 @@ export interface Deps {
   teams: TeamRepo
   teamInvites: TeamInviteRepo
   torrents: TorrentRepo
-  torrentCacheConfigs: TorrentCacheConfigRepo
   stremthruLinks: StremThruLinkRepo
   userAdmin: UserAdminRepo
   webdavPath: WebDavPathRepo

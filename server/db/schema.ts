@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import type { MatterMetadata } from '../../shared/schemas/matter-metadata'
 import { organization } from './auth-schema'
 
@@ -57,7 +57,7 @@ export const matters = sqliteTable(
       t.id,
     ),
     index('matters_trash_page_idx').on(t.orgId, t.status, t.purgedAt, t.trashedAt, t.createdAt, t.id),
-    // Counts references to a cached torrent object (`bt/…`) without a scan.
+    // Counts references to a torrent's objects (`bt/…`) without a scan.
     index('matters_storage_object_idx').on(t.storageId, t.object),
   ],
 )
@@ -487,13 +487,13 @@ export const downloadTasks = sqliteTable(
     startedAt: integer('started_at', { mode: 'timestamp_ms' }),
     finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
     deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
-    // Torrent cache (docs/design/torrent-cache.md §6): the v1 infoHash once known,
-    // the cached torrent this task fills or waits for, and its role: 'fill' while
-    // a capable downloader uploads into the cache, 'join' while it waits for
-    // another task's download.
+    // Torrents (docs/design/torrents.md §3): the v1 infoHash once known, the
+    // torrent this task fills or waits for, and its role: 'fill' for the task
+    // whose download is the torrent's first, 'join' while it waits for another
+    // task's download.
     infoHash: text('info_hash'),
     torrentId: text('torrent_id'),
-    torrentCacheRole: text('torrent_cache_role'),
+    torrentRole: text('torrent_role'),
   },
   (t) => [
     index('download_tasks_torrent_idx').on(t.torrentId, t.status),
@@ -763,7 +763,7 @@ export const imageHostings = sqliteTable(
   ],
 )
 
-// torrents — one row per torrent cached on the instance (docs/design/torrent-cache.md)
+// torrents — one row per torrent on the instance (docs/design/torrents.md §3)
 export const torrents = sqliteTable(
   'torrents',
   {
@@ -790,54 +790,33 @@ export const torrents = sqliteTable(
   ],
 )
 
-// torrent_files — one row per file of a cached torrent; padding files get none
+// torrent_files — one row per entry of a torrent as its first download uploaded
+// it (docs/design/torrents.md §3): its files, the scraper's sidecars, and the
+// folders the scraper placed files in. Padding files get none.
 export const torrentFiles = sqliteTable(
   'torrent_files',
   {
+    id: text('id').primaryKey(),
     torrentId: text('torrent_id')
       .notNull()
       .references(() => torrents.id, { onDelete: 'cascade' }),
-    fileIdx: integer('file_idx').notNull(), // position in the info dictionary
-    path: text('path').notNull(), // path inside the torrent
-    size: integer('size').notNull(),
+    kind: text('kind').notNull(), // file | sidecar | folder
+    fileIdx: integer('file_idx'), // file: position in the info dictionary
+    path: text('path'), // file: path inside the torrent
+    layoutPath: text('layout_path').notNull(), // where the first download put it, relative to the task folder
+    size: integer('size').notNull().default(0),
     mime: text('mime').notNull().default(''),
     storageId: text('storage_id').notNull(),
-    objectKey: text('object_key').notNull(), // bt/<infoHash>/<fileIdx>
-    uploadedAt: integer('uploaded_at', { mode: 'timestamp_ms' }), // set when a cache download completes the file
+    objectKey: text('object_key'), // bt/<infoHash>/<id>; null for folders
+    media: text('media', { mode: 'json' }).$type<Record<string, unknown>>(), // the file metadata `media` object, sidecars named by torrent_files ids
+    uploadedAt: integer('uploaded_at', { mode: 'timestamp_ms' }), // set when the download completes the object
   },
   (t) => [
-    primaryKey({ columns: [t.torrentId, t.fileIdx] }),
+    uniqueIndex('torrent_files_torrent_idx_uniq').on(t.torrentId, t.fileIdx),
+    index('torrent_files_torrent_layout_idx').on(t.torrentId, t.layoutPath),
     uniqueIndex('torrent_files_storage_object_uniq').on(t.storageId, t.objectKey),
   ],
 )
-
-// torrent_extra_objects — what a cache download stored beside a torrent's files:
-// the scraper's sidecars (x/<n>) and the upload layout (layout.json). Counted in
-// the storage's used bytes and deleted with the torrent.
-export const torrentExtraObjects = sqliteTable(
-  'torrent_extra_objects',
-  {
-    torrentId: text('torrent_id')
-      .notNull()
-      .references(() => torrents.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(), // x/<n> | layout.json, the key below bt/<infoHash>/
-    size: integer('size').notNull(),
-    storageId: text('storage_id').notNull(),
-    objectKey: text('object_key').notNull(), // bt/<infoHash>/<name>
-    uploadedAt: integer('uploaded_at', { mode: 'timestamp_ms' }).notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.torrentId, t.name] }), index('torrent_extra_objects_storage_idx').on(t.storageId)],
-)
-
-// torrent_cache_configs — per-workspace torrent settings; no row means defaults
-export const torrentCacheConfigs = sqliteTable('torrent_cache_configs', {
-  orgId: text('org_id')
-    .primaryKey()
-    .references(() => organization.id, { onDelete: 'cascade' }),
-  folder: text('folder').notNull(), // where transferred torrents land
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-})
 
 // stremthru_links — the playback link last issued to a user for a held file, so a
 // regenerated link is the same one (and charged once) while it has time left

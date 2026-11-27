@@ -2,7 +2,6 @@ package downloader
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -82,23 +81,21 @@ func fastRetries(t *testing.T) {
 	t.Cleanup(func() { metadataRetryDelay, partRetryDelay = metadata, part })
 }
 
-// cacheServer fakes the torrent cache API over the recording API: presigned
+// cacheServer fakes the torrent upload API over the recording API: presigned
 // uploads land in its bucket by key.
 type cacheServer struct {
 	*recordingAPI
-	mu           sync.Mutex
-	url          string
-	outcome      string
-	files        []client.TorrentFile
-	name         string
-	registered   [][]byte
-	bucket       map[string]string
-	completed    []string
-	layouts      []json.RawMessage
-	completions  [][]client.TorrentFile
-	refuseLayout int
-	aborted      []string
-	registerErr  error
+	mu          sync.Mutex
+	url         string
+	outcome     string
+	files       []client.TorrentFile
+	name        string
+	registered  [][]byte
+	bucket      map[string]string
+	completed   []string
+	completions [][]client.TorrentFile
+	aborted     []string
+	registerErr error
 	// failPuts presigned PUTs answer 500 before they succeed; -1 fails all.
 	failPuts int
 	puts     int
@@ -164,29 +161,6 @@ func (s *cacheServer) CompleteTorrentFileUpload(_ context.Context, _ string, _ s
 	return nil
 }
 
-func (s *cacheServer) CreateTorrentSidecarUpload(_ context.Context, _ string, _ string, n int, size int64) (client.TorrentUpload, error) {
-	return s.upload(fmt.Sprintf("x/%d", n), size), nil
-}
-
-func (s *cacheServer) CompleteTorrentSidecarUpload(_ context.Context, _ string, _ string, n int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.completed = append(s.completed, fmt.Sprintf("x/%d", n))
-	return nil
-}
-
-func (s *cacheServer) PutTaskTorrentLayout(_ context.Context, _ string, _ string, layout any) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.refuseLayout > 0 {
-		s.refuseLayout--
-		return &client.StatusError{Status: http.StatusBadRequest, Message: "invalid"}
-	}
-	data, _ := json.Marshal(layout)
-	s.layouts = append(s.layouts, data)
-	return nil
-}
-
 func (s *cacheServer) CompleteTaskTorrent(_ context.Context, _ string, _ string, files []client.TorrentFile) (client.DownloadTask, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -224,7 +198,7 @@ func cacheRunner(api apiClient, engine Downloader) *TaskRunner {
 	return w
 }
 
-// [spec: torrent-cache/downloader-fills-cache]
+// [spec: torrents/downloader-fills-torrent]
 func TestCapableDownloaderFillsTheCache(t *testing.T) {
 	info := infoDict("Show", map[string]int{"a.mkv": 5, "sub/b.srt": 3})
 	files := []client.TorrentFile{{FileIdx: 0, Path: "a.mkv", Size: 5}, {FileIdx: 1, Path: "sub/b.srt", Size: 3}}
@@ -254,10 +228,7 @@ func TestCapableDownloaderFillsTheCache(t *testing.T) {
 	if len(api.completions) != 1 || len(api.completions[0]) != 2 {
 		t.Fatalf("completions = %v", api.completions)
 	}
-	// No layout without scraping, and the server completes the task itself.
-	if len(api.layouts) != 0 {
-		t.Fatalf("layouts = %s", api.layouts)
-	}
+	// The server completes the task itself.
 	if _, ok := findPatchWithStatus(api.patches, "completed"); ok {
 		t.Fatalf("the downloader completed the task itself: %#v", api.patches)
 	}
@@ -300,7 +271,7 @@ func TestTaskSettledByTheCacheDropsItsDownload(t *testing.T) {
 	}
 }
 
-// [spec: torrent-cache/legacy-downloader-unchanged]
+// [spec: torrents/legacy-downloader-unchanged]
 func TestDriveOutcomeAndTasksOutsideCacheModeUploadIntoTheDrive(t *testing.T) {
 	for name, task := range map[string]client.DownloadTask{
 		"drive outcome":  cacheTask("task-1"),
@@ -417,7 +388,7 @@ func TestPartlyWrittenMetadataIsRetried(t *testing.T) {
 // which would be a second copy.
 func TestConflictOnRegistrationStopsTheTask(t *testing.T) {
 	api := newCacheServer(t, client.TorrentOutcomeFill, "Show", nil)
-	api.registerErr = &client.StatusError{Status: http.StatusConflict, Message: "Task is not filling the torrent cache"}
+	api.registerErr = &client.StatusError{Status: http.StatusConflict, Message: "Task is not filling a torrent"}
 	api.createFolderErr = errors.New("drive upload")
 	engine := &metadataEngine{recordingEngine: &recordingEngine{}, metadata: infoDict("Show", map[string]int{"a.mkv": 5})}
 	engine.downloadResult = download(t, t.TempDir(), "Show", map[string]string{"a.mkv": "video"})
@@ -476,8 +447,7 @@ func TestFailedPartUploadsAreRetriedThenAborted(t *testing.T) {
 	lastPatchWithStatus(t, api.patches, "failed")
 }
 
-// [spec: torrent-cache/layout-replay]
-func TestScrapedDownloadCachesItsLayout(t *testing.T) {
+func TestScrapedDownloadFillsTheTorrentTreeOnly(t *testing.T) {
 	dir := t.TempDir()
 	video := "Breaking.Bad.S01E02.mkv"
 	plan := showPlan(t, dir, video)
@@ -488,76 +458,11 @@ func TestScrapedDownloadCachesItsLayout(t *testing.T) {
 
 	notices, err := uploader.uploadToCache(context.Background(), discardLogger(), cacheTask("task-1"),
 		Result{Path: videoLocal, Name: video, Plan: &plan}, client.TorrentRegistration{Outcome: "fill", Name: video, Files: files})
-	if err != nil || len(notices) != 0 {
+	if err != nil || len(notices) != 1 || !strings.Contains(notices[0], "scraped layout") {
 		t.Fatalf("err = %v, notices = %v", err, notices)
 	}
-	if api.bucket["file/0"] != "video" {
-		t.Fatalf("bucket = %v", api.bucket)
-	}
-	var layout struct {
-		Entries []struct {
-			Kind    string         `json:"kind"`
-			Path    string         `json:"path"`
-			FileIdx *int           `json:"fileIdx"`
-			Sidecar *int           `json:"sidecar"`
-			Video   string         `json:"video"`
-			Media   map[string]any `json:"media"`
-		} `json:"entries"`
-	}
-	if len(api.layouts) != 1 {
-		t.Fatalf("layouts = %d", len(api.layouts))
-	}
-	if err := json.Unmarshal(api.layouts[0], &layout); err != nil {
-		t.Fatal(err)
-	}
-	byPath := map[string]int{}
-	for i, entry := range layout.Entries {
-		byPath[entry.Path] = i
-	}
-	show := layout.Entries[byPath["Breaking Bad (2008)"]]
-	if show.Kind != "folder" || show.Media["kind"] != "tvshow" || show.Media["poster"] != "Breaking Bad (2008)/poster.jpg" {
-		t.Fatalf("show = %#v", show)
-	}
-	episode := layout.Entries[byPath["Breaking Bad (2008)/Season 01/"+video]]
-	if episode.Kind != "torrent-file" || *episode.FileIdx != 0 || episode.Media["kind"] != "episode" ||
-		episode.Media["still"] != "Breaking Bad (2008)/Season 01/Breaking.Bad.S01E02-thumb.jpg" {
-		t.Fatalf("episode = %#v", episode)
-	}
-	nfo := layout.Entries[byPath["Breaking Bad (2008)/Season 01/Breaking.Bad.S01E02.nfo"]]
-	if nfo.Kind != "sidecar" || nfo.Video != "Breaking Bad (2008)/Season 01/"+video {
-		t.Fatalf("nfo = %#v", nfo)
-	}
-	tvshow := layout.Entries[byPath["Breaking Bad (2008)/tvshow.nfo"]]
-	if tvshow.Kind != "sidecar" || tvshow.Video != "" || !strings.Contains(api.bucket[fmt.Sprintf("x/%d", *tvshow.Sidecar)], "<tvshow>") {
-		t.Fatalf("tvshow = %#v, bucket = %v", tvshow, api.bucket)
-	}
-	if _, ok := byPath["Breaking Bad (2008)/Season 01"]; !ok {
-		t.Fatal("season folder missing")
-	}
-	// Every sidecar went up before the layout named it.
-	if got := len(api.completed); got != len(plan.Files) {
-		t.Fatalf("completed uploads = %v", api.completed)
-	}
-}
-
-func TestRefusedLayoutMediaKeepsTheFoldersAndSidecars(t *testing.T) {
-	dir := t.TempDir()
-	video := "Big.Buck.Bunny.mkv"
-	plan := moviePlan(t, dir, video)
-	files := []client.TorrentFile{{FileIdx: 0, Path: video, Size: 5}}
-	api := newCacheServer(t, client.TorrentOutcomeFill, video, files)
-	api.refuseLayout = 1
-
-	notices, err := NewUploader(api, nil).uploadToCache(context.Background(), discardLogger(), cacheTask("task-1"),
-		Result{Path: plan.Files[0].LocalPath, Name: video, Plan: &plan}, client.TorrentRegistration{Name: video, Files: files})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(notices) != 1 || len(api.layouts) != 1 || strings.Contains(string(api.layouts[0]), `"media"`) {
-		t.Fatalf("notices = %v, layouts = %s", notices, api.layouts)
-	}
-	if len(api.completions) != 1 {
-		t.Fatal("torrent not completed")
+	if api.bucket["file/0"] != "video" || len(api.completed) != 1 || len(api.completions) != 1 {
+		t.Fatalf("bucket = %v, completed = %v, completions = %d", api.bucket, api.completed, len(api.completions))
 	}
 }
 

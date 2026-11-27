@@ -5,17 +5,17 @@ import {
   adminTorrentSchema,
   cursorPageQuerySchema,
   cursorPageSchema,
-  replaceTorrentCacheSettingsSchema,
-  torrentCacheSettingsSchema,
+  replaceTorrentSettingsSchema,
+  torrentSettingsSchema,
 } from '@shared/schemas'
 import { requireFeature } from '../../middleware/require-feature'
 import type { AdminTorrentRecord } from '../../usecases/ports'
 import {
   evictCachedTorrent,
-  getTorrentCacheSettings,
+  getTorrentSettings,
   listCachedTorrents,
-  replaceTorrentCacheSettings,
-} from '../../usecases/torrent-cache/admin'
+  replaceTorrentSettings,
+} from '../../usecases/torrents/admin'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 import {
   createdAtIdCursorCodec,
@@ -50,10 +50,10 @@ const listRoute = authRoute(
   {
     operationId: 'listCachedTorrents',
     summary: 'List cached torrents',
-    tags: ['Torrent Cache'],
+    tags: ['Torrents'],
     method: 'get',
     path: '/',
-    middleware: [requireFeature('torrent_cache')] as const,
+    middleware: [requireFeature('torrents')] as const,
     request: { query: cursorPageQuerySchema },
     responses: {
       200: jsonContent(torrentPageSchema, 'Cached torrents, newest first'),
@@ -69,10 +69,10 @@ const evictRoute = authRoute(
     summary: 'Evict a cached torrent nobody holds',
     description:
       "Deletes the torrent's cached objects and rows. Refused with 409 while any drive file, live or in trash, holds it, or while it is downloading or verifying.",
-    tags: ['Torrent Cache'],
+    tags: ['Torrents'],
     method: 'delete',
     path: '/{id}',
-    middleware: [requireFeature('torrent_cache')] as const,
+    middleware: [requireFeature('torrents')] as const,
     request: { params: z.object({ id: z.string().min(1) }) },
     responses: {
       204: { description: 'Evicted' },
@@ -83,30 +83,30 @@ const evictRoute = authRoute(
 )
 
 const getSettingsRoute = authRoute(
-  { scopes: [AuthorizationScope.TORRENT_CACHE_SETTINGS_READ], siteRole: 'admin' },
+  { scopes: [AuthorizationScope.TORRENT_SETTINGS_READ], siteRole: 'admin' },
   {
-    operationId: 'getTorrentCacheSettings',
-    summary: 'Get the torrent cache retention and capacity',
-    tags: ['Torrent Cache'],
+    operationId: 'getTorrentSettings',
+    summary: 'Get the torrent retention and capacity',
+    tags: ['Torrents'],
     method: 'get',
     path: '/',
-    middleware: [requireFeature('torrent_cache')] as const,
-    responses: { 200: jsonContent(torrentCacheSettingsSchema, 'Torrent cache settings') },
+    middleware: [requireFeature('torrents')] as const,
+    responses: { 200: jsonContent(torrentSettingsSchema, 'Torrent settings') },
   },
 )
 
 const replaceSettingsRoute = authRoute(
-  { scopes: [AuthorizationScope.TORRENT_CACHE_SETTINGS_UPDATE], siteRole: 'admin' },
+  { scopes: [AuthorizationScope.TORRENT_SETTINGS_UPDATE], siteRole: 'admin' },
   {
-    operationId: 'replaceTorrentCacheSettings',
-    summary: 'Replace the torrent cache retention and capacity',
-    tags: ['Torrent Cache'],
+    operationId: 'replaceTorrentSettings',
+    summary: 'Replace the torrent retention and capacity',
+    tags: ['Torrents'],
     method: 'put',
     path: '/',
-    middleware: [requireFeature('torrent_cache')] as const,
-    request: jsonBody(replaceTorrentCacheSettingsSchema),
+    middleware: [requireFeature('torrents')] as const,
+    request: jsonBody(replaceTorrentSettingsSchema),
     responses: {
-      200: jsonContent(torrentCacheSettingsSchema, 'Torrent cache settings'),
+      200: jsonContent(torrentSettingsSchema, 'Torrent settings'),
       400: errorResponse('Invalid settings'),
     },
   },
@@ -134,10 +134,10 @@ export const adminTorrents = createRouter()
     return c.body(null, 204)
   })
 
-export const adminTorrentCacheSettings = createRouter()
+export const adminTorrentSettings = createRouter()
   .openapi(getSettingsRoute, async (c) => {
-    return c.json(await getTorrentCacheSettings(c.get('deps')), 200)
+    return c.json(await getTorrentSettings(c.get('deps')), 200)
   })
   .openapi(replaceSettingsRoute, async (c) => {
-    return c.json(await replaceTorrentCacheSettings(c.get('deps'), c.req.valid('json')), 200)
+    return c.json(await replaceTorrentSettings(c.get('deps'), c.req.valid('json')), 200)
   })

@@ -384,7 +384,7 @@ func exportPending(err error) bool {
 }
 
 // CanExportTorrentMetadata reports whether the Web API has torrents/export, so
-// the downloader advertises the torrent cache only when it can fill it. A
+// the downloader advertises the fill capability only when it can fill torrents. A
 // failed probe is not remembered.
 func (q QBittorrent) CanExportTorrentMetadata(ctx context.Context) bool {
 	if q.export != nil {
