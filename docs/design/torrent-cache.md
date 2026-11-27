@@ -317,8 +317,8 @@ The plan rests on third-party clients accepting ZPan as a StremThru store,
 which a standalone spike confirmed against `mediafusion.elfhosted.com`: the
 public instance validated the credential, marked streams cached from
 `torz/check`, and on playback called `torz` add and `link/generate` and
-redirected to the returned link. Playback inside a Stremio client and the
-AIOStreams custom-addon path are still to be tried before phase 1.
+redirected to the returned link, which Stremio Web played. The AIOStreams
+custom-addon path is still to be tried before phase 1.
 
 1. **Cache and instant transfer.** Tables, the `bt/` rules and gateway guard,
    the cache upload path in the downloader, checks 1 and 2, instant transfer
