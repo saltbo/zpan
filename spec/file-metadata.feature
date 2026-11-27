@@ -7,5 +7,5 @@ Feature: File metadata
   Scenario: A download task writes media metadata on what it uploaded
     Given a download task's upload token
     When it sets media metadata on objects its task created
-    Then the metadata is stored, and the same token is refused on any other object
+    Then the metadata is stored, and the same token is refused on any other object, including one another task of the same downloader created
     And rename, move, trash and restore keep the metadata, copy copies it, and overwriting a file's content clears it
