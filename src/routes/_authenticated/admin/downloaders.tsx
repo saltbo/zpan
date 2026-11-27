@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { AdminFormDrawer, AdminFormField, AdminSwitchField } from '@/components/admin/admin-form-drawer'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
+import { DATA_UNITS, DataAmountInput, type DataUnit } from '@/components/admin/data-amount-input'
 import { ProBadge } from '@/components/ProBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,7 +20,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { deleteDownloader, listDownloaders, updateDownloader, updateDownloaderCreditBilling } from '@/lib/api'
@@ -30,13 +30,11 @@ export const Route = createFileRoute('/_authenticated/admin/downloaders')({
 })
 
 const QUERY_KEY = ['admin', 'downloaders']
-const CREDIT_UNITS = { MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 } as const
 
-type CreditUnit = keyof typeof CREDIT_UNITS
 type CreditBillingForm = {
   enabled: boolean
   unitValue: string
-  unit: CreditUnit
+  unit: DataUnit
   credits: string
 }
 type DownloaderSettingsForm = CreditBillingForm & {
@@ -426,7 +424,7 @@ function settingsFormFromDownloader(downloader: Downloader): DownloaderSettingsF
     name: downloader.name,
     downloaderEnabled: downloader.enabled,
     enabled: downloader.remoteDownloadCreditBillingEnabled,
-    unitValue: String(Math.max(1, downloader.remoteDownloadCreditUnitBytes / CREDIT_UNITS[unit])),
+    unitValue: String(Math.max(1, downloader.remoteDownloadCreditUnitBytes / DATA_UNITS[unit])),
     unit,
     credits: String(downloader.remoteDownloadCreditPerUnit),
   }
@@ -435,62 +433,13 @@ function settingsFormFromDownloader(downloader: Downloader): DownloaderSettingsF
 function billingPayload(form: CreditBillingForm) {
   return {
     enabled: form.enabled,
-    unitBytes: Math.max(1, Math.floor(Number(form.unitValue))) * CREDIT_UNITS[form.unit],
+    unitBytes: Math.max(1, Math.floor(Number(form.unitValue))) * DATA_UNITS[form.unit],
     creditsPerUnit: Math.max(1, Math.floor(Number(form.credits))),
   }
 }
 
-function bytesToCreditUnit(bytes: number): CreditUnit {
-  if (bytes >= CREDIT_UNITS.TB && bytes % CREDIT_UNITS.TB === 0) return 'TB'
-  if (bytes >= CREDIT_UNITS.GB && bytes % CREDIT_UNITS.GB === 0) return 'GB'
+function bytesToCreditUnit(bytes: number): DataUnit {
+  if (bytes >= DATA_UNITS.TB && bytes % DATA_UNITS.TB === 0) return 'TB'
+  if (bytes >= DATA_UNITS.GB && bytes % DATA_UNITS.GB === 0) return 'GB'
   return 'MB'
-}
-
-function DataAmountInput({
-  id,
-  value,
-  unit,
-  min,
-  placeholder,
-  disabled,
-  required,
-  onValueChange,
-  onUnitChange,
-}: {
-  id: string
-  value: string
-  unit: CreditUnit
-  min: number
-  placeholder?: string
-  disabled?: boolean
-  required?: boolean
-  onValueChange: (value: string) => void
-  onUnitChange: (unit: CreditUnit) => void
-}) {
-  return (
-    <div className="flex h-9 w-48 items-center overflow-hidden rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 has-disabled:pointer-events-none has-disabled:opacity-50 dark:bg-input/30">
-      <Input
-        id={id}
-        type="number"
-        min={min}
-        step={1}
-        value={value}
-        placeholder={placeholder}
-        disabled={disabled}
-        aria-required={required ? true : undefined}
-        onChange={(event) => onValueChange(event.target.value)}
-        className="h-8 flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0"
-      />
-      <Select value={unit} disabled={disabled} onValueChange={(nextUnit) => onUnitChange(nextUnit as CreditUnit)}>
-        <SelectTrigger className="h-8 w-20 rounded-none border-0 border-l bg-transparent px-2 shadow-none focus-visible:ring-0">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="MB">MB</SelectItem>
-          <SelectItem value="GB">GB</SelectItem>
-          <SelectItem value="TB">TB</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-  )
 }

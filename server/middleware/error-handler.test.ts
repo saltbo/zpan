@@ -10,7 +10,7 @@ import {
   ObjectUploadSessionError,
   textMessage,
 } from '../usecases/ports'
-import { isHandledError, jsonError, requestLanguage, standaloneJsonError } from './error-handler'
+import { isHandledError, jsonError, requestLanguage, standaloneJsonError, varyOnLanguage } from './error-handler'
 import type { Env } from './platform'
 
 // Build a real Context so jsonError's c.json / c.set behave as in production.
@@ -210,5 +210,22 @@ describe('standaloneJsonError', () => {
     expect(await res.json()).toMatchObject({
       error: { message: 'Internal Server Error' },
     })
+  })
+})
+
+describe('Vary: Accept-Language [spec: error-messages/vary]', () => {
+  it('marks every localized error response', async () => {
+    const c = await ctx({ 'Accept-Language': 'zh' })
+    expect(jsonError(c, new AppError(404, 'Not found')).headers.get('Vary')).toBe('Accept-Language')
+    expect(jsonError(c, new Error('boom')).headers.get('Vary')).toBe('Accept-Language')
+    expect(standaloneJsonError(new AppError(404, 'Not found')).headers.get('Vary')).toBe('Accept-Language')
+    expect(standaloneJsonError(new Error('boom')).headers.get('Vary')).toBe('Accept-Language')
+  })
+
+  it('merges with an existing Vary and does not repeat itself', () => {
+    const res = varyOnLanguage(new Response(null, { headers: { Vary: 'Origin' } }))
+    expect(res.headers.get('Vary')).toBe('Origin, Accept-Language')
+    expect(varyOnLanguage(res).headers.get('Vary')).toBe('Origin, Accept-Language')
+    expect(varyOnLanguage(new Response(null, { headers: { Vary: '*' } })).headers.get('Vary')).toBe('*')
   })
 })
