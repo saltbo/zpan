@@ -371,7 +371,7 @@ redirected to the returned link, which Stremio Web played.
 2. **Verification** (#687). The `torrent_verify` job and the sharing gate.
 3. **StremThru Store API** (#707). The endpoint subset, the `stremthru` key,
    link issuance and metering, and the workspace StremThru tab.
-4. **Downloader and layout** (#721, #722). The Go downloader reports the
+4. **Downloader and layout** (#721, #726). The Go downloader reports the
    `torrent-cache` capability and uploads through the cache API, and the
    `layout.json` upload and replay.
 5. **Drive details** (#715). The cached-file mark, torrent and verification
