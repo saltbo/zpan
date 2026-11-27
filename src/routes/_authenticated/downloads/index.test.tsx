@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Profiler } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, createDownloadTask, getDownloadTask, listDownloadTasks } from '@/lib/api'
+import { ApiError, createDownloadTask, getDownloadTask, listDownloadTaskEvents, listDownloadTasks } from '@/lib/api'
 import { routerSearch } from '@/test/router-search'
 import { DownloadsPage, downloadsSearchSchema } from './index'
 
@@ -98,10 +98,10 @@ function task(id: string, name: string): DownloadTask {
   }
 }
 
-function renderDownloadsPage(onRender: () => void) {
+function renderDownloadsPage(onRender: () => void, { retry = false }: { retry?: boolean } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry: false },
+      queries: { retry },
       mutations: { retry: false },
     },
   })
@@ -232,6 +232,69 @@ describe('DownloadsPage list state in the URL', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
     expect(routerSearch.search).toEqual({})
     expect(routerSearch.navigate).toHaveBeenLastCalledWith(expect.objectContaining({ replace: false }))
+  })
+})
+
+describe('DownloadsPage selected task in the URL', () => {
+  const first = task('task-a', 'Task A')
+  const second = task('task-b', 'Task B')
+
+  beforeEach(() => {
+    vi.mocked(listDownloadTasks).mockResolvedValue({
+      items: [toDownloadTaskListItem(first), toDownloadTaskListItem(second)],
+      nextPageToken: null,
+    })
+    vi.mocked(getDownloadTask).mockImplementation(async (id) => {
+      if (id === first.id) return first
+      if (id === second.id) return second
+      throw new ApiError(404, { error: { code: 404, message: 'not found', status: 'NOT_FOUND', details: [] } })
+    })
+  })
+
+  it('writes the selected task and tab into the link, keeping filters [spec: list-state/downloads-selected-task]', async () => {
+    routerSearch.reset(downloadsSearchSchema.parse({ category: 'movies' }))
+    renderDownloadsPage(() => {})
+    await screen.findByText('task-a detail')
+
+    fireEvent.click(screen.getByText('Task B'))
+    expect(routerSearch.search).toEqual({ category: 'movies', task: 'task-b' })
+    expect(routerSearch.navigate).toHaveBeenLastCalledWith(expect.not.objectContaining({ replace: true }))
+    await screen.findByText('task-b detail')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'downloads.detail.tabs.files' }))
+    expect(routerSearch.search).toEqual({ category: 'movies', task: 'task-b', tab: 'files' })
+    expect(routerSearch.navigate).toHaveBeenLastCalledWith(expect.objectContaining({ replace: true }))
+
+    fireEvent.click(screen.getByRole('tab', { name: 'downloads.detail.tabs.overview' }))
+    expect(routerSearch.search).toEqual({ category: 'movies', task: 'task-b' })
+  })
+
+  it('reopens the linked task on the linked tab [spec: list-state/downloads-selected-task]', async () => {
+    routerSearch.reset(downloadsSearchSchema.parse({ task: 'task-b', tab: 'events' }))
+    vi.mocked(listDownloadTaskEvents).mockResolvedValue({ items: [], nextPageToken: null } as never)
+    renderDownloadsPage(() => {})
+
+    const eventsTab = await screen.findByRole('tab', { name: 'downloads.detail.tabs.events' })
+    expect(eventsTab.getAttribute('aria-selected')).toBe('true')
+    expect(getDownloadTask).toHaveBeenCalledWith('task-b')
+    expect(getDownloadTask).not.toHaveBeenCalledWith('task-a')
+    await waitFor(() => expect(listDownloadTaskEvents).toHaveBeenCalledWith('task-b'))
+  })
+
+  it('drops a linked task that no longer exists and shows the first task [spec: list-state/downloads-missing-task]', async () => {
+    routerSearch.reset(downloadsSearchSchema.parse({ status: 'failed', task: 'task-gone', tab: 'files' }))
+    // The app's client retries failed queries; a missing task must not wait for them.
+    renderDownloadsPage(() => {}, { retry: true })
+
+    await waitFor(() => expect(routerSearch.search).toEqual({ status: 'failed', tab: 'files' }))
+    expect(routerSearch.navigate).toHaveBeenLastCalledWith(expect.objectContaining({ replace: true }))
+    const filesTab = await screen.findByRole('tab', { name: 'downloads.detail.tabs.files' })
+    expect(filesTab.getAttribute('aria-selected')).toBe('true')
+    expect(getDownloadTask).toHaveBeenLastCalledWith('task-a')
+  })
+
+  it('ignores a tab the inspector does not offer', () => {
+    expect(downloadsSearchSchema.parse({ task: 'task-a', tab: 'bogus' })).toEqual({ task: 'task-a' })
   })
 })
 
