@@ -83,7 +83,7 @@ ports:
 
 Keep that port reachable from the internet if you want effective seeding and better peer connectivity. `ZPAN_BT_PORT` controls the host port. `ZPAN_DOWNLOADER_BT_LISTEN_PORT` controls the engine listen port inside the container. If multiple downloader containers run on the same host, give each one a different host port, for example `ZPAN_BT_PORT=6882`.
 
-The Docker images include aria2 only; `ZPAN_DOWNLOADER_ENGINE=auto` (the default) starts it inside the container. qBittorrent is not bundled. To use it, run qBittorrent yourself and point the downloader at its Web UI with `ZPAN_DOWNLOADER_ENGINE=qbittorrent` and `ZPAN_DOWNLOADER_QBITTORRENT_URL` (plus `ZPAN_DOWNLOADER_QBITTORRENT_USERNAME`/`ZPAN_DOWNLOADER_QBITTORRENT_PASSWORD`), or the matching `downloader.qbittorrent.*` keys in the downloader config. Setting `ZPAN_DOWNLOADER_ENGINE=qbittorrent` without an external URL fails to start, because there is no `qbittorrent-nox` binary in the image.
+The Docker images include aria2 only; `ZPAN_DOWNLOADER_ENGINE=auto` (the default) starts it inside the container. qBittorrent is not bundled. To use it, run qBittorrent yourself and point the downloader at its Web UI with `ZPAN_DOWNLOADER_ENGINE=qbittorrent` and `ZPAN_DOWNLOADER_QBITTORRENT_URL` (plus `ZPAN_DOWNLOADER_QBITTORRENT_USERNAME`/`ZPAN_DOWNLOADER_QBITTORRENT_PASSWORD`, or a WebUI API key in `ZPAN_DOWNLOADER_QBITTORRENT_API_KEY`), or the matching `downloader.qbittorrent.*` keys in the downloader config. Setting `ZPAN_DOWNLOADER_ENGINE=qbittorrent` without an external URL fails to start, because there is no `qbittorrent-nox` binary in the image.
 
 ### Remote downloader hostname
 

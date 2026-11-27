@@ -418,6 +418,7 @@ func (m *Manager) downloaderConfig() Config {
 			URL:        m.cfg.QBittorrentURL,
 			Username:   m.cfg.QBittorrentUser,
 			Password:   m.cfg.QBittorrentPass,
+			APIKey:     m.cfg.QBittorrentAPIKey,
 			Configured: m.cfg.QBittorrentConfigured,
 		},
 		GeoIP: m.geoIP,

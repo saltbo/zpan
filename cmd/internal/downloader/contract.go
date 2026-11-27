@@ -33,6 +33,7 @@ type QBittorrentConfig struct {
 	URL        string
 	Username   string
 	Password   string
+	APIKey     string
 	Configured bool
 }
 

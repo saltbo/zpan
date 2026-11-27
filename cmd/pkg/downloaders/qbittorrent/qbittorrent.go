@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,6 +33,7 @@ func New(cfg downloader.Config) (downloader.Downloader, error) {
 		URL:        cfg.QBittorrent.URL,
 		Username:   cfg.QBittorrent.Username,
 		Password:   cfg.QBittorrent.Password,
+		APIKey:     cfg.QBittorrent.APIKey,
 		Dir:        cfg.DownloadDir,
 		StateDir:   cfg.StateDir,
 		ListenPort: cfg.BTListenPort,
@@ -47,9 +46,12 @@ func New(cfg downloader.Config) (downloader.Downloader, error) {
 }
 
 type QBittorrent struct {
-	URL        string
-	Username   string
-	Password   string
+	URL      string
+	Username string
+	Password string
+	// APIKey authenticates with a WebUI API key (Authorization: Bearer) in
+	// place of the username and password.
+	APIKey     string
 	Dir        string
 	StateDir   string
 	ListenPort int
@@ -173,24 +175,26 @@ func listenPortString(port int) string {
 	return fmt.Sprint(port)
 }
 
+// Check asks the Web API for the app version with the configured credentials,
+// so a qBittorrent with WebUI authentication answers instead of 403.
 func (q QBittorrent) Check(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(q.URL, "/")+"/api/v2/app/version", nil)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	// One attempt: a health check must fail fast, not retry a 403.
+	qbt, err := q.connect(ctx, 1)
 	if err != nil {
 		return err
 	}
-	res, err := (&http.Client{Timeout: 2 * time.Second}).Do(req)
+	version, err := qbt.GetAppVersionCtx(ctx)
 	if err != nil {
+		if q.APIKey == "" && q.Username == "" && q.Password == "" {
+			// The library reports a 403 without credentials as a failed re-login.
+			return fmt.Errorf("qbittorrent web api check failed without credentials; "+
+				"if WebUI authentication is on, set downloader.qbittorrent.api_key or username and password: %w", err)
+		}
 		return err
 	}
-	defer res.Body.Close()
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return fmt.Errorf("qbittorrent web api returned %s", res.Status)
-	}
-	version, err := io.ReadAll(io.LimitReader(res.Body, 256))
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(string(version)) == "" {
+	if strings.TrimSpace(version) == "" {
 		return errors.New("qbittorrent web api did not return a version")
 	}
 	return nil
@@ -291,11 +295,20 @@ func (q QBittorrent) InspectTask(ctx context.Context, task downloader.DownloadTa
 }
 
 func (q QBittorrent) login(ctx context.Context) (*qbittorrent.Client, error) {
+	return q.connect(ctx, 0)
+}
+
+// connect builds a client and signs in. An API key skips auth/login; no
+// credentials at all suits a qBittorrent without WebUI authentication.
+// retryAttempts 0 keeps the library default.
+func (q QBittorrent) connect(ctx context.Context, retryAttempts int) (*qbittorrent.Client, error) {
 	qbt := qbittorrent.NewClient(qbittorrent.Config{
-		Host:     q.URL,
-		Username: q.Username,
-		Password: q.Password,
-		Timeout:  10,
+		Host:          q.URL,
+		Username:      q.Username,
+		Password:      q.Password,
+		APIKey:        q.APIKey,
+		Timeout:       10,
+		RetryAttempts: retryAttempts,
 	})
 	if err := qbt.LoginCtx(ctx); err != nil {
 		return nil, err

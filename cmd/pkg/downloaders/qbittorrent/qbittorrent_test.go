@@ -154,6 +154,73 @@ func TestQBittorrentCheckUsesWebAPIVersion(t *testing.T) {
 	}
 }
 
+// authQBittorrent mimics a qBittorrent with WebUI authentication: app/version
+// answers 403 without a session cookie or the API key.
+func authQBittorrent(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			if err := r.ParseForm(); err != nil {
+				t.Fatal(err)
+			}
+			if r.PostForm.Get("username") != "admin" || r.PostForm.Get("password") != "secret" {
+				_, _ = w.Write([]byte("Fails."))
+				return
+			}
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "session", Path: "/"})
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/app/version":
+			cookie, _ := r.Cookie("SID")
+			if r.Header.Get("Authorization") != "Bearer api-key" && (cookie == nil || cookie.Value != "session") {
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+			_, _ = w.Write([]byte("v5.1.0"))
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestQBittorrentCheckWithoutCredentialsFailsOnAuthenticatedWebUI(t *testing.T) {
+	server := authQBittorrent(t)
+	err := (QBittorrent{URL: server.URL}).Check(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "without credentials") {
+		t.Fatalf("expected unauthenticated check error, got %v", err)
+	}
+}
+
+func TestQBittorrentCheckSignsInWithUsernameAndPassword(t *testing.T) {
+	server := authQBittorrent(t)
+	if err := (QBittorrent{URL: server.URL, Username: "admin", Password: "secret"}).Check(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := (QBittorrent{URL: server.URL, Username: "admin", Password: "wrong"}).Check(context.Background()); err == nil {
+		t.Fatal("expected bad credentials error")
+	}
+}
+
+func TestQBittorrentCheckUsesAPIKey(t *testing.T) {
+	server := authQBittorrent(t)
+	d, err := New(downloader.Config{QBittorrent: downloader.QBittorrentConfig{URL: server.URL, APIKey: "api-key", Configured: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := d.(*QBittorrent)
+	if q.Managed || q.APIKey != "api-key" {
+		t.Fatalf("expected external qbittorrent with api key, got %#v", q)
+	}
+	if err := q.Check(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := (QBittorrent{URL: server.URL, APIKey: "wrong"}).Check(context.Background()); err == nil || !strings.Contains(err.Error(), "403") {
+		t.Fatalf("expected 403 with a wrong api key, got %v", err)
+	}
+}
+
 func TestQBittorrentHTTPDelegatesToBuiltin(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", "11")
