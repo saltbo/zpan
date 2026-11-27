@@ -23,11 +23,20 @@ Core architecture: clients upload directly to S3-compatible storage via presigne
 - [docs/design/upload-policies.md](docs/design/upload-policies.md) — proposed selector-based upload placement policies for multiple storage backends
 - [docs/design/media-library.md](docs/design/media-library.md) — media library folders, the <library>/library.json JSON Feed index, fingerprint sweep, scan job, downloader TMDB scraping into file metadata, Movies and TV views, Pro/Business gating
 - [docs/design/torrent-cache.md](docs/design/torrent-cache.md) — instance-wide torrent cache keyed by infoHash, instant transfer replaying the scraped layout as `bt/` references in `matters`, piece verification, StremThru Store API
+- [docs/adr/](docs/adr/) — architecture decision records
 - [docs/design/oauth-server.md](docs/design/oauth-server.md) — OAuth, CI API keys, protocol-neutral authorization, Restish credential handling, and future Agent Auth compatibility
 - [ROADMAP.md](ROADMAP.md) — release plan (v2.0–v2.10), editions
 - [docs/roadmap/](docs/roadmap/) — per-version technical specs (v2.0.md–v2.9.md)
 - [docs/design/license-key-trust.md](docs/design/license-key-trust.md) — hardcoded license keys, per-key issuer/host scopes, exact host matching, local Pro testing
 - [docs/design/spaces-quota-sharing.md](docs/design/spaces-quota-sharing.md) — spaces/quota/sharing design decisions (team billing, allocation, cross-space transfer, no per-item ACL)
+
+## Handbook
+
+Types: cf-workers, docker-service, go-cli
+Stage: live
+Facts: production https://drive.zpan.space; D1 database zpan-db (staging zpan-db-staging, shared by every preview); downloader agent and CLI in `cmd/`
+Preview: each PR gets https://<branch>-zpan.saltbo.workers.dev, posted on the PR by Cloudflare Workers Builds
+Exceptions: none
 
 ## CONTRIBUTING.md Compliance
 
