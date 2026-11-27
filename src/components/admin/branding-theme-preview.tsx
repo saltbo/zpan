@@ -1,4 +1,5 @@
 import type { BrandingThemeValues } from '@shared/types'
+import { useTranslation } from 'react-i18next'
 import { AdminFormField } from '@/components/admin/admin-form-drawer'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -6,6 +7,7 @@ import { cn } from '@/lib/utils'
 const HEX6_RE = /^#[0-9a-fA-F]{6}$/
 
 export function ThemePreview({ values, logoUrl }: { values: BrandingThemeValues; logoUrl: string | null }) {
+  const { t } = useTranslation()
   return (
     <div className="overflow-hidden rounded-lg border border-border/60 bg-background">
       <div className="flex min-h-96" style={{ backgroundColor: values.canvas_color }}>
@@ -56,7 +58,7 @@ export function ThemePreview({ values, logoUrl }: { values: BrandingThemeValues;
               boxShadow: `0 0 0 3px ${values.ring_color}33`,
             }}
           >
-            Theme
+            {t('admin.settings.branding.themeTitle')}
           </button>
         </div>
       </div>

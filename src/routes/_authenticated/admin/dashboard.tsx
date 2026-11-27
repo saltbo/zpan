@@ -506,7 +506,7 @@ function TopUsersCard({ overview }: { overview: AdminOverview }) {
     <DetailCard
       title={t('admin.overview.topUsers.title')}
       description={t('admin.overview.topUsers.description')}
-      action={<Badge variant="secondary">Top 10</Badge>}
+      action={<Badge variant="secondary">{t('admin.overview.topUsers.badge')}</Badge>}
     >
       {overview.users.topUsage.length === 0 ? (
         <EmptyList label={t('admin.overview.topUsers.empty')} />

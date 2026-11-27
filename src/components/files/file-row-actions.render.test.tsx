@@ -327,12 +327,14 @@ describe('FileRowActions — component rendering', () => {
     expect(marked.onRemove).toHaveBeenCalledWith(library)
     cleanup()
 
-    expect(labels(folder, actions({ locked: true })).text).toContain('mediaLibrary.setPro')
+    expect(labels(folder, actions({ locked: true })).text).toContain('mediaLibrary.setcommon.proBadge')
     cleanup()
 
     const lapsed = actions({ locked: true, libraryFor: () => library })
     const lapsedView = labels(folder, lapsed)
-    expect(lapsedView.text).toEqual(expect.arrayContaining(['mediaLibrary.rescanPro', 'mediaLibrary.remove']))
+    expect(lapsedView.text).toEqual(
+      expect.arrayContaining(['mediaLibrary.rescancommon.proBadge', 'mediaLibrary.remove']),
+    )
     fireEvent.click(lapsedView.items.find((el) => el.textContent === 'mediaLibrary.remove')!)
     expect(lapsed.onRemove).toHaveBeenCalledWith(library)
     cleanup()

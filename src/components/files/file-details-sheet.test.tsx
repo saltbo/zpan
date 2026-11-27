@@ -107,7 +107,7 @@ describe('FileDetailsSheet', () => {
     cleanup()
 
     renderSheet(actions({ locked: true }))
-    expect(screen.getByText('Pro')).toBeTruthy()
+    expect(screen.getByText('common.proBadge')).toBeTruthy()
     expect(screen.queryByText('mediaLibrary.indexFile')).toBeNull()
     cleanup()
 

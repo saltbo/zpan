@@ -1,4 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 export type PageTabItem = {
   to: string
@@ -22,10 +23,11 @@ function tabClass(isActive: boolean): string {
 }
 
 export function PageTabs({ items }: PageTabsProps) {
+  const { t } = useTranslation()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   return (
-    <nav className="flex gap-1" aria-label="Page navigation">
+    <nav className="flex gap-1" aria-label={t('common.pageNavigation')}>
       {items.map((item) => {
         const resolved = resolveHref(item.to, item.params)
         return (

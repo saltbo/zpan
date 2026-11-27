@@ -98,10 +98,10 @@ export function FilesToolbar({
           onValueChange={(v) => v && onViewModeChange(v as ViewMode)}
           className="hidden sm:flex"
         >
-          <ToggleGroupItem value="list" aria-label="List view">
+          <ToggleGroupItem value="list" aria-label={t('files.listView')}>
             <List className="h-4 w-4" />
           </ToggleGroupItem>
-          <ToggleGroupItem value="grid" aria-label="Grid view">
+          <ToggleGroupItem value="grid" aria-label={t('files.gridView')}>
             <LayoutGrid className="h-4 w-4" />
           </ToggleGroupItem>
         </ToggleGroup>

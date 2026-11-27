@@ -82,7 +82,7 @@ describe('AdminFormField', () => {
     const input = screen.getByLabelText('Bucket')
     expect(input.getAttribute('aria-required')).toBe('true')
     expect(screen.getByText('*')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Help' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'common.help' })).toBeTruthy()
   })
 })
 
