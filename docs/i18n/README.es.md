@@ -155,7 +155,7 @@ Tras el inicio:
 
 ## Documentación
 
-- [Hoja de ruta](../../V2_ROADMAP.md)
+- [Hoja de ruta](../../ROADMAP.md)
 - [Contribuir](../../CONTRIBUTING.md)
 
 ## v1

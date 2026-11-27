@@ -43,8 +43,8 @@ function TeamInvitePage() {
       if (!teamId) throw new Error('Team info not loaded')
       const res = await teamsApi[':teamId'].members.$post({ param: { teamId }, json: { token } })
       if (!res.ok) {
-        const body = await res.json()
-        throw new Error((body as { error?: { message?: string } }).error?.message ?? 'Failed to join')
+        const body = (await res.json()) as { error?: { message?: string } }
+        throw Object.assign(new Error(body.error?.message ?? 'Failed to join'), { status: res.status })
       }
       return res.json()
     },
@@ -54,9 +54,10 @@ function TeamInvitePage() {
       await setActive({ organizationId: info.organizationId })
       navigate({ to: '/teams/$teamId/activity', params: { teamId: info.organizationId } })
     },
-    onError: (err: { message?: string }) => {
+    onError: (err: { message?: string; status?: number }) => {
       const msg = err.message ?? String(err)
-      if (msg.includes('Already a member') || msg.includes('already_member')) {
+      // 409 is the only conflict joining returns: the user is already a member.
+      if (err.status === 409) {
         toast.info(t('teams.invite.alreadyMember'))
         if (info) {
           navigate({ to: '/teams/$teamId/activity', params: { teamId: info.organizationId } })

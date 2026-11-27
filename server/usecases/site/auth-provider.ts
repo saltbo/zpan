@@ -27,6 +27,7 @@ import {
   type CacheService,
   featureBlocked,
   type LicenseBindingRepo,
+  msg,
   type OAuthGateway,
   type SystemOptionsRepo,
 } from '../ports'
@@ -147,7 +148,7 @@ export async function upsertAuthProvider(
 ): Promise<UpsertProviderOutcome> {
   if (!isValidProviderId(providerId)) return { ok: false, error: badRequest(INVALID_PROVIDER_ID_MESSAGE) }
   if (input.type === 'builtin' && !BUILTIN_PROVIDER_IDS.includes(providerId)) {
-    return { ok: false, error: badRequest(`Unknown builtin provider: ${providerId}`) }
+    return { ok: false, error: badRequest(msg('Unknown builtin provider: {id}', { id: providerId })) }
   }
   if (input.type === 'oidc' && !input.discoveryUrl)
     return { ok: false, error: badRequest('discoveryUrl is required for OIDC providers') }

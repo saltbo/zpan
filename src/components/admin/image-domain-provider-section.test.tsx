@@ -201,7 +201,7 @@ describe('ImageDomainProviderSection', () => {
   it('shows the Pro badge and disables provider changes for Community', async () => {
     entitlement.enabled = false
     const view = renderSection()
-    expect(await view.findByText('Pro')).toBeTruthy()
+    expect(await view.findByText('common.proBadge')).toBeTruthy()
     expect(view.getByText('Unlock image custom domains')).toBeTruthy()
     expect(view.getByRole('button', { name: 'Edit' }).hasAttribute('disabled')).toBe(true)
     expect(view.getByRole('button', { name: 'Test configuration' }).hasAttribute('disabled')).toBe(true)

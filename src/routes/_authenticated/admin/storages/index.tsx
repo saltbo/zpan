@@ -1,7 +1,7 @@
 import { FREE_STORAGE_LIMIT, StorageStatus, StorageStatusReason } from '@shared/constants'
 import type { Storage } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import {
   Activity,
   AlertTriangle,
@@ -24,6 +24,7 @@ import {
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { z } from 'zod'
 import { AdminFormDrawer, AdminFormLabel } from '@/components/admin/admin-form-drawer'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { DeleteStorageDialog } from '@/components/admin/delete-storage-dialog'
@@ -49,6 +50,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useUrlText } from '@/hooks/use-url-text'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import {
   ApiError,
@@ -60,8 +62,21 @@ import {
 } from '@/lib/api'
 import { eplistProviderLabel, listEplistProviders } from '@/lib/eplist'
 import { formatSize } from '@/lib/format'
+import { enumParam, textParam } from '@/lib/list-search'
+
+const STORAGE_FILTERS = ['all', 'healthy', 'attention', 'failed', 'disabled'] as const
+const STORAGE_SORTS = ['default', 'usage', 'used', 'bucket'] as const
+
+export const storagesSearchSchema = z.object({
+  filter: enumParam(STORAGE_FILTERS),
+  sort: enumParam(STORAGE_SORTS),
+  q: textParam,
+})
+
+type StoragesSearch = z.infer<typeof storagesSearchSchema>
 
 export const Route = createFileRoute('/_authenticated/admin/storages/')({
+  validateSearch: storagesSearchSchema,
   component: StoragesPage,
 })
 
@@ -74,8 +89,7 @@ type StorageHealth =
 type StorageTestStep = 'creating' | 'uploading' | 'cleanup'
 type StorageTestPosition = StorageTestStep | 'done'
 type StorageTestStepState = 'done' | 'failed' | 'active' | 'pending'
-type StorageFilter = 'all' | 'healthy' | 'attention' | 'failed' | 'disabled'
-type StorageSort = 'default' | 'usage' | 'used' | 'bucket'
+type StorageFilter = (typeof STORAGE_FILTERS)[number]
 
 const TEST_CONTENT = 'zpan storage connection test\n'
 const DATA_UNITS = { MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 } as const
@@ -140,9 +154,24 @@ export function StoragesPage() {
   const [testHealth, setTestHealth] = useState<StorageHealth>({ status: 'idle' })
   const [testStep, setTestStep] = useState<StorageTestPosition>('done')
   const [testFailedStep, setTestFailedStep] = useState<StorageTestStep | null>(null)
-  const [filter, setFilter] = useState<StorageFilter>('all')
-  const [sort, setSort] = useState<StorageSort>('default')
-  const [query, setQuery] = useState('')
+  const navigate = useNavigate()
+  const listSearch = useSearch({ from: '/_authenticated/admin/storages/' })
+  const filter = listSearch.filter ?? 'all'
+  const sort = listSearch.sort ?? 'default'
+  const query = listSearch.q ?? ''
+
+  function updateListSearch(next: StoragesSearch, replace = false) {
+    navigate({
+      to: '/admin/storages',
+      search: {
+        filter: next.filter === 'all' ? undefined : next.filter,
+        sort: next.sort === 'default' ? undefined : next.sort,
+        q: next.q || undefined,
+      },
+      replace,
+    })
+  }
+  const [queryText, setQueryText] = useUrlText(query, (q) => updateListSearch({ ...listSearch, q }, true))
 
   const storagesQuery = useQuery({
     queryKey: ['admin', 'storages'],
@@ -353,13 +382,13 @@ export function StoragesPage() {
 
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg border bg-card p-1">
-          {(['all', 'healthy', 'attention', 'failed', 'disabled'] as const).map((value) => (
+          {STORAGE_FILTERS.map((value) => (
             <Button
               key={value}
               variant={filter === value ? 'secondary' : 'ghost'}
               size="sm"
               className="h-7 rounded-md px-2.5 text-[11px]"
-              onClick={() => setFilter(value)}
+              onClick={() => updateListSearch({ ...listSearch, filter: value })}
             >
               {t(`admin.storages.filter.${value}`)}
               <span className="ml-1 rounded-full bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
@@ -372,18 +401,23 @@ export function StoragesPage() {
           <div className="relative min-w-0 flex-1 lg:w-60">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              value={queryText}
+              onChange={(event) => setQueryText(event.target.value)}
               placeholder={t('admin.storages.searchPlaceholder')}
               className="h-8 rounded-lg bg-card pl-9 text-xs"
             />
           </div>
-          <Select value={sort} onValueChange={(value) => setSort(value as StorageSort)}>
+          <Select
+            value={sort}
+            onValueChange={(value) =>
+              updateListSearch({ ...listSearch, sort: storagesSearchSchema.shape.sort.parse(value) })
+            }
+          >
             <SelectTrigger className="h-8 w-36 rounded-lg bg-card text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(['default', 'usage', 'used', 'bucket'] as const).map((value) => (
+              {STORAGE_SORTS.map((value) => (
                 <SelectItem key={value} value={value}>
                   {t(`admin.storages.sort.${value}`)}
                 </SelectItem>

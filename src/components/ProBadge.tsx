@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
@@ -7,13 +8,14 @@ interface ProBadgeProps {
 }
 
 function ProBadgePill({ className }: { className?: string }) {
+  const { t } = useTranslation()
   return (
     <span
       data-slot="pro-badge"
       className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white', className)}
       style={{ backgroundColor: '#1A73E8' }}
     >
-      Pro
+      {t('common.proBadge')}
     </span>
   )
 }

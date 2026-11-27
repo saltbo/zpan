@@ -1,12 +1,15 @@
+import type { AdminUserListItem } from '@shared/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { Search, ShieldCheck, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { z } from 'zod'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
 import { DeleteUserDialog } from '@/components/admin/delete-user-dialog'
 import { SiteInvitationsDialog } from '@/components/admin/site-invitations-dialog'
+import { CursorPagination } from '@/components/list/cursor-pagination'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -19,39 +22,50 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getUserQuotaById } from '@/lib/api'
-import { type AdminUser, adminListUsers, adminRemoveUser, adminSetUserBanned } from '@/lib/auth-client'
+import { useCursorPager } from '@/hooks/use-cursor-pager'
+import { useUrlText } from '@/hooks/use-url-text'
+import { getUserQuotaById, listUsers } from '@/lib/api'
+import { adminRemoveUser, adminSetUserBanned } from '@/lib/auth-client'
 import { formatDate, formatStorageUsage, getInitials } from '@/lib/format'
-
-export const Route = createFileRoute('/_authenticated/admin/users/')({
-  component: UsersPage,
-})
-
-type UserRow = AdminUser & { quotaUsed: number; quotaTotal: number }
+import { numberOptionParam, textParam } from '@/lib/list-search'
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 const DEFAULT_PAGE_SIZE = 20
+
+export const adminUsersSearchSchema = z.object({
+  q: textParam,
+  size: numberOptionParam(PAGE_SIZE_OPTIONS),
+})
+
+export const Route = createFileRoute('/_authenticated/admin/users/')({
+  validateSearch: adminUsersSearchSchema,
+  component: UsersPage,
+})
+
+type UserRow = AdminUserListItem & { quotaUsed: number; quotaTotal: number }
 
 export function UsersPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const listSearch = useSearch({ from: '/_authenticated/admin/users/' })
+  const search = listSearch.q ?? ''
+  const pageSize = listSearch.size ?? DEFAULT_PAGE_SIZE
+  const [searchText, setSearchText] = useUrlText(search, (q) => updateListSearch({ q, size: pageSize }, true))
 
   const [deleteDialogUser, setDeleteDialogUser] = useState<{ id: string; name: string } | null>(null)
   const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
+  const pager = useCursorPager(`${pageSize}:${search}`)
+
   const usersQuery = useQuery({
-    queryKey: ['admin', 'users', page, pageSize, search],
-    queryFn: () => adminListUsers({ limit: pageSize, offset: (page - 1) * pageSize, search }),
+    queryKey: ['admin', 'users', pageSize, search, pager.pageToken],
+    queryFn: () => listUsers({ pageToken: pager.pageToken, pageSize, search }),
   })
 
-  const baseUsers = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data])
+  const baseUsers = useMemo(() => usersQuery.data?.items ?? [], [usersQuery.data])
   const pageUserIds = useMemo(() => baseUsers.map((user) => user.id), [baseUsers])
 
   // better-auth's admin list knows identity but not storage quota — fan out over
@@ -111,27 +125,25 @@ export function UsersPage() {
     },
   })
 
-  const total = usersQuery.data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const isUsersLoading = usersQuery.isLoading
   const selectedCount = selectedIds.length
   const allPageSelected = pageUserIds.length > 0 && pageUserIds.every((id) => selectedIds.includes(id))
   const batchPending = batchStatusMutation.isPending || batchDeleteMutation.isPending
 
-  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setSearch(e.target.value)
-    setPage(1)
+  function updateListSearch(next: { q?: string; size?: number }, replace = false) {
+    navigate({
+      to: '/admin/users',
+      search: {
+        q: next.q || undefined,
+        size: next.size === DEFAULT_PAGE_SIZE ? undefined : next.size,
+      },
+      replace,
+    })
     setSelectedIds([])
   }
 
-  function goToPage(nextPage: number) {
-    setPage(nextPage)
-    setSelectedIds([])
-  }
-
-  function handlePageSizeChange(value: string) {
-    setPageSize(Number(value))
-    setPage(1)
+  function movePage(move: () => void) {
+    move()
     setSelectedIds([])
   }
 
@@ -160,8 +172,8 @@ export function UsersPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder={t('admin.users.searchPlaceholder')}
-                value={search}
-                onChange={handleSearchChange}
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
                 className="pl-9"
               />
             </div>
@@ -240,7 +252,7 @@ export function UsersPage() {
                 onSelect={(checked) => toggleUserSelection(user.id, checked)}
                 onOpenUser={() => navigate({ to: '/admin/users/$userId', params: { userId: user.id } })}
                 onToggleStatus={() => toggleStatusMutation.mutate({ userId: user.id, banned: !user.banned })}
-                onDelete={() => setDeleteDialogUser({ id: user.id, name: user.name || user.username })}
+                onDelete={() => setDeleteDialogUser({ id: user.id, name: user.name || user.username || user.email })}
               />
             ))}
             {isUsersLoading ? (
@@ -262,37 +274,16 @@ export function UsersPage() {
         </table>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>{t('admin.users.pageSize')}</span>
-          <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
-            <SelectTrigger className="h-8 w-32" aria-label={t('admin.users.pageSize')}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZE_OPTIONS.map((option) => (
-                <SelectItem key={option} value={String(option)}>
-                  {t('admin.users.pageSizeOption', { count: option })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
-              {t('admin.users.prevPage')}
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {t('admin.users.pageInfo', { page, total: totalPages })}
-            </span>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => goToPage(page + 1)}>
-              {t('admin.users.nextPage')}
-            </Button>
-          </div>
-        )}
-      </div>
+      <CursorPagination
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        hasPrevious={pager.hasPrevious}
+        nextPageToken={usersQuery.data?.nextPageToken}
+        disabled={usersQuery.isFetching}
+        onPageSizeChange={(size) => updateListSearch({ q: search, size })}
+        onPrevious={() => movePage(pager.previous)}
+        onNext={(token) => movePage(() => pager.next(token))}
+      />
 
       <DeleteUserDialog
         open={deleteDialogUser !== null}
@@ -363,7 +354,7 @@ function UserTableRow({
     <tr className="border-b last:border-0 hover:bg-muted/30">
       <td className="px-4 py-3">
         <Checkbox
-          aria-label={t('admin.users.selectUser', { name: user.name || user.username })}
+          aria-label={t('admin.users.selectUser', { name: user.name || user.username || user.email })}
           checked={selected}
           onCheckedChange={(checked) => onSelect(checked === true)}
         />
@@ -375,11 +366,11 @@ function UserTableRow({
           onClick={onOpenUser}
         >
           <Avatar className="h-7 w-7 shrink-0">
-            {user.image && <AvatarImage src={user.image} alt={user.name || user.username} />}
+            {user.image && <AvatarImage src={user.image} alt={user.name || user.username || user.email} />}
             <AvatarFallback className="text-xs">{getInitials(user.name || user.username || user.email)}</AvatarFallback>
           </Avatar>
-          <span className="min-w-0 truncate" title={user.name || user.username}>
-            {user.name || user.username}
+          <span className="min-w-0 truncate" title={user.name || user.username || user.email}>
+            {user.name || user.username || user.email}
           </span>
         </button>
       </td>

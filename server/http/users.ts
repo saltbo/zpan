@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { opaqueIdSchema } from '@shared/schemas'
+import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema } from '@shared/schemas'
 import { publicProfileSchema } from '@shared/schemas/profile'
 import type { Env } from '../middleware/platform'
 import {
@@ -10,6 +10,7 @@ import {
   noStorage,
   notFound,
   payloadTooLarge,
+  textMessage,
   unsupportedMediaType,
 } from '../usecases/ports'
 import { getUserQuota } from '../usecases/quota'
@@ -18,6 +19,7 @@ import {
   getPublicProfile,
   grantUserEntitlement,
   listUserEntitlements,
+  listUsers,
   removeAvatar,
   revokeUserEntitlement,
   updateAvatar,
@@ -30,12 +32,18 @@ import {
   toQuotaEntitlementDTO,
 } from './entitlements'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from './page-token'
 
-// Admin user management (list / disable / delete) is served directly by
-// better-auth's /api/auth/admin/* endpoints and called from the frontend admin
-// client. This resource only covers front-of-house concerns — the public profile
-// lookup, the authenticated user's own avatar — plus the admin storage
-// entitlement grants, which live in our own quota domain rather than better-auth.
+// Disabling and deleting users is served directly by better-auth's
+// /api/auth/admin/* endpoints and called from the frontend admin client. This
+// resource covers the cursor-paged admin user list, the public profile lookup,
+// the authenticated user's own avatar, and the admin storage entitlement grants,
+// which live in our own quota domain rather than better-auth.
 
 const publicProfileResponseSchema = publicProfileSchema.openapi('PublicProfile')
 
@@ -55,16 +63,16 @@ const updateEntitlementSchema = z.object({
 // to the matching error factory — keeping the sub-usecase status out of the http
 // boundary's own logic.
 function failureError(failure: { status: 400 | 404; error: string }) {
-  return failure.status === 404 ? notFound(failure.error) : badRequest(failure.error)
+  return failure.status === 404 ? notFound(textMessage(failure.error)) : badRequest(textMessage(failure.error))
 }
 
 // Maps the image-upload gateway outcome ({ status, error }) to its error factory.
 function imageUploadError(status: 400 | 403 | 413 | 500 | 503, error: string) {
-  if (status === 413) return payloadTooLarge(error)
-  if (status === 503) return noStorage(error)
-  if (status === 403) return forbidden(error)
-  if (status === 500) return internalError(error)
-  return badRequest(error)
+  if (status === 413) return payloadTooLarge(textMessage(error))
+  if (status === 503) return noStorage(textMessage(error))
+  if (status === 403) return forbidden(textMessage(error))
+  if (status === 500) return internalError(textMessage(error))
+  return badRequest(textMessage(error))
 }
 
 const setAvatarRoute = authRoute(
@@ -96,6 +104,36 @@ const deleteAvatarRoute = authRoute(
     method: 'delete',
     path: '/me/avatar',
     responses: { 204: { description: 'Removed' } },
+  },
+)
+
+const adminUserSchema = z
+  .object({
+    id: opaqueIdSchema,
+    name: z.string(),
+    email: z.string(),
+    username: z.string().nullable(),
+    image: z.string().nullable(),
+    role: z.string().nullable(),
+    banned: z.boolean(),
+    createdAt: z.string(),
+  })
+  .openapi('AdminUser')
+
+const listUsersRoute = authRoute(
+  { scopes: [AuthorizationScope.USERS_READ], siteRole: 'admin' },
+  {
+    operationId: 'listUsers',
+    summary: 'List users',
+    description: 'Newest first. `q` matches name, email, or username.',
+    tags: ['Users'],
+    method: 'get',
+    path: '/',
+    request: { query: cursorPageQuerySchema.extend({ q: z.string().trim().max(200).optional() }) },
+    responses: {
+      200: jsonContent(cursorPageSchema(adminUserSchema, 'AdminUserPage'), 'Users'),
+      400: errorResponse('Invalid page token'),
+    },
   },
 )
 
@@ -224,6 +262,23 @@ export const users = new OpenAPIHono<Env>()
   .openapi(deleteAvatarRoute, async (c) => {
     await removeAvatar(c.get('deps'), { platform: c.get('platform'), userId: c.get('userId') as string })
     return c.body(null, 204)
+  })
+  .openapi(listUsersRoute, async (c) => {
+    const { pageSize, pageToken, q } = c.req.valid('query')
+    const search = q || undefined
+    const page = {
+      query: await pageQueryFingerprint({ resource: 'users', pageSize, search }),
+      codec: createdAtIdCursorCodec,
+    }
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, page)
+    const result = await listUsers(c.get('deps'), { pageSize, after, search })
+    return c.json(
+      {
+        items: result.items.map((u) => ({ ...u, createdAt: u.createdAt.toISOString() })),
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, page),
+      },
+      200,
+    )
   })
   .openapi(getUserRoute, async (c) => {
     const username = c.req.valid('param').username

@@ -1,6 +1,6 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { opaqueIdSchema, opaqueTokenSchema, pageQuerySchema, pageSchema } from '@shared/schemas'
+import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema, opaqueTokenSchema } from '@shared/schemas'
 import type { Env } from '../../middleware/platform'
 import { type InviteCodeRecord, unauthorized } from '../../usecases/ports'
 import {
@@ -10,6 +10,12 @@ import {
   validateInviteCode,
 } from '../../usecases/site/invite-code'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from '../page-token'
 
 const inviteCodeSchema = z
   .object({
@@ -34,7 +40,7 @@ function toInviteCodeDTO(r: InviteCodeRecord): InviteCodeDTO {
   }
 }
 
-const inviteCodeListSchema = pageSchema(inviteCodeSchema, 'InviteCodeList')
+const inviteCodeListSchema = cursorPageSchema(inviteCodeSchema, 'InviteCodeList')
 
 const generateSchema = z.object({
   count: z.number().int().min(1).max(100),
@@ -56,8 +62,11 @@ const listRoute = authRoute(
     tags: ['Invite Codes'],
     method: 'get',
     path: '/',
-    request: { query: pageQuerySchema },
-    responses: { 200: jsonContent(inviteCodeListSchema, 'Invite codes') },
+    request: { query: cursorPageQuerySchema },
+    responses: {
+      200: jsonContent(inviteCodeListSchema, 'Invite codes'),
+      400: errorResponse('Invalid page token'),
+    },
   },
 )
 
@@ -111,9 +120,20 @@ const validateRoute = authRoute(
 
 export const adminInviteCodes = new OpenAPIHono<Env>()
   .openapi(listRoute, async (c) => {
-    const { page, pageSize } = c.req.valid('query')
-    const result = await listInviteCodes(c.get('deps'), { page, pageSize })
-    return c.json({ items: result.items.map(toInviteCodeDTO), total: result.total, page, pageSize }, 200)
+    const { pageSize, pageToken } = c.req.valid('query')
+    const page = {
+      query: await pageQueryFingerprint({ resource: 'invite-codes', pageSize }),
+      codec: createdAtIdCursorCodec,
+    }
+    const after = await decodeOptionalPageToken(c.get('platform'), pageToken, page)
+    const result = await listInviteCodes(c.get('deps'), { pageSize, after })
+    return c.json(
+      {
+        items: result.items.map(toInviteCodeDTO),
+        nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, page),
+      },
+      200,
+    )
   })
   .openapi(generateRoute, async (c) => {
     const userId = c.get('userId')

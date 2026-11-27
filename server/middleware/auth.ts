@@ -14,7 +14,7 @@ import {
   LEGACY_DOWNLOADER_CLIENT_ID,
   LEGACY_DOWNLOADER_REGISTER_SCOPE,
 } from '../domain/legacy-downloader-bootstrap'
-import { ApiKeyRateLimitError, AppError, rateLimited, unauthorized } from '../usecases/ports'
+import { ApiKeyRateLimitError, AppError, rateLimited, textMessage, unauthorized } from '../usecases/ports'
 import { anonymousAuthzContext, type Env } from './platform'
 
 type SessionWithPlugins = {
@@ -141,7 +141,7 @@ export const authMiddleware = createMiddleware<Env>(async (c, next) => {
     } catch (error) {
       if (error instanceof ApiKeyRateLimitError) {
         throw rateLimited(
-          error.message,
+          textMessage(error.message),
           error.retryAfterMs === undefined ? undefined : Math.ceil(error.retryAfterMs / 1000),
         )
       }

@@ -20,10 +20,10 @@ Feature: Site invitations
     Then an invitation is created and returned
 
   @site-invitations/list @api
-  Scenario: Admins list invitations with totals
-    Given existing site invitations
-    When an admin lists them
-    Then the invitations and total are returned
+  Scenario: Admins page through invitations
+    Given more site invitations than one page
+    When an admin lists them and follows each next page token
+    Then every invitation is returned exactly once, newest first
 
   @site-invitations/resend @api
   Scenario: Resending an invitation rotates its token
@@ -48,3 +48,10 @@ Feature: Site invitations
     Given an existing invitation
     When it is requested by token
     Then the invitation is returned
+
+  @site-invitations/email-not-configured @api
+  Scenario: Inviting needs email to be configured
+    Given email delivery is not configured
+    When an admin invites an email address or resends an invitation
+    Then the API responds 400 with a message to configure email first
+    And no invitation is created

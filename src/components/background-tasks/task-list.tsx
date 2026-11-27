@@ -31,9 +31,9 @@ function taskType(type: string) {
   return TASK_TYPES[type as KnownBackgroundJobType] ?? { icon: Archive, labelKey: null, byteProgress: true }
 }
 
-export type BackgroundTaskFilter = 'active' | 'completed' | 'failed'
+export const BACKGROUND_TASK_FILTERS = ['active', 'completed', 'failed'] as const
 
-export const BACKGROUND_TASK_FILTERS: BackgroundTaskFilter[] = ['active', 'completed', 'failed']
+export type BackgroundTaskFilter = (typeof BACKGROUND_TASK_FILTERS)[number]
 
 export function BackgroundTaskList({
   jobs,

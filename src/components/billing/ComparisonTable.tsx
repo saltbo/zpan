@@ -25,9 +25,12 @@ function FeatureCell({
     return <span className="text-sm text-muted-foreground">{t(value.i18nKey, value.params)}</span>
   }
   return value ? (
-    <Check className={muted ? 'size-4 text-muted-foreground' : 'size-4 text-primary'} aria-label="Included" />
+    <Check
+      className={muted ? 'size-4 text-muted-foreground' : 'size-4 text-primary'}
+      aria-label={t('common.included')}
+    />
   ) : (
-    <Minus className="size-4 text-muted-foreground" aria-label="Not included" />
+    <Minus className="size-4 text-muted-foreground" aria-label={t('common.notIncluded')} />
   )
 }
 

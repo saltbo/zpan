@@ -112,7 +112,7 @@ function makeDeps(
       ...overrides.teamInvites,
     },
     teams: {
-      listTeams: async () => [],
+      listTeams: async () => ({ items: [], nextBoundary: null }),
       getTeam: async () => null,
       setLogo: async () => {},
       ...overrides.teams,
@@ -217,23 +217,25 @@ describe('team usecase', () => {
   // ─── activity feed ───────────────────────────────────────────────────────────
   describe('listActivity', () => {
     it('lists for a member of any role', async () => {
-      const list = vi.fn(async () => ({ items: [], total: 3 }))
+      const nextBoundary = { createdAt: new Date(2000), id: 'evt-2' }
+      const list = vi.fn(async () => ({ items: [], nextBoundary }))
       const { deps } = makeDeps({ org: { getMemberRole: async () => 'viewer' } })
       deps.audit.list = list
-      const out = await listActivity(deps, { teamId: 'team-1', userId: 'u1', page: 1, pageSize: 20 })
-      expect(out).toEqual({ ok: true, result: { items: [], total: 3 } })
-      expect(list).toHaveBeenCalledWith('team-1', { page: 1, pageSize: 20 })
+      const after = { createdAt: new Date(3000), id: 'evt-3' }
+      const out = await listActivity(deps, { teamId: 'team-1', userId: 'u1', pageSize: 20, after })
+      expect(out).toEqual({ ok: true, result: { items: [], nextBoundary } })
+      expect(list).toHaveBeenCalledWith('team-1', { pageSize: 20, after })
     })
 
     it('lets a non-member read a personal org (public to auth users)', async () => {
       const { deps } = makeDeps({ org: { getMemberRole: async () => null, isPersonalOrg: async () => true } })
-      const out = await listActivity(deps, { teamId: 'p-1', userId: 'u2', page: 2, pageSize: 5 })
+      const out = await listActivity(deps, { teamId: 'p-1', userId: 'u2', pageSize: 5 })
       expect(out.ok).toBe(true)
     })
 
     it('forbids a non-member of a non-personal org', async () => {
       const { deps } = makeDeps({ org: { getMemberRole: async () => null, isPersonalOrg: async () => false } })
-      const out = await listActivity(deps, { teamId: 'team-1', userId: 'u2', page: 1, pageSize: 20 })
+      const out = await listActivity(deps, { teamId: 'team-1', userId: 'u2', pageSize: 20 })
       expect(out).toEqual({ ok: false, reason: 'forbidden' })
     })
   })
@@ -312,11 +314,13 @@ describe('team usecase', () => {
 
   // ─── admin: listing / detail ───────────────────────────────────────────────
   describe('listTeams', () => {
-    it('wraps the repo list with a total', async () => {
-      const { deps } = makeDeps({ teams: { listTeams: async () => [sampleTeam, { ...sampleTeam, id: 'team-2' }] } })
-      const out = await listTeams(deps)
-      expect(out.total).toBe(2)
-      expect(out.items).toHaveLength(2)
+    it('forwards the page request to the repo', async () => {
+      const page = { items: [sampleTeam, { ...sampleTeam, id: 'team-2' }], nextBoundary: null }
+      const list = vi.fn(async () => page)
+      const { deps } = makeDeps({ teams: { listTeams: list } })
+      const out = await listTeams(deps, { pageSize: 2 })
+      expect(out).toEqual(page)
+      expect(list).toHaveBeenCalledWith({ pageSize: 2 })
     })
   })
 

@@ -1,10 +1,15 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AdminPageHeader } from '@/components/admin/admin-page-header'
+import { CursorPagination } from '@/components/list/cursor-pagination'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { useCursorPager } from '@/hooks/use-cursor-pager'
 import { listTeams, type TeamSummary } from '@/lib/api'
 import { formatDate, formatStorageUsage, getInitials } from '@/lib/format'
+
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
 export const Route = createFileRoute('/_authenticated/admin/teams/')({
   component: TeamsPage,
@@ -14,7 +19,13 @@ function TeamsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
-  const teamsQuery = useQuery({ queryKey: ['admin', 'teams'], queryFn: listTeams })
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0])
+  const pager = useCursorPager(String(pageSize))
+  const teamsQuery = useQuery({
+    queryKey: ['admin', 'teams', pageSize, pager.pageToken],
+    queryFn: () => listTeams({ pageToken: pager.pageToken, pageSize }),
+    placeholderData: keepPreviousData,
+  })
   const teams = teamsQuery.data?.items ?? []
 
   if (teamsQuery.isLoading) {
@@ -27,12 +38,7 @@ function TeamsPage() {
 
   return (
     <div className="space-y-4">
-      <AdminPageHeader
-        title={t('admin.teams.title')}
-        action={
-          <span className="text-sm text-muted-foreground">{t('admin.teams.count', { count: teams.length })}</span>
-        }
-      />
+      <AdminPageHeader title={t('admin.teams.title')} />
 
       <div className="overflow-hidden rounded-md border">
         <table className="w-full table-fixed text-sm">
@@ -69,6 +75,17 @@ function TeamsPage() {
           </tbody>
         </table>
       </div>
+
+      <CursorPagination
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        hasPrevious={pager.hasPrevious}
+        nextPageToken={teamsQuery.data?.nextPageToken}
+        disabled={teamsQuery.isFetching}
+        onPageSizeChange={setPageSize}
+        onPrevious={pager.previous}
+        onNext={pager.next}
+      />
     </div>
   )
 }

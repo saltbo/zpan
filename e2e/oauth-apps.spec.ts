@@ -48,9 +48,9 @@ test.describe('OAuth Apps UI', () => {
     await expect(page.getByRole('heading', { name: 'FlareAuth wants to access your workspaces' })).toBeVisible()
     await expect(page.getByText('https://broker.example.com', { exact: true })).toBeVisible()
     await expect(page.getByText('Personal')).toBeVisible()
-    await expect(page.getByText('Files: read objects')).toBeVisible()
-    await expect(page.getByText('Shares: create shares')).toBeVisible()
-    await expect(page.getByText('Quota: read workspace quota')).toBeVisible()
+    await expect(page.getByText('List, inspect, and download objects')).toBeVisible()
+    await expect(page.getByText('Create public shares')).toBeVisible()
+    await expect(page.getByText('Inspect workspace quota')).toBeVisible()
     await expect(page.getByRole('navigation')).toHaveCount(0)
 
     const approve = page.getByRole('button', { name: 'Approve Access' })
@@ -99,12 +99,16 @@ test.describe('OAuth Apps UI', () => {
 
     await expect(page.getByText('Authorized OAuth Apps')).toBeVisible()
     await expect(page.getByRole('cell', { name: 'FlareAuth' })).toBeVisible()
-    await expect(page.getByText('Shares: create shares')).toBeVisible()
+    await expect(page.getByText('2 permissions')).toBeVisible()
 
-    const revokeButtons = page.getByRole('button', { name: 'Revoke' })
-    await revokeButtons.last().click()
-    await expect(page.getByRole('dialog', { name: 'Revoke OAuth Grant' })).toBeVisible()
-    await page.getByRole('dialog').getByRole('button', { name: 'Revoke' }).click()
+    await page.getByRole('button', { name: 'Details' }).click()
+    const sheet = page.getByRole('dialog', { name: 'FlareAuth' })
+    await expect(sheet.getByText('List, inspect, and download objects')).toBeVisible()
+    await expect(sheet.getByText('Create public shares')).toBeVisible()
+    await sheet.getByRole('button', { name: 'Revoke access' }).click()
+    const confirm = page.getByRole('dialog', { name: 'Revoke OAuth Grant' })
+    await expect(confirm).toBeVisible()
+    await confirm.getByRole('button', { name: 'Revoke access' }).click()
     await expect(page.getByText('No authorized OAuth apps yet')).toBeVisible()
   })
 
@@ -152,8 +156,8 @@ test.describe('OAuth Apps UI', () => {
     await page.goto(`/oauth/consent?${oauthQuery}`)
     await expect(page.getByRole('heading', { name: 'FlareAuth wants to access your workspaces' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Approve Access' })).toBeVisible()
-    await expect(page.getByText('Files: read objects')).toBeVisible()
-    await expect(page.getByText('Shares: create shares')).toBeVisible()
+    await expect(page.getByText('List, inspect, and download objects')).toBeVisible()
+    await expect(page.getByText('Create public shares')).toBeVisible()
     await page.getByRole('checkbox', { name: 'Personal' }).check()
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
@@ -162,19 +166,12 @@ test.describe('OAuth Apps UI', () => {
     await page.goto('/settings/oauth-apps')
     await expect(page.getByText('Authorized OAuth Apps')).toBeVisible()
     await expect(page.getByRole('cell', { name: 'FlareAuth' })).toBeVisible()
-    const grantsTableContainer = page.locator('[data-slot="table-container"]').last()
-    await expect(grantsTableContainer).toBeVisible()
-    await expect
-      .poll(async () =>
-        grantsTableContainer.evaluate((node) => (node as HTMLElement).scrollWidth > (node as HTMLElement).clientWidth),
-      )
-      .toBe(true)
     await expect
       .poll(async () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
       .toBe(true)
-    await grantsTableContainer.evaluate((node) => {
-      node.scrollLeft = node.scrollWidth
-    })
-    await expect(page.getByRole('button', { name: 'Revoke' }).last()).toBeVisible()
+    await page.getByRole('button', { name: 'Details' }).click()
+    const sheet = page.getByRole('dialog', { name: 'FlareAuth' })
+    await expect(sheet.getByText('Inspect workspace quota')).toBeVisible()
+    await expect(sheet.getByRole('button', { name: 'Revoke access' })).toBeVisible()
   })
 })

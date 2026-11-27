@@ -6,17 +6,18 @@ import { Card } from '@/components/ui/card'
 interface ProUpgradePromptProps {
   title: ReactNode
   description: ReactNode
-  actionLabel: ReactNode
   icon?: LucideIcon
-  href?: string
+  // An action links to licensing. Without one, `note` says who can unlock the feature.
+  action?: { label: ReactNode; href: string }
+  note?: ReactNode
 }
 
 export function ProUpgradePrompt({
   title,
   description,
-  actionLabel,
   icon: Icon = ShieldCheck,
-  href = '/admin/licensing',
+  action,
+  note,
 }: ProUpgradePromptProps) {
   return (
     <Card data-slot="pro-upgrade-prompt" className="border-dashed">
@@ -28,9 +29,13 @@ export function ProUpgradePrompt({
           <h3 className="font-semibold">{title}</h3>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
-        <Button asChild style={{ backgroundColor: '#1A73E8' }}>
-          <a href={href}>{actionLabel}</a>
-        </Button>
+        {action ? (
+          <Button asChild style={{ backgroundColor: '#1A73E8' }}>
+            <a href={action.href}>{action.label}</a>
+          </Button>
+        ) : (
+          note && <p className="text-sm font-medium">{note}</p>
+        )}
       </div>
     </Card>
   )

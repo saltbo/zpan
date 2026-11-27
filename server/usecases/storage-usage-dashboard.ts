@@ -6,6 +6,7 @@ import type {
   StorageUsageSortField,
 } from '@shared/types'
 import type { Deps } from './deps'
+import type { StorageUsageItemBoundary } from './ports'
 
 export async function getStorageUsage(
   deps: Pick<Deps, 'quota' | 'storageUsageBreakdowns'>,
@@ -35,18 +36,11 @@ export async function listStorageUsageItems(
   orgId: string,
   input: {
     category: StorageUsageCategory
-    page: number
     pageSize: number
     sortBy: StorageUsageSortField
     sortDir: StorageUsageSortDirection
+    after?: StorageUsageItemBoundary
   },
-): Promise<{ items: StorageUsageItem[]; total: number }> {
-  return deps.storageUsageBreakdowns.listItems(
-    orgId,
-    input.category,
-    input.page,
-    input.pageSize,
-    input.sortBy,
-    input.sortDir,
-  )
+): Promise<{ items: StorageUsageItem[]; nextBoundary: StorageUsageItemBoundary | null }> {
+  return deps.storageUsageBreakdowns.listItems(orgId, input)
 }

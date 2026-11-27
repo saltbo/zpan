@@ -1,12 +1,18 @@
 import { OpenAPIHono, z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { opaqueIdSchema, pageQuerySchema, pageSchema } from '@shared/schemas'
+import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema } from '@shared/schemas'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import type { AdminAuditEventWithOrg } from '../../usecases/ports'
 import { badRequest } from '../../usecases/ports'
 import { listAuditEvents } from '../../usecases/site/audit'
 import { authRoute, errorResponse, jsonContent } from '../openapi'
+import {
+  createdAtIdCursorCodec,
+  decodeOptionalPageToken,
+  encodeNextPageToken,
+  pageQueryFingerprint,
+} from '../page-token'
 
 const auditEventSchema = z
   .object({
@@ -34,9 +40,9 @@ function toAuditEventDTO(e: AdminAuditEventWithOrg): AuditEventDTO {
   return { ...e, createdAt: e.createdAt.toISOString() }
 }
 
-const auditPageSchema = pageSchema(auditEventSchema, 'AuditEventPage')
+const auditPageSchema = cursorPageSchema(auditEventSchema, 'AuditEventPage')
 
-const listAuditQuerySchema = pageQuerySchema.extend({
+const listAuditQuerySchema = cursorPageQuerySchema.extend({
   orgId: opaqueIdSchema.optional(),
   userId: opaqueIdSchema.optional(),
   action: z.string().optional(),
@@ -55,21 +61,35 @@ const listRoute = authRoute(
     path: '/',
     middleware: [requireFeature('audit_log')] as const,
     request: { query: listAuditQuerySchema },
-    responses: { 200: jsonContent(auditPageSchema, 'Audit events'), 400: errorResponse('Invalid query') },
+    responses: { 200: jsonContent(auditPageSchema, 'Audit events'), 400: errorResponse('Invalid query or page token') },
   },
 )
 
 export const adminAudit = new OpenAPIHono<Env>().openapi(listRoute, async (c) => {
-  const { page, pageSize, orgId, userId, action, targetType, createdFrom, createdTo } = c.req.valid('query')
+  const { pageSize, pageToken, orgId, userId, action, targetType, createdFrom, createdTo } = c.req.valid('query')
   const createdFromDate = createdFrom ? new Date(createdFrom) : undefined
   const createdToDate = createdTo ? new Date(createdTo) : undefined
   if (createdFromDate && createdToDate && createdFromDate > createdToDate) {
     throw badRequest('createdFrom must be before createdTo', 'INVALID_TIME_RANGE')
   }
 
+  const page = {
+    query: await pageQueryFingerprint({
+      resource: 'audit',
+      pageSize,
+      orgId,
+      userId,
+      action,
+      targetType,
+      createdFrom,
+      createdTo,
+    }),
+    codec: createdAtIdCursorCodec,
+  }
+  const after = await decodeOptionalPageToken(c.get('platform'), pageToken, page)
   const result = await listAuditEvents(c.get('deps'), {
-    page,
     pageSize,
+    after,
     orgId,
     userId,
     action,
@@ -77,5 +97,11 @@ export const adminAudit = new OpenAPIHono<Env>().openapi(listRoute, async (c) =>
     createdFrom: createdFromDate,
     createdTo: createdToDate,
   })
-  return c.json({ ...result, items: result.items.map(toAuditEventDTO) }, 200)
+  return c.json(
+    {
+      items: result.items.map(toAuditEventDTO),
+      nextPageToken: await encodeNextPageToken(c.get('platform'), result.nextBoundary, page),
+    },
+    200,
+  )
 })

@@ -76,7 +76,7 @@ describe('Admin Site Invitations API', () => {
     expect(body.status).toBe('pending')
   })
 
-  it('lists invitations with total count [spec: site-invitations/list]', async () => {
+  it('lists invitations through the cursor contract', async () => {
     const ctx = await createTestApp()
     stubEmailProvider()
     await seedEmailOptions(ctx)
@@ -90,9 +90,51 @@ describe('Admin Site Invitations API', () => {
 
     const res = await ctx.app.request('/api/site/invitations', { headers })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { items: Array<{ email: string }>; total: number }
-    expect(body.total).toBe(1)
+    const body = (await res.json()) as { items: Array<{ email: string }>; nextPageToken: string | null }
+    expect(body.items).toHaveLength(1)
+    expect(body.nextPageToken).toBeNull()
     expect(body.items[0]?.email).toBe('invitee@example.com')
+  })
+
+  it('pages through every invitation exactly once, newest first [spec: site-invitations/list]', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    await seedEmailOptions(ctx)
+    const headers = await adminHeaders(ctx.app)
+
+    for (const email of ['a@example.com', 'b@example.com', 'c@example.com']) {
+      const created = await ctx.app.request('/api/site/invitations', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      expect(created.status).toBe(201)
+    }
+
+    const emails: string[] = []
+    const sizes: number[] = []
+    let token: string | null = null
+    for (let i = 0; i < 5; i++) {
+      const query = new URLSearchParams({ pageSize: '2' })
+      if (token) query.set('pageToken', token)
+      const res = await ctx.app.request(`/api/site/invitations?${query}`, { headers })
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { items: Array<{ email: string }>; nextPageToken: string | null }
+      sizes.push(body.items.length)
+      emails.push(...body.items.map((item) => item.email))
+      token = body.nextPageToken
+      if (!token) break
+    }
+    expect(sizes).toEqual([2, 1])
+    expect([...emails].sort()).toEqual(['a@example.com', 'b@example.com', 'c@example.com'])
+  })
+
+  it('rejects an invalid page token on the invitation list', async () => {
+    const ctx = await createTestApp()
+    const headers = await adminHeaders(ctx.app)
+    const res = await ctx.app.request('/api/site/invitations?pageToken=not-a-token', { headers })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: { details: [{ reason: 'INVALID_PAGE_TOKEN' }] } })
   })
 
   it('resends an invitation and rotates the token [spec: site-invitations/resend]', async () => {
@@ -295,6 +337,43 @@ describe('Admin Site Invitations API — resend/revoke guards', () => {
     expect(second.status).toBe(400)
     const body = (await second.json()) as { error: { message: string } }
     expect(body.error.message).toBe('Invitation has already been revoked')
+  })
+
+  it('create returns 400 and writes nothing when email is not configured [spec: site-invitations/email-not-configured]', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    const headers = await adminHeaders(ctx.app)
+
+    const res = await ctx.app.request('/api/site/invitations', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'invitee@example.com' }),
+    })
+
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as {
+      error: { message: string; status: string; details?: Array<{ reason?: string }> }
+    }
+    expect(body.error.message).toBe('Configure email delivery before sending invitations')
+    expect(body.error.status).toBe('FAILED_PRECONDITION')
+    expect(body.error.details?.[0]?.reason).toBe('EMAIL_NOT_CONFIGURED')
+    const rows = await ctx.db.select().from(siteInvitations)
+    expect(rows).toHaveLength(0)
+  })
+
+  it('resend returns 400 when email is not configured [spec: site-invitations/email-not-configured]', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    await seedEmailOptions(ctx)
+    const id = await createInvitation(ctx, 'resend-no-email@example.com')
+    await ctx.db.delete(systemOptions).where(eq(systemOptions.key, 'email_provider'))
+    const headers = await adminHeaders(ctx.app)
+
+    const res = await ctx.app.request(`/api/site/invitations/${id}/deliveries`, { method: 'POST', headers })
+
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Configure email delivery before sending invitations')
   })
 })
 

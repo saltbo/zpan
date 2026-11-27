@@ -167,6 +167,18 @@ export interface Invitation {
 
 export type SiteInvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked'
 
+// A row of the admin user list (GET /api/users).
+export interface AdminUserListItem {
+  id: string
+  name: string
+  email: string
+  username: string | null
+  image: string | null
+  role: string | null
+  banned: boolean
+  createdAt: string
+}
+
 export interface SiteInvitation {
   id: string
   email: string

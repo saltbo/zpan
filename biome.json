@@ -17,6 +17,7 @@
     ],
     "ignoreUnknown": true
   },
+  "plugins": ["./biome-plugins/no-hardcoded-ui-strings.grit"],
   "formatter": {
     "enabled": true,
     "indentStyle": "space",

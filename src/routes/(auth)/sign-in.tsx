@@ -4,6 +4,7 @@ import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ProviderCaptcha } from '@/components/captcha/provider-captcha'
+import { LanguageMenuButton } from '@/components/layout/language-menu'
 import { OAuthButtons, useOAuthProviders } from '@/components/oauth-buttons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -80,6 +81,7 @@ function SignIn() {
           <h1 className="text-2xl font-bold">{siteName || DEFAULT_SITE_NAME}</h1>
           <p className="text-muted-foreground">{t('auth.signInSubtitle')}</p>
         </div>
+        <LanguageMenuButton className="mx-auto w-full justify-center" />
         <OAuthButtons
           showLastUsed
           callbackURL={callbackURL}

@@ -3,7 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronsUpDown, LogOut, Moon, Settings, ShieldCheck, Sun, UserRound } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import type { ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { useBranding } from '@/components/branding/BrandingProvider'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -158,15 +158,20 @@ export function PublicLayout({ children }: PublicLayoutProps) {
             </p>
             {!branding.hide_powered_by && (
               <p>
-                Powered by{' '}
-                <a
-                  href="https://github.com/saltbo/zpan"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-foreground/70 transition-colors hover:text-foreground"
-                >
-                  ZPan
-                </a>
+                <Trans
+                  i18nKey="common.poweredBy"
+                  components={{
+                    repo: (
+                      // biome-ignore lint/a11y/useAnchorContent: Trans fills the anchor with the localized brand name
+                      <a
+                        href="https://github.com/saltbo/zpan"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-foreground/70 transition-colors hover:text-foreground"
+                      />
+                    ),
+                  }}
+                />
               </p>
             )}
           </div>

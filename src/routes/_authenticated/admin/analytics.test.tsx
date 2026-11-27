@@ -115,7 +115,7 @@ describe('Admin overview dashboard', () => {
     const { container } = renderOverviewPage()
 
     expect(screen.getByText('admin.analytics.title')).toBeTruthy()
-    expect(screen.getAllByText('Pro')).toHaveLength(1)
+    expect(screen.getAllByText('common.proBadge')).toHaveLength(1)
     expect(screen.queryByText('站点概览')).toBeNull()
     expect(screen.queryByText('运行状态')).toBeNull()
     expect(screen.getByText('admin.analytics.section.growth.title')).toBeTruthy()

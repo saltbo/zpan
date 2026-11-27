@@ -1,36 +1,54 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import type { AdminUserListItem } from '@shared/types'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { Search, ShieldCheck, UserX } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { z } from 'zod'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { getUserQuotaById } from '@/lib/api'
-import { type AdminUser, adminListUsers, adminSetUserBanned } from '@/lib/auth-client'
+import { useUrlText } from '@/hooks/use-url-text'
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll'
+import { getUserQuotaById, listUsers } from '@/lib/api'
+import { adminSetUserBanned } from '@/lib/auth-client'
 import { formatDate, formatSize, getInitials } from '@/lib/format'
+import { textParam } from '@/lib/list-search'
+
+export const usersSearchSchema = z.object({ q: textParam })
 
 export const Route = createFileRoute('/_authenticated/users/')({
+  validateSearch: usersSearchSchema,
   component: UsersPage,
 })
 
-type UserRow = AdminUser & { quotaUsed: number; quotaTotal: number }
+type UserRow = AdminUserListItem & { quotaUsed: number; quotaTotal: number }
 
-function UsersPage() {
+export function UsersPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const listSearch = useSearch({ from: '/_authenticated/users/' })
+  const search = listSearch.q ?? ''
+  const [searchText, setSearchText] = useUrlText(search, (q) =>
+    navigate({ to: '/users', search: { q: q || undefined }, replace: true }),
+  )
   const pageSize = 20
 
-  const usersQuery = useQuery({
-    queryKey: ['admin', 'users', page, pageSize],
-    queryFn: () => adminListUsers({ limit: pageSize, offset: (page - 1) * pageSize }),
+  const usersQuery = useInfiniteQuery({
+    queryKey: ['admin', 'users', 'directory', pageSize],
+    queryFn: ({ pageParam }) => listUsers({ pageToken: pageParam, pageSize }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextPageToken ?? undefined,
+  })
+  const loadMoreRef = useInfiniteScroll<HTMLDivElement>({
+    hasNextPage: usersQuery.hasNextPage,
+    isFetchingNextPage: usersQuery.isFetchingNextPage,
+    fetchNextPage: usersQuery.fetchNextPage,
   })
 
-  const baseUsers = useMemo(() => usersQuery.data?.users ?? [], [usersQuery.data])
+  const baseUsers = useMemo(() => usersQuery.data?.pages.flatMap((page) => page.items) ?? [], [usersQuery.data])
 
   const quotaQuery = useQuery({
     queryKey: ['admin', 'user-quotas', baseUsers.map((u) => u.id)],
@@ -67,14 +85,7 @@ function UsersPage() {
     return users.filter((u) => u.name.toLowerCase().includes(term) || u.email.toLowerCase().includes(term))
   }, [users, search])
 
-  const total = usersQuery.data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const isLoading = usersQuery.isLoading
-
-  function handleSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setSearch(e.target.value)
-    setPage(1)
-  }
 
   if (isLoading) {
     return (
@@ -92,8 +103,8 @@ function UsersPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('admin.users.searchPlaceholder')}
-            value={search}
-            onChange={handleSearchChange}
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
             className="pl-9"
           />
         </div>
@@ -133,17 +144,9 @@ function UsersPage() {
         </table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-            {t('admin.users.prevPage')}
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {t('admin.users.pageInfo', { page, total: totalPages })}
-          </span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-            {t('admin.users.nextPage')}
-          </Button>
+      {usersQuery.hasNextPage && (
+        <div ref={loadMoreRef} className="py-3 text-center text-sm text-muted-foreground" role="status">
+          {usersQuery.isFetchingNextPage ? t('common.loading') : null}
         </div>
       )}
     </div>
@@ -180,11 +183,11 @@ function UserTableRow({
           onClick={onOpenUser}
         >
           <Avatar className="h-7 w-7 shrink-0">
-            {user.image && <AvatarImage src={user.image} alt={user.name || user.username} />}
+            {user.image && <AvatarImage src={user.image} alt={user.name || user.username || user.email} />}
             <AvatarFallback className="text-xs">{getInitials(user.name || user.username || user.email)}</AvatarFallback>
           </Avatar>
-          <span className="min-w-0 truncate" title={user.name || user.username}>
-            {user.name || user.username}
+          <span className="min-w-0 truncate" title={user.name || user.username || user.email}>
+            {user.name || user.username || user.email}
           </span>
         </button>
       </td>

@@ -5,22 +5,7 @@
 
 ## Product Positioning
 
-ZPan is a lightweight file hosting platform built on S3-compatible storage. Not a full cloud drive (Cloudreve), not a storage aggregator (Alist).
-
-Three scenarios, one platform:
-
-- **Image Hosting** — Upload via PicGo / uPic / ShareX / API, get a permanent URL on your own domain
-- **File Sharing** — Upload, generate a link, distribute
-- **Automation & Sync** — Self-describing OpenAPI and Arazzo workflows, delegated OAuth access, and an optional discovery-based Skill for scripted file management, plus a server-side sync protocol for future desktop clients
-
-## Target Users
-
-- Developers and bloggers who need a reliable image bed
-- Indie devs / small teams distributing files and releases
-- Screenshot workflow users (ShareX, Flameshot, PicGo)
-- Agents, CI workflows, and power users that need scriptable file upload and sharing
-- Desktop users who want future sync clients backed by S3-compatible storage
-- Self-hosters who want a web UI for their S3 buckets
+The product's positioning and target users are in [spec/README.md](spec/README.md#positioning).
 
 ## Release Plan
 

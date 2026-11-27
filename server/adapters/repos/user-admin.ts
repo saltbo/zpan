@@ -1,20 +1,60 @@
 import { isPersonalOrgLike } from '@shared/org-slugs'
-import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { generateId } from '../../../shared/ids'
 import { member, organization, user } from '../../db/auth-schema'
 import { orgQuotaEntitlements } from '../../db/schema'
 import type { Database } from '../../platform/interface'
 import type {
+  AdminUserListItem,
   GrantEntitlementInput,
+  KeysetPage,
+  KeysetPageOpts,
   QuotaEntitlementItem,
   UpdateEntitlementInput,
   UserAdminRepo,
   UserOperationFailure,
 } from '../../usecases/ports'
+import { afterCreatedAtId, keysetPage } from './keyset'
 
 async function isBanned(db: Database, userId: string): Promise<boolean> {
   const rows = await db.select({ banned: user.banned }).from(user).where(eq(user.id, userId))
   return Boolean(rows[0]?.banned)
+}
+
+async function listUsers(
+  db: Database,
+  opts: KeysetPageOpts & { search?: string },
+): Promise<KeysetPage<AdminUserListItem>> {
+  const term = opts.search?.trim().toLowerCase()
+  const pattern = term ? `%${term.replace(/[\\%_]/g, '\\$&')}%` : null
+  const found = await db
+    .select({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      image: user.image,
+      role: user.role,
+      banned: user.banned,
+      createdAt: user.createdAt,
+    })
+    .from(user)
+    .where(
+      and(
+        pattern
+          ? or(
+              sql`lower(${user.name}) LIKE ${pattern} ESCAPE '\\'`,
+              sql`lower(${user.email}) LIKE ${pattern} ESCAPE '\\'`,
+              sql`lower(${user.username}) LIKE ${pattern} ESCAPE '\\'`,
+            )
+          : undefined,
+        afterCreatedAtId(user.createdAt, user.id, opts.after),
+      ),
+    )
+    .orderBy(desc(user.createdAt), desc(user.id))
+    .limit(opts.pageSize + 1)
+  const page = keysetPage(found, opts.pageSize, (row) => ({ createdAt: row.createdAt, id: row.id }))
+  return { items: page.rows.map((row) => ({ ...row, banned: Boolean(row.banned) })), nextBoundary: page.next }
 }
 
 async function getSiteRole(db: Database, userId: string): Promise<string | null> {
@@ -229,6 +269,7 @@ function mergeGrantMetadata(existing: string | null, patch: Record<string, unkno
 export function createUserAdminRepo(db: Database): UserAdminRepo {
   return {
     isBanned: (userId) => isBanned(db, userId),
+    listUsers: (opts) => listUsers(db, opts),
     getSiteRole: (userId) => getSiteRole(db, userId),
     findActiveUserIdByUsername: (username) => findActiveUserIdByUsername(db, username),
     listUserPersonalEntitlements: (userId) => listUserPersonalEntitlements(db, userId),

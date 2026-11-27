@@ -23,6 +23,7 @@ import {
   type MediaLibraryFolder,
   type MediaLibraryState,
   type MediaLibraryView,
+  msg,
   notFound,
   quotaExceeded,
   StorageQuotaExceededError,
@@ -59,13 +60,18 @@ export async function createMediaLibrary(
   }
   const overlapping = libraries.find((library) => folderPathsOverlap(library.path, folderPath))
   if (overlapping) {
-    throw conflict(`Media libraries cannot be nested: "${overlapping.path}" is a media library`, 'MEDIA_LIBRARY_NESTED')
+    throw conflict(
+      msg('Media libraries cannot be nested: "{path}" is a media library', { path: overlapping.path }),
+      'MEDIA_LIBRARY_NESTED',
+    )
   }
 
   const occupant = await deps.matter.findActiveConflict(orgId, folderPath, MEDIA_LIBRARY_INDEX_FILE)
   if (occupant) {
     throw conflict(
-      `"${joinMatterPath(folderPath, occupant.name)}" already exists; rename or remove it to make this folder a media library`,
+      msg('"{path}" already exists; rename or remove it to make this folder a media library', {
+        path: joinMatterPath(folderPath, occupant.name),
+      }),
       'MEDIA_LIBRARY_INDEX_OCCUPIED',
     )
   }

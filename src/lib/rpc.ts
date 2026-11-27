@@ -40,8 +40,10 @@ import type {
   UsersRoute,
 } from '@server/app'
 import { hc } from 'hono/client'
+import { requestLanguageHeaders } from './request-language'
 
-const opts = { init: { credentials: 'include' as RequestCredentials } }
+// Every request names the UI language, so API error messages come back in it.
+const opts = { init: { credentials: 'include' as RequestCredentials }, headers: requestLanguageHeaders }
 const absoluteUrlBase = (path: string) => {
   const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin
   return new URL(path, origin).toString()
@@ -71,7 +73,7 @@ export const adminSiteInvitations = hc<AdminSiteInvitationsRoute>('/api/site/inv
 export const emailConfig = hc<EmailConfigRoute>('/api/site/settings/email', opts)
 export const imageDomainProviderApi = hc<ImageDomainProviderRoute>('/api/site/settings/image-domains', opts)
 export const teamsApi = hc<TeamsRoute>('/api/teams', opts)
-export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams')
+export const publicTeamsApi = hc<PublicTeamsRoute>('/api/teams', { headers: requestLanguageHeaders })
 export const notificationsApi = hc<NotificationsRoute>('/api/notifications', opts)
 // One announcements resource (user feed + admin management, gated per-route).
 export const announcementsApi = hc<AnnouncementsRoute>('/api/site/announcements', opts)

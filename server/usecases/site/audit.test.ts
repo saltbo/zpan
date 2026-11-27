@@ -4,7 +4,7 @@ import { listAuditEvents } from './audit'
 
 describe('audit usecase', () => {
   it('forwards the query options to listAdminAudit', async () => {
-    const result = { items: [], total: 0, page: 1, pageSize: 20 }
+    const result = { items: [], nextBoundary: null }
     const listAdminAudit = vi.fn(async () => result)
     const resolve = vi.fn(async () => new Map())
     const findApiKeyNames = vi.fn(async () => new Map())
@@ -18,13 +18,12 @@ describe('audit usecase', () => {
         agentInfo: { resolve } as AgentInfoGateway,
       },
       {
-        page: 1,
         pageSize: 20,
         orgId: 'o1',
       },
     )
     expect(out).toBe(result)
-    expect(listAdminAudit).toHaveBeenCalledWith({ page: 1, pageSize: 20, orgId: 'o1' })
+    expect(listAdminAudit).toHaveBeenCalledWith({ pageSize: 20, orgId: 'o1' })
     expect(resolve).not.toHaveBeenCalled()
     expect(findApiKeyNames).not.toHaveBeenCalled()
     expect(findDeviceNames).not.toHaveBeenCalled()
@@ -55,7 +54,7 @@ describe('audit usecase', () => {
 
     const out = await listAuditEvents(
       {
-        audit: { listAdminAudit: async () => ({ items: [event], total: 1, page: 1, pageSize: 20 }) },
+        audit: { listAdminAudit: async () => ({ items: [event], nextBoundary: null }) },
         auditActorDirectory: {
           findUserProfiles: async () => new Map(),
           findApiKeyNames: async () => new Map(),
@@ -64,7 +63,7 @@ describe('audit usecase', () => {
         },
         agentInfo: { resolve },
       },
-      { page: 1, pageSize: 20 },
+      { pageSize: 20 },
     )
 
     expect(out.items[0]).toMatchObject({ user: { name: 'Ambor' }, actor: resolved })
@@ -93,7 +92,7 @@ describe('audit usecase', () => {
 
     const out = await listAuditEvents(
       {
-        audit: { listAdminAudit: async () => ({ items: [event], total: 1, page: 1, pageSize: 20 }) },
+        audit: { listAdminAudit: async () => ({ items: [event], nextBoundary: null }) },
         auditActorDirectory: {
           findUserProfiles: async () => new Map(),
           findApiKeyNames: async () => new Map([['key-1', 'CME downloader']]),
@@ -102,7 +101,7 @@ describe('audit usecase', () => {
         },
         agentInfo: { resolve },
       },
-      { page: 1, pageSize: 20 },
+      { pageSize: 20 },
     )
 
     expect(out.items[0]).toMatchObject({
@@ -133,7 +132,7 @@ describe('audit usecase', () => {
 
     const out = await listAuditEvents(
       {
-        audit: { listAdminAudit: async () => ({ items: [event], total: 1, page: 1, pageSize: 20 }) },
+        audit: { listAdminAudit: async () => ({ items: [event], nextBoundary: null }) },
         auditActorDirectory: {
           findUserProfiles: async () => new Map(),
           findApiKeyNames: async () => new Map(),
@@ -142,7 +141,7 @@ describe('audit usecase', () => {
         },
         agentInfo: { resolve: async () => new Map() },
       },
-      { page: 1, pageSize: 20 },
+      { pageSize: 20 },
     )
 
     expect(out.items[0]).toMatchObject({

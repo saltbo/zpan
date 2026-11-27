@@ -8,7 +8,8 @@ interface FilesToolbarProps {
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
   selectedCount: number
-  totalItems: number
+  // Undefined while the list has failed to load, so no count is claimed.
+  totalItems?: number
   onBatchTrash?: () => void
   onBatchMove?: () => void
   onBatchCopy?: () => void
@@ -85,7 +86,9 @@ export function FilesToolbar({
       data-testid="files-toolbar"
       className="flex items-center justify-between gap-2 border-b bg-background px-4 py-2"
     >
-      <span className="text-sm text-muted-foreground">{t('files.count', { count: totalItems })}</span>
+      <span className="text-sm text-muted-foreground">
+        {totalItems !== undefined && t('files.count', { count: totalItems })}
+      </span>
       <div className="flex items-center gap-2">
         <ToggleGroup
           type="single"
@@ -95,10 +98,10 @@ export function FilesToolbar({
           onValueChange={(v) => v && onViewModeChange(v as ViewMode)}
           className="hidden sm:flex"
         >
-          <ToggleGroupItem value="list" aria-label="List view">
+          <ToggleGroupItem value="list" aria-label={t('files.listView')}>
             <List className="h-4 w-4" />
           </ToggleGroupItem>
-          <ToggleGroupItem value="grid" aria-label="Grid view">
+          <ToggleGroupItem value="grid" aria-label={t('files.gridView')}>
             <LayoutGrid className="h-4 w-4" />
           </ToggleGroupItem>
         </ToggleGroup>

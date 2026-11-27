@@ -162,3 +162,16 @@ export const trashCursorCodec: PageCursorCodec<TrashCursor> = {
     return { trashedAt: cursor.trashedAt, ...createdAtIdCursorCodec.encode(cursor) }
   },
 }
+
+type SortValueCursor = { value: string | number; id: string }
+
+export const sortValueCursorCodec: PageCursorCodec<SortValueCursor> = {
+  decode(boundary) {
+    const { value, id } = boundary
+    if ((typeof value !== 'string' && typeof value !== 'number') || typeof id !== 'string') return undefined
+    return { value, id }
+  },
+  encode(cursor) {
+    return { value: cursor.value, id: cursor.id }
+  },
+}

@@ -17,7 +17,7 @@ describe('listStorageUsageItems', () => {
         source: 'files',
       },
     ]
-    const listItems = vi.fn().mockResolvedValue({ items, total: 1 })
+    const listItems = vi.fn().mockResolvedValue({ items, nextBoundary: null })
     const deps = {
       storageUsageBreakdowns: {
         get: vi.fn(),
@@ -28,12 +28,18 @@ describe('listStorageUsageItems', () => {
     await expect(
       listStorageUsageItems(deps, 'org-1', {
         category: 'photos',
-        page: 2,
         pageSize: 10,
         sortBy: 'name',
         sortDir: 'asc',
+        after: { value: 'b.png', id: 'f-1' },
       }),
-    ).resolves.toEqual({ items, total: 1 })
-    expect(listItems).toHaveBeenCalledWith('org-1', 'photos', 2, 10, 'name', 'asc')
+    ).resolves.toEqual({ items, nextBoundary: null })
+    expect(listItems).toHaveBeenCalledWith('org-1', {
+      category: 'photos',
+      pageSize: 10,
+      sortBy: 'name',
+      sortDir: 'asc',
+      after: { value: 'b.png', id: 'f-1' },
+    })
   })
 })

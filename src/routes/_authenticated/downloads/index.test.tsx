@@ -5,7 +5,17 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { Profiler } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDownloadTask, listDownloadTasks } from '@/lib/api'
-import { DownloadsPage } from './index'
+import { routerSearch } from '@/test/router-search'
+import { DownloadsPage, downloadsSearchSchema } from './index'
+
+vi.mock('@tanstack/react-router', async (importOriginal) => {
+  const { routerSearch } = await import('@/test/router-search')
+  return {
+    ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+    useNavigate: routerSearch.useNavigate,
+    useSearch: routerSearch.useSearch,
+  }
+})
 
 class TestResizeObserver {
   observe() {}
@@ -112,6 +122,7 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
+  routerSearch.reset()
 })
 
 describe('DownloadsPage task selection', () => {
@@ -188,5 +199,37 @@ describe('DownloadsPage task selection', () => {
     expect(screen.getByText('Device · living-room-mac')).toBeTruthy()
     expect(screen.getByText('downloads.detail.requestedBy')).toBeTruthy()
     expect(screen.getByText('downloads.detail.executingDevice')).toBeTruthy()
+  })
+})
+
+describe('DownloadsPage list state in the URL', () => {
+  it('restores filters from the link and writes changes back [spec: list-state/downloads]', async () => {
+    vi.mocked(listDownloadTasks).mockResolvedValue({ items: [], nextPageToken: null })
+    routerSearch.reset(downloadsSearchSchema.parse({ status: 'failed', category: 'movies', tag: '4k' }))
+
+    renderDownloadsPage(() => {})
+
+    await waitFor(() =>
+      expect(listDownloadTasks).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'failed', category: 'movies', tag: '4k' }),
+      ),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'downloads.filters' }))
+    const categoryInput = (await screen.findByLabelText('downloads.category')) as HTMLInputElement
+    expect(categoryInput.value).toBe('movies')
+
+    fireEvent.change(categoryInput, { target: { value: 'music' } })
+    expect(routerSearch.search).toEqual({ status: 'failed', category: 'music', tag: '4k' })
+    expect(routerSearch.navigate).toHaveBeenLastCalledWith(expect.objectContaining({ replace: true }))
+    await waitFor(() =>
+      expect(listDownloadTasks).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'failed', category: 'music', tag: '4k' }),
+      ),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
+    expect(routerSearch.search).toEqual({})
+    expect(routerSearch.navigate).toHaveBeenLastCalledWith(expect.objectContaining({ replace: false }))
   })
 })

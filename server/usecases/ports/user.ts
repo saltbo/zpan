@@ -1,3 +1,5 @@
+import type { KeysetPage, KeysetPageOpts } from './pagination'
+
 export interface QuotaEntitlementItem {
   id: string
   orgId: string
@@ -42,15 +44,28 @@ export interface EntitlementResult {
   entitlement: QuotaEntitlementItem
 }
 
+export interface AdminUserListItem {
+  id: string
+  name: string
+  email: string
+  username: string | null
+  image: string | null
+  role: string | null
+  banned: boolean
+  createdAt: Date
+}
+
 // Admin surface for storage entitlement grants (org- and user-personal-scoped),
-// plus the two read checks the auth/WebDAV middleware needs. Admin user
-// management (list / disable / delete) is served by better-auth's admin plugin,
+// the cursor-paged user list, plus the two read checks the auth/WebDAV middleware
+// needs. Disabling and deleting users is served by better-auth's admin plugin,
 // not here. Operations return UserOperationFailure instead of throwing so http
 // maps {status} directly.
 export interface UserAdminRepo {
   // Whether the user is banned/disabled — checked by the auth middleware on every
   // authenticated request to reject sessions of users disabled mid-session.
   isBanned(userId: string): Promise<boolean>
+  // Newest first; `search` matches name, email, or username.
+  listUsers(opts: KeysetPageOpts & { search?: string }): Promise<KeysetPage<AdminUserListItem>>
   getSiteRole(userId: string): Promise<string | null>
   // Resolve an active user by email or username for WebDAV Basic Auth.
   findActiveUserIdByUsername(username: string): Promise<string | null>

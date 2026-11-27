@@ -1,11 +1,12 @@
 import { DEFAULT_SITE_NAME } from '@shared/constants'
 import type { SiteInvitation } from '@shared/types'
-import { and, count, desc, eq, gt, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull } from 'drizzle-orm'
 import { generateId, generateToken } from '../../../shared/ids'
 import * as authSchema from '../../db/auth-schema'
 import { siteInvitations, systemOptions } from '../../db/schema'
 import type { Database } from '../../platform/interface'
-import type { SiteInvitationRepo } from '../../usecases/ports'
+import type { KeysetPage, KeysetPageOpts, SiteInvitationRepo } from '../../usecases/ports'
+import { afterCreatedAtId, keysetPage } from './keyset'
 
 const SITE_INVITE_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7
 
@@ -43,11 +44,7 @@ async function getSiteName(db: Database): Promise<string> {
   return rows[0]?.value?.trim() || DEFAULT_SITE_NAME
 }
 
-async function listSiteInvitations(
-  db: Database,
-  page: number,
-  pageSize: number,
-): Promise<{ items: SiteInvitation[]; total: number }> {
+async function listSiteInvitations(db: Database, opts: KeysetPageOpts): Promise<KeysetPage<SiteInvitation>> {
   const rows = await db
     .select({
       id: siteInvitations.id,
@@ -62,23 +59,15 @@ async function listSiteInvitations(
       createdAt: siteInvitations.createdAt,
       updatedAt: siteInvitations.updatedAt,
       invitedByName: authSchema.user.name,
-      pageTotal: sql<number>`COUNT(*) OVER()`.as('page_total'),
     })
     .from(siteInvitations)
     .leftJoin(authSchema.user, eq(authSchema.user.id, siteInvitations.invitedBy))
-    .orderBy(desc(siteInvitations.createdAt))
-    .limit(pageSize)
-    .offset((page - 1) * pageSize)
+    .where(afterCreatedAtId(siteInvitations.createdAt, siteInvitations.id, opts.after))
+    .orderBy(desc(siteInvitations.createdAt), desc(siteInvitations.id))
+    .limit(opts.pageSize + 1)
 
-  let total = Number(rows[0]?.pageTotal ?? 0)
-  if (rows.length === 0 && page > 1) {
-    const totalResult = await db.select({ count: count() }).from(siteInvitations)
-    total = totalResult[0]?.count ?? 0
-  }
-  return {
-    items: rows.map(({ pageTotal: _, ...row }) => mapInvitation(row)),
-    total,
-  }
+  const page = keysetPage(rows, opts.pageSize, (row) => ({ createdAt: row.createdAt, id: row.id }))
+  return { items: page.rows.map(mapInvitation), nextBoundary: page.next }
 }
 
 async function createSiteInvitation(db: Database, adminUserId: string, rawEmail: string): Promise<SiteInvitation> {
@@ -286,7 +275,7 @@ async function acceptSiteInvitation(
 export function createSiteInvitationRepo(db: Database): SiteInvitationRepo {
   return {
     getSiteName: () => getSiteName(db),
-    listSiteInvitations: (page, pageSize) => listSiteInvitations(db, page, pageSize),
+    listSiteInvitations: (opts) => listSiteInvitations(db, opts),
     createSiteInvitation: (adminUserId, rawEmail) => createSiteInvitation(db, adminUserId, rawEmail),
     resendSiteInvitation: (invitationId) => resendSiteInvitation(db, invitationId),
     revokeSiteInvitation: (invitationId, adminUserId) => revokeSiteInvitation(db, invitationId, adminUserId),

@@ -222,6 +222,56 @@ describe('[CF] Objects upload + trash lifecycle (D1)', () => {
     expect(gone.status).toBe(404)
   })
 
+  it('trashes, restores, and purges a folder holding more items than D1 binds per statement [spec: objects/trash-large-folder]', async () => {
+    const { app, db } = await buildAppWithDb()
+    const { headers, orgId } = await signUp(app, db)
+    const storageId = `st-cf-large-${Date.now()}`
+    await insertStorage(db, storageId)
+    const now = Date.now()
+    const ids = ['cf-big', 'cf-big-sub']
+    await db.run(sql`
+      INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+      VALUES
+        ('cf-big', ${orgId}, ${`cf-big-${now}`}, 'Big', 'folder', 0, 1, '', '', ${storageId}, 'active', ${now}, ${now}),
+        ('cf-big-sub', ${orgId}, ${`cf-big-sub-${now}`}, 'Sub', 'folder', 0, 1, 'Big', '', ${storageId}, 'active', ${now}, ${now})
+    `)
+    for (let i = 0; i < 150; i++) {
+      const id = `cf-big-${i}`
+      ids.push(id)
+      await db.run(sql`
+        INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+        VALUES (${id}, ${orgId}, ${`${id}-${now}`}, ${`f${i}.txt`}, 'text/plain', 1, 0, ${i % 2 ? 'Big/Sub' : 'Big'}, ${`f${i}.txt`}, ${storageId}, 'active', ${now}, ${now})
+      `)
+    }
+    const liveCount = async () => {
+      const [row] = await db.all<{ n: number }>(sql`
+        SELECT COUNT(*) AS n FROM matters
+        WHERE org_id = ${orgId} AND id LIKE 'cf-big%' AND trashed_at IS NULL AND purged_at IS NULL
+      `)
+      return row?.n
+    }
+
+    const trashRes = await app.request('/api/objects/cf-big', { method: 'DELETE', headers })
+    expect(trashRes.status).toBe(204)
+    expect(await liveCount()).toBe(0)
+
+    const restoreRes = await app.request('/api/trash/objects/cf-big/restorations', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(restoreRes.status).toBe(200)
+    expect(await liveCount()).toBe(ids.length)
+
+    await app.request('/api/objects/cf-big', { method: 'DELETE', headers })
+    const purgeRes = await app.request('/api/trash/objects/cf-big', { method: 'DELETE', headers })
+    expect(purgeRes.status).toBe(204)
+    const [purged] = await db.all<{ n: number }>(sql`
+      SELECT COUNT(*) AS n FROM matters WHERE org_id = ${orgId} AND id LIKE 'cf-big%' AND purged_at IS NOT NULL
+    `)
+    expect(purged?.n).toBe(ids.length)
+  })
+
   it('aborts an in-progress upload via DELETE /uploads/:sid and discards the draft', async () => {
     const { app, db } = await buildAppWithDb()
     const { headers } = await signUp(app, db)

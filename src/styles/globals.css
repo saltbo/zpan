@@ -27,7 +27,7 @@
   --color-accent-foreground: oklch(0.22 0 0);
 
   /* ── Destructive (Google Red) ──────────────────────── */
-  --color-destructive: oklch(0.619 0.228 26.8);
+  --color-destructive: oklch(0.59 0.228 26.8);
   --color-destructive-foreground: oklch(1 0 0);
 
   /* ── Borders / Inputs / Focus ring ─────────────────── */
@@ -56,11 +56,11 @@
 }
 
 :root {
-  --zpan-theme-primary: oklch(0.587 0.201 258.4);
+  --zpan-theme-primary: oklch(0.57 0.201 258.4);
   --zpan-theme-primary-foreground: oklch(1 0 0);
   --zpan-theme-canvas: oklch(0.978 0.006 247);
   --zpan-theme-sidebar-accent: oklch(0.93 0.042 256);
-  --zpan-theme-ring: oklch(0.587 0.201 258.4);
+  --zpan-theme-ring: oklch(0.57 0.201 258.4);
   --zpan-theme-chart-teal: oklch(0.61 0.13 185);
   --zpan-theme-chart-violet: oklch(0.62 0.18 292);
   --zpan-theme-chart-muted: oklch(0.86 0.01 255);
