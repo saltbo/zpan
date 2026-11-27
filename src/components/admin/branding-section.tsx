@@ -28,6 +28,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { resetBrandingField, saveBranding } from '@/lib/api'
+import { formLevelError, type ServerFieldMap, serverFieldError } from '@/lib/form-errors'
 import { cn } from '@/lib/utils'
 
 interface BrandingFormState {
@@ -38,6 +39,20 @@ interface BrandingFormState {
 }
 
 const THEME_PRESET_IDS = Object.keys(BRANDING_THEME_PRESETS) as BrandingThemePresetId[]
+
+// The multipart field the server names in a rejection, to the drawer field that shows it.
+type DrawerField = 'logo' | 'favicon' | 'themeMode' | keyof BrandingThemeValues
+const SERVER_FIELDS: ServerFieldMap<DrawerField> = {
+  logo: 'logo',
+  favicon: 'favicon',
+  theme_mode: 'themeMode',
+  theme_preset: 'themeMode',
+  theme_primary_color: 'primary_color',
+  theme_primary_foreground: 'primary_foreground',
+  theme_canvas_color: 'canvas_color',
+  theme_sidebar_accent_color: 'sidebar_accent_color',
+  theme_ring_color: 'ring_color',
+}
 
 const DEFAULT_BRANDING: BrandingConfig = {
   logo_url: null,
@@ -128,6 +143,7 @@ function FileUploadField({
   disabled = false,
   accept,
   previewUrl,
+  error,
   onFileChange,
   onReset,
 }: {
@@ -140,11 +156,13 @@ function FileUploadField({
   disabled?: boolean
   accept: string
   previewUrl: string | null
+  error?: string
   onFileChange: (file: File | null) => void
   onReset: () => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const uploadLabel = previewUrl ? replaceLabel : emptyLabel
+  const errorId = error ? `${id}-error` : undefined
 
   return (
     <div className="flex flex-col gap-1">
@@ -157,6 +175,8 @@ function FileUploadField({
         type="file"
         accept={accept}
         disabled={disabled}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={errorId}
         className="hidden"
         onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
       />
@@ -164,6 +184,7 @@ function FileUploadField({
         className={cn(
           'flex h-9 items-center gap-2 rounded-md border border-input bg-background px-2 shadow-xs transition-colors hover:bg-accent/40',
           disabled && 'opacity-60 hover:bg-background',
+          error && 'border-destructive',
         )}
       >
         <button
@@ -214,6 +235,11 @@ function FileUploadField({
           </Button>
         </div>
       </div>
+      {error && (
+        <p id={errorId} className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
@@ -309,6 +335,9 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
     },
   })
 
+  const fieldError = serverFieldError(saveMutation.error, SERVER_FIELDS)
+  const errorFor = (field: DrawerField) => (fieldError?.field === field ? fieldError.message : undefined)
+
   const resetMutation = useMutation({
     mutationFn: (field: BrandingField) => resetBrandingField(field),
     onSuccess: (_data, field) => {
@@ -381,7 +410,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
         title={t('admin.settings.branding.assetsTitle')}
         description={t('admin.settings.branding.assetsDescription')}
         bodyClassName="grid auto-rows-min content-start gap-4"
-        error={saveMutation.error?.message}
+        error={formLevelError(saveMutation.error, SERVER_FIELDS)}
         footer={
           <>
             <Button
@@ -415,6 +444,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
               disabled={disabled}
               accept="image/png,image/jpeg,image/webp,image/svg+xml"
               previewUrl={state.previewLogoUrl}
+              error={errorFor('logo')}
               onFileChange={setLogoFile}
               onReset={() => resetMutation.mutate('logo')}
             />
@@ -428,6 +458,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
               disabled={disabled}
               accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
               previewUrl={state.faviconPreviewUrl}
+              error={errorFor('favicon')}
               onFileChange={setFaviconFile}
               onReset={() => resetMutation.mutate('favicon')}
             />
@@ -438,37 +469,41 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
               label={t('admin.settings.branding.themeMode')}
               help={t('admin.settings.branding.themeDescription')}
               required
+              error={errorFor('themeMode')}
             >
-              <Select
-                value={themeSourceValue}
-                disabled={disabled}
-                onValueChange={(value) => {
-                  if (value === 'custom') {
-                    setThemeMode('custom')
-                    return
-                  }
-                  setThemeMode('preset')
-                  setThemePreset(value as BrandingThemePresetId)
-                }}
-              >
-                <SelectTrigger id="theme-mode" className="w-full">
-                  <SelectValue placeholder={t('admin.settings.branding.themeModePlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {THEME_PRESET_IDS.map((preset) => (
-                    <SelectItem key={preset} value={preset}>
-                      {t(`admin.settings.branding.themePresets.${preset}`)}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="custom">{t('admin.settings.branding.themeModeCustom')}</SelectItem>
-                </SelectContent>
-              </Select>
+              {(controlProps) => (
+                <Select
+                  value={themeSourceValue}
+                  disabled={disabled}
+                  onValueChange={(value) => {
+                    if (value === 'custom') {
+                      setThemeMode('custom')
+                      return
+                    }
+                    setThemeMode('preset')
+                    setThemePreset(value as BrandingThemePresetId)
+                  }}
+                >
+                  <SelectTrigger {...controlProps} className="w-full">
+                    <SelectValue placeholder={t('admin.settings.branding.themeModePlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {THEME_PRESET_IDS.map((preset) => (
+                      <SelectItem key={preset} value={preset}>
+                        {t(`admin.settings.branding.themePresets.${preset}`)}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="custom">{t('admin.settings.branding.themeModeCustom')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </AdminFormField>
             <ThemeColorInput
               id="theme-primary"
               label={t('admin.settings.branding.themePrimary')}
               placeholder={t('admin.settings.branding.colorPlaceholder')}
               value={previewTheme.primary_color}
+              error={errorFor('primary_color')}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(primary_color) => setCustomTheme({ ...customTheme, primary_color })}
             />
@@ -477,6 +512,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
               label={t('admin.settings.branding.themePrimaryForeground')}
               placeholder={t('admin.settings.branding.colorPlaceholder')}
               value={previewTheme.primary_foreground}
+              error={errorFor('primary_foreground')}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(primary_foreground) => setCustomTheme({ ...customTheme, primary_foreground })}
             />
@@ -485,6 +521,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
               label={t('admin.settings.branding.themeCanvas')}
               placeholder={t('admin.settings.branding.colorPlaceholder')}
               value={previewTheme.canvas_color}
+              error={errorFor('canvas_color')}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(canvas_color) => setCustomTheme({ ...customTheme, canvas_color })}
             />
@@ -493,6 +530,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
               label={t('admin.settings.branding.themeSidebarAccent')}
               placeholder={t('admin.settings.branding.colorPlaceholder')}
               value={previewTheme.sidebar_accent_color}
+              error={errorFor('sidebar_accent_color')}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(sidebar_accent_color) => setCustomTheme({ ...customTheme, sidebar_accent_color })}
             />
@@ -501,6 +539,7 @@ function BrandingForm({ initial, disabled }: { initial: BrandingConfig; disabled
               label={t('admin.settings.branding.themeRing')}
               placeholder={t('admin.settings.branding.colorPlaceholder')}
               value={previewTheme.ring_color}
+              error={errorFor('ring_color')}
               disabled={disabled || themeMode !== 'custom'}
               onChange={(ring_color) => setCustomTheme({ ...customTheme, ring_color })}
             />

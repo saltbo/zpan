@@ -11,7 +11,7 @@ import {
   textMessage,
   unsupportedMediaType,
 } from '../../usecases/ports'
-import { applyBrandingUpdate, resetBranding, type ThemeUpdate } from '../../usecases/site/branding'
+import { applyBrandingUpdate, resetBranding, type ThemeField, type ThemeUpdate } from '../../usecases/site/branding'
 import { authRoute, errorResponse, jsonContent } from '../openapi'
 import { createRouter } from '../router'
 
@@ -63,18 +63,21 @@ const CUSTOM_THEME_FIELDS = [
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
-function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | { ok: false; error: ErrorMessage } {
+type ThemeRejection = { ok: false; field: ThemeField; error: ErrorMessage }
+
+function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | ThemeRejection {
   const values: ThemeUpdate = {}
   const mode = form.get('theme_mode')
   if (mode !== null) {
-    if (mode !== 'preset' && mode !== 'custom') return { ok: false, error: 'theme_mode must be preset or custom' }
+    if (mode !== 'preset' && mode !== 'custom')
+      return { ok: false, field: 'theme_mode', error: 'theme_mode must be preset or custom' }
     values.theme_mode = mode as BrandingThemeMode
   }
 
   const preset = form.get('theme_preset')
   if (preset !== null) {
     if (typeof preset !== 'string' || !isBrandingThemePresetId(preset)) {
-      return { ok: false, error: 'theme_preset is invalid' }
+      return { ok: false, field: 'theme_preset', error: 'theme_preset is invalid' }
     }
     values.theme_preset = preset
   }
@@ -83,14 +86,14 @@ function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | {
     const value = form.get(field)
     if (value === null) continue
     if (typeof value !== 'string' || !HEX_COLOR_RE.test(value)) {
-      return { ok: false, error: msg('{field} must be a CSS hex color', { field }) }
+      return { ok: false, field, error: msg('{field} must be a CSS hex color', { field }) }
     }
     values[field] = value
   }
 
   if (values.theme_mode === 'custom') {
     for (const field of CUSTOM_THEME_FIELDS) {
-      if (!values[field]) return { ok: false, error: msg('{field} is required for custom theme', { field }) }
+      if (!values[field]) return { ok: false, field, error: msg('{field} is required for custom theme', { field }) }
     }
   }
 
@@ -145,11 +148,11 @@ export const brandingAdmin = createRouter()
     const form = await c.req.formData()
 
     const themeUpdate = parseThemeUpdate(form)
-    if (!themeUpdate.ok) throw new AppError(422, themeUpdate.error)
+    if (!themeUpdate.ok) throw new AppError(422, themeUpdate.error, { metadata: { field: themeUpdate.field } })
 
     const wordmarkRaw = form.get('wordmark_text')
     if (typeof wordmarkRaw === 'string' && wordmarkRaw.length > 24) {
-      throw new AppError(422, 'wordmark_text must be 24 characters or fewer')
+      throw new AppError(422, 'wordmark_text must be 24 characters or fewer', { metadata: { field: 'wordmark_text' } })
     }
 
     const hidePoweredByRaw = form.get('hide_powered_by')
@@ -164,8 +167,9 @@ export const brandingAdmin = createRouter()
       theme: themeUpdate.values,
     })
     if (!result.ok) {
-      if (result.status === 413) throw payloadTooLarge(textMessage(result.error))
-      throw badRequest(textMessage(result.error))
+      const base =
+        result.status === 413 ? payloadTooLarge(textMessage(result.error)) : badRequest(textMessage(result.error))
+      throw new AppError(base.httpStatus, base.text, { ...base.meta, metadata: { field: result.field } })
     }
     return c.json(result.config, 200)
   })
