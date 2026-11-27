@@ -319,23 +319,8 @@ export {
   replaceStorageSchema,
   updateStorageEgressBillingSchema,
 } from './storage'
-export type {
-  CompleteTaskTorrentInput,
-  CompleteTorrentFileUploadInput,
-  RegisterTaskTorrentInput,
-  TaskTorrentRegistration,
-  TorrentFileUpload,
-  TorrentVerifyJobRequest,
-} from './torrents'
-export {
-  completeTaskTorrentSchema,
-  completeTorrentFileUploadSchema,
-  registerTaskTorrentSchema,
-  taskTorrentFileSchema,
-  taskTorrentRegistrationSchema,
-  torrentFileUploadSchema,
-  torrentVerifyJobRequestSchema,
-} from './torrents'
+export type { TorrentVerifyJobRequest } from './torrents'
+export { torrentInfoSchema, torrentVerifyJobRequestSchema } from './torrents'
 
 export const signInSchema = z.object({
   email: z.string().email(),
@@ -365,6 +350,14 @@ export const createMatterSchema = z.object({
   storageId: opaqueIdSchema
     .describe(
       'Only site administrators may set this field; omit it to let ZPan automatically select an available storage.',
+    )
+    .optional(),
+  torrentPath: z
+    .string()
+    .min(1)
+    .max(4096)
+    .describe(
+      "A download task's upload token only: the file's path inside the torrent the task downloads, slash-separated. A file of the torrent is stored once on the instance under the torrent; scraping may give it another name here.",
     )
     .optional(),
 })

@@ -1417,21 +1417,6 @@ func (e DownloadTaskSpecSourceType) Valid() bool {
 	}
 }
 
-// Defines values for DownloadTaskStatusAssignmentTorrentCache.
-const (
-	DownloadTaskStatusAssignmentTorrentCacheTrue DownloadTaskStatusAssignmentTorrentCache = true
-)
-
-// Valid indicates whether the value is a known member of the DownloadTaskStatusAssignmentTorrentCache enum.
-func (e DownloadTaskStatusAssignmentTorrentCache) Valid() bool {
-	switch e {
-	case DownloadTaskStatusAssignmentTorrentCacheTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for DownloadTaskStatusBillingState.
 const (
 	DownloadTaskStatusBillingStateInsufficientCredits DownloadTaskStatusBillingState = "insufficient_credits"
@@ -2266,30 +2251,6 @@ func (e StorageUsageItemSource) Valid() bool {
 	case StorageUsageItemSourceImageHosting:
 		return true
 	case StorageUsageItemSourceTrash:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TaskTorrentRegistrationOutcome.
-const (
-	TaskTorrentRegistrationOutcomeCompleted TaskTorrentRegistrationOutcome = "completed"
-	TaskTorrentRegistrationOutcomeDrive     TaskTorrentRegistrationOutcome = "drive"
-	TaskTorrentRegistrationOutcomeFill      TaskTorrentRegistrationOutcome = "fill"
-	TaskTorrentRegistrationOutcomeJoined    TaskTorrentRegistrationOutcome = "joined"
-)
-
-// Valid indicates whether the value is a known member of the TaskTorrentRegistrationOutcome enum.
-func (e TaskTorrentRegistrationOutcome) Valid() bool {
-	switch e {
-	case TaskTorrentRegistrationOutcomeCompleted:
-		return true
-	case TaskTorrentRegistrationOutcomeDrive:
-		return true
-	case TaskTorrentRegistrationOutcomeFill:
-		return true
-	case TaskTorrentRegistrationOutcomeJoined:
 		return true
 	default:
 		return false
@@ -3720,13 +3681,13 @@ func (e CreateObject201JSONResponseBodyUploadWorkflowUploadUrlField) Valid() boo
 
 // Defines values for CreateObject201JSONResponseBodyUploadWorkflowVersion.
 const (
-	CreateObject201JSONResponseBodyUploadWorkflowVersionN1 CreateObject201JSONResponseBodyUploadWorkflowVersion = "1"
+	N1 CreateObject201JSONResponseBodyUploadWorkflowVersion = "1"
 )
 
 // Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowVersion enum.
 func (e CreateObject201JSONResponseBodyUploadWorkflowVersion) Valid() bool {
 	switch e {
-	case CreateObject201JSONResponseBodyUploadWorkflowVersionN1:
+	case N1:
 		return true
 	default:
 		return false
@@ -5610,10 +5571,7 @@ type DownloadTask struct {
 			AssignedAt   *string           `json:"assignedAt,omitempty"`
 			DownloaderId string            `json:"downloaderId"`
 			Executor     *ActorAttribution `json:"executor,omitempty"`
-
-			// TorrentCache Upload through the torrent upload API (/api/downloads/tasks/{id}/torrent) instead of objects
-			TorrentCache *DownloadTaskStatusAssignmentTorrentCache `json:"torrentCache,omitempty"`
-			UploadToken  *string                                   `json:"uploadToken,omitempty"`
+			UploadToken  *string           `json:"uploadToken,omitempty"`
 		} `json:"assignment"`
 		Attempt int `json:"attempt"`
 		Billing struct {
@@ -5720,9 +5678,6 @@ type DownloadTaskControlAction string
 
 // DownloadTaskSpecSourceType defines model for DownloadTask.Spec.Source.Type.
 type DownloadTaskSpecSourceType string
-
-// DownloadTaskStatusAssignmentTorrentCache Upload through the torrent upload API (/api/downloads/tasks/{id}/torrent) instead of objects
-type DownloadTaskStatusAssignmentTorrentCache bool
 
 // DownloadTaskStatusBillingState defines model for DownloadTask.Status.Billing.State.
 type DownloadTaskStatusBillingState string
@@ -6860,27 +6815,6 @@ type StorageUsageItemPage struct {
 	NextPageToken *string            `json:"nextPageToken"`
 }
 
-// TaskTorrentRegistration defines model for TaskTorrentRegistration.
-type TaskTorrentRegistration struct {
-	// Files Files to upload; padding files are left out
-	Files []struct {
-		// FileIdx Position of the file in the info dictionary
-		FileIdx int `json:"fileIdx"`
-
-		// Path Path inside the torrent
-		Path string `json:"path"`
-		Size int64  `json:"size"`
-	} `json:"files"`
-	InfoHash string `json:"infoHash"`
-	Name     string `json:"name"`
-
-	// Outcome fill: upload every file through the torrent upload API. joined: another download of this torrent is in progress; drop the task. completed: the torrent was already on the instance and the task is done. drive: the torrent cannot be filled; upload through the object API as before.
-	Outcome TaskTorrentRegistrationOutcome `json:"outcome"`
-}
-
-// TaskTorrentRegistrationOutcome fill: upload every file through the torrent upload API. joined: another download of this torrent is in progress; drop the task. completed: the torrent was already on the instance and the task is done. drive: the torrent cannot be filled; upload through the object API as before.
-type TaskTorrentRegistrationOutcome string
-
 // TeamInvitationList defines model for TeamInvitationList.
 type TeamInvitationList struct {
 	Items    []PendingInvitation `json:"items"`
@@ -6920,21 +6854,6 @@ type TeamSummary struct {
 	QuotaTotal  int     `json:"quotaTotal"`
 	QuotaUsed   int     `json:"quotaUsed"`
 	Slug        string  `json:"slug"`
-}
-
-// TorrentFileUpload defines model for TorrentFileUpload.
-type TorrentFileUpload struct {
-	ExpiresAt string `json:"expiresAt"`
-	PartSize  int64  `json:"partSize"`
-	Parts     []struct {
-		Length     int64  `json:"length"`
-		Offset     int64  `json:"offset"`
-		PartNumber int    `json:"partNumber"`
-		Url        string `json:"url"`
-	} `json:"parts"`
-
-	// UploadId S3 multipart upload id; null for a single PUT
-	UploadId *string `json:"uploadId"`
 }
 
 // TorrentSettings defines model for TorrentSettings.
@@ -7512,6 +7431,9 @@ type UpdateDownloadTaskJSONBody struct {
 	// ScrapeSkippedReason Why the downloader uploaded this download without media scraping. Recorded in the task activity; the task carries on.
 	ScrapeSkippedReason *string                           `json:"scrapeSkippedReason,omitempty"`
 	Status              *UpdateDownloadTaskJSONBodyStatus `json:"status,omitempty"`
+
+	// TorrentInfo Base64 of the bencoded info dictionary of the torrent this task downloads, reported once the engine has it. Its SHA-1 is the torrent's infoHash. A torrent already on the instance, or being downloaded by another task, settles the task: the response then shows it completed, or queued to wait for that download, and the downloader drops its own. Sent on its own.
+	TorrentInfo *string `json:"torrentInfo,omitempty"`
 }
 
 // UpdateDownloadTaskJSONBodyCleanupCompleted defines parameters for UpdateDownloadTask.
@@ -7538,31 +7460,6 @@ type SetDownloadTaskStatusJSONBody struct {
 
 // SetDownloadTaskStatusJSONBodyStatus defines parameters for SetDownloadTaskStatus.
 type SetDownloadTaskStatusJSONBodyStatus string
-
-// RegisterTaskTorrentJSONBody defines parameters for RegisterTaskTorrent.
-type RegisterTaskTorrentJSONBody struct {
-	// Info Base64 of the torrent's bencoded info dictionary. Its SHA-1 must equal the task's infoHash.
-	Info string `json:"info"`
-}
-
-// CompleteTaskTorrentJSONBody defines parameters for CompleteTaskTorrent.
-type CompleteTaskTorrentJSONBody struct {
-	// Files The files the downloader uploaded; they must match the info dictionary
-	Files []struct {
-		Path string `json:"path"`
-		Size int64  `json:"size"`
-	} `json:"files"`
-}
-
-// CompleteTorrentFileUploadJSONBody defines parameters for CompleteTorrentFileUpload.
-type CompleteTorrentFileUploadJSONBody struct {
-	// Parts Part ETags of a multipart upload
-	Parts *[]struct {
-		Etag       string `json:"etag"`
-		PartNumber int    `json:"partNumber"`
-	} `json:"parts,omitempty"`
-	UploadId *string `json:"uploadId,omitempty"`
-}
 
 // UpdateImageHostingConfigJSONBody defines parameters for UpdateImageHostingConfig.
 type UpdateImageHostingConfigJSONBody struct {
@@ -7679,7 +7576,10 @@ type CreateObjectJSONBody struct {
 
 	// StorageId Only site administrators may set this field; omit it to let ZPan automatically select an available storage.
 	StorageId *string `json:"storageId,omitempty"`
-	Type      *string `json:"type,omitempty"`
+
+	// TorrentPath A download task's upload token only: the file's path inside the torrent the task downloads, slash-separated. A file of the torrent is stored once on the instance under the torrent; scraping may give it another name here.
+	TorrentPath *string `json:"torrentPath,omitempty"`
+	Type        *string `json:"type,omitempty"`
 }
 
 // CreateObjectJSONBodyOnConflict defines parameters for CreateObject.
@@ -8075,8 +7975,8 @@ type UpdateStorageEgressBillingJSONBody struct {
 	UnitBytes      int  `json:"unitBytes"`
 }
 
-// ListCachedTorrentsParams defines parameters for ListCachedTorrents.
-type ListCachedTorrentsParams struct {
+// ListTorrentsParams defines parameters for ListTorrents.
+type ListTorrentsParams struct {
 	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 }
@@ -8276,15 +8176,6 @@ type RetryDownloadTaskJSONRequestBody RetryDownloadTaskJSONBody
 
 // SetDownloadTaskStatusJSONRequestBody defines body for SetDownloadTaskStatus for application/json ContentType.
 type SetDownloadTaskStatusJSONRequestBody SetDownloadTaskStatusJSONBody
-
-// RegisterTaskTorrentJSONRequestBody defines body for RegisterTaskTorrent for application/json ContentType.
-type RegisterTaskTorrentJSONRequestBody RegisterTaskTorrentJSONBody
-
-// CompleteTaskTorrentJSONRequestBody defines body for CompleteTaskTorrent for application/json ContentType.
-type CompleteTaskTorrentJSONRequestBody CompleteTaskTorrentJSONBody
-
-// CompleteTorrentFileUploadJSONRequestBody defines body for CompleteTorrentFileUpload for application/json ContentType.
-type CompleteTorrentFileUploadJSONRequestBody CompleteTorrentFileUploadJSONBody
 
 // UpdateImageHostingConfigJSONRequestBody defines body for UpdateImageHostingConfig for application/json ContentType.
 type UpdateImageHostingConfigJSONRequestBody UpdateImageHostingConfigJSONBody
@@ -11814,27 +11705,6 @@ type ClientInterface interface {
 
 	SetDownloadTaskStatus(ctx context.Context, id string, body SetDownloadTaskStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// RegisterTaskTorrentWithBody request with any body
-	RegisterTaskTorrentWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	RegisterTaskTorrent(ctx context.Context, id string, body RegisterTaskTorrentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CompleteTaskTorrentWithBody request with any body
-	CompleteTaskTorrentWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CompleteTaskTorrent(ctx context.Context, id string, body CompleteTaskTorrentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CompleteTorrentFileUploadWithBody request with any body
-	CompleteTorrentFileUploadWithBody(ctx context.Context, id string, fileIdx int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CompleteTorrentFileUpload(ctx context.Context, id string, fileIdx int, body CompleteTorrentFileUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateTorrentFileUpload request
-	CreateTorrentFileUpload(ctx context.Context, id string, fileIdx int, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// AbortTorrentFileUpload request
-	AbortTorrentFileUpload(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// StreamEvents request
 	StreamEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -12220,11 +12090,11 @@ type ClientInterface interface {
 
 	UpdateStorageEgressBilling(ctx context.Context, id string, body UpdateStorageEgressBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListCachedTorrents request
-	ListCachedTorrents(ctx context.Context, params *ListCachedTorrentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListTorrents request
+	ListTorrents(ctx context.Context, params *ListTorrentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// EvictCachedTorrent request
-	EvictCachedTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// EvictTorrent request
+	EvictTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetStorageUsage request
 	GetStorageUsage(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -12880,102 +12750,6 @@ func (c *Client) SetDownloadTaskStatusWithBody(ctx context.Context, id string, c
 
 func (c *Client) SetDownloadTaskStatus(ctx context.Context, id string, body SetDownloadTaskStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetDownloadTaskStatusRequest(c.Server, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RegisterTaskTorrentWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRegisterTaskTorrentRequestWithBody(c.Server, id, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RegisterTaskTorrent(ctx context.Context, id string, body RegisterTaskTorrentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRegisterTaskTorrentRequest(c.Server, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CompleteTaskTorrentWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCompleteTaskTorrentRequestWithBody(c.Server, id, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CompleteTaskTorrent(ctx context.Context, id string, body CompleteTaskTorrentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCompleteTaskTorrentRequest(c.Server, id, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CompleteTorrentFileUploadWithBody(ctx context.Context, id string, fileIdx int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCompleteTorrentFileUploadRequestWithBody(c.Server, id, fileIdx, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CompleteTorrentFileUpload(ctx context.Context, id string, fileIdx int, body CompleteTorrentFileUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCompleteTorrentFileUploadRequest(c.Server, id, fileIdx, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateTorrentFileUpload(ctx context.Context, id string, fileIdx int, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateTorrentFileUploadRequest(c.Server, id, fileIdx)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) AbortTorrentFileUpload(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAbortTorrentFileUploadRequest(c.Server, id, fileIdx, uploadId)
 	if err != nil {
 		return nil, err
 	}
@@ -14666,8 +14440,8 @@ func (c *Client) UpdateStorageEgressBilling(ctx context.Context, id string, body
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListCachedTorrents(ctx context.Context, params *ListCachedTorrentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListCachedTorrentsRequest(c.Server, params)
+func (c *Client) ListTorrents(ctx context.Context, params *ListTorrentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListTorrentsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -14678,8 +14452,8 @@ func (c *Client) ListCachedTorrents(ctx context.Context, params *ListCachedTorre
 	return c.Client.Do(req)
 }
 
-func (c *Client) EvictCachedTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEvictCachedTorrentRequest(c.Server, id)
+func (c *Client) EvictTorrent(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEvictTorrentRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -16644,243 +16418,6 @@ func NewSetDownloadTaskStatusRequestWithBody(server string, id string, contentTy
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewRegisterTaskTorrentRequest calls the generic RegisterTaskTorrent builder with application/json body
-func NewRegisterTaskTorrentRequest(server string, id string, body RegisterTaskTorrentJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewRegisterTaskTorrentRequestWithBody(server, id, "application/json", bodyReader)
-}
-
-// NewRegisterTaskTorrentRequestWithBody generates requests for RegisterTaskTorrent with any type of body
-func NewRegisterTaskTorrentRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewCompleteTaskTorrentRequest calls the generic CompleteTaskTorrent builder with application/json body
-func NewCompleteTaskTorrentRequest(server string, id string, body CompleteTaskTorrentJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCompleteTaskTorrentRequestWithBody(server, id, "application/json", bodyReader)
-}
-
-// NewCompleteTaskTorrentRequestWithBody generates requests for CompleteTaskTorrent with any type of body
-func NewCompleteTaskTorrentRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/completions", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewCompleteTorrentFileUploadRequest calls the generic CompleteTorrentFileUpload builder with application/json body
-func NewCompleteTorrentFileUploadRequest(server string, id string, fileIdx int, body CompleteTorrentFileUploadJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCompleteTorrentFileUploadRequestWithBody(server, id, fileIdx, "application/json", bodyReader)
-}
-
-// NewCompleteTorrentFileUploadRequestWithBody generates requests for CompleteTorrentFileUpload with any type of body
-func NewCompleteTorrentFileUploadRequestWithBody(server string, id string, fileIdx int, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "fileIdx", fileIdx, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/files/%s/completions", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewCreateTorrentFileUploadRequest generates requests for CreateTorrentFileUpload
-func NewCreateTorrentFileUploadRequest(server string, id string, fileIdx int) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "fileIdx", fileIdx, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/files/%s/uploads", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewAbortTorrentFileUploadRequest generates requests for AbortTorrentFileUpload
-func NewAbortTorrentFileUploadRequest(server string, id string, fileIdx int, uploadId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "fileIdx", fileIdx, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "uploadId", uploadId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent/files/%s/uploads/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -21608,8 +21145,8 @@ func NewUpdateStorageEgressBillingRequestWithBody(server string, id string, cont
 	return req, nil
 }
 
-// NewListCachedTorrentsRequest generates requests for ListCachedTorrents
-func NewListCachedTorrentsRequest(server string, params *ListCachedTorrentsParams) (*http.Request, error) {
+// NewListTorrentsRequest generates requests for ListTorrents
+func NewListTorrentsRequest(server string, params *ListTorrentsParams) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -21674,8 +21211,8 @@ func NewListCachedTorrentsRequest(server string, params *ListCachedTorrentsParam
 	return req, nil
 }
 
-// NewEvictCachedTorrentRequest generates requests for EvictCachedTorrent
-func NewEvictCachedTorrentRequest(server string, id string) (*http.Request, error) {
+// NewEvictTorrentRequest generates requests for EvictTorrent
+func NewEvictTorrentRequest(server string, id string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -23618,27 +23155,6 @@ type ClientWithResponsesInterface interface {
 
 	SetDownloadTaskStatusWithResponse(ctx context.Context, id string, body SetDownloadTaskStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*SetDownloadTaskStatusResponse, error)
 
-	// RegisterTaskTorrentWithBodyWithResponse request with any body
-	RegisterTaskTorrentWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterTaskTorrentResponse, error)
-
-	RegisterTaskTorrentWithResponse(ctx context.Context, id string, body RegisterTaskTorrentJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterTaskTorrentResponse, error)
-
-	// CompleteTaskTorrentWithBodyWithResponse request with any body
-	CompleteTaskTorrentWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteTaskTorrentResponse, error)
-
-	CompleteTaskTorrentWithResponse(ctx context.Context, id string, body CompleteTaskTorrentJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteTaskTorrentResponse, error)
-
-	// CompleteTorrentFileUploadWithBodyWithResponse request with any body
-	CompleteTorrentFileUploadWithBodyWithResponse(ctx context.Context, id string, fileIdx int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteTorrentFileUploadResponse, error)
-
-	CompleteTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, body CompleteTorrentFileUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteTorrentFileUploadResponse, error)
-
-	// CreateTorrentFileUploadWithResponse request
-	CreateTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, reqEditors ...RequestEditorFn) (*CreateTorrentFileUploadResponse, error)
-
-	// AbortTorrentFileUploadWithResponse request
-	AbortTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*AbortTorrentFileUploadResponse, error)
-
 	// StreamEventsWithResponse request
 	StreamEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error)
 
@@ -24024,11 +23540,11 @@ type ClientWithResponsesInterface interface {
 
 	UpdateStorageEgressBillingWithResponse(ctx context.Context, id string, body UpdateStorageEgressBillingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateStorageEgressBillingResponse, error)
 
-	// ListCachedTorrentsWithResponse request
-	ListCachedTorrentsWithResponse(ctx context.Context, params *ListCachedTorrentsParams, reqEditors ...RequestEditorFn) (*ListCachedTorrentsResponse, error)
+	// ListTorrentsWithResponse request
+	ListTorrentsWithResponse(ctx context.Context, params *ListTorrentsParams, reqEditors ...RequestEditorFn) (*ListTorrentsResponse, error)
 
-	// EvictCachedTorrentWithResponse request
-	EvictCachedTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*EvictCachedTorrentResponse, error)
+	// EvictTorrentWithResponse request
+	EvictTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*EvictTorrentResponse, error)
 
 	// GetStorageUsageWithResponse request
 	GetStorageUsageWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStorageUsageResponse, error)
@@ -25160,183 +24676,6 @@ func (r SetDownloadTaskStatusResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetDownloadTaskStatusResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type RegisterTaskTorrentResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *TaskTorrentRegistration
-	JSON400      *Error
-	JSON401      *Error
-	JSON403      *Error
-	JSON404      *Error
-	JSON409      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r RegisterTaskTorrentResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RegisterTaskTorrentResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r RegisterTaskTorrentResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type CompleteTaskTorrentResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *DownloadTask
-	JSON400      *Error
-	JSON401      *Error
-	JSON403      *Error
-	JSON404      *Error
-	JSON409      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CompleteTaskTorrentResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CompleteTaskTorrentResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CompleteTaskTorrentResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type CompleteTorrentFileUploadResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		FileIdx int `json:"fileIdx"`
-		Size    int `json:"size"`
-	}
-	JSON400 *Error
-	JSON401 *Error
-	JSON403 *Error
-	JSON404 *Error
-	JSON409 *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CompleteTorrentFileUploadResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CompleteTorrentFileUploadResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CompleteTorrentFileUploadResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type CreateTorrentFileUploadResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *TorrentFileUpload
-	JSON400      *Error
-	JSON401      *Error
-	JSON403      *Error
-	JSON404      *Error
-	JSON409      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateTorrentFileUploadResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateTorrentFileUploadResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CreateTorrentFileUploadResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type AbortTorrentFileUploadResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *Error
-	JSON401      *Error
-	JSON403      *Error
-	JSON404      *Error
-	JSON409      *Error
-}
-
-// Status returns HTTPResponse.Status
-func (r AbortTorrentFileUploadResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r AbortTorrentFileUploadResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r AbortTorrentFileUploadResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -28797,7 +28136,7 @@ func (r UpdateStorageEgressBillingResponse) ContentType() string {
 	return ""
 }
 
-type ListCachedTorrentsResponse struct {
+type ListTorrentsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AdminTorrentPage
@@ -28805,7 +28144,7 @@ type ListCachedTorrentsResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r ListCachedTorrentsResponse) Status() string {
+func (r ListTorrentsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -28813,7 +28152,7 @@ func (r ListCachedTorrentsResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListCachedTorrentsResponse) StatusCode() int {
+func (r ListTorrentsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -28821,14 +28160,14 @@ func (r ListCachedTorrentsResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListCachedTorrentsResponse) ContentType() string {
+func (r ListTorrentsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
 }
 
-type EvictCachedTorrentResponse struct {
+type EvictTorrentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON404      *Error
@@ -28836,7 +28175,7 @@ type EvictCachedTorrentResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r EvictCachedTorrentResponse) Status() string {
+func (r EvictTorrentResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -28844,7 +28183,7 @@ func (r EvictCachedTorrentResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r EvictCachedTorrentResponse) StatusCode() int {
+func (r EvictTorrentResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -28852,7 +28191,7 @@ func (r EvictCachedTorrentResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r EvictCachedTorrentResponse) ContentType() string {
+func (r EvictTorrentResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -30585,75 +29924,6 @@ func (c *ClientWithResponses) SetDownloadTaskStatusWithResponse(ctx context.Cont
 	return ParseSetDownloadTaskStatusResponse(rsp)
 }
 
-// RegisterTaskTorrentWithBodyWithResponse request with arbitrary body returning *RegisterTaskTorrentResponse
-func (c *ClientWithResponses) RegisterTaskTorrentWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterTaskTorrentResponse, error) {
-	rsp, err := c.RegisterTaskTorrentWithBody(ctx, id, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRegisterTaskTorrentResponse(rsp)
-}
-
-func (c *ClientWithResponses) RegisterTaskTorrentWithResponse(ctx context.Context, id string, body RegisterTaskTorrentJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterTaskTorrentResponse, error) {
-	rsp, err := c.RegisterTaskTorrent(ctx, id, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRegisterTaskTorrentResponse(rsp)
-}
-
-// CompleteTaskTorrentWithBodyWithResponse request with arbitrary body returning *CompleteTaskTorrentResponse
-func (c *ClientWithResponses) CompleteTaskTorrentWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteTaskTorrentResponse, error) {
-	rsp, err := c.CompleteTaskTorrentWithBody(ctx, id, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCompleteTaskTorrentResponse(rsp)
-}
-
-func (c *ClientWithResponses) CompleteTaskTorrentWithResponse(ctx context.Context, id string, body CompleteTaskTorrentJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteTaskTorrentResponse, error) {
-	rsp, err := c.CompleteTaskTorrent(ctx, id, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCompleteTaskTorrentResponse(rsp)
-}
-
-// CompleteTorrentFileUploadWithBodyWithResponse request with arbitrary body returning *CompleteTorrentFileUploadResponse
-func (c *ClientWithResponses) CompleteTorrentFileUploadWithBodyWithResponse(ctx context.Context, id string, fileIdx int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CompleteTorrentFileUploadResponse, error) {
-	rsp, err := c.CompleteTorrentFileUploadWithBody(ctx, id, fileIdx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCompleteTorrentFileUploadResponse(rsp)
-}
-
-func (c *ClientWithResponses) CompleteTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, body CompleteTorrentFileUploadJSONRequestBody, reqEditors ...RequestEditorFn) (*CompleteTorrentFileUploadResponse, error) {
-	rsp, err := c.CompleteTorrentFileUpload(ctx, id, fileIdx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCompleteTorrentFileUploadResponse(rsp)
-}
-
-// CreateTorrentFileUploadWithResponse request returning *CreateTorrentFileUploadResponse
-func (c *ClientWithResponses) CreateTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, reqEditors ...RequestEditorFn) (*CreateTorrentFileUploadResponse, error) {
-	rsp, err := c.CreateTorrentFileUpload(ctx, id, fileIdx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateTorrentFileUploadResponse(rsp)
-}
-
-// AbortTorrentFileUploadWithResponse request returning *AbortTorrentFileUploadResponse
-func (c *ClientWithResponses) AbortTorrentFileUploadWithResponse(ctx context.Context, id string, fileIdx int, uploadId string, reqEditors ...RequestEditorFn) (*AbortTorrentFileUploadResponse, error) {
-	rsp, err := c.AbortTorrentFileUpload(ctx, id, fileIdx, uploadId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseAbortTorrentFileUploadResponse(rsp)
-}
-
 // StreamEventsWithResponse request returning *StreamEventsResponse
 func (c *ClientWithResponses) StreamEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error) {
 	rsp, err := c.StreamEvents(ctx, reqEditors...)
@@ -31879,22 +31149,22 @@ func (c *ClientWithResponses) UpdateStorageEgressBillingWithResponse(ctx context
 	return ParseUpdateStorageEgressBillingResponse(rsp)
 }
 
-// ListCachedTorrentsWithResponse request returning *ListCachedTorrentsResponse
-func (c *ClientWithResponses) ListCachedTorrentsWithResponse(ctx context.Context, params *ListCachedTorrentsParams, reqEditors ...RequestEditorFn) (*ListCachedTorrentsResponse, error) {
-	rsp, err := c.ListCachedTorrents(ctx, params, reqEditors...)
+// ListTorrentsWithResponse request returning *ListTorrentsResponse
+func (c *ClientWithResponses) ListTorrentsWithResponse(ctx context.Context, params *ListTorrentsParams, reqEditors ...RequestEditorFn) (*ListTorrentsResponse, error) {
+	rsp, err := c.ListTorrents(ctx, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListCachedTorrentsResponse(rsp)
+	return ParseListTorrentsResponse(rsp)
 }
 
-// EvictCachedTorrentWithResponse request returning *EvictCachedTorrentResponse
-func (c *ClientWithResponses) EvictCachedTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*EvictCachedTorrentResponse, error) {
-	rsp, err := c.EvictCachedTorrent(ctx, id, reqEditors...)
+// EvictTorrentWithResponse request returning *EvictTorrentResponse
+func (c *ClientWithResponses) EvictTorrentWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*EvictTorrentResponse, error) {
+	rsp, err := c.EvictTorrent(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseEvictCachedTorrentResponse(rsp)
+	return ParseEvictTorrentResponse(rsp)
 }
 
 // GetStorageUsageWithResponse request returning *GetStorageUsageResponse
@@ -33575,307 +32845,6 @@ func ParseSetDownloadTaskStatusResponse(rsp *http.Response) (*SetDownloadTaskSta
 			return nil, err
 		}
 		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRegisterTaskTorrentResponse parses an HTTP response from a RegisterTaskTorrentWithResponse call
-func ParseRegisterTaskTorrentResponse(rsp *http.Response) (*RegisterTaskTorrentResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RegisterTaskTorrentResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TaskTorrentRegistration
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCompleteTaskTorrentResponse parses an HTTP response from a CompleteTaskTorrentWithResponse call
-func ParseCompleteTaskTorrentResponse(rsp *http.Response) (*CompleteTaskTorrentResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CompleteTaskTorrentResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DownloadTask
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCompleteTorrentFileUploadResponse parses an HTTP response from a CompleteTorrentFileUploadWithResponse call
-func ParseCompleteTorrentFileUploadResponse(rsp *http.Response) (*CompleteTorrentFileUploadResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CompleteTorrentFileUploadResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			FileIdx int `json:"fileIdx"`
-			Size    int `json:"size"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateTorrentFileUploadResponse parses an HTTP response from a CreateTorrentFileUploadWithResponse call
-func ParseCreateTorrentFileUploadResponse(rsp *http.Response) (*CreateTorrentFileUploadResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateTorrentFileUploadResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest TorrentFileUpload
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseAbortTorrentFileUploadResponse parses an HTTP response from a AbortTorrentFileUploadWithResponse call
-func ParseAbortTorrentFileUploadResponse(rsp *http.Response) (*AbortTorrentFileUploadResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &AbortTorrentFileUploadResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest Error
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error
@@ -37832,15 +36801,15 @@ func ParseUpdateStorageEgressBillingResponse(rsp *http.Response) (*UpdateStorage
 	return response, nil
 }
 
-// ParseListCachedTorrentsResponse parses an HTTP response from a ListCachedTorrentsWithResponse call
-func ParseListCachedTorrentsResponse(rsp *http.Response) (*ListCachedTorrentsResponse, error) {
+// ParseListTorrentsResponse parses an HTTP response from a ListTorrentsWithResponse call
+func ParseListTorrentsResponse(rsp *http.Response) (*ListTorrentsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListCachedTorrentsResponse{
+	response := &ListTorrentsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -37865,15 +36834,15 @@ func ParseListCachedTorrentsResponse(rsp *http.Response) (*ListCachedTorrentsRes
 	return response, nil
 }
 
-// ParseEvictCachedTorrentResponse parses an HTTP response from a EvictCachedTorrentWithResponse call
-func ParseEvictCachedTorrentResponse(rsp *http.Response) (*EvictCachedTorrentResponse, error) {
+// ParseEvictTorrentResponse parses an HTTP response from a EvictTorrentWithResponse call
+func ParseEvictTorrentResponse(rsp *http.Response) (*EvictTorrentResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &EvictCachedTorrentResponse{
+	response := &EvictTorrentResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

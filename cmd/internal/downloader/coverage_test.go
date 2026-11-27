@@ -558,7 +558,7 @@ func TestCollectDirectoryEntriesSkipsHiddenTrees(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "visible.txt"), []byte("visible"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	entries, err := collectDirectoryEntries(root)
+	entries, err := collectDirectoryEntries(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -961,7 +961,7 @@ func (a *happyPathAPI) CreateFolder(context.Context, string, string, string, cli
 	return client.ObjectDraft{}, errors.New("unexpected folder creation")
 }
 
-func (a *happyPathAPI) CreateObject(context.Context, string, string, int64, string, client.OnConflict) (client.ObjectDraft, error) {
+func (a *happyPathAPI) CreateObject(context.Context, string, string, int64, string, client.OnConflict, string) (client.ObjectDraft, error) {
 	return a.draft, nil
 }
 

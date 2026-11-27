@@ -21,6 +21,7 @@ import type {
   TransferMatterInput,
 } from '@shared/schemas'
 import type { ObjectUploadInstructions } from '@shared/types'
+import { isTorrentKey } from '../domain/torrents'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import { resolveActorProfiles } from './audit-actors'
 import type { Deps } from './deps'
@@ -38,6 +39,7 @@ import {
   type AppError,
   actorIdentityKey,
   badRequest,
+  type DownloadTaskRecord,
   forbidden,
   insufficientCredits,
   type Matter,
@@ -57,6 +59,13 @@ import {
 } from './ports'
 import { StorageQuotaExceededError, withStorageUsageReservation } from './storage-usage'
 import { confirmDownloadTraffic, meterDownloadTraffic, reverseDownloadTraffic } from './store/traffic-metering'
+import {
+  type FillPlacement,
+  markFillObjectUploaded,
+  placeFillFile,
+  recordFillFile,
+  recordFillFolder,
+} from './torrents/fill-upload'
 import { createTrafficEventId } from './transfer-activity'
 
 export { ObjectUploadSessionError } from './ports'
@@ -179,7 +188,10 @@ export type CreateObjectOutcome =
   | { ok: false; error: AppError }
 
 export async function createObject(
-  deps: Pick<Deps, 'matter' | 'storages' | 's3' | 'objectUploadSessions' | 'downloaders' | 'downloadTasks' | 'quota'>,
+  deps: Pick<
+    Deps,
+    'matter' | 'storages' | 's3' | 'objectUploadSessions' | 'downloaders' | 'downloadTasks' | 'quota' | 'torrents'
+  >,
   params: { orgId: string; actor: ObjectActor; input: CreateMatterInput },
 ): Promise<CreateObjectOutcome> {
   const { orgId, actor, input } = params
@@ -189,6 +201,9 @@ export async function createObject(
   const isFolder = dirtype !== DirType.FILE
   const size = input.size ?? 0
 
+  // A task filling a torrent stores its files under bt/ (docs/design/torrents.md §4).
+  let task: DownloadTaskRecord | null = null
+  let fill: FillPlacement | null = null
   if (actor.kind === 'download-task-upload') {
     if (input.storageId) {
       return { ok: false, error: forbidden('Storage selection is not allowed for task uploads') }
@@ -196,7 +211,7 @@ export async function createObject(
     if (!isWithinDownloadTarget(parent, actor.targetFolder)) {
       return { ok: false, error: forbidden('Target folder is outside task authorization') }
     }
-    await assertTaskUploadAllowed(deps as Deps, { taskId: actor.taskId, downloaderId: actor.downloaderId })
+    task = await assertTaskUploadAllowed(deps as Deps, { taskId: actor.taskId, downloaderId: actor.downloaderId })
     parent = await ensureDownloadFolderPath(deps, {
       orgId,
       folderPath: parent,
@@ -213,9 +228,18 @@ export async function createObject(
     ? null
     : await deps.matter.planConflictResolution(orgId, parent, name, onConflict ?? 'fail', { isFolder: false })
 
+  if (task && conflictPlan) {
+    fill = await placeFillFile(deps, task, {
+      torrentPath: input.torrentPath,
+      size,
+      parent,
+      name: conflictPlan.finalName,
+    })
+  }
+
   let storage: StorageRecord
   try {
-    storage = await deps.storages.select(input.storageId)
+    storage = fill ? fill.storage : await deps.storages.select(input.storageId)
   } catch (error) {
     if (error instanceof Error && error.message === 'No available storage') {
       return {
@@ -233,7 +257,9 @@ export async function createObject(
     }
   }
 
-  const objectKey = isFolder ? '' : buildObjectKey({ uid: ownerUserId(actor), orgId, rawExt: fileExt(name) })
+  const objectKey = isFolder
+    ? ''
+    : (fill?.objectKey ?? buildObjectKey({ uid: ownerUserId(actor), orgId, rawExt: fileExt(name) }))
 
   const matter = await deps.matter.create({
     orgId,
@@ -252,7 +278,11 @@ export async function createObject(
     onConflict,
   })
 
-  if (isFolder) return { ok: true, matter }
+  if (isFolder) {
+    if (task) await recordFillFolder(deps, task, matter)
+    return { ok: true, matter }
+  }
+  if (task && fill) await recordFillFile(deps, task, fill, matter)
 
   const upload = await prepareUpload(deps, {
     orgId,
@@ -568,7 +598,7 @@ export type CompleteUploadOutcome =
 export async function completeUpload(
   deps: Pick<
     Deps,
-    'matter' | 'storages' | 's3' | 'objectUploadSessions' | 'quota' | 'storageUsage' | 'audit' | 'share'
+    'matter' | 'storages' | 's3' | 'objectUploadSessions' | 'quota' | 'storageUsage' | 'audit' | 'share' | 'torrents'
   >,
   params: {
     orgId: string
@@ -642,6 +672,8 @@ export async function completeUpload(
   if (record.uploadId == null) {
     await deps.objectUploadSessions.setStatus(record.id, 'completed')
   }
+  // A fill task's upload landed under bt/: its torrent entry is uploaded.
+  await markFillObjectUploaded(deps, { storageId: storage.id, objectKey: record.storageKey, size: head.size })
   return { ok: true, matter }
 }
 
@@ -1110,10 +1142,19 @@ export async function confirmUpload(
     // headroom; a final reconcile then sets usage to the exact active+trashed sum.
     const overwrites = plan.toTrash != null && opts.purgeReplaced != null
     const reserveBytes = overwrites ? Math.max(0, bytes - (plan.toTrash?.size ?? 0)) : bytes
+    // An incumbent that references a torrent was never counted in its storage,
+    // so the storage gains every byte of the new object.
+    const referencesTorrent = overwrites && !!plan.toTrash && isTorrentKey(plan.toTrash.object)
 
     return await withStorageUsageReservation(
       { quota: deps.quota, storageUsage: deps.storageUsage },
-      { orgId, storageId: existing.storageId, bytes: reserveBytes, teamQuotaEnabled: opts.teamQuotaEnabled ?? true },
+      {
+        orgId,
+        storageId: existing.storageId,
+        bytes: reserveBytes,
+        teamQuotaEnabled: opts.teamQuotaEnabled ?? true,
+        ...(referencesTorrent ? { storageBytes: bytes } : {}),
+      },
       async () => {
         // Quota reserved — now safe to execute the overwrite (if any).
         if (plan.toTrash && opts.purgeReplaced) {

@@ -1,11 +1,11 @@
-// The admin Torrents page (docs/design/torrents.md §9, §11): every cached
-// torrent with its holders, evicting one by hand, and the eviction policy.
+// The admin Torrents page (docs/design/torrents.md §9, §11): every torrent on
+// the instance with its holders, evicting one by hand, and the eviction policy.
 
 import type { Deps } from '../deps'
 import { type AdminTorrentRecord, conflict, type KeysetPage, type KeysetPageOpts, msg, notFound } from '../ports'
 import { deleteClaimedTorrent, loadTorrentPolicy, TORRENT_OPTION_KEYS } from './eviction'
 
-export function listCachedTorrents(
+export function listTorrents(
   deps: Pick<Deps, 'torrents'>,
   opts: KeysetPageOpts,
 ): Promise<KeysetPage<AdminTorrentRecord>> {
@@ -22,8 +22,8 @@ function heldError(holders: number) {
 }
 
 // Evicts one torrent nobody holds. A held torrent, or one still downloading or
-// verifying, is refused; only eviction deletes cached objects.
-export async function evictCachedTorrent(
+// verifying, is refused; only eviction deletes torrent objects.
+export async function evictTorrent(
   deps: Pick<Deps, 'torrents' | 'storages' | 's3' | 'storageUsage'>,
   id: string,
 ): Promise<void> {

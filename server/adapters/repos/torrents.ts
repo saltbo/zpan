@@ -2,7 +2,7 @@ import { ObjectStatus } from '@shared/constants'
 import { and, asc, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { generateId } from '../../../shared/ids'
 import { downloaders, matters, stremthruLinks, torrentFiles, torrents } from '../../db/schema'
-import { executeWriteTransaction } from '../../db/transaction'
+import { executeWriteTransaction, rowsPerInsert } from '../../db/transaction'
 import { torrentEntryObjectKey, torrentKeyRange, torrentTreeLayoutPath, torrentTreeRoot } from '../../domain/torrents'
 import type { Database } from '../../platform/interface'
 import type {
@@ -20,10 +20,14 @@ const EVICTABLE_STATUSES = ['ready', 'invalid'] as const
 // D1 binds at most 100 parameters per statement.
 const IN_CHUNK = 90
 
-function chunks<T>(items: readonly T[]): T[][] {
+function chunkBy<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = []
-  for (let i = 0; i < items.length; i += IN_CHUNK) out.push(items.slice(i, i + IN_CHUNK))
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
   return out
+}
+
+function chunks<T>(items: readonly T[]): T[][] {
+  return chunkBy(items, IN_CHUNK)
 }
 
 // True when some drive file still references one of the torrent's objects, in
@@ -102,10 +106,12 @@ export function createTorrentRepo(db: Database): TorrentRepo {
           objectKey: torrentEntryObjectKey(row.infoHash, id),
         }
       })
-      await executeWriteTransaction(db, [
-        db.insert(torrents).values(row),
-        ...(fileRows.length > 0 ? [db.insert(torrentFiles).values(fileRows)] : []),
-      ])
+      // D1 caps one statement's bound parameters, so the file rows go in chunks.
+      const fileInserts =
+        fileRows.length > 0
+          ? chunkBy(fileRows, rowsPerInsert(fileRows[0])).map((values) => db.insert(torrentFiles).values(values))
+          : []
+      await executeWriteTransaction(db, [db.insert(torrents).values(row), ...fileInserts])
       return (await get(row.id)) as TorrentRecord
     },
 
@@ -217,12 +223,68 @@ export function createTorrentRepo(db: Database): TorrentRepo {
       return rows.length === 1
     },
 
-    async markFileUploaded(torrentId, fileIdx, now) {
-      await db
-        .update(torrentFiles)
-        .set({ uploadedAt: now })
+    async findEntryByObject(storageId, objectKey) {
+      const rows = await db
+        .select()
+        .from(torrentFiles)
+        .where(and(eq(torrentFiles.storageId, storageId), eq(torrentFiles.objectKey, objectKey)))
+        .limit(1)
+      return rows[0] ? toEntry(rows[0]) : null
+    },
+
+    async findFolderEntry(torrentId, layoutPath) {
+      const rows = await db
+        .select()
+        .from(torrentFiles)
         .where(
-          and(eq(torrentFiles.torrentId, torrentId), eq(torrentFiles.kind, 'file'), eq(torrentFiles.fileIdx, fileIdx)),
+          and(
+            eq(torrentFiles.torrentId, torrentId),
+            eq(torrentFiles.kind, 'folder'),
+            eq(torrentFiles.layoutPath, layoutPath),
+          ),
+        )
+        .limit(1)
+      return rows[0] ? toEntry(rows[0]) : null
+    },
+
+    async insertEntry(input) {
+      const row = {
+        id: input.id,
+        torrentId: input.torrentId,
+        kind: input.kind,
+        fileIdx: null,
+        path: null,
+        layoutPath: input.layoutPath,
+        size: input.size,
+        mime: input.mime,
+        storageId: input.storageId,
+        objectKey: input.objectKey,
+        media: input.media ?? null,
+        uploadedAt: null,
+      }
+      await db.insert(torrentFiles).values(row)
+      return toEntry(row)
+    },
+
+    async updateEntry(id, fields) {
+      if (Object.keys(fields).length === 0) return
+      await db.update(torrentFiles).set(fields).where(eq(torrentFiles.id, id))
+    },
+
+    async resetEntries(torrentId) {
+      await executeWriteTransaction(db, [
+        db
+          .delete(torrentFiles)
+          .where(and(eq(torrentFiles.torrentId, torrentId), inArray(torrentFiles.kind, ['sidecar', 'folder']))),
+        db.update(torrentFiles).set({ uploadedAt: null, media: null }).where(eq(torrentFiles.torrentId, torrentId)),
+      ])
+    },
+
+    async deleteIncompleteSidecars(torrentId) {
+      await db
+        .delete(torrentFiles)
+        .where(
+          and(eq(torrentFiles.torrentId, torrentId), eq(torrentFiles.kind, 'sidecar'), isNull(torrentFiles.uploadedAt)),
         )
     },
 

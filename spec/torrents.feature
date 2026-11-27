@@ -40,10 +40,10 @@ Feature: Torrents
     Then only the unheld torrent's objects and rows are deleted
 
   @torrents/fill-from-download @api
-  Scenario: A capable downloader fills a torrent and the requester gets the files
-    Given a downloader that can fill torrents and a submitted magnet task
-    When the downloader uploads the torrent's metadata and files
-    Then the torrent is on the instance and the requester's folder holds its files
+  Scenario: A download that reports its torrent fills it through the object API
+    Given a submitted magnet task and a downloader that reports the torrent's info dictionary
+    When the downloader uploads the torrent's files through the object API, each with its torrent path
+    Then the files are stored once under bt/ and the requester's drive files reference them
 
   @torrents/reject-forged-metadata @api
   Scenario: Metadata that does not match the infoHash is refused
@@ -70,10 +70,10 @@ Feature: Torrents
     Then no second download starts and the task completes when the torrent is ready
 
   @torrents/legacy-downloader-unchanged @api
-  Scenario: Downloaders that cannot fill torrents keep uploading into the drive
-    Given a downloader that does not report the fill capability
+  Scenario: Downloaders that report no info dictionary keep uploading into the drive
+    Given a downloader built before Torrents, which never reports a torrent's info dictionary
     When a magnet task is assigned to it
-    Then it uploads into the drive exactly as before
+    Then it uploads ordinary drive files exactly as before and the torrent stays off the instance
 
   @torrents/admin-list @api
   Scenario: Admins list the torrents on the instance
@@ -130,13 +130,13 @@ Feature: Torrents
     Then they see the address and the MediaFusion token for the new key
 
   @torrents/downloader-fills-torrent @downloader
-  Scenario: A capable downloader fills a torrent
-    Given a downloader that reports the fill capability
-    When it completes a magnet download
-    Then the torrent's files and info dictionary are stored under bt/ and the task finishes by instant transfer
+  Scenario: The downloader reports the torrent and uploads it the way it uploads any download
+    Given an engine that hands over a torrent's metadata
+    When the downloader runs a magnet task
+    Then it reports the info dictionary on the task and uploads through the object API with each file's torrent path, scraped or not
 
-  @torrents/layout-replay @usecase
-  Scenario: Instant transfer replays every entry at its layout path
-    Given a torrent whose entries include scraped folders, sidecars and media metadata
-    When a workspace transfers it
-    Then it gets the same folders, sidecars and media metadata, with sidecars referencing the files it wrote
+  @torrents/layout-replay @api
+  Scenario: A later holder gets the first download's scraped layout
+    Given a scraped download that filled a torrent with folders, renamed files, sidecars and media metadata
+    When another workspace remote-downloads the same magnet
+    Then it gets the same folders, sidecars and media metadata at once, with sidecars referencing the files it wrote

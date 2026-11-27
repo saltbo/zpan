@@ -50,15 +50,28 @@ export async function reserveStorageUsage(
   deps: StorageUsageDeps,
   input: ReserveStorageUsageInput,
 ): Promise<StorageUsageReservation | null> {
-  if (input.bytes <= 0) return null
-  const allowed = await deps.quota.incrementUsageIfEffectiveQuotaAllows(
-    input.orgId,
-    input.storageId,
-    input.bytes,
-    input.teamQuotaEnabled ?? true,
-  )
+  const bytes = Math.max(0, input.bytes)
+  const storageBytes = Math.max(0, input.storageBytes ?? bytes)
+  if (bytes === 0 && (input.storageId === null || storageBytes === 0)) return null
+  const teamQuotaEnabled = input.teamQuotaEnabled ?? true
+  const allowed =
+    storageBytes === bytes
+      ? await deps.quota.incrementUsageIfEffectiveQuotaAllows(input.orgId, input.storageId, bytes, teamQuotaEnabled)
+      : await deps.quota.incrementUsageIfEffectiveQuotaAllows(
+          input.orgId,
+          input.storageId,
+          bytes,
+          teamQuotaEnabled,
+          undefined,
+          storageBytes,
+        )
   if (!allowed) throw new StorageQuotaExceededError()
-  return { orgId: input.orgId, storageId: input.storageId, bytes: input.bytes }
+  return {
+    orgId: input.orgId,
+    storageId: input.storageId,
+    bytes,
+    ...(storageBytes === bytes ? {} : { storageBytes }),
+  }
 }
 
 export async function withStorageUsageReservation<T>(

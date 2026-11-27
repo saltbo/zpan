@@ -333,9 +333,16 @@ export async function putWebDavFile(
   const knownSizeDelta =
     contentLength === null ? 0 : target.matter ? contentLength - (target.matter.size ?? 0) : contentLength
 
+  // The org's quota counted the referenced file, but the storage did not: the
+  // storage gains every byte of the new object.
   const persisted = await withStorageUsageReservation(
     deps,
-    { orgId, storageId: storage.id, bytes: Math.max(0, knownSizeDelta) },
+    {
+      orgId,
+      storageId: storage.id,
+      bytes: Math.max(0, knownSizeDelta),
+      ...(references && contentLength !== null ? { storageBytes: contentLength } : {}),
+    },
     async (ctx) => {
       startedAt = performance.now()
       const uploadedSize = await deps.s3.putObject(storage, objectKey, body, contentType, contentLength ?? undefined)
@@ -346,8 +353,14 @@ export async function putWebDavFile(
         ctx.onRollback(() => deps.s3.deleteObject(storage, objectKey))
       }
 
-      if (contentLength === null && sizeDelta > 0) {
-        return withStorageUsageReservation(deps, { orgId, storageId: storage.id, bytes: sizeDelta }, () =>
+      if (contentLength === null && (sizeDelta > 0 || references)) {
+        const reservation = {
+          orgId,
+          storageId: storage.id,
+          bytes: sizeDelta,
+          ...(references ? { storageBytes: uploadedSize } : {}),
+        }
+        return withStorageUsageReservation(deps, reservation, () =>
           timedPersist(params.onTiming, () =>
             persistWebDavUpload(deps, {
               orgId,

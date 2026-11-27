@@ -187,7 +187,7 @@ describe('StremThru Store API', () => {
     expect(tooMany.status).toBe(400)
   })
 
-  it('transfers a cached torrent on add and generates a link that downloads the chosen file [spec: torrents/stremthru-add-and-play]', async () => {
+  it('transfers a torrent on add and generates a link that downloads the chosen file [spec: torrents/stremthru-add-and-play]', async () => {
     const { call, db, owner } = await setup()
 
     const added = await call('/v0/store/torz', {
@@ -296,7 +296,7 @@ describe('StremThru Store API', () => {
     expect(await trafficUsed(db, owner.orgId)).toBe(VIDEO.length * 2)
   })
 
-  it('moves the files of a removed torrent to the trash and keeps the cached torrent [spec: torrents/stremthru-remove-trashes]', async () => {
+  it('moves the files of a removed torrent to the trash and keeps the torrent [spec: torrents/stremthru-remove-trashes]', async () => {
     const { call, db, deps, owner, torrent } = await setup()
     const torz = (
       await json<{ data: Torz }>(

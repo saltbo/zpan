@@ -568,6 +568,20 @@ describe('webdav usecase', () => {
       expect(reconcile).toHaveBeenCalledWith('ws1', ['st-1'])
     })
 
+    it('reserves every byte of the new object in the storage when overwriting a torrent reference', async () => {
+      const calls: unknown[][] = []
+      const incrementUsageIfEffectiveQuotaAllows = vi.fn(async (...args: unknown[]) => {
+        calls.push(args)
+        return true
+      })
+      const existing = file('m1', { object: `bt/${'a'.repeat(40)}/entry-1`, size: 20 })
+      const deps = makeDeps({ s3: { putObject: async () => 30 }, quota: { incrementUsageIfEffectiveQuotaAllows } })
+      await putWebDavFile(deps, putParams({ target: target({ matter: existing }), contentLength: 30 }))
+      // The org pays the net 10 bytes; the storage, which never counted the
+      // torrent reference, gains all 30.
+      expect(calls).toEqual([['ws1', 'st-1', 10, true, undefined, 30]])
+    })
+
     it('reserves the measured size after a streamed (no Content-Length) upload', async () => {
       const create = vi.fn(async () => file('new'))
       const reservations: number[] = []

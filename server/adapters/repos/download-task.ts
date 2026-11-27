@@ -327,7 +327,6 @@ function toDownloadTask(row: DownloadTaskRow, control?: { action: 'delete'; requ
             downloaderId: row.assignedDownloaderId,
             assignedAt: row.assignedAt?.toISOString() ?? null,
             executor: fallbackActorAttribution({ type: 'device', ref: row.assignedDownloaderId, issuer: null }),
-            ...(row.torrentRole === 'fill' ? { torrentCache: true as const } : {}),
           }
         : null,
       progress: runtime?.progress ?? emptyTaskProgress(),

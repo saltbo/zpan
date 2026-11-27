@@ -6,7 +6,7 @@ import type * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useEntitlement } from '@/hooks/useEntitlement'
-import { evictCachedTorrent, getTorrentSettings, listCachedTorrents, replaceTorrentSettings } from '@/lib/api'
+import { evictTorrent, getTorrentSettings, listTorrents, replaceTorrentSettings } from '@/lib/api'
 import { Route } from './torrents'
 
 const navigate = vi.fn()
@@ -32,8 +32,8 @@ vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>()
   return {
     ApiError: actual.ApiError,
-    listCachedTorrents: vi.fn(),
-    evictCachedTorrent: vi.fn(),
+    listTorrents: vi.fn(),
+    evictTorrent: vi.fn(),
     getTorrentSettings: vi.fn(),
     replaceTorrentSettings: vi.fn(),
   }
@@ -104,7 +104,7 @@ beforeEach(() => {
     savedSettings = input
     return input
   })
-  vi.mocked(listCachedTorrents).mockResolvedValue({ items: [], nextPageToken: null })
+  vi.mocked(listTorrents).mockResolvedValue({ items: [], nextPageToken: null })
 })
 
 afterEach(() => {
@@ -144,7 +144,7 @@ describe('Admin Torrents page', () => {
 
   it('lists torrents with holders, status and verification, and pages with the shared cursor', async () => {
     const user = userEvent.setup()
-    vi.mocked(listCachedTorrents)
+    vi.mocked(listTorrents)
       .mockResolvedValueOnce({
         items: [torrent(), torrent({ id: 't-2', name: 'Sintel', holders: 3, verified: 'sampled' })],
         nextPageToken: 'next-token',
@@ -165,24 +165,24 @@ describe('Admin Torrents page', () => {
         .getByRole('button', { name: /admin.torrents.evict.action/ })
         .hasAttribute('disabled'),
     ).toBe(true)
-    expect(listCachedTorrents).toHaveBeenLastCalledWith({ pageToken: undefined, pageSize: 20 })
+    expect(listTorrents).toHaveBeenLastCalledWith({ pageToken: undefined, pageSize: 20 })
 
     await user.click(screen.getByRole('button', { name: 'common.nextPage' }))
     const next = await screen.findByTestId('torrent-row-t-3')
     expect(within(next).getByText('admin.torrents.verified.none')).toBeTruthy()
-    expect(listCachedTorrents).toHaveBeenLastCalledWith({ pageToken: 'next-token', pageSize: 20 })
+    expect(listTorrents).toHaveBeenLastCalledWith({ pageToken: 'next-token', pageSize: 20 })
   })
 
   it('evicts an unheld torrent after confirmation', async () => {
     const user = userEvent.setup()
-    vi.mocked(listCachedTorrents).mockResolvedValue({ items: [torrent()], nextPageToken: null })
-    vi.mocked(evictCachedTorrent).mockResolvedValue(undefined)
+    vi.mocked(listTorrents).mockResolvedValue({ items: [torrent()], nextPageToken: null })
+    vi.mocked(evictTorrent).mockResolvedValue(undefined)
     renderPage()
 
     await user.click(await screen.findByRole('button', { name: /admin.torrents.evict.action/ }))
     await user.click(await screen.findByRole('button', { name: 'admin.torrents.evict.confirm' }))
 
-    await waitFor(() => expect(evictCachedTorrent).toHaveBeenCalledWith('t-1'))
+    await waitFor(() => expect(evictTorrent).toHaveBeenCalledWith('t-1'))
   })
 
   it('shows the empty state and a retryable load error', async () => {
@@ -190,7 +190,7 @@ describe('Admin Torrents page', () => {
     expect(await screen.findByText('admin.torrents.emptyTitle')).toBeTruthy()
     cleanup()
 
-    vi.mocked(listCachedTorrents).mockRejectedValue(new Error('boom'))
+    vi.mocked(listTorrents).mockRejectedValue(new Error('boom'))
     renderPage()
     expect(await screen.findByRole('button', { name: 'common.retry' })).toBeTruthy()
   })
@@ -200,7 +200,7 @@ describe('Admin Torrents page', () => {
     renderPage()
 
     expect(await screen.findByText('admin.torrents.upgradeTitle')).toBeTruthy()
-    expect(listCachedTorrents).not.toHaveBeenCalled()
+    expect(listTorrents).not.toHaveBeenCalled()
     expect(getTorrentSettings).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'admin.torrents.settings.open' })).toBeNull()
   })
