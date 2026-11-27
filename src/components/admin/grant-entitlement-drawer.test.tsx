@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { grantUserEntitlement, updateOrgEntitlement } from '@/lib/api'
-import { GrantEntitlementDrawer } from './grant-entitlement-drawer'
+import { bytesToAmountUnit, GrantEntitlementDrawer } from './grant-entitlement-drawer'
 
 class TestResizeObserver {
   observe() {}
@@ -160,5 +160,40 @@ describe('GrantEntitlementDrawer', () => {
 
     expect(screen.getByLabelText('admin.entitlement.amount')).toHaveProperty('value', '512')
     expect(screen.getByRole('combobox')).toHaveProperty('textContent', 'MB')
+  })
+
+  it('prefills a fractional amount in the unit that reads naturally when editing', () => {
+    renderGrantEntitlementDrawer({
+      entitlement: { id: 'entitlement-1', bytes: 1572864, expiresAt: null, metadata: null },
+    })
+
+    expect(screen.getByLabelText('admin.entitlement.amount')).toHaveProperty('value', '1.5')
+    expect(screen.getByRole('combobox')).toHaveProperty('textContent', 'MB')
+  })
+})
+
+describe('bytesToAmountUnit', () => {
+  it.each([
+    [2 * 1024 ** 3, '2', 'GB'],
+    [3 * 1024 ** 4, '3', 'TB'],
+    [512 * 1024 ** 2, '512', 'MB'],
+    [1.5 * 1024 ** 2, '1.5', 'MB'],
+    [1.5 * 1024 ** 3, '1.5', 'GB'],
+    [2.5 * 1024 ** 4, '2.5', 'TB'],
+    [0.5 * 1024 ** 3, '512', 'MB'],
+  ])('shows %d bytes as %s %s', (bytes, amount, unit) => {
+    expect(bytesToAmountUnit(bytes)).toEqual({ amount, unit })
+  })
+
+  it('steps down a unit when the larger one needs more than one decimal', () => {
+    expect(bytesToAmountUnit(1.25 * 1024 ** 3)).toEqual({ amount: '1280', unit: 'MB' })
+  })
+
+  it('keeps an amount no unit shows in one decimal exact in the largest unit at or above one', () => {
+    expect(bytesToAmountUnit(1024 ** 2 + 1)).toEqual({ amount: String((1024 ** 2 + 1) / 1024 ** 2), unit: 'MB' })
+  })
+
+  it('falls back to MB for an amount below one MB', () => {
+    expect(bytesToAmountUnit(512 * 1024)).toEqual({ amount: '0.5', unit: 'MB' })
   })
 })

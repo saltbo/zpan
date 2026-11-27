@@ -287,7 +287,12 @@ describe('applyBrandingUpdate', () => {
       deps,
       baseUpdate({ logoFile: imageFile('application/pdf'), faviconFile: imageFile('image/png') }),
     )
-    expect(out).toEqual({ ok: false, status: 400, error: expect.stringContaining('Invalid file type for logo') })
+    expect(out).toEqual({
+      ok: false,
+      status: 400,
+      error: expect.stringContaining('Invalid file type for logo'),
+      field: 'logo',
+    })
     expect(store.has(BRANDING_KEYS.logo)).toBe(false)
     expect(store.has(BRANDING_KEYS.favicon)).toBe(false)
   })
@@ -301,7 +306,7 @@ describe('applyBrandingUpdate', () => {
         faviconFile: imageFile('image/png', MAX_FAVICON_SIZE + 1),
       }),
     )
-    expect(out).toEqual({ ok: false, status: 413, error: 'Favicon too large. Max 64 KB.' })
+    expect(out).toEqual({ ok: false, status: 413, error: 'Favicon too large. Max 64 KB.', field: 'favicon' })
     expect(store.has(BRANDING_KEYS.favicon)).toBe(false)
   })
 

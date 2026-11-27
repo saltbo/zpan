@@ -411,3 +411,81 @@ describe('DELETE /api/site/settings/branding/:field', () => {
     expect(res.status).toBe(400)
   })
 })
+
+describe('PUT /api/site/settings/branding rejection field [spec: branding/rejection-field]', () => {
+  const colors = {
+    theme_primary_color: '#2563eb',
+    theme_primary_foreground: '#ffffff',
+    theme_canvas_color: '#f8fafc',
+    theme_sidebar_accent_color: '#dbeafe',
+    theme_ring_color: '#0f172a',
+  }
+  const cases: { name: string; status: number; field: string; fill: (form: FormData) => void }[] = [
+    { name: 'an invalid theme_mode', status: 422, field: 'theme_mode', fill: (f) => f.set('theme_mode', 'dark') },
+    { name: 'an invalid theme_preset', status: 422, field: 'theme_preset', fill: (f) => f.set('theme_preset', 'nope') },
+    {
+      name: 'an invalid custom color',
+      status: 422,
+      field: 'theme_canvas_color',
+      fill: (f) => {
+        f.set('theme_mode', 'custom')
+        for (const [k, v] of Object.entries(colors)) f.set(k, v)
+        f.set('theme_canvas_color', 'blue')
+      },
+    },
+    {
+      name: 'a custom theme missing a color',
+      status: 422,
+      field: 'theme_ring_color',
+      fill: (f) => {
+        f.set('theme_mode', 'custom')
+        for (const [k, v] of Object.entries(colors)) if (k !== 'theme_ring_color') f.set(k, v)
+      },
+    },
+    {
+      name: 'a wordmark over 24 chars',
+      status: 422,
+      field: 'wordmark_text',
+      fill: (f) => f.set('wordmark_text', 'x'.repeat(25)),
+    },
+    {
+      name: 'a logo of the wrong type',
+      status: 400,
+      field: 'logo',
+      fill: (f) => f.set('logo', new File(['data'], 'a.exe', { type: 'application/octet-stream' })),
+    },
+    {
+      name: 'a logo that is too large',
+      status: 413,
+      field: 'logo',
+      fill: (f) => f.set('logo', new File([new Uint8Array(256 * 1024 + 1)], 'big.png', { type: 'image/png' })),
+    },
+    {
+      name: 'a favicon of the wrong type',
+      status: 400,
+      field: 'favicon',
+      fill: (f) => f.set('favicon', new File(['data'], 'a.jpg', { type: 'image/jpeg' })),
+    },
+    {
+      name: 'a favicon that is too large',
+      status: 413,
+      field: 'favicon',
+      fill: (f) => f.set('favicon', new File([new Uint8Array(64 * 1024 + 1)], 'big.png', { type: 'image/png' })),
+    },
+  ]
+
+  for (const c of cases) {
+    it(`names ${c.field} for ${c.name}`, async () => {
+      const { app, db } = await createTestApp()
+      const headers = await adminHeaders(app)
+      await seedProLicense(db)
+
+      const form = new FormData()
+      c.fill(form)
+      const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
+      expect(res.status).toBe(c.status)
+      const body = (await res.json()) as { error: { details: { metadata?: { field?: string } }[] } }
+      expect(body.error.details[0]?.metadata?.field).toBe(c.field)
+    })
+  }
+})
