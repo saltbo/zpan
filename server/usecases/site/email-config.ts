@@ -19,6 +19,7 @@ import {
   type EmailGateway,
   type EmailProvider,
   type SystemOptionsRepo,
+  textMessage,
 } from '../ports'
 
 export type EmailConfigDeps = {
@@ -151,7 +152,7 @@ export async function sendTestEmail(
     return { ok: true }
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error'
-    return { ok: false, error: badRequest(message) }
+    return { ok: false, error: badRequest(textMessage(message)) }
   }
 }
 

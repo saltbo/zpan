@@ -66,14 +66,14 @@ describe('accessLog', () => {
 
   it('logs reason + message for a thrown AppError', async () => {
     const app = appWith(() => {
-      throw notFound('Widget not found')
+      throw notFound('Team not found')
     })
     const res = await app.request('/x')
     expect(res.status).toBe(404)
     const f = parseLine(lines[0])
     expect(f.status).toBe('404')
     expect(f.reason).toBe('NOT_FOUND')
-    expect(f.error).toBe('Widget not found')
+    expect(f.error).toBe('Team not found')
   })
 
   it('carries the specific reason + metadata message for a special error', async () => {

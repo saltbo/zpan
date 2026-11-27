@@ -1,12 +1,12 @@
 import type { Context } from 'hono'
 import { Hono } from 'hono'
 import { describe, expect, it } from 'vitest'
-import { AppError, NameConflictError } from '../usecases/ports'
-import { isHandledError, jsonError, standaloneJsonError } from './error-handler'
+import { AppError, msg, NameConflictError, textMessage } from '../usecases/ports'
+import { isHandledError, jsonError, requestLanguage, standaloneJsonError } from './error-handler'
 import type { Env } from './platform'
 
 // Build a real Context so jsonError's c.json / c.set behave as in production.
-async function ctx(): Promise<Context<Env>> {
+async function ctx(headers: Record<string, string> = {}): Promise<Context<Env>> {
   let captured!: Context<Env>
   const app = new Hono<Env>()
   app.get('/x', (c) => {
@@ -14,7 +14,7 @@ async function ctx(): Promise<Context<Env>> {
     captured = c as unknown as Context<Env>
     return c.body(null, 200)
   })
-  await app.request('/x')
+  await app.request('/x', { headers })
   return captured
 }
 
@@ -67,9 +67,82 @@ describe('jsonError', () => {
   })
 })
 
+describe('jsonError language', () => {
+  it('answers a Chinese request in Chinese and keeps the log in English', async () => {
+    const c = await ctx({ 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8' })
+    const res = jsonError(c, new AppError(402, 'Insufficient credits', { reason: 'INSUFFICIENT_CREDITS' }))
+    expect(res.status).toBe(402)
+    expect(await res.json()).toMatchObject({
+      error: { status: 'FAILED_PRECONDITION', message: '额度不足', details: [{ reason: 'INSUFFICIENT_CREDITS' }] },
+    })
+    expect(c.get('errorLog')).toEqual({ reason: 'INSUFFICIENT_CREDITS', message: 'Insufficient credits' })
+  })
+
+  it('fills template parameters in the requested language', async () => {
+    const c = await ctx({ 'Accept-Language': 'zh' })
+    const res = jsonError(c, new AppError(400, msg('Unknown builtin provider: {id}', { id: 'gitlab' })))
+    expect(((await res.json()) as { error: { message: string } }).error.message).toBe('未知的内置登录方式：gitlab')
+  })
+
+  it('keeps authentication diagnostics out of a Chinese response', async () => {
+    const c = await ctx({ 'Accept-Language': 'zh' })
+    const res = jsonError(
+      c,
+      new AppError(401, 'Unauthorized', {
+        diagnostics: { reason: 'OAUTH_DPOP_REPLAY', message: 'DPoP proof jti has already been used' },
+      }),
+    )
+    expect(res.status).toBe(401)
+    expect(await res.json()).toMatchObject({ error: { message: '未登录或登录已失效', status: 'UNAUTHENTICATED' } })
+    expect(c.get('errorLog')).toEqual({
+      reason: 'UNAUTHENTICATED',
+      message: 'DPoP proof jti has already been used',
+      diagnostic: 'OAUTH_DPOP_REPLAY',
+    })
+  })
+
+  it('translates a mapped domain error, filling its name', async () => {
+    const c = await ctx({ 'Accept-Language': 'zh' })
+    const res = jsonError(c, new NameConflictError('doc.txt', 'id-1'))
+    expect(((await res.json()) as { error: { message: string } }).error.message).toBe('此位置已存在名为“doc.txt”的项目')
+  })
+
+  it('answers an unexpected failure with the generic message in Chinese', async () => {
+    const c = await ctx({ 'Accept-Language': 'zh' })
+    const res = jsonError(c, new Error('D1_ERROR: disk full'))
+    expect(res.status).toBe(500)
+    expect(((await res.json()) as { error: { message: string } }).error.message).toBe('服务器内部错误')
+  })
+
+  it('shows text the catalog does not know as is', async () => {
+    const c = await ctx({ 'Accept-Language': 'zh' })
+    const res = jsonError(c, new AppError(502, textMessage('upstream said no')))
+    expect(((await res.json()) as { error: { message: string } }).error.message).toBe('upstream said no')
+  })
+})
+
+describe('requestLanguage', () => {
+  const lang = (header?: string) =>
+    requestLanguage(new Request('http://x/', { headers: header ? { 'Accept-Language': header } : {} }))
+
+  it('defaults to English [spec: error-messages/english-default]', () => {
+    expect(lang()).toBe('en')
+    expect(lang('fr-FR,de;q=0.8')).toBe('en')
+  })
+
+  it('picks the most preferred supported language', () => {
+    expect(lang('zh')).toBe('zh')
+    expect(lang('zh-TW')).toBe('zh')
+    expect(lang('en-US,zh;q=0.9')).toBe('en')
+    expect(lang('fr,zh;q=0.5,en;q=0.4')).toBe('zh')
+    expect(lang('en;q=0.3,zh-CN;q=0.8')).toBe('zh')
+    expect(lang('zh;q=0,en')).toBe('en')
+  })
+})
+
 describe('isHandledError', () => {
   it('is true for AppError and mapped domain errors, false otherwise', () => {
-    expect(isHandledError(new AppError(400, 'x'))).toBe(true)
+    expect(isHandledError(new AppError(400, textMessage('x')))).toBe(true)
     expect(isHandledError(new NameConflictError('a', 'b'))).toBe(true)
     expect(isHandledError(new Error('boom'))).toBe(false)
     expect(isHandledError(null)).toBe(false)
@@ -79,13 +152,21 @@ describe('isHandledError', () => {
 describe('standaloneJsonError', () => {
   it('renders an AppError without a Hono context', async () => {
     const res = standaloneJsonError(
-      new AppError(429, 'Try later', { reason: 'RATE_LIMITED', headers: { 'Retry-After': '5' } }),
+      new AppError(429, 'Rate limit exceeded.', { reason: 'RATE_LIMITED', headers: { 'Retry-After': '5' } }),
     )
     expect(res.status).toBe(429)
     expect(res.headers.get('retry-after')).toBe('5')
     expect(await res.json()).toMatchObject({
-      error: { message: 'Try later', status: 'RESOURCE_EXHAUSTED' },
+      error: { message: 'Rate limit exceeded.', status: 'RESOURCE_EXHAUSTED' },
     })
+  })
+
+  it('answers in the language of the request it is given', async () => {
+    const res = standaloneJsonError(
+      new AppError(404, 'Not found'),
+      new Request('http://x/', { headers: { 'Accept-Language': 'zh' } }),
+    )
+    expect(await res.json()).toMatchObject({ error: { message: '未找到' } })
   })
 
   it('does not expose unexpected errors', async () => {

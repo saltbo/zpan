@@ -4043,6 +4043,7 @@ describe('api', () => {
       expect(url).toContain('/api/site/settings/branding')
       expect(init.method).toBe('PUT')
       expect(init.body).toBeInstanceOf(FormData)
+      expect(init.headers).toEqual({ 'Accept-Language': 'en' })
     })
 
     it('includes theme fields in FormData when provided', async () => {

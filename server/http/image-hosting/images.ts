@@ -28,6 +28,7 @@ import {
   badRequest,
   type ImageHostingRecord,
   notFound,
+  textMessage,
   unauthorized,
   unsupportedMediaType,
 } from '../../usecases/ports'
@@ -293,7 +294,7 @@ app.post('/images', authorize({ scopes: [AuthorizationScope.IMAGES_UPLOAD] }), a
 
   const requestedPath = explicitPath || deriveDefaultPath(fileName, mime)
   const pathErr = validatePath(requestedPath)
-  if (pathErr) throw badRequest(`${pathErr.error}: ${pathErr.detail}`)
+  if (pathErr) throw badRequest(textMessage(`${pathErr.error}: ${pathErr.detail}`))
 
   try {
     const result = await uploadImageHosting(c.get('deps'), {
@@ -340,7 +341,7 @@ const ihost = app
         metadata: { maxBytes: String(MAX_IMAGE_SIZE) },
       })
     const pathErr = validatePath(requestedPath)
-    if (pathErr) throw badRequest(`${pathErr.error}: ${pathErr.detail}`)
+    if (pathErr) throw badRequest(textMessage(`${pathErr.error}: ${pathErr.detail}`))
 
     const result = await presignImageHostingUpload(c.get('deps'), { orgId, path: requestedPath, mime, size })
     if (!result.ok) throw result.error

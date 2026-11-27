@@ -3,7 +3,15 @@ import { AuthorizationScope } from '@shared/authorization'
 import { type BrandingField, type BrandingThemeMode, isBrandingThemePresetId } from '../../../shared/types'
 import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
-import { AppError, badRequest, payloadTooLarge, unsupportedMediaType } from '../../usecases/ports'
+import {
+  AppError,
+  badRequest,
+  type ErrorMessage,
+  msg,
+  payloadTooLarge,
+  textMessage,
+  unsupportedMediaType,
+} from '../../usecases/ports'
 import { applyBrandingUpdate, resetBranding, type ThemeUpdate } from '../../usecases/site/branding'
 import { authRoute, errorResponse, jsonContent } from '../openapi'
 
@@ -55,7 +63,7 @@ const CUSTOM_THEME_FIELDS = [
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
-function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | { ok: false; error: string } {
+function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | { ok: false; error: ErrorMessage } {
   const values: ThemeUpdate = {}
   const mode = form.get('theme_mode')
   if (mode !== null) {
@@ -75,14 +83,14 @@ function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | {
     const value = form.get(field)
     if (value === null) continue
     if (typeof value !== 'string' || !HEX_COLOR_RE.test(value)) {
-      return { ok: false, error: `${field} must be a CSS hex color` }
+      return { ok: false, error: msg('{field} must be a CSS hex color', { field }) }
     }
     values[field] = value
   }
 
   if (values.theme_mode === 'custom') {
     for (const field of CUSTOM_THEME_FIELDS) {
-      if (!values[field]) return { ok: false, error: `${field} is required for custom theme` }
+      if (!values[field]) return { ok: false, error: msg('{field} is required for custom theme', { field }) }
     }
   }
 
@@ -156,15 +164,15 @@ export const brandingAdmin = new OpenAPIHono<Env>()
       theme: themeUpdate.values,
     })
     if (!result.ok) {
-      if (result.status === 413) throw payloadTooLarge(result.error)
-      throw badRequest(result.error)
+      if (result.status === 413) throw payloadTooLarge(textMessage(result.error))
+      throw badRequest(textMessage(result.error))
     }
     return c.json(result.config, 200)
   })
   .openapi(resetRoute, async (c) => {
     const rawField = c.req.valid('param').field
     if (!VALID_RESET_FIELDS.has(rawField as BrandingField)) {
-      throw badRequest(`Invalid field. Valid fields: ${[...VALID_RESET_FIELDS].join(', ')}`)
+      throw badRequest(msg('Invalid field. Valid fields: {fields}', { fields: [...VALID_RESET_FIELDS].join(', ') }))
     }
     await resetBranding(c.get('deps'), {
       field: rawField as BrandingField,
