@@ -167,6 +167,11 @@ it is assigned to a downloader:
    as `downloading`. The unique `info_hash` makes a concurrent second insert
    attach instead.
 
+Downloaders opt in. One whose heartbeat reports the `torrent-cache`
+capability, on an entitled instance, receives magnet and torrent-URL tasks in
+cache mode; every other downloader uploads into the drive as it always did, so
+mixed fleets keep working.
+
 A cache download changes only where the downloader puts bytes, not how it
 processes them. The post-processing chain, scraping included, produces its
 upload plan as it does today. Instead of uploading the plan into the drive
@@ -197,7 +202,10 @@ poison every later hit. Three checks close this:
    compared with the dictionary. Files are concatenated in order, because
    pieces span file boundaries.
 
-Checks 1 and 2 run when the download completes. Check 3 runs as a
+Checks 1 and 2 run when the download completes. Where background jobs are
+disabled, as on branch previews, check 3 runs the 32-piece sample inside the
+completion request instead, so a torrent never waits on a queue that has no
+consumer. Check 3 runs as a
 `torrent_verify` background job on the existing queue. The job streams pieces
 through `crypto.DigestStream` on Workers or `createHash` on Node, and continues
 in follow-up messages over piece ranges, so no single invocation hits CPU or
@@ -335,13 +343,20 @@ public instance validated the credential, marked streams cached from
 `torz/check`, and on playback called `torz` add and `link/generate` and
 redirected to the returned link, which Stremio Web played.
 
-1. **Cache and instant transfer.** Tables, the `bt/` rules and gateway guard,
-   the cache upload path and `layout.json` upload in the downloader, checks 1 and
-   2, instant transfer on task submit, storage-usage reconcile, eviction, the
-   drive and downloads changes, and the admin Torrents page.
-2. **Verification.** The `torrent_verify` job and the sharing gate.
-3. **StremThru Store API.** The endpoint subset, the `stremthru` key, link
-   issuance and metering, and the workspace StremThru tab.
+1. **Cache and instant transfer** (#684, #687, #706). Tables, the `bt/` rules
+   and gateway guard, the server's cache upload API with checks 1 and 2,
+   instant transfer on task submit, storage-usage reconcile, eviction, the
+   downloads changes, and the admin Torrents page.
+2. **Verification** (#687). The `torrent_verify` job and the sharing gate.
+3. **StremThru Store API** (#707). The endpoint subset, the `stremthru` key,
+   link issuance and metering, and the workspace StremThru tab.
+4. **Downloader and layout** (not started). The Go downloader reports the
+   `torrent-cache` capability and uploads through the cache API, and the
+   `layout.json` upload and replay. It waits for the downloader's scraping work
+   to settle, and until it ships no downloader fills the cache.
+5. **Drive details** (not started). The cached-file mark, torrent and
+   verification state in the details sheet, and disabled content-writing
+   actions, from section 9. The server already refuses those writes.
 
 ## 15. Out of scope
 
