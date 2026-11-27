@@ -1,0 +1,14 @@
+// A request that fails its route's schema must answer with the standard error body
+// (UX.md → Feedback). Only `createRouter()` installs that validation hook, so every
+// server router comes from it. Test files are skipped.
+language js;
+
+or { `new OpenAPIHono($args)`, `new OpenAPIHono<$type>($args)` } as $new where {
+  $filename <: r".*server/.*",
+  $filename <: not r".*server/http/router\.ts",
+  $filename <: not r".*\.(test|cf-test)\.ts",
+  register_diagnostic(
+    span = $new,
+    message = "Create routers with createRouter() from server/http/router so failed validation answers with the standard error body."
+  )
+}

@@ -1,9 +1,9 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import type { Env } from '../../middleware/platform'
 import { runtimeInfo } from '../../usecases/site/instance-info'
 import { getChangelog, resolveInstanceInfo } from '../../usecases/site/system'
 import { authRoute, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 
 const instanceInfoSchema = z
   .object({
@@ -65,7 +65,7 @@ const changelogRoute = authRoute(
   },
 )
 
-const system = new OpenAPIHono<Env>()
+const system = createRouter()
   .openapi(instanceRoute, async (c) => {
     const info = await resolveInstanceInfo(c.get('deps'), {
       requestUrl: c.req.url,

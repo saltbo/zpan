@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Profiler } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createDownloadTask, getDownloadTask, listDownloadTasks } from '@/lib/api'
+import { ApiError, createDownloadTask, getDownloadTask, listDownloadTasks } from '@/lib/api'
 import { routerSearch } from '@/test/router-search'
 import { DownloadsPage, downloadsSearchSchema } from './index'
 
@@ -52,7 +52,8 @@ vi.mock('@/components/files/hooks/use-files-query', () => ({
   useFilesQuery: () => ({ data: { items: [] }, isLoading: false }),
 }))
 
-vi.mock('@/lib/api', () => ({
+vi.mock('@/lib/api', async (importOriginal) => ({
+  ApiError: (await importOriginal<typeof import('@/lib/api')>()).ApiError,
   createDownloadTask: vi.fn(),
   getDownloadTask: vi.fn(),
   listDownloadTaskEvents: vi.fn(),
@@ -248,6 +249,37 @@ describe('DownloadsPage create task field errors', () => {
     expect(uri.getAttribute('aria-invalid')).toBe('true')
     expect(uri.getAttribute('aria-describedby')).toBe(error.id)
     expect(createDownloadTask).not.toHaveBeenCalled()
+  })
+
+  it('shows a link the server rejects under the link field [spec: form-errors/download-task]', async () => {
+    vi.mocked(listDownloadTasks).mockResolvedValue({ items: [], nextPageToken: null } as never)
+    vi.mocked(createDownloadTask).mockRejectedValue(
+      new ApiError(400, {
+        error: {
+          code: 400,
+          message: '链接须为公网 http(s) 地址',
+          status: 'INVALID_ARGUMENT',
+          details: [
+            {
+              reason: 'INVALID_ARGUMENT',
+              domain: 'zpan.dev',
+              metadata: { field: 'source.uri' },
+            },
+          ],
+        },
+      }),
+    )
+    renderDownloadsPage(() => {})
+
+    fireEvent.click(screen.getByRole('button', { name: 'downloads.create' }))
+    const uri = await screen.findByLabelText('downloads.uri')
+    fireEvent.change(uri, { target: { value: 'http://127.0.0.1/a.zip' } })
+    fireEvent.click(screen.getByRole('button', { name: 'downloads.start' }))
+
+    const error = await screen.findByText('链接须为公网 http(s) 地址')
+    expect(uri.getAttribute('aria-invalid')).toBe('true')
+    expect(uri.getAttribute('aria-describedby')).toBe(error.id)
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('shows a rejected task above the submit button', async () => {

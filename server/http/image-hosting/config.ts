@@ -1,8 +1,7 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { putIhostConfigSchema } from '../../../shared/schemas'
 import type { IhostConfigResponse } from '../../../shared/types'
-import type { Env } from '../../middleware/platform'
 import {
   deleteImageHostingConfig,
   getImageHostingConfigView,
@@ -11,6 +10,7 @@ import {
 import type { ImageDomainProviderConfig, ImageHostingConfigRecord } from '../../usecases/ports'
 import { unauthorized } from '../../usecases/ports'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 
 const ihostConfigSchema = z
   .object({
@@ -129,7 +129,7 @@ const deleteRoute = authRoute(
   },
 )
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 const ihostConfig = app
   .openapi(getRoute, async (c) => {

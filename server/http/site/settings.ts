@@ -1,4 +1,3 @@
-import { OpenAPIHono } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   siteCaptchaSettingsSchema,
@@ -15,7 +14,6 @@ import {
   updateSiteRegistrationSchema,
   updateSiteWebDavSchema,
 } from '@shared/schemas'
-import type { Env } from '../../middleware/platform'
 import {
   getSiteSettings,
   updateSiteCaptcha,
@@ -27,6 +25,7 @@ import {
   verifySiteWebDav,
 } from '../../usecases/site/settings'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 
 const getRoute = authRoute(
   { scopes: [AuthorizationScope.SITE_SETTINGS_READ], siteRole: 'admin' },
@@ -148,7 +147,7 @@ const updateWebDavRoute = authRoute(
   },
 )
 
-export const siteSettings = new OpenAPIHono<Env>()
+export const siteSettings = createRouter()
   .openapi(getRoute, async (c) => c.json(await getSiteSettings(c.get('deps'), c.req.url), 200))
   .openapi(updateIdentityRoute, async (c) => c.json(await updateSiteIdentity(c.get('deps'), c.req.valid('json')), 200))
   .openapi(updateRegistrationRoute, async (c) =>

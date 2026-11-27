@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   createDownloaderResponseSchema,
@@ -13,7 +13,6 @@ import {
 } from '@shared/schemas'
 import { FREE_DOWNLOADER_LIMIT } from '../../../shared/constants'
 import { hasFeature } from '../../domain/licensing'
-import type { Env } from '../../middleware/platform'
 import {
   createDownloader,
   createDownloaderWithBootstrapCredential,
@@ -26,6 +25,7 @@ import {
 import { featureBlocked, unauthorized } from '../../usecases/ports'
 import { loadBindingState } from '../../usecases/site/licensing'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 
 const downloaderListSchema = pageSchema(downloaderSchema, 'DownloaderList')
 
@@ -133,7 +133,7 @@ const heartbeatRoute = authRoute(
 
 // A missing downloader makes the usecase throw DownloadError('not_found'); the
 // global onError maps it to 404, so these handlers carry no error plumbing.
-const downloadersRoute = new OpenAPIHono<Env>()
+const downloadersRoute = createRouter()
   .openapi(listRoute, async (c) => {
     const items = await listDownloaders(c.get('deps'))
     return c.json({ items, total: items.length, page: 1, pageSize: items.length }, 200)
@@ -184,7 +184,7 @@ const downloadersRoute = new OpenAPIHono<Env>()
     return c.body(null, 204)
   })
 
-export const downloaderSelfRoute = new OpenAPIHono<Env>().openapi(heartbeatRoute, async (c) => {
+export const downloaderSelfRoute = createRouter().openapi(heartbeatRoute, async (c) => {
   const principal = c.get('principal')
   if (principal?.kind !== 'downloader') throw unauthorized()
   return c.json(

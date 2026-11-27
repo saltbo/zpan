@@ -1,11 +1,11 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema, restoreObjectSchema } from '@shared/schemas'
-import type { Env } from '../middleware/platform'
 import { deleteObject, getTrashObject, listTrashedObjects, restoreObject } from '../usecases/object'
 import { badRequest, type Matter, notFound } from '../usecases/ports'
 import { authRoute, errorResponse, jsonBody, jsonContent } from './openapi'
 import { decodeOptionalPageToken, encodeNextPageToken, pageQueryFingerprint, trashCursorCodec } from './page-token'
+import { createRouter } from './router'
 
 // The trashed-object wire shape mirrors the live Matter model; trash is a
 // grouping/view of `objects`, not a separate resource.
@@ -120,7 +120,7 @@ const purgeObjectRoute = authRoute(
   },
 )
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 const trash = app
   .openapi(listTrashRoute, async (c) => {

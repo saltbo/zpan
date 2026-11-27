@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import type { Context } from 'hono'
 import { ZPAN_CLOUD_URL_DEFAULT } from '../../../shared/constants'
@@ -16,6 +16,7 @@ import {
 } from '../../usecases/site/licensing'
 import { getSitePublicOrigin } from '../../usecases/site/public-origin'
 import { authRoute, errorResponse, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 
 function getCloudBaseUrl(c: Context<Env>): string {
   return c.get('platform').getEnv('ZPAN_CLOUD_URL') ?? ZPAN_CLOUD_URL_DEFAULT
@@ -157,7 +158,7 @@ async function loadCurrentBinding(c: Context<Env>) {
   } satisfies BindingState
 }
 
-export const licensing = new OpenAPIHono<Env>().openapi(entitlementsRoute, async (c) => {
+export const licensing = createRouter().openapi(entitlementsRoute, async (c) => {
   const state = await loadCurrentBinding(c)
   return c.json(
     {
@@ -170,7 +171,7 @@ export const licensing = new OpenAPIHono<Env>().openapi(entitlementsRoute, async
   )
 })
 
-const adminApp = new OpenAPIHono<Env>()
+const adminApp = createRouter()
 
 export const licensingAdmin = adminApp
   .openapi(bindingRoute, async (c) => c.json(await loadCurrentBinding(c), 200))

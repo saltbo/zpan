@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   createStorageSchema,
@@ -8,7 +8,6 @@ import {
   replaceStorageSchema,
   updateStorageEgressBillingSchema,
 } from '@shared/schemas'
-import type { Env } from '../../middleware/platform'
 import { type StorageRecord, storageNotFound } from '../../usecases/ports'
 import {
   createStorage,
@@ -20,6 +19,7 @@ import {
   updateStorageEgressBilling,
 } from '../../usecases/site/storage'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 
 // The access key identifies the configured credential for administrators. The
 // secret key is write-only and is never returned after creation.
@@ -175,7 +175,7 @@ const deleteStorageRoute = authRoute(
   },
 )
 
-const storages = new OpenAPIHono<Env>()
+const storages = createRouter()
   .openapi(listRoute, async (c) => {
     const result = await listStorages(c.get('deps'))
     const items = result.items.map(toStorageDTO)

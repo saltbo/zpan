@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   capacityPurchaseDeliveredResultSchema,
@@ -8,7 +8,6 @@ import {
   redeemGiftCardInputSchema,
   x402PaymentRequiredSchema,
 } from '@shared/schemas'
-import type { Env } from '../../middleware/platform'
 import { requireFeature } from '../../middleware/require-feature'
 import { badGateway, badRequest, forbidden, textMessage } from '../../usecases/ports'
 import {
@@ -27,6 +26,7 @@ import {
   redeemGiftCard,
 } from '../../usecases/store/store'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
+import { createRouter } from '../router'
 import { cloudStoreOrdersQuerySchema, getCloudBaseUrl } from './helpers'
 import { getCloudOrders, getInstanceOrigin } from './shared'
 
@@ -315,7 +315,7 @@ const cancelOrderRoute = authRoute(
   },
 )
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 export const cloudStore = app
   .openapi(packagesRoute, async (c) => {

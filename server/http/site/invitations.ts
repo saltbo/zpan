@@ -1,7 +1,6 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema, opaqueTokenSchema } from '@shared/schemas'
-import type { Env } from '../../middleware/platform'
 import { notFound, unauthorized } from '../../usecases/ports'
 import {
   createSiteInvitation,
@@ -17,6 +16,7 @@ import {
   encodeNextPageToken,
   pageQueryFingerprint,
 } from '../page-token'
+import { createRouter } from '../router'
 
 // SiteInvitation is already wire-shaped (ISO string timestamps) — no DTO mapper.
 const siteInvitationSchema = z
@@ -126,7 +126,7 @@ const getByTokenRoute = authRoute(
   },
 )
 
-export const adminSiteInvitations = new OpenAPIHono<Env>()
+export const adminSiteInvitations = createRouter()
   .openapi(listRoute, async (c) => {
     const { pageSize, pageToken } = c.req.valid('query')
     const page = {
@@ -171,7 +171,7 @@ export const adminSiteInvitations = new OpenAPIHono<Env>()
     return c.body(null, 204)
   })
 
-export const publicSiteInvitations = new OpenAPIHono<Env>().openapi(getByTokenRoute, async (c) => {
+export const publicSiteInvitations = createRouter().openapi(getByTokenRoute, async (c) => {
   const invitation = await getSiteInvitationByToken(c.get('deps'), c.req.valid('param').token)
   if (!invitation) throw notFound('Invitation not found')
   return c.json(invitation, 200)

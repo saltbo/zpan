@@ -2850,3 +2850,36 @@ describe('Downloaders — free plan limit', () => {
     expect(res.status).toBe(404)
   })
 })
+
+describe('Download tasks — request validation', () => {
+  it.each([
+    ['en', 'URL must be a public http(s) address'],
+    ['zh', '链接须为公网 http(s) 地址'],
+  ])('rejects a private link with a readable %s message naming the field [spec: error-messages/invalid-request]', async (language, message) => {
+    const { app, db } = await createTestApp({ DOWNLOAD_TOKEN_SECRET: 'test-download-token-secret' })
+    await insertStorage(db)
+    const headers = await authedHeaders(app, `task-validation-${language}@example.com`)
+    const res = await app.request('/api/downloads/tasks', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json', 'Accept-Language': language },
+      body: JSON.stringify({ source: { type: 'http', uri: 'http://127.0.0.1/a.zip' }, targetFolder: '' }),
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({
+      error: {
+        code: 400,
+        message,
+        status: 'INVALID_ARGUMENT',
+        details: [
+          {
+            '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+            reason: 'INVALID_ARGUMENT',
+            domain: 'zpan.dev',
+            metadata: { field: 'source.uri' },
+          },
+        ],
+      },
+    })
+  })
+})

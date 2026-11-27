@@ -1,4 +1,4 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import type { Context } from 'hono'
 import { getCookie, setCookie } from 'hono/cookie'
@@ -39,6 +39,7 @@ import {
   encodeNextPageToken,
   pageQueryFingerprint,
 } from './page-token'
+import { createRouter } from './router'
 import { cookieName, decodeChildRef, readUserId, viewCookieName } from './share-utils'
 
 function shareUrls(kind: string, token: string): { landing?: string; direct?: string } {
@@ -272,7 +273,7 @@ const readShareReadmeRoute = authRoute(
   },
 )
 
-const pub = new OpenAPIHono<Env>()
+const pub = createRouter()
 
 // GET /{token}/objects/{ref} resolves a download to a 302 redirect (or a presigned
 // URL when ?downloadUrl=1). It is a redirect endpoint, not a JSON resource, so it
@@ -504,7 +505,7 @@ const saveShareRoute = authRoute(
   },
 )
 
-const authedApp = new OpenAPIHono<Env>()
+const authedApp = createRouter()
 
 export const authedShares = authedApp
   .openapi(listSharesRoute, async (c) => {

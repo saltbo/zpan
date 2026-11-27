@@ -1,12 +1,12 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { cursorPageQuerySchema, cursorPageSchema, opaqueIdSchema } from '@shared/schemas'
 import { STORAGE_USAGE_CATEGORIES, STORAGE_USAGE_SORT_FIELDS } from '@shared/storage-usage'
-import type { Env } from '../middleware/platform'
 import { notFound } from '../usecases/ports'
 import { getStorageUsage, listStorageUsageItems } from '../usecases/storage-usage-dashboard'
 import { authRoute, errorResponse, jsonContent } from './openapi'
 import { decodeOptionalPageToken, encodeNextPageToken, pageQueryFingerprint, sortValueCursorCodec } from './page-token'
+import { createRouter } from './router'
 
 const categorySchema = z.enum(STORAGE_USAGE_CATEGORIES)
 const sortFieldSchema = z.enum(STORAGE_USAGE_SORT_FIELDS)
@@ -78,7 +78,7 @@ function requireOrg(c: { get(key: 'orgId'): string | null }) {
   return orgId
 }
 
-const app = new OpenAPIHono<Env>()
+const app = createRouter()
 
 const storageUsage = app
   .openapi(getUsageRoute, async (c) => c.json(await getStorageUsage(c.get('deps'), requireOrg(c)), 200))

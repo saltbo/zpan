@@ -16,7 +16,9 @@ Feature: Form errors
     Given a signed-in user opens the new download dialog
     When they submit a link that does not fit the chosen source type
     Then the link field shows its error under it and no task is created
-    When the server rejects the task
+    When the server rejects the link, such as a private address
+    Then the server's message appears under the link field
+    When the server rejects the task for another reason
     Then its reason appears above the submit button and the dialog stays open
 
   @form-errors/team-invite @web

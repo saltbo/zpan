@@ -1,11 +1,11 @@
-import { OpenAPIHono, z } from '@hono/zod-openapi'
+import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { WORKSPACE_AUTHORIZATION_DETAIL_TYPE } from '@shared/oauth'
 import { createLocalJWKSet, jwtVerify } from 'jose'
-import type { Env } from '../middleware/platform'
 import { listOAuthAuthorizationDetailsCatalog } from '../usecases/oauth-authorization-details'
 import { unauthorized } from '../usecases/ports'
 import { errorResponse, jsonContent } from './openapi'
+import { createRouter } from './router'
 
 const catalogEntrySchema = z.object({
   id: z.string().min(1).describe('Stable workspace Context ID, unchanged when the workspace is renamed'),
@@ -60,7 +60,7 @@ const catalogRoute = {
   },
 }
 
-export const oauthAuthorizationDetails = new OpenAPIHono<Env>().openapi(catalogRoute, async (c) => {
+export const oauthAuthorizationDetails = createRouter().openapi(catalogRoute, async (c) => {
   const authorization = c.req.header('Authorization')
   const token = authorization?.startsWith('Bearer ') ? authorization.slice('Bearer '.length).trim() : ''
   if (!token) throw unauthorized('Unauthorized')
