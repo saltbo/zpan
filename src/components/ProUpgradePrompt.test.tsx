@@ -30,6 +30,14 @@ describe('ProUpgradePrompt', () => {
     expect(queryByRole('link')).toBeNull()
   })
 
+  it('uses the theme primary for the action, not a hard-coded color', () => {
+    const { getByRole } = render(<ProUpgradePrompt title="Unlock" description="Description" action={action} />)
+    const link = getByRole('link')
+    expect(link.getAttribute('style')).toBeNull()
+    expect(link.className).toContain('bg-primary')
+    expect(link.className).toContain('text-primary-foreground')
+  })
+
   it('renders with the pro-upgrade-prompt slot attribute', () => {
     const { container } = render(<ProUpgradePrompt title="Unlock" description="Description" action={action} />)
     expect(container.querySelector('[data-slot="pro-upgrade-prompt"]')).toBeTruthy()

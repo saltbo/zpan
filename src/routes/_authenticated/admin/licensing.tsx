@@ -37,9 +37,7 @@ function LicensingPage() {
     <div className="max-w-2xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <p className="text-sm text-muted-foreground">{t('settings.billing.intro')}</p>
-        <Button onClick={() => setPairingOpen(true)} style={{ backgroundColor: '#1A73E8' }}>
-          {t('settings.billing.connectButton')}
-        </Button>
+        <Button onClick={() => setPairingOpen(true)}>{t('settings.billing.connectButton')}</Button>
       </div>
 
       <ComparisonTable />
