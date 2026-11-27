@@ -104,6 +104,16 @@ function idChunks(ids: string[]): string[][] {
   // chunks would be read twice (and, in purge, decremented twice).
   return chunk([...new Set(ids)], MATTER_IDS_PER_STATEMENT)
 }
+// SQLite and D1 name the violated index in the message; Drizzle wraps the
+// driver error, so walk the cause chain.
+function isActiveNameViolation(error: unknown): boolean {
+  for (let e: unknown = error, depth = 0; e && depth < 5; e = (e as { cause?: unknown }).cause, depth++) {
+    const message = e instanceof Error ? e.message : String(e)
+    if (message.includes('matters_active_name_uniq')) return true
+  }
+  return false
+}
+
 export function createMatterRepo(db: Database): MatterRepo {
   const matterChanges = (
     orgId: string,
@@ -275,6 +285,28 @@ export function createMatterRepo(db: Database): MatterRepo {
     return plan.finalName
   }
 
+  /**
+   * The conflict pre-check and the write are separate statements, so two writers
+   * can both pass the check and race on matters_active_name_uniq. The loser gets
+   * the same NameConflictError the pre-check would have thrown (409), never a raw
+   * constraint failure (500).
+   */
+  async function withNameUniqueness<T>(
+    orgId: string,
+    parent: string,
+    name: string,
+    excludeId: string | undefined,
+    write: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await write()
+    } catch (error) {
+      if (!isActiveNameViolation(error)) throw error
+      const winner = await findActiveConflict(orgId, parent, name, excludeId)
+      throw new NameConflictError(winner?.name ?? name, winner?.id ?? '')
+    }
+  }
+
   function collectForPurge(orgId: string, idOrMatter: string): Promise<Matter[] | null>
   function collectForPurge(orgId: string, idOrMatter: Matter): Promise<Matter[]>
   async function collectForPurge(orgId: string, idOrMatter: string | Matter): Promise<Matter[] | null> {
@@ -287,6 +319,37 @@ export function createMatterRepo(db: Database): MatterRepo {
     const children = await getDirectChildren(orgId, path)
     const descendants = await getDescendants(orgId, path)
     return [existing, ...children.map(toMatter), ...descendants.map(toMatter)]
+  }
+
+  async function writeCreated(row: MatterRow, isBillable: boolean, now: Date): Promise<void> {
+    if (isBillable) {
+      const writes: AtomicQuery[] = [
+        storageUsageOpeningBalanceQuery(db, row.orgId, row.storageId, now),
+        db.insert(matters).values(row),
+        ...matterChanges(row.orgId, [row.id], now, 'created'),
+        ...matterAddedProjectionQueries(db, row.orgId, row.id),
+        ...(row.size && row.size > 0
+          ? [
+              storageUsageMutationQuery(db, {
+                eventKey: `matter:${row.id}:activated`,
+                orgId: row.orgId,
+                storageId: row.storageId,
+                resourceType: 'matter',
+                resourceId: row.id,
+                deltaBytes: row.size,
+                reason: 'matter_activated',
+                occurredAt: now,
+              }),
+            ]
+          : []),
+      ]
+      await executeWriteTransaction(db, writes)
+    } else {
+      await executeWriteTransaction(db, [
+        db.insert(matters).values(row),
+        ...matterChanges(row.orgId, [row.id], now, 'created'),
+      ])
+    }
   }
 
   const repo: MatterRepo = {
@@ -335,35 +398,7 @@ export function createMatterRepo(db: Database): MatterRepo {
       }
 
       const isBillable = row.status === ObjectStatus.ACTIVE && row.dirtype === DirType.FILE
-      if (isBillable) {
-        const writes: AtomicQuery[] = [
-          storageUsageOpeningBalanceQuery(db, row.orgId, row.storageId, now),
-          db.insert(matters).values(row),
-          ...matterChanges(row.orgId, [row.id], now, 'created'),
-          ...matterAddedProjectionQueries(db, row.orgId, row.id),
-          ...(row.size && row.size > 0
-            ? [
-                storageUsageMutationQuery(db, {
-                  eventKey: `matter:${row.id}:activated`,
-                  orgId: row.orgId,
-                  storageId: row.storageId,
-                  resourceType: 'matter',
-                  resourceId: row.id,
-                  deltaBytes: row.size,
-                  reason: 'matter_activated',
-                  occurredAt: now,
-                }),
-              ]
-            : []),
-        ]
-        await executeWriteTransaction(db, writes)
-      } else {
-        await executeWriteTransaction(db, [
-          db.insert(matters).values(row),
-          ...matterChanges(row.orgId, [row.id], now, 'created'),
-        ])
-      }
-
+      await withNameUniqueness(row.orgId, row.parent, row.name, undefined, () => writeCreated(row, isBillable, now))
       return toMatter(row)
     },
 
@@ -558,7 +593,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         updatedAt: now,
       }
 
-      await executeWriteTransaction(db, [
+      const copyWrites: AtomicQuery[] = [
         storageUsageOpeningBalanceQuery(db, row.orgId, row.storageId, now),
         db.insert(matters).values(row),
         ...matterChanges(row.orgId, [row.id], now, 'copied'),
@@ -577,7 +612,10 @@ export function createMatterRepo(db: Database): MatterRepo {
               }),
             ]
           : []),
-      ])
+      ]
+      await withNameUniqueness(row.orgId, row.parent, row.name, undefined, () =>
+        executeWriteTransaction(db, copyWrites),
+      )
 
       return toMatter(row)
     },
@@ -952,7 +990,9 @@ export function createMatterRepo(db: Database): MatterRepo {
       const writes: AtomicQuery[] = [activateQuery, matterActivationLedgerQuery(db, orgId, id, now)]
       writes.push(...matterChanges(orgId, [id], now, 'activated'))
       writes.push(...matterAddedProjectionQueries(db, orgId, id))
-      const results = await executeWriteTransactionWithResults(db, writes, [0])
+      const results = await withNameUniqueness(orgId, existing.parent, finalName, id, () =>
+        executeWriteTransactionWithResults(db, writes, [0]),
+      )
       const updated = results[0] as { id: string }[]
       return updated.length > 0
     },

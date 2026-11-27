@@ -40,8 +40,8 @@ type fakeDrive struct {
 	raceFolder string
 	// hasMedia holds the folders whose media the server keeps: a write answers 409.
 	hasMedia map[string]bool
-	// raceComplete makes the completion of an upload of this name fail with a
-	// 500 after another task's upload of the same name went live.
+	// raceComplete makes the completion of an upload of this name answer 409
+	// after another task's upload of the same name went live.
 	raceComplete string
 }
 
@@ -143,7 +143,7 @@ func (d *fakeDrive) CompleteObjectUpload(_ context.Context, _ string, id string,
 	if d.raceComplete == draft.name {
 		d.raceComplete = ""
 		d.add(draft.parent, draft.name, false, "another task")
-		return client.ObjectDraft{}, &client.StatusError{Method: "POST", Path: "/api/objects", Status: http.StatusInternalServerError, Message: "Internal Server Error"}
+		return client.ObjectDraft{}, conflict()
 	}
 	d.entries[d.key(draft.parent, draft.name)] = draft
 	return client.ObjectDraft{ID: draft.id, Name: draft.name}, nil

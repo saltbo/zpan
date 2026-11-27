@@ -172,9 +172,9 @@ func (u *Uploader) uploadUnlessPresent(
 	if ctx.Err() != nil {
 		return "", false, err
 	}
-	// A create answers 409 when the name is taken; a completion that loses a
-	// race with another task's upload of the same name fails without saying
-	// so. Either way the live entry now at the name wins.
+	// A create answers 409 when the name is taken, and so does a completion
+	// that loses a race with another task's upload of the same name. Any
+	// failure while a live file holds the name leaves that file in place.
 	existing, found, findErr := u.findObject(ctx, task.UploadToken(), parent, name)
 	if findErr != nil {
 		return "", false, findErr

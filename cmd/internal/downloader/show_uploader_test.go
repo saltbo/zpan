@@ -161,6 +161,33 @@ func TestUploadPlanUsesASeasonFolderAnotherTaskCreatedFirst(t *testing.T) {
 	}
 }
 
+// [spec: download-scraping/show-folder-reused]
+func TestUploadPlanUsesANewShowFolderAnotherTaskCreatedFirst(t *testing.T) {
+	drive := newFakeDrive(t)
+	drive.add("", "Movies", true, "")
+	// The show is new: its folder is missing when this task looks, and another
+	// task creates it before this task's create lands, which answers 409.
+	drive.raceFolder = "Breaking Bad (2008)"
+	uploader := NewUploader(drive, nil)
+
+	if _, err := uploader.Upload(context.Background(), discardLogger(), planTask(), Result{Plan: ptr(showPlan(t, t.TempDir(), "e.mkv"))}); err != nil {
+		t.Fatal(err)
+	}
+	show := drive.entry("Movies/Breaking Bad (2008)")
+	if show == nil || drive.entry("Movies/Breaking Bad (2008) (1)") != nil {
+		t.Fatalf("drive = %v", drive.paths())
+	}
+	if drive.entry("Movies/Breaking Bad (2008)/Season 01/e.mkv") == nil || drive.entry("Movies/Breaking Bad (2008)/tvshow.nfo") == nil {
+		t.Fatalf("drive = %v", drive.paths())
+	}
+	if _, written := drive.metadata[show.id]; !written {
+		t.Fatal("the show folder another task created got no show media")
+	}
+	if notices := drive.scrapeNotices(); len(notices) != 0 {
+		t.Fatalf("notices = %v", notices)
+	}
+}
+
 // [spec: download-scraping/show-folder-reused] [spec: download-scraping/fallback]
 func TestUploadPlanFallsBackWhenTheSeasonNameIsAFile(t *testing.T) {
 	drive := newFakeDrive(t)

@@ -446,3 +446,76 @@ describe('commitConflictPlan', () => {
     expect(rows[0].trashed_at).not.toBeNull()
   })
 })
+
+// ─── races past the pre-check ─────────────────────────────────────────────────
+// Both writers pass findActiveConflict before either inserts, so the unique
+// index rejects the loser. It must surface as NameConflictError (409), not as
+// the raw constraint failure (500).
+
+describe('MatterRepo — same-name races in one parent', () => {
+  const folder = (orgId: string, name: string, onConflict?: ConflictStrategy) => ({
+    orgId,
+    name,
+    type: 'folder',
+    dirtype: DirType.USER_FOLDER,
+    parent: 'TV',
+    object: '',
+    storageId: 'st-1',
+    status: ObjectStatus.ACTIVE,
+    onConflict,
+  })
+
+  for (const onConflict of ['fail', 'rename', 'replace'] as const) {
+    it(`two concurrent folder creates (onConflict: ${onConflict}) give one row and one NameConflictError`, async () => {
+      const { db } = await createTestApp()
+      await insertStorage(db)
+      const orgId = nanoid()
+      const repo = createMatterRepo(db)
+
+      const results = await Promise.allSettled([
+        repo.create(folder(orgId, 'Fleabag (2016)', onConflict)),
+        repo.create(folder(orgId, 'Fleabag (2016)', onConflict)),
+      ])
+
+      const created = results.filter((r) => r.status === 'fulfilled')
+      const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      expect(created).toHaveLength(1)
+      expect(failed).toHaveLength(1)
+      expect(failed[0].reason).toBeInstanceOf(NameConflictError)
+      const winner = (created[0] as PromiseFulfilledResult<{ id: string }>).value
+      expect((failed[0].reason as NameConflictError).conflictingId).toBe(winner.id)
+    })
+  }
+
+  it('two concurrent activations of same-named drafts give one live file and one NameConflictError', async () => {
+    const { db } = await createTestApp()
+    await insertStorage(db)
+    const orgId = nanoid()
+    const a = await insertMatter(db, { orgId, name: 'poster.jpg', status: ObjectStatus.DRAFT })
+    const b = await insertMatter(db, { orgId, name: 'poster.jpg', status: ObjectStatus.DRAFT })
+    const repo = createMatterRepo(db)
+    const now = new Date()
+
+    const results = await Promise.allSettled([
+      repo.activateDraft(a, orgId, 'poster.jpg', 'image/jpeg', now),
+      repo.activateDraft(b, orgId, 'poster.jpg', 'image/jpeg', now),
+    ])
+
+    expect(results[0]).toEqual({ status: 'fulfilled', value: true })
+    expect(results[1].status).toBe('rejected')
+    const error = (results[1] as PromiseRejectedResult).reason as NameConflictError
+    expect(error).toBeInstanceOf(NameConflictError)
+    expect(error.conflictingId).toBe(a)
+  })
+
+  it('leaves unrelated write failures alone', async () => {
+    const { db } = await createTestApp()
+    await insertStorage(db)
+    const orgId = nanoid()
+    const id = await insertMatter(db, { orgId, name: 'x.txt', status: ObjectStatus.DRAFT })
+    await db.run(sql`DROP TABLE resource_changes`)
+    await expect(
+      createMatterRepo(db).activateDraft(id, orgId, 'x.txt', 'text/plain', new Date()),
+    ).rejects.not.toBeInstanceOf(NameConflictError)
+  })
+})
