@@ -12,6 +12,7 @@ import {
   Music,
   Share2,
   Trash2,
+  Tv,
   Video,
 } from 'lucide-react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -66,6 +67,7 @@ export function AppSidebar() {
   const activeTasks = pathname.startsWith('/tasks')
   const activeImageHost = pathname === '/image-host'
   const activeMovies = pathname.startsWith('/movies')
+  const activeShows = pathname.startsWith('/shows')
 
   return (
     <Sidebar>
@@ -133,6 +135,14 @@ export function AppSidebar() {
                   <Link to="/movies">
                     <Clapperboard className="h-4 w-4" />
                     <span>{t('nav.movies')}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={activeShows}>
+                  <Link to="/shows">
+                    <Tv className="h-4 w-4" />
+                    <span>{t('nav.shows')}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

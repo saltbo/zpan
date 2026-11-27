@@ -16,15 +16,36 @@ import (
 	"github.com/saltbo/zpan/pkg/system"
 )
 
-// Sidecar suffixes a movie video `X.mkv` gets next to it.
+// Sidecar suffixes a video `X.mkv` gets next to it: a movie gets the .nfo,
+// poster and fanart, an episode the .nfo and thumb.
 const (
 	SuffixNFO    = ".nfo"
 	SuffixPoster = "-poster.jpg"
 	SuffixFanart = "-fanart.jpg"
+	SuffixThumb  = "-thumb.jpg"
 	movieNFOName = "movie.nfo"
 	posterSize   = "w780"
 	fanartSize   = "w1280"
+	stillSize    = "w300"
 )
+
+// The files a show folder gets, besides a `seasonNN-poster.jpg` per season.
+const (
+	TVShowNFOName  = "tvshow.nfo"
+	ShowPosterName = "poster.jpg"
+	ShowFanartName = "fanart.jpg"
+)
+
+// SeasonPosterName is a season's poster in the show folder, `season01-poster.jpg`.
+func SeasonPosterName(season int) string {
+	return fmt.Sprintf("season%02d-poster.jpg", season)
+}
+
+// SeasonFolderName is a season's folder in the show folder, `Season 01`, and
+// `Season 00` for specials.
+func SeasonFolderName(season int) string {
+	return fmt.Sprintf("Season %02d", season)
+}
 
 var videoExtensions = map[string]bool{
 	".mkv": true, ".mp4": true, ".m4v": true, ".mov": true, ".avi": true, ".wmv": true, ".flv": true,
@@ -54,7 +75,7 @@ type Download struct {
 // sidecars the scraper wrote, laid out under one folder in the task's target
 // folder.
 type Plan struct {
-	// Folder is the `Title (Year)` folder name.
+	// Folder is the movie's `Title (Year)` or the show's `Show (Year)` folder name.
 	Folder string
 	Files  []PlanFile
 }
@@ -69,6 +90,9 @@ type PlanFile struct {
 	// Sidecar is set for a file at a sidecar path of a video: its name follows
 	// the name the video is given, and an entry already there wins.
 	Sidecar *Sidecar
+	// Keep is set for a show folder file such as tvshow.nfo or poster.jpg: it
+	// keeps its name, and an entry already there wins.
+	Keep bool
 }
 
 // Sidecar ties a file to a video: it is named after the video's base name
@@ -95,7 +119,7 @@ func skip(format string, args ...any) error {
 // ErrNoVideo means the download holds no video, so scraping leaves it alone.
 var ErrNoVideo = errors.New("the download holds no video")
 
-// Scraper matches downloads to TMDB movies.
+// Scraper matches downloads to TMDB movies and TV shows.
 type Scraper struct {
 	tmdb     *TMDB
 	language string
@@ -116,8 +140,8 @@ type video struct {
 	info Info
 }
 
-// Scrape matches a download to one TMDB movie, writes its sidecars under
-// overlayDir, and returns the upload plan. It never touches the downloaded
+// Scrape matches a download to one TMDB movie, or its episodes to one TMDB
+// show, writes the sidecars under overlayDir, and returns the upload plan. It never touches the downloaded
 // files, which may still be seeding. It returns ErrNoVideo for a download
 // without a video, and a *SkipError when the download cannot be scraped.
 func (s *Scraper) Scrape(ctx context.Context, download Download, overlayDir string) (Plan, error) {
@@ -129,16 +153,27 @@ func (s *Scraper) Scrape(ctx context.Context, download Download, overlayDir stri
 	if len(videos) == 0 {
 		return Plan{}, ErrNoVideo
 	}
-	for _, v := range videos {
-		if v.info.Kind == KindEpisode {
-			return Plan{}, skip("TV episodes are not scraped yet")
-		}
-	}
-
 	byPath := map[string]localFile{}
 	for _, file := range files {
 		byPath[strings.ToLower(file.rel)] = file
 	}
+	if episodes := episodesOf(videos); len(episodes) > 0 {
+		if len(episodes) != len(videos) && hasMovie(videos) {
+			return Plan{}, skip("the download holds both a movie and TV episodes")
+		}
+		return s.scrapeShow(ctx, download, files, episodes, byPath, overlayDir)
+	}
+	return s.scrapeMovie(ctx, download, files, videos, byPath, overlayDir)
+}
+
+func (s *Scraper) scrapeMovie(
+	ctx context.Context,
+	download Download,
+	files []localFile,
+	videos []video,
+	byPath map[string]localFile,
+	overlayDir string,
+) (Plan, error) {
 	id := 0
 	for _, v := range videos {
 		matched, err := s.matchMovie(ctx, download, v, byPath)
@@ -316,7 +351,7 @@ func (s *Scraper) matchMovie(ctx context.Context, download Download, v video, fi
 	if v.info.Kind != KindMovie {
 		return 0, nil
 	}
-	return s.search(ctx, v.info)
+	return s.search(ctx, v.info, s.tmdb.SearchMovies)
 }
 
 func readIdentity(file string) (NFOIdentity, error) {
@@ -332,11 +367,13 @@ func readIdentity(file string) (NFOIdentity, error) {
 	return ReadNFOIdentity(string(data)), nil
 }
 
+type searchFunc func(ctx context.Context, title string, year int, language string) ([]SearchHit, error)
+
 // search looks the parsed title up in the configured language and in
 // English, with the parsed year and then without it, until a result matches.
 // A search with no results at all ends that year: another language finds the
 // same nothing.
-func (s *Scraper) search(ctx context.Context, info Info) (int, error) {
+func (s *Scraper) search(ctx context.Context, info Info, find searchFunc) (int, error) {
 	if NormalizeTitle(info.Title) == "" {
 		return 0, nil
 	}
@@ -350,7 +387,7 @@ func (s *Scraper) search(ctx context.Context, info Info) (int, error) {
 	}
 	for _, year := range years {
 		for _, language := range languages {
-			hits, err := s.tmdb.SearchMovies(ctx, info.Title, year, language)
+			hits, err := find(ctx, info.Title, year, language)
 			if err != nil {
 				return 0, tmdbFailure(err)
 			}
@@ -444,11 +481,8 @@ func (s *Scraper) plan(
 			if len(data) == 0 {
 				continue
 			}
-			local := filepath.Join(overlayDir, filepath.FromSlash(sidecarPath))
-			if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
-				return Plan{}, err
-			}
-			if err := os.WriteFile(local, data, 0o644); err != nil {
+			local, err := writeOverlay(overlayDir, sidecarPath, data)
+			if err != nil {
 				return Plan{}, err
 			}
 			taken[strings.ToLower(sidecarPath)] = len(plan.Files)
@@ -456,6 +490,18 @@ func (s *Scraper) plan(
 		}
 	}
 	return plan, nil
+}
+
+// writeOverlay writes a file the scraper adds at its plan path under overlayDir.
+func writeOverlay(overlayDir string, planPath string, data []byte) (string, error) {
+	local := filepath.Join(overlayDir, filepath.FromSlash(planPath))
+	if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(local, data, 0o644); err != nil {
+		return "", err
+	}
+	return local, nil
 }
 
 // commonDir is the deepest folder that holds every video, "" for the root.

@@ -36,3 +36,11 @@ Feature: List pagination
     Given users whose name, email, or username contain a term
     When an admin lists users with that term
     Then only matching users are returned, newest first, across every page
+
+  @list-pagination/directory-search @web
+  Scenario: The user directory searches every user, not only loaded rows
+    Given the user directory holds more users than its first page
+    And a user who is not on the first page
+    When the admin searches for that user
+    Then the directory asks the server for the term and shows that user
+    And the table stays in place while the new results load

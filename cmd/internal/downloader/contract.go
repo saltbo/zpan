@@ -114,7 +114,8 @@ type Result struct {
 // UploadPlan lays a download out under one folder in the task's target
 // folder. A processor builds it; the downloaded files stay where they are.
 type UploadPlan struct {
-	// Folder is looked up by name in the target folder and created when absent.
+	// Folder is looked up by name in the target folder and created when
+	// absent, and so is every folder inside it.
 	Folder string
 	Files  []PlannedFile
 }
@@ -129,6 +130,9 @@ type PlannedFile struct {
 	// Sidecar is set for a file named after a video: it takes the name the
 	// video was given, and a live entry already at its path wins.
 	Sidecar *PlannedSidecar
+	// Keep is set for a file of the plan's folder such as tvshow.nfo: it keeps
+	// its name, and a live entry already at its path wins.
+	Keep bool
 }
 
 type PlannedSidecar struct {

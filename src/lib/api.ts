@@ -16,6 +16,7 @@ import type {
   DownloaderHeartbeatInput,
   DownloadTaskActionInput,
   EmailSettings,
+  EpisodeMediaMetadata,
   ImageDomainProviderResponse,
   MediaLibrary,
   MovieMediaMetadata,
@@ -37,6 +38,7 @@ import type {
   SiteConfig,
   SiteSettings,
   TorrentCacheConfig,
+  TvShowMediaMetadata,
   UpdateDownloaderCreditBillingInput,
   UpdateDownloaderInput,
   UpdateDownloadTaskInput,
@@ -573,6 +575,50 @@ export function listMovies(opts: { pageToken?: string; pageSize?: number } = {})
     mediaApi.movies.$get({
       query: {
         pageSize: String(opts.pageSize ?? 24),
+        ...(opts.pageToken ? { pageToken: opts.pageToken } : {}),
+      },
+    }),
+  )
+}
+
+// Scraped TV shows: the show folders the downloader wrote show metadata on.
+export interface Show {
+  id: string
+  path: string
+  media: TvShowMediaMetadata
+  posterUrl?: string
+}
+
+// An episode video anywhere inside a show folder.
+export interface Episode {
+  id: string
+  path: string
+  media: EpisodeMediaMetadata
+  stillUrl?: string
+}
+
+export function listShows(opts: { pageToken?: string; pageSize?: number } = {}) {
+  return unwrap<CursorPage<Show>>(
+    mediaApi.shows.$get({
+      query: {
+        pageSize: String(opts.pageSize ?? 24),
+        ...(opts.pageToken ? { pageToken: opts.pageToken } : {}),
+      },
+    }),
+  )
+}
+
+export function getShow(id: string) {
+  return unwrap<Show>(mediaApi.shows[':id'].$get({ param: { id } }))
+}
+
+// A show's episodes, ordered by season and then episode number.
+export function listShowEpisodes(id: string, opts: { pageToken?: string; pageSize?: number } = {}) {
+  return unwrap<CursorPage<Episode>>(
+    mediaApi.shows[':id'].episodes.$get({
+      param: { id },
+      query: {
+        pageSize: String(opts.pageSize ?? 50),
         ...(opts.pageToken ? { pageToken: opts.pageToken } : {}),
       },
     }),

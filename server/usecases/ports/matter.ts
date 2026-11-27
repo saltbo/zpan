@@ -33,6 +33,12 @@ export interface MediaPageBoundary {
   id: string
 }
 
+export interface EpisodePageBoundary {
+  season: number
+  episode: number
+  id: string
+}
+
 export interface CreateMatterInput {
   orgId: string
   name: string
@@ -191,4 +197,10 @@ export interface MatterRepo {
     orgId: string,
     params: { kind: MediaMetadata['kind']; pageSize: number; after?: MediaPageBoundary },
   ): Promise<{ items: Matter[]; nextBoundary: MediaPageBoundary | null }>
+  // Live files with media.kind `episode` anywhere under the folder at
+  // folderPath, ordered by season, episode, then id.
+  listEpisodePage(
+    orgId: string,
+    params: { folderPath: string; pageSize: number; after?: EpisodePageBoundary },
+  ): Promise<{ items: Matter[]; nextBoundary: EpisodePageBoundary | null }>
 }

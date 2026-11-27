@@ -1491,6 +1491,93 @@ describe('Objects API — name conflict (409 responses)', () => {
     expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
   })
 
+  // Another writer creating the same name between our pre-check and our write:
+  // the trigger plays that writer, so the race happens on every run. Its row
+  // rolls back with the failed write, so there is no winner left to name.
+  async function raceSameName(db: TestDbForMatter, orgId: string, event: string, name: string, parent: string) {
+    await db.run(
+      sql.raw(`
+      CREATE TRIGGER race_same_name BEFORE ${event} ON matters
+      WHEN NEW.name = '${name}' AND NEW.status = 'active' AND NEW.id <> 'winner'
+      BEGIN
+        INSERT INTO matters (id, org_id, alias, name, type, size, dirtype, parent, object, storage_id, status, created_at, updated_at)
+        VALUES ('winner', '${orgId}', 'winner-alias', NEW.name, NEW.type, 0, NEW.dirtype, '${parent}', '', NEW.storage_id, 'active', NEW.created_at, NEW.updated_at);
+      END`),
+    )
+  }
+
+  async function expectNameConflict(res: Response, conflictingId?: string) {
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as {
+      error: { details: Array<{ reason: string; metadata: Record<string, string> }> }
+    }
+    expect(body.error.details[0].reason).toBe('NAME_CONFLICT')
+    expect(body.error.details[0].metadata.conflictingId).toBe(conflictingId)
+    expect(body.error.details[0].metadata.conflictingName).toBeTruthy()
+  }
+
+  it('concurrent POST /api/objects for the same new folder answers one 201 and one 409 [spec: objects/create-conflict]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    await getOrgId(db)
+    const create = () =>
+      app.request('/api/objects', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Fleabag (2016)', type: 'folder', dirtype: 1, parent: 'TV', onConflict: 'fail' }),
+      })
+
+    const responses = await Promise.all([create(), create()])
+
+    expect(responses.map((r) => r.status).sort()).toEqual([201, 409])
+    const created = (await responses.find((r) => r.status === 201)?.json()) as { id: string }
+    await expectNameConflict(responses.find((r) => r.status === 409) as Response, created.id)
+  })
+
+  for (const onConflict of ['fail', 'rename', 'replace']) {
+    it(`POST /api/objects that loses a folder-name race answers 409, not 500 (onConflict: ${onConflict})`, async () => {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      await raceSameName(db, orgId, 'INSERT', 'Fleabag (2016)', 'TV')
+
+      const res = await app.request('/api/objects', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Fleabag (2016)', type: 'folder', dirtype: 1, parent: 'TV', onConflict }),
+      })
+
+      await expectNameConflict(res)
+      const rows = await listMatters(db, orgId, { parent: 'TV', pageSize: 50 })
+      expect(rows.items).toEqual([])
+    })
+  }
+
+  it('POST .../completions that loses a same-name race answers 409, not 500', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await authedHeaders(app)
+    await insertStorage(db)
+    const orgId = await getOrgId(db)
+    const createRes = await app.request('/api/objects', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'season01-poster.jpg', type: 'image/jpeg', size: 10, parent: '', dirtype: 0 }),
+    })
+    const created = (await createRes.json()) as { id: string; upload: { sessionId: string } }
+    await raceSameName(db, orgId, 'UPDATE OF status', 'season01-poster.jpg', '')
+
+    const res = await app.request(`/api/objects/${created.id}/uploads/${created.upload.sessionId}/completions`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parts: [{ partNumber: 1, etag: 'abc' }] }),
+    })
+
+    await expectNameConflict(res)
+    expect((await getMatter(db, created.id, orgId))?.status).toBe('draft')
+  })
+
   it('POST /api/trash/objects/:id/restorations returns 409 when restore name is already taken [spec: objects/restore-conflict]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)
