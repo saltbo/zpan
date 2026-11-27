@@ -1,3 +1,4 @@
+import i18next from 'i18next'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -46,7 +47,7 @@ export function OfficePreview({ url, filename }: OfficePreviewProps) {
 
     fetch(withDownloadUrlQuery(url), { credentials: 'include' })
       .then((res) => {
-        if (!res.ok) throw new Error('Failed to resolve download URL')
+        if (!res.ok) throw new Error(i18next.t('preview.loadError'))
         return res.json() as Promise<{ downloadUrl?: string }>
       })
       .then((body) => {

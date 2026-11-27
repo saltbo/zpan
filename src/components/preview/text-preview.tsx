@@ -1,3 +1,4 @@
+import i18next from 'i18next'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PreviewType } from '@/lib/file-types'
@@ -18,7 +19,7 @@ export function TextPreview({ url, filename, previewType }: TextPreviewProps) {
     const controller = new AbortController()
     fetch(url, { signal: controller.signal })
       .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch')
+        if (!res.ok) throw new Error(i18next.t('preview.loadError'))
         return res.text()
       })
       .then(setContent)

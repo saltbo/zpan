@@ -46,6 +46,36 @@ describe('no hard-coded UI strings lint [spec: language/no-hard-coded-strings]',
     expect(output).toContain('Visible text comes from the locale files')
   })
 
+  it('rejects an error message written as an English literal', () => {
+    const { failed, output } = lint("export const f = () => {\n  throw new Error('Upload failed')\n}\n", '.ts')
+    expect(failed).toBe(true)
+    expect(output).toContain('Error text a user can see comes from the locale files')
+  })
+
+  it('rejects an English fallback for a server error message', () => {
+    const { failed, output } = lint(
+      "export const f = (body: { message?: string }) => {\n  throw new Error(body.message ?? 'Failed to join')\n}\n",
+      '.ts',
+    )
+    expect(failed).toBe(true)
+    expect(output).toContain('Error text a user can see comes from the locale files')
+  })
+
+  it('accepts translated errors, error codes, and provider invariants', () => {
+    const source = [
+      "import i18next from 'i18next'",
+      'export function f(body: { message?: string }, ok: boolean) {',
+      "  if (!ok) throw new Error('target_required')",
+      "  if (!body) throw new Error('useThing must be used within ThingProvider')",
+      "  throw new Error(body.message ?? i18next.t('common.requestFailed'))",
+      '}',
+      '',
+    ].join('\n')
+    const { failed, output } = lint(source, '.ts')
+    expect(output).not.toContain('locale files')
+    expect(failed).toBe(false)
+  })
+
   it('accepts translated text, units, file names, and symbols', () => {
     const source = [
       "import { useTranslation } from 'react-i18next'",

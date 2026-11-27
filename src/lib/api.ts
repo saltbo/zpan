@@ -109,6 +109,7 @@ import type {
   StorageUsageSortDirection,
   StorageUsageSortField,
 } from '@shared/types'
+import i18next from 'i18next'
 import { requestLanguageHeaders } from './request-language'
 import {
   adminAuditApi,
@@ -1470,7 +1471,7 @@ async function fetchSession(): Promise<SessionData> {
     }
     return res.json()
   } catch (error) {
-    if (controller.signal.aborted) throw new Error('Session request timed out')
+    if (controller.signal.aborted) throw new Error(i18next.t('common.requestTimedOut'))
     throw error
   } finally {
     window.clearTimeout(timeout)
@@ -1537,11 +1538,11 @@ export function uploadToS3(url: string, file: File, options: UploadToS3Options =
         resolve()
         return
       }
-      reject(new Error('Upload failed'))
+      reject(new Error(i18next.t('uploadPanel.failed')))
     }
     xhr.onerror = () => {
       options.signal?.removeEventListener('abort', abort)
-      reject(new Error('Upload failed'))
+      reject(new Error(i18next.t('uploadPanel.failed')))
     }
     xhr.onabort = () => {
       options.signal?.removeEventListener('abort', abort)
@@ -1588,18 +1589,18 @@ export function uploadPartToS3(url: string, blob: Blob, options: UploadPartOptio
       if (xhr.status >= 200 && xhr.status < 300) {
         const etag = xhr.getResponseHeader('ETag')
         if (!etag) {
-          reject(new Error('Missing ETag — the storage bucket must expose the ETag header via CORS'))
+          reject(new Error(i18next.t('uploadPanel.missingEtag')))
           return
         }
         options.onProgress?.({ loaded: blob.size, total: blob.size })
         resolve(etag.replace(/"/g, ''))
         return
       }
-      reject(new Error('Upload failed'))
+      reject(new Error(i18next.t('uploadPanel.failed')))
     }
     xhr.onerror = () => {
       options.signal?.removeEventListener('abort', abort)
-      reject(new Error('Upload failed'))
+      reject(new Error(i18next.t('uploadPanel.failed')))
     }
     xhr.onabort = () => {
       options.signal?.removeEventListener('abort', abort)

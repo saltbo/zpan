@@ -14,8 +14,14 @@ Feature: Language
     Then the list and grid view toggles, the notifications button, and the help buttons are named in Chinese
     And the "Powered by ZPan" footer reads in Chinese
 
+  @language/error-fallbacks @web
+  Scenario: Client-side error messages follow the chosen language
+    Given a signed-in user who chose 中文
+    When an upload to storage fails, or a team invite link or invitation list cannot be loaded
+    Then the message in the upload panel or the toast reads in Chinese
+
   @language/no-hard-coded-strings
   Scenario: New hard-coded strings are rejected
-    Given a component with a string literal in an aria-label, a toast, or JSX text
+    Given a component with a string literal in an aria-label, a toast, JSX text, or an error message
     When the project lint runs
     Then it fails and points at the literal

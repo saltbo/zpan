@@ -7,6 +7,7 @@ import {
   usernameClient,
 } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
+import i18next from 'i18next'
 import { requestLanguageHeaders } from './request-language'
 
 export const authClient = createAuthClient({
@@ -62,8 +63,8 @@ type DeviceStatus = 'pending' | 'approved' | 'denied'
 type AuthFetchResult<T> = { data?: T | null; error?: { message?: string } | null }
 
 function unwrapAuthFetch<T>(result: AuthFetchResult<T>): T {
-  if (result.error) throw new Error(result.error.message ?? 'Auth request failed')
-  if (!result.data) throw new Error('Auth request failed')
+  if (result.error) throw new Error(result.error.message ?? i18next.t('common.requestFailed'))
+  if (!result.data) throw new Error(i18next.t('common.requestFailed'))
   return result.data
 }
 

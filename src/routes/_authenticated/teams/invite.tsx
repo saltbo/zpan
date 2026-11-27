@@ -40,11 +40,11 @@ function TeamInvitePage() {
   const joinMutation = useMutation({
     mutationFn: async () => {
       const teamId = info?.organizationId
-      if (!teamId) throw new Error('Team info not loaded')
+      if (!teamId) throw new Error(t('teams.invite.joinFailed'))
       const res = await teamsApi[':teamId'].members.$post({ param: { teamId }, json: { token } })
       if (!res.ok) {
         const body = (await res.json()) as { error?: { message?: string } }
-        throw Object.assign(new Error(body.error?.message ?? 'Failed to join'), { status: res.status })
+        throw Object.assign(new Error(body.error?.message ?? t('teams.invite.joinFailed')), { status: res.status })
       }
       return res.json()
     },
