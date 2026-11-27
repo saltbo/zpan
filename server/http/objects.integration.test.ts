@@ -2152,7 +2152,7 @@ describe('Objects API — quota enforcement', () => {
     )
   }
 
-  it('surfaces capacity-offer lookup failures instead of reporting quota exhaustion', async () => {
+  it('answers the standard quota error when the capacity-offer lookup fails [spec: objects/create-capacity-lookup-failed]', async () => {
     const { app, db } = await createTestApp({ ZPAN_CLOUD_URL: 'https://cloud.example' })
     await seedBusinessLicense(db, 'https://cloud.example')
     const headers = await authedHeaders(app)
@@ -2161,8 +2161,11 @@ describe('Objects API — quota enforcement', () => {
     await setOrgQuota(db, orgId, 100, 90)
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => Response.json({ error: { code: 'cloud_unavailable' } }, { status: 503 })),
+      vi.fn(async () => {
+        throw new TypeError('Network connection lost.')
+      }),
     )
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const res = await app.request('/api/objects', {
       method: 'POST',
@@ -2176,13 +2179,15 @@ describe('Objects API — quota enforcement', () => {
       }),
     })
 
-    expect(res.status).toBe(502)
+    expect(res.status).toBe(422)
     await expect(res.json()).resolves.toMatchObject({
       error: {
-        message: 'cloud_unavailable',
-        details: [{ reason: 'UNAVAILABLE' }],
+        message: 'Quota exceeded',
+        details: [{ reason: 'QUOTA_EXCEEDED' }],
       },
     })
+    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('Network connection lost.'))
+    consoleError.mockRestore()
   })
 
   // ─── POST /api/objects/copy — quota enforcement ──────────────────────────
