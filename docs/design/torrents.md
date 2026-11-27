@@ -38,9 +38,11 @@ is missing:
    writes a new object the file owns and points the file at it; deleting it
    removes only the file. An object under `bt/` is never overwritten, and only
    eviction deletes it; the S3 gateway refuses any other deletion there.
-4. A workspace's Torrents list is its torrent download tasks. It shows each
-   torrent's own file tree, never a scraped layout, and holds no `matters`
-   rows.
+4. A workspace's Torrents list is its own record, `workspace_torrents`, not
+   its download tasks: a task is one run of a download, and an entry is the
+   workspace holding a torrent however many runs it took, including none for an
+   instant transfer. The list shows each torrent's own file tree, never a
+   scraped layout, and holds no `matters` rows.
 5. Where a torrent lands depends on who asked for it:
 
    | Requested through | Torrents list | Drive |
@@ -54,8 +56,10 @@ is missing:
    scraped one chooses each file's path and adds sidecars.
 7. A torrent reaches other workspaces only after its pieces are verified
    against the infoHash.
-8. A torrent nobody holds stays on the instance and is evicted by least-recent
-   access.
+8. A Torrents list entry costs no quota, because only drive files do. Entries
+   that came from StremThru expire when the workspace stops playing them, and a
+   torrent nobody holds is evicted by least-recent access
+   ([section 11](#11-eviction)).
 9. ZPan implements the StremThru Store API instead of a Debrid API of its own,
    and leaves searching for torrents to the addons that call it.
 
@@ -94,9 +98,29 @@ torrent needs no other table.
 Verification needs its piece hashes (20 bytes per piece, about 256 KB for a
 50 GB torrent in 4 MB pieces), which do not belong in D1.
 
+`workspace_torrents`, one row per torrent a workspace holds, which is its
+Torrents list:
+
+| Column | Notes |
+| --- | --- |
+| `id`, `org_id` | `id` is also the item id StremThru clients see |
+| `torrent_id`, `info_hash` | `info_hash` is known at submit for a magnet link and once the downloader reports metadata for a torrent URL; `torrent_id` once the `torrents` row exists. `(org_id, torrent_id)` is unique |
+| `source` | `download` (a remote download) or `stremthru` |
+| `source_uri`, `display_name` | The submitted link, and the name shown before metadata (a magnet's `dn`) |
+| `task_id` | The download task the entry started, null when the torrent was already on the instance |
+| `status`, `error` | `resolving`, `downloading`, `ready`, `failed`, and why it failed. Once the entry has a torrent, its status follows the torrent's; these columns carry what happens before there is one, such as a magnet whose metadata never arrives |
+| `created_by_actor_type`, `created_by_actor_ref`, `created_by_actor_issuer` | Who added it: a user, or a StremThru key |
+| `last_played_at` | Set on every playback link and file download from the entry; drives expiry |
+| `created_at`, `updated_at` | |
+
+Adding a torrent a workspace already holds returns the existing entry. A
+torrent URL cannot be matched before its infoHash is known, so an entry that
+resolves to a torrent the workspace already holds merges into that entry.
+
 `download_tasks` carries `info_hash` once known, `torrent_id`, and
 `torrent_role`: `fill` for the task whose download is the torrent's first,
-`join` for a task waiting on another task's download, null otherwise.
+`join` for a remote download waiting on another task's download, null
+otherwise.
 
 `bt/` cannot collide with other keys: drive objects are
 `<orgId>/<uid>/<date>/<token>` and image-hosting objects are `ih/…`
@@ -110,21 +134,25 @@ torrent.
 
 ## 4. Downloading a torrent
 
-A download task for a `magnet` or `torrent_url` source looks the torrent up
-before it is assigned to a downloader. The infoHash is known at submit time for
-a magnet link (`xt=urn:btih:`), and once the downloader reports the info
-dictionary for a torrent URL.
+A remote download of a `magnet` or `torrent_url` source, and a StremThru add,
+both create a Torrents list entry and look the torrent up. The infoHash is known
+at submit time for a magnet link (`xt=urn:btih:`), and once the downloader
+reports the info dictionary for a torrent URL.
 
-1. A `ready` torrent completes the task at once by instant transfer.
-2. A `downloading` or `verifying` torrent makes the task a `join` task, so two
-   requests for the same torrent download it once. A `join` task finishes by
-   instant transfer when the torrent becomes `ready`.
-3. Otherwise the task becomes the torrent's `fill` task and inserts the
-   `torrents` row as `downloading`. The unique `info_hash` turns a concurrent
-   second insert into a `join`.
+1. A `ready` torrent completes the request at once by instant transfer.
+2. A `downloading` or `verifying` torrent makes the request wait for it, so two
+   requests for the same torrent download it once. A remote download becomes a
+   `join` task; a StremThru add needs no task. Both finish by instant transfer
+   when the torrent becomes `ready`.
+3. Otherwise a download task becomes the torrent's `fill` task and inserts the
+   `torrents` row as `downloading`: the submitted task for a remote download, a
+   new task in the workspace for a StremThru add. The unique `info_hash` turns
+   a concurrent second insert into step 2.
 
 A torrent URL task that turns out to be cached or already downloading is
 cancelled on the downloader the usual way, and finishes as in steps 1 and 2.
+A `fill` task whose torrent loses every holder before it completes is
+cancelled, and one that fails marks every waiting entry `failed`.
 
 The downloader uploads a torrent task exactly as it uploads any task into the
 drive: scraping when it is configured to, then folders, files, and metadata
@@ -158,7 +186,7 @@ download's sidecars serve every later holder.
 ## 5. Instant transfer
 
 Instant transfer gives a workspace a torrent already on the instance by writing
-rows. It always adds the task to the workspace's Torrents list. Into the drive,
+rows. Its Torrents list entry becomes `ready`. Into the drive,
 for a remote download or *Save to drive*, it writes every `torrent_files` row
 under the target folder by `layout_path`, files and sidecars referencing their
 `bt/` objects, and `media` resolved to the ids of the matters it wrote. It
@@ -252,8 +280,8 @@ ZPan implements this subset, under both `torz` and `magnets` paths:
 | --- | --- |
 | `GET /v0/store/user` | The key's user, `subscription_status: premium` |
 | `GET …/check?hash=` (up to 500) | Looks up each infoHash; a `ready` torrent returns `cached` with its files, anything else `unknown` |
-| `POST …` with a magnet or torrent link | A download task in the key's workspace Torrents list ([section 4](#4-downloading-a-torrent)); its id is the task id |
-| `GET …`, `GET …/{id}`, `DELETE …/{id}` | The workspace's Torrents list. Delete removes the entry from the list; links already issued keep playing, because only eviction deletes bytes |
+| `POST …` with a magnet or torrent link | An entry in the key's workspace Torrents list ([section 4](#4-downloading-a-torrent)); its id is the entry id |
+| `GET …`, `GET …/{id}`, `DELETE …/{id}` | The workspace's Torrents list. Delete removes the entry; links already issued keep playing, because only eviction deletes bytes |
 | `POST …/link/generate` | A playback link ([section 10](#10-playback-and-metering)) valid for 12 hours |
 
 `files[]` lists the torrent's `file` rows, with `index` set to `file_idx`,
@@ -293,8 +321,9 @@ Drive files that reference a torrent look and behave like any other file.
 ## 10. Playback and metering
 
 `link/generate` and the Torrents page authorize against the workspace's list
-entry, update `last_accessed_at`, and return a presigned URL for the file's
-`bt/` object, valid for 12 hours. Bytes flow between the player and the bucket.
+entry, update the entry's `last_played_at` and the torrent's
+`last_accessed_at`, and return a presigned URL for the file's `bt/` object,
+valid for 12 hours. Bytes flow between the player and the bucket.
 
 Metering follows direct-share downloads and charges the file's size when a link
 is issued. Players reconnect and seek, and addons regenerate links, so ZPan
@@ -303,15 +332,26 @@ it unchanged while it has more than an hour left. One viewing is charged once.
 
 ## 11. Eviction
 
-The existing 10-minute cron sweeps torrents. A torrent is evictable when no
-Torrents list entry holds it and no row in `matters` with `purged_at IS NULL`
-references it, in any status including trash. Evictable torrents are deleted,
+The existing 10-minute cron sweeps torrents. Drive files are paid for with
+quota and list entries are not, so the two hold a torrent differently:
+
+- A row in `matters` with `purged_at IS NULL` that references a torrent, in any
+  status including trash, holds it until the file is purged.
+- A `stremthru` list entry expires when its `last_played_at`, or its
+  `created_at` if it was never played, is older than the retention period
+  (default 30 days). A `download` entry does not expire, because the drive
+  files it brought are what hold its torrent, and removing it is the user's
+  choice. An expired torrent shows as not cached to the addons, and the next
+  play adds it again.
+
+A torrent with neither holder is evictable. Evictable torrents are deleted,
 objects first and rows second:
 
-- when `last_accessed_at` is older than the retention period (default 30 days),
-  or
+- when `last_accessed_at` is older than the retention period, or
 - oldest access first, while the total size exceeds the admin's capacity,
-  which is unset by default.
+  which is unset by default. When evicting every unheld torrent is not
+  enough, torrents held only by `stremthru` entries go next, least recently
+  played first, with their entries.
 
 Eviction lists `bt/<infoHash>/` and deletes every object under it, so an object
 no row records, such as an upload that landed after its task stopped, goes too.
@@ -366,19 +406,11 @@ The rework, in order:
    dictionary is reported on the task. The separate cache upload routes go.
    The downloader drops its cache upload path and capability, reports the info
    dictionary, and sends `torrentPath`.
-3. **Torrents lists.** StremThru tasks land only in the list; the StremThru
-   API, playback links, and eviction read list entries; the Torrents page with
-   *Save to drive* and *Remove*.
+3. **Torrents lists.** `workspace_torrents`; StremThru adds land only in the
+   list; the StremThru API, playback links, expiry, and eviction read list
+   entries; the Torrents page with *Save to drive* and *Remove*.
 
-## 15. Open decisions
-
-- **Quota for list entries.** A list entry with no drive files holds no
-  matters, so today it charges nothing; only the admin capacity and eviction
-  bound it. Charging the workspace the torrent's size per entry would bound
-  hoarding through StremThru, at the cost of charging a remote download twice
-  (its drive files and its entry) unless the two are netted.
-
-## 16. Out of scope
+## 15. Out of scope
 
 - **A ZPan Stremio addon.** An addon of ZPan's own would have to search
   torrents, through an indexer such as Prowlarr, before it could look them up.
@@ -389,7 +421,7 @@ The rework, in order:
 - **Usenet.** StremThru's Newz API serves NZB downloads, which have no
   infoHash. Supporting them needs a different key.
 
-## 17. References
+## 16. References
 
 - [StremThru Store API](https://docs.stremthru.13377001.xyz/api/store) and
   [Torz API](https://docs.stremthru.13377001.xyz/api/torz)
