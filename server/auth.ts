@@ -873,21 +873,21 @@ export async function createAuth(
               const siteInvitationToken = (context?.body as { siteInvitationToken?: string })?.siteInvitationToken
               if (mode === SignupMode.CLOSED) {
                 if (!siteInvitationToken) {
-                  throw new Error('An invitation is required to register')
+                  throw new APIError('UNPROCESSABLE_ENTITY', { message: 'An invitation is required to register' })
                 }
                 const validation = await createSiteInvitationRepo(db).validateSiteInvitation(siteInvitationToken, email)
                 if (!validation.valid) {
-                  throw new Error(validation.error ?? 'Invalid invitation')
+                  throw new APIError('UNPROCESSABLE_ENTITY', { message: validation.error ?? 'Invalid invitation' })
                 }
               }
               if (mode === SignupMode.INVITE_ONLY) {
                 const inviteCode = (context?.body as { inviteCode?: string })?.inviteCode
                 if (!inviteCode) {
-                  throw new Error('An invite code is required to register')
+                  throw new APIError('UNPROCESSABLE_ENTITY', { message: 'An invite code is required to register' })
                 }
                 const validation = await createInviteRepo(db).validate(inviteCode)
                 if (!validation.valid) {
-                  throw new Error(validation.error ?? 'Invalid invite code')
+                  throw new APIError('UNPROCESSABLE_ENTITY', { message: validation.error ?? 'Invalid invite code' })
                 }
               }
             }

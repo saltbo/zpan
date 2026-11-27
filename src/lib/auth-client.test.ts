@@ -46,3 +46,23 @@ describe('verifyDeviceCode', () => {
     await expect(verifyDeviceCode('NOPE')).rejects.toThrow('Invalid user code')
   })
 })
+
+describe('request language', () => {
+  it('asks Better Auth for errors in the UI language [spec: error-messages/ui-language]', async () => {
+    const { default: i18n, i18nReady } = await import('@/i18n')
+    await i18nReady
+    await i18n.changeLanguage('zh')
+    try {
+      respond(401, { code: 'INVALID_EMAIL_OR_PASSWORD', message: '邮箱或密码错误' })
+      const { signIn } = await import('./auth-client')
+      const result = await signIn.email({ email: 'a@example.com', password: 'wrong-password' })
+
+      expect(result.error?.message).toBe('邮箱或密码错误')
+      const [input, init] = fetchMock.mock.calls[0] ?? []
+      const headers = input instanceof Request ? input.headers : new Headers(init?.headers)
+      expect(headers.get('Accept-Language')).toBe('zh')
+    } finally {
+      await i18n.changeLanguage('en')
+    }
+  })
+})

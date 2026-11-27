@@ -5,6 +5,7 @@ import { OAUTH_RESOURCE_SCOPES, OAUTH_SCOPE_DESCRIPTIONS } from '@shared/oauth'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { Auth } from './auth'
+import { localizeAuthErrorResponse } from './auth/error-messages'
 import { addOAuthClientRegistrationManagementOpenApi } from './auth/oauth-client-registration-management'
 import { cacheServerTiming, runWithCacheEvents } from './cache/context'
 import { createDeps } from './composition'
@@ -58,7 +59,7 @@ import webdav from './http/webdav'
 import { formatError } from './lib/errors'
 import { auditMiddleware } from './middleware/audit'
 import { authMiddleware } from './middleware/auth'
-import { isHandledError, jsonError } from './middleware/error-handler'
+import { isHandledError, jsonError, requestLanguage } from './middleware/error-handler'
 import { imageHostingDomain } from './middleware/image-hosting-domain'
 import { accessLog } from './middleware/logger'
 import { platformMiddleware } from './middleware/platform'
@@ -182,7 +183,7 @@ export function createApp(platform: Platform, auth: Auth, deps: Deps = createDep
         }
       }
     }
-    return response
+    return localizeAuthErrorResponse(response, requestLanguage(c.req.raw))
   })
 
   app.on(['GET', 'HEAD'], '/.well-known/oauth-authorization-server/api/auth', async (c) => {
