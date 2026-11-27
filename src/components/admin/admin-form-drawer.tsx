@@ -8,6 +8,7 @@ import {
   type ReactNode,
   useId,
 } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Label } from '@/components/ui/label'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
@@ -234,6 +235,7 @@ export function AdminFormLabel({
   help?: ReactNode
   className?: string
 }) {
+  const { t } = useTranslation()
   return (
     <div className="flex min-w-0 items-center gap-1.5">
       <Label htmlFor={htmlFor} className={className}>
@@ -250,7 +252,7 @@ export function AdminFormLabel({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="Help"
+                aria-label={t('common.help')}
                 className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <CircleHelp className="size-3.5" />

@@ -10,7 +10,7 @@ describe('locale key parity', () => {
     expect(enKeys.length).toBe(zhKeys.length)
   })
 
-  it('every key in en.json exists in zh.json', () => {
+  it('every key in en.json exists in zh.json [spec: language/complete-locales]', () => {
     expect(enKeys).toEqual(zhKeys)
   })
 

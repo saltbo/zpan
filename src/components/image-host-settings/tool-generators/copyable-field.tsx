@@ -1,10 +1,12 @@
 import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { ToolConfigField } from '@/lib/tool-configs'
 
 export function CopyableField({ label, value }: ToolConfigField) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
   function handleCopy() {
@@ -13,7 +15,7 @@ export function CopyableField({ label, value }: ToolConfigField) {
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
       },
-      () => toast.error('Copy failed'),
+      () => toast.error(t('common.copyFailed')),
     )
   }
 

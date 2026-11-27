@@ -1,7 +1,13 @@
 // Tests for src/components/ProBadge.tsx
 import { cleanup, render } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import i18n, { i18nReady } from '@/i18n'
 import { ProBadge } from './ProBadge'
+
+beforeAll(async () => {
+  await i18nReady
+  await i18n.changeLanguage('en')
+})
 
 afterEach(cleanup)
 

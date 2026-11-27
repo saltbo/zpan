@@ -13,7 +13,7 @@ import {
   Trash2,
   Video,
 } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { useBranding } from '@/components/branding/BrandingProvider'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -180,15 +180,20 @@ export function AppSidebar() {
       </SidebarContent>
       {!branding.hide_powered_by && (
         <div className="px-4 py-1 text-center text-[10px] text-muted-foreground/30">
-          Powered by{' '}
-          <a
-            href="https://github.com/saltbo/zpan"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="no-underline hover:underline hover:text-muted-foreground/50 transition-colors"
-          >
-            ZPan
-          </a>
+          <Trans
+            i18nKey="common.poweredBy"
+            components={{
+              repo: (
+                // biome-ignore lint/a11y/useAnchorContent: Trans fills the anchor with the localized brand name
+                <a
+                  href="https://github.com/saltbo/zpan"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="no-underline hover:underline hover:text-muted-foreground/50 transition-colors"
+                />
+              ),
+            }}
+          />
         </div>
       )}
       <QuotaPanel enabled={!!session} />

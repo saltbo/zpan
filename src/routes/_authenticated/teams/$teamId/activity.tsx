@@ -122,7 +122,7 @@ function TeamActivityPage() {
       {hasNextPage && (
         <div className="pt-2 text-center">
           <Button variant="outline" size="sm" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
-            {isFetchingNextPage ? '...' : t('activity.loadMore')}
+            {isFetchingNextPage ? t('common.loading') : t('activity.loadMore')}
           </Button>
         </div>
       )}

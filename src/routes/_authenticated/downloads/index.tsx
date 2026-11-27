@@ -772,6 +772,7 @@ function DownloadTableHead({
   onDragStart: (columnId: string | null) => void
   onDrop: (columnId: string) => void
 }) {
+  const { t } = useTranslation()
   const reorderable = isReorderableColumn(header.column.id)
 
   function handleDrop(event: ReactDragEvent<HTMLTableCellElement>) {
@@ -818,7 +819,7 @@ function DownloadTableHead({
       {canResize && (
         <button
           type="button"
-          aria-label="Resize column"
+          aria-label={t('common.resizeColumn')}
           className="absolute top-1 right-0 bottom-1 w-1 cursor-col-resize rounded-full bg-transparent hover:bg-primary/40 active:bg-primary/50"
           onClick={(event) => event.stopPropagation()}
           onMouseDown={header.getResizeHandler()}
@@ -1726,6 +1727,7 @@ function ResizableDetailTable<T>({
   rows: T[]
   rowKey: (row: T) => string
 }) {
+  const { t } = useTranslation()
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
     Object.fromEntries(columns.map((column) => [column.id, column.width])),
   )
@@ -1769,7 +1771,7 @@ function ResizableDetailTable<T>({
               <span className="block truncate">{column.label}</span>
               <button
                 type="button"
-                aria-label="Resize column"
+                aria-label={t('common.resizeColumn')}
                 className="absolute top-1 right-0 bottom-1 w-1 cursor-col-resize rounded-full bg-transparent hover:bg-primary/40 active:bg-primary/50"
                 onPointerDown={(event) => handleResizeStart(column, event)}
               />
