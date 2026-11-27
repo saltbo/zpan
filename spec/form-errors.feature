@@ -29,6 +29,12 @@ Feature: Form errors
     When the server rejects the invite
     Then its reason appears above the send button
 
+  @form-errors/site-invite @web
+  Scenario: A rejected site invitation says so under the email
+    Given an admin opens the Invite User drawer
+    When the server rejects the invite, such as email delivery not being configured
+    Then the server's message appears under the email field and the drawer stays open
+
   @form-errors/admin-drawer @web
   Scenario: An admin form shows a value the server rejects under that value's field
     Given an admin opens a settings drawer, such as the image custom-domain provider
