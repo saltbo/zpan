@@ -21,6 +21,7 @@ import type {
   TransferMatterInput,
 } from '@shared/schemas'
 import type { ObjectUploadInstructions } from '@shared/types'
+import { hasMediaImages, metadataWithoutImages, remapMediaImages } from '../domain/media-metadata'
 import { isTorrentKey } from '../domain/torrents'
 import { buildObjectKey, fileExt } from '../lib/path-template'
 import { resolveActorProfiles } from './audit-actors'
@@ -1301,6 +1302,9 @@ export interface CopyMatterToOrgInput {
   createdBy?: ActorIdentity
 }
 
+// A matter copied into another space, keyed in a transfer by the source's id.
+type MatterCopy = { source: Matter; copy: Matter }
+
 function buildPath(parent: string, name: string): string {
   return parent ? `${parent}/${name}` : name
 }
@@ -1351,6 +1355,7 @@ async function saveFile(
         createdByActorType: createdBy.type,
         createdByActorRef: createdBy.ref,
         createdByActorIssuer: createdBy.issuer,
+        metadata: metadataWithoutImages(sourceMatter.metadata),
       })
 
       return newMatter
@@ -1366,8 +1371,9 @@ async function saveFolderRecursive(
   currentUserId: string,
   targetOrgId: string,
   targetParent: string,
-  teamQuotaEnabled = true,
-  createdBy: ActorIdentity = { type: 'user', ref: currentUserId, issuer: null },
+  teamQuotaEnabled: boolean,
+  createdBy: ActorIdentity,
+  copies: Map<string, MatterCopy>,
 ): Promise<SaveShareResult> {
   const saved: Matter[] = []
   const skipped: Array<{ name: string; reason: string }> = []
@@ -1386,8 +1392,10 @@ async function saveFolderRecursive(
     createdByActorType: createdBy.type,
     createdByActorRef: createdBy.ref,
     createdByActorIssuer: createdBy.issuer,
+    metadata: metadataWithoutImages(sourceFolderMatter.metadata),
   })
   saved.push(rootFolder)
+  copies.set(sourceFolderMatter.id, { source: sourceFolderMatter, copy: rootFolder })
 
   const sourceRootPath = buildPath(sourceFolderMatter.parent, sourceFolderMatter.name)
   const targetRootPath = buildPath(targetParent, rootFolder.name)
@@ -1415,6 +1423,7 @@ async function saveFolderRecursive(
             createdBy,
           )
           saved.push(newFile)
+          copies.set(child.id, { source: child, copy: newFile })
         } catch (e) {
           skipped.push({ name: child.name, reason: (e as Error).message })
         }
@@ -1433,8 +1442,10 @@ async function saveFolderRecursive(
           createdByActorType: createdBy.type,
           createdByActorRef: createdBy.ref,
           createdByActorIssuer: createdBy.issuer,
+          metadata: metadataWithoutImages(child.metadata),
         })
         saved.push(newFolder)
+        copies.set(child.id, { source: child, copy: newFolder })
         queue.push({
           sourcePath: buildPath(child.parent, child.name),
           targetPath: buildPath(targetPath, newFolder.name),
@@ -1456,7 +1467,10 @@ export async function copyMatterToOrg(deps: SaveToDriveDeps, input: CopyMatterTo
   if (!sourceStorage) throw new Error('Source storage not found')
 
   const targetStorage = await deps.storages.select()
+  const identity = createdBy ?? { type: 'user', ref: currentUserId, issuer: null }
 
+  const copies = new Map<string, MatterCopy>()
+  let result: SaveShareResult
   if (sourceMatter.dirtype === DirType.FILE) {
     const newMatter = await saveFile(
       deps,
@@ -1467,22 +1481,46 @@ export async function copyMatterToOrg(deps: SaveToDriveDeps, input: CopyMatterTo
       targetOrgId,
       targetParent,
       teamQuotaEnabled,
-      createdBy,
+      identity,
     )
-    return { saved: [newMatter], skipped: [] }
+    copies.set(sourceMatter.id, { source: sourceMatter, copy: newMatter })
+    result = { saved: [newMatter], skipped: [] }
+  } else {
+    result = await saveFolderRecursive(
+      deps,
+      sourceMatter,
+      sourceStorage,
+      targetStorage,
+      currentUserId,
+      targetOrgId,
+      targetParent,
+      teamQuotaEnabled,
+      identity,
+      copies,
+    )
   }
 
-  return saveFolderRecursive(
-    deps,
-    sourceMatter,
-    sourceStorage,
-    targetStorage,
-    currentUserId,
-    targetOrgId,
-    targetParent,
-    teamQuotaEnabled,
-    createdBy,
-  )
+  await relinkMediaImages(deps, targetOrgId, copies)
+  return result
+}
+
+// The copies carried their metadata without image references, since a sidecar
+// may be copied after the video that names it. Now that every copy exists, each
+// reference points at the copy of its image; one to an image that did not travel
+// stays out, because the original lives in another space.
+async function relinkMediaImages(
+  deps: Pick<SaveToDriveDeps, 'matter'>,
+  targetOrgId: string,
+  copies: Map<string, MatterCopy>,
+): Promise<void> {
+  for (const { source, copy } of copies.values()) {
+    const media = source.metadata?.media
+    if (!media || !hasMediaImages(media)) continue
+    const remapped = remapMediaImages(media, (imageId) => copies.get(imageId)?.copy.id)
+    if (hasMediaImages(remapped)) {
+      await deps.matter.setMediaMetadata(targetOrgId, copy.id, remapped, { onlyIfAbsent: false })
+    }
+  }
 }
 
 export async function saveShareToDrive(deps: SaveToDriveDeps, input: SaveShareInput): Promise<SaveShareResult> {

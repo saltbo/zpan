@@ -526,6 +526,10 @@ Writes:
   matter id.
 - **Copy** copies the metadata. Its image references keep pointing at the
   original sidecars, which is correct while they live.
+- **Transfer** to another space, by copy or move, copies the metadata, and
+  points each image reference at the copy of that image made by the same
+  transfer. A reference to an image that did not travel is dropped, since the
+  original lives in another space (and a move purges it with the source).
 - **Overwrite** of a file's content (WebDAV `PUT`, an upload with
   `onConflict: replace`) clears its metadata, because the old match may not
   describe the new content.
