@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import en from '@/i18n/locales/en.json'
+import zh from '@/i18n/locales/zh.json'
 import { CreatedKeyDialog } from '../../settings/api-keys'
 import { StremThruSettingsPage } from './stremthru'
 
@@ -69,6 +71,20 @@ describe('Workspace StremThru settings', () => {
 
     expect(screen.getByTestId('mediafusion-token').textContent).toBe(`${ADDRESS}|torbox:zp_secret`)
     expect(screen.getAllByRole('button', { name: 'settings.apiKeys.copy' })).toHaveLength(2)
+  })
+
+  it('tells users to leave the MediaFusion Backend Store unselected [spec: torrents/stremthru-settings]', () => {
+    // A selected store such as TorBox makes MediaFusion read that store's
+    // instance-wide debrid cache instead of asking this workspace (#770).
+    renderPage(<StremThruSettingsPage />)
+    expect(screen.getByText('teams.stremthru.mediaFusion.store')).toBeTruthy()
+
+    for (const locale of [en, zh] as Record<string, string>[]) {
+      for (const key of ['teams.stremthru.mediaFusion.store', 'settings.apiKeys.mediaFusionTokenHint']) {
+        expect(locale[key]).not.toMatch(/(choose|with) TorBox|选为 TorBox|选择 TorBox/)
+        expect(locale[key]).toMatch(/unselected|保持不选/)
+      }
+    }
   })
 
   it('shows the upgrade hint instead of the settings without the torrents entitlement', () => {

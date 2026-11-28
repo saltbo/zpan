@@ -285,9 +285,21 @@ API under `/stremthru`:
 - **MediaFusion**, including public instances such as ElfHosted, reads the base
   URL from its *API Token* field as `{url}|{store_name}:{store_token}`, for
   example `https://zpan.example.com/stremthru|torbox:<key>`. Its separate
-  *Service URL* field is not used, and the store name must be one it lists
-  (Real-Debrid, Debrid-Link, AllDebrid, TorBox, Premiumize), which ZPan
-  ignores. It calls `/v0/store/torz/*` and checks hashes in batches of 80.
+  *Service URL* field is not used. The `torbox:` prefix in the token only
+  makes MediaFusion send `X-StremThru-Store-Authorization`, which ZPan
+  requires. Its *Backend Store* field must stay unselected: MediaFusion uses
+  it as the namespace of its own debrid cache, which every user of the
+  instance shares. With TorBox selected it reads `debrid_cache:torbox`,
+  written by every real TorBox user, and asks ZPan only about hashes missing
+  from it, so torrents ZPan does not have show as cached; its instance-wide
+  `debrid_checked:torbox:{media_id}` marker also skips ZPan for 30 minutes
+  after anyone checks the same title. Unselected, the namespace is
+  `stremthru`, which the instance writes only with
+  `STORE_STREMTHRU_MAGNET_CACHE` enabled (off by default). Its 30-minute
+  checked marker is still instance-wide, so on a public instance a torrent
+  that just finished can show as uncached for up to 30 minutes; only a
+  MediaFusion change can scope it to one base URL. It calls
+  `/v0/store/torz/*` and checks hashes in batches of 80.
 - **Comet** reads the base URL from the `STREMTHRU_URL` environment variable,
   so it works with ZPan only on a self-hosted Comet. It calls the older
   `/v0/store/magnets/*` paths.
