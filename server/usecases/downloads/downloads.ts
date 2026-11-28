@@ -98,7 +98,7 @@ const DOWNLOAD_TASK_TARGET_TYPE = 'download_task'
 const TASK_EVENT_PAGE_SIZE = 100
 
 const PAUSABLE_TASK_STATUSES = ['queued', 'assigned', 'downloading'] as const
-const CANCELABLE_TASK_STATUSES = [
+export const CANCELABLE_TASK_STATUSES = [
   'queued',
   'assigned',
   'downloading',

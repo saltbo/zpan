@@ -165,6 +165,8 @@ export interface MatterRepo {
   }>
   /** Distinct orgIds holding at least one trashed matter older than the cutoff (epoch ms). */
   listOrgIdsWithExpiredTrash(cutoff: number): Promise<string[]>
+  /** Up to `limit` of the org's matters not yet purged, in any status or place. */
+  listUnpurged(orgId: string, limit: number): Promise<Matter[]>
   // Conflict-resolution primitives the confirmUpload usecase composes between
   // its quota reservation and the draft→active flip.
   findActiveConflict(orgId: string, parent: string, name: string, excludeId?: string): Promise<Matter | null>

@@ -7,6 +7,7 @@ import { backgroundJobsEnabled } from '../server/platform/interface'
 import { syncPendingRemoteDownloadUsageReports } from '../server/usecases/downloads/remote-download-usage'
 import { sweepMediaLibraries } from '../server/usecases/media-library-scan'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from '../server/usecases/object'
+import { purgeDeletedOrganizations } from '../server/usecases/organization-purge'
 import { purgeExpiredResourceChanges } from '../server/usecases/resource-changes'
 import { reconcileImageDomains } from '../server/usecases/site/image-domain-provider'
 import { INSTANCE_TELEMETRY_CRON, reportInstanceTelemetry } from '../server/usecases/site/instance-telemetry'
@@ -69,6 +70,7 @@ export async function handleScheduled(event: ScheduledTrigger, env: ScheduledEnv
 
   if (event.cron === TRASH_PURGE_CRON) {
     await purgeExpiredTrash(deps, resolveTrashRetentionDays(env.ZPAN_TRASH_RETENTION_DAYS))
+    await purgeDeletedOrganizations(deps)
     return
   }
 

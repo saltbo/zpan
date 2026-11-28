@@ -25,6 +25,7 @@ import { createAuditActorDirectoryRepo } from './adapters/repos/audit-actor-dire
 import { createBackgroundJobRepo } from './adapters/repos/background-job'
 import { createCloudStoreRepo } from './adapters/repos/cloud-store'
 import { createCloudTrafficReportRepo } from './adapters/repos/cloud-traffic-report'
+import { createDeletedOrganizationRepo } from './adapters/repos/deleted-organization'
 import { createDownloadTaskRepo } from './adapters/repos/download-task'
 import { createDownloadTokenGateway } from './adapters/repos/download-tokens'
 import { createDownloaderRepo } from './adapters/repos/downloader'
@@ -102,6 +103,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     changelog: createChangelogProvider(),
     cloudStore: createCloudStoreRepo(db),
     cloudTrafficReports: createCloudTrafficReportRepo(db),
+    deletedOrganizations: createDeletedOrganizationRepo(db),
     downloaders: createDownloaderRepo(db),
     downloaderBootstrapCredentials: createDownloaderBootstrapCredentialRepo(db, downloadTokens),
     downloadTasks: createDownloadTaskRepo(db),

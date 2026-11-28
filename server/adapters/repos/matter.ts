@@ -1003,6 +1003,15 @@ export function createMatterRepo(db: Database): MatterRepo {
       return rows.map((r) => r.orgId)
     },
 
+    async listUnpurged(orgId, limit): Promise<Matter[]> {
+      const rows = await db
+        .select()
+        .from(matters)
+        .where(and(eq(matters.orgId, orgId), isNull(matters.purgedAt)))
+        .limit(limit)
+      return rows.map(toMatter)
+    },
+
     findActiveConflict(orgId, parent, name, excludeId) {
       return findActiveConflict(orgId, parent, name, excludeId)
     },

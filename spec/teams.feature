@@ -67,3 +67,19 @@ Feature: Teams
     Given more activity events than one page
     When a member requests a page and then follows its next page token
     Then each page holds at most pageSize events, newest first, with none repeated or skipped
+
+  @teams/delete-purges-space @api
+  Scenario: Deleting a team purges everything its space held
+    Given a team with files, image hostings, quota grants, download tasks, background jobs, shares and invitations
+    When its owner deletes the team
+    Then its files and images are purged and their stored objects released, freeing the storage they used
+    And its quota, quota grants, invitations, invite links and WebDAV state are removed
+    And its download tasks are deleted and its active background jobs canceled
+    And another space's data is unchanged
+
+  @teams/delete-purge-resumes @api
+  Scenario: A team purge cut short is finished later
+    Given a deleted team whose space was not fully purged
+    When the daily trash sweep runs
+    Then the team's remaining files and quota are purged
+    And a space that was never deleted as a team is left alone
