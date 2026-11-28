@@ -156,7 +156,7 @@ version that Base config lists — update or redeploy that Preview).
 #### Resetting the rows
 
 `pnpm reset:preview-jwks` codifies these steps. It only accepts the Preview D1
-(`PREVIEW_DB` / `zpan-db-staging` in `wrangler.preview-migrations.json`, which
+(`PREVIEW_DB` / `zpan-db-preview` in `wrangler.preview-migrations.json`, which
 must match `[[previews.d1_databases]]` in `wrangler.toml` and differ from every
 production D1) and refuses any other target before calling Wrangler.
 
