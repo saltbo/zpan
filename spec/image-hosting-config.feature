@@ -56,3 +56,11 @@ Feature: Provider-backed image custom domains
     Given a workspace with a Cloudflare Custom Hostname
     When image hosting is deleted
     Then the external Custom Hostname is removed
+
+  @image-hosting-config/switch-provider-cleanup-failure @api @web
+  Scenario: Switching away from a Cloudflare provider whose cleanup fails
+    Given a saved Cloudflare for SaaS provider whose API token no longer works
+    When an admin saves another provider, such as a self-managed one
+    Then the new provider is saved
+    And the admin sees a product message in the request's language saying the old Cloudflare setup could not be removed and may need to be removed in Cloudflare by hand
+    And Cloudflare's own text appears only in the server log

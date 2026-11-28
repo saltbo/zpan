@@ -19,6 +19,7 @@ import type {
   EmailSettings,
   EpisodeMediaMetadata,
   ImageDomainProviderResponse,
+  ImageDomainProviderSaveResult,
   InviteCode,
   InviteCodeListItem,
   MediaLibrary,
@@ -997,7 +998,7 @@ export function getImageDomainProvider() {
 }
 
 export function saveImageDomainProvider(data: ImageDomainProviderData) {
-  return unwrap<{ success: true }>(imageDomainProviderApi.index.$put({ json: data }))
+  return unwrap<ImageDomainProviderSaveResult>(imageDomainProviderApi.index.$put({ json: data }))
 }
 
 export function testImageDomainProvider() {

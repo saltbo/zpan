@@ -9,7 +9,7 @@ import type {
   ImageHostingConfigRepo,
   SystemOptionsRepo,
 } from '../ports'
-import { badRequest, externalError, IMAGE_DOMAIN_OPTION_KEYS } from '../ports'
+import { badRequest, type ErrorText, externalError, IMAGE_DOMAIN_OPTION_KEYS } from '../ports'
 
 export type ImageDomainProviderDeps = {
   imageDomains: ImageDomainProviderGateway
@@ -117,7 +117,7 @@ function optionEntries(input: UpdateImageDomainSettingsInput, apiToken: string |
 export async function saveImageDomainProvider(
   deps: Pick<ImageDomainProviderDeps, 'imageDomains' | 'imageHostingConfigs' | 'systemOptions' | 'cache'>,
   input: UpdateImageDomainSettingsInput,
-): Promise<void> {
+): Promise<{ warning: string | null }> {
   const previous = await deps.imageDomains.getConfig()
   const domains = await deps.imageHostingConfigs.listWithDomains()
   const existingToken = await deps.systemOptions.getValue(IMAGE_DOMAIN_OPTION_KEYS.cloudflareApiToken)
@@ -138,14 +138,7 @@ export async function saveImageDomainProvider(
         input.cloudflare.routingMode === 'origin' &&
         previousCloudflare.originHostname !== input.cloudflare.originHostname))
   const externalBindingsInvalidated = cloudflareScopeChanged || providerDisabled
-  if (externalBindingsInvalidated && previous) {
-    await Promise.all(
-      domains
-        .filter((domain) => domain.providerHostnameId)
-        .map((domain) => deps.imageDomains.deprovision(previous, domain.providerHostnameId)),
-    )
-    await deps.imageDomains.teardown(previous)
-  }
+  const warning = externalBindingsInvalidated && previous ? await removeExternalBindings(deps, previous, domains) : null
 
   await deps.systemOptions.setMany(optionEntries(input, apiToken))
   const preserveExternalIds =
@@ -156,6 +149,31 @@ export async function saveImageDomainProvider(
         !externalBindingsInvalidated))
   await deps.imageHostingConfigs.markAllDomainsPending(input.provider, preserveExternalIds)
   await Promise.all(domains.map((domain) => invalidateImageDomain(deps, domain.customDomain)))
+  return { warning }
+}
+
+const CLEANUP_FAILED: ErrorText =
+  'The previous Cloudflare setup could not be removed. Delete its custom hostnames, rewrite rule, and Worker route in Cloudflare by hand.'
+
+// The old provider's hostnames and Worker routing are removed best-effort: a token that no
+// longer works must not keep the admin from switching away from it. What could not be
+// removed is reported back as a product message; Cloudflare's own text goes to the log.
+async function removeExternalBindings(
+  deps: Pick<ImageDomainProviderDeps, 'imageDomains'>,
+  previous: ImageDomainProviderConfig,
+  domains: ImageHostingConfigRecord[],
+): Promise<string | null> {
+  const results = await Promise.allSettled([
+    ...domains
+      .filter((domain) => domain.providerHostnameId)
+      .map((domain) => deps.imageDomains.deprovision(previous, domain.providerHostnameId)),
+    deps.imageDomains.teardown(previous),
+  ])
+  const failures = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+  for (const failure of failures) {
+    console.warn(`image_domain.provider.cleanup_failed error=${failure instanceof Error ? failure.message : failure}`)
+  }
+  return failures.length > 0 ? CLEANUP_FAILED : null
 }
 
 async function provisionDomain(

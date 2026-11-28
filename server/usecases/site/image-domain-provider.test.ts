@@ -1,3 +1,4 @@
+import type { UpdateImageDomainSettingsInput } from '@shared/schemas'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   AppError,
@@ -17,6 +18,8 @@ import {
 const PROVIDER_FAILED = 'The custom-domain provider test failed. Check its settings.'
 const DOMAIN_NOT_VERIFIED =
   'The custom domain is not verified yet. Check that its DNS record points to the target shown.'
+const CLEANUP_FAILED =
+  'The previous Cloudflare setup could not be removed. Delete its custom hostnames, rewrite rule, and Worker route in Cloudflare by hand.'
 
 function domain(overrides: Partial<ImageHostingConfigRecord> = {}): ImageHostingConfigRecord {
   return {
@@ -176,6 +179,48 @@ describe('image-domain provider settings', () => {
     expect(deps.deprovision).toHaveBeenCalledWith(cloudflareConfig, 'host-1')
     expect(deps.teardown).toHaveBeenCalledWith(cloudflareConfig)
     expect(deps.markAllDomainsPending).toHaveBeenCalledWith('cloudflare_saas', false)
+  })
+
+  it('saves another provider and warns when the old Cloudflare setup cannot be removed [spec: image-hosting-config/switch-provider-cleanup-failure]', async () => {
+    const deps = harness(cloudflareConfig)
+    deps.deprovision.mockRejectedValueOnce(new Error('Invalid API Token'))
+    deps.teardown.mockRejectedValueOnce(new Error('Invalid API Token'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const manualInput: UpdateImageDomainSettingsInput = {
+      enabled: true,
+      provider: 'manual',
+      manual: { records: [{ type: 'A', value: '192.0.2.10' }] },
+    }
+
+    await expect(saveImageDomainProvider(deps, manualInput)).resolves.toEqual({
+      warning: CLEANUP_FAILED,
+    })
+    expect(deps.teardown).toHaveBeenCalledWith(cloudflareConfig)
+    expect(deps.setMany).toHaveBeenCalledWith(
+      expect.arrayContaining([{ key: 'image_domain_provider', value: 'manual' }]),
+    )
+    expect(deps.markAllDomainsPending).toHaveBeenCalledWith('manual', false)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Invalid API Token'))
+    warn.mockRestore()
+  })
+
+  it('warns when only the Worker routing teardown fails', async () => {
+    const deps = harness(cloudflareConfig, [])
+    deps.teardown.mockRejectedValueOnce(new Error('Authentication error'))
+    vi.spyOn(console, 'warn').mockImplementationOnce(() => {})
+    await expect(
+      saveImageDomainProvider(deps, { enabled: false, provider: 'cloudflare_saas', cloudflare: workerCloudflare }),
+    ).resolves.toEqual({ warning: CLEANUP_FAILED })
+  })
+
+  it('answers without a warning when the old setup is removed', async () => {
+    await expect(
+      saveImageDomainProvider(harness(cloudflareConfig), {
+        enabled: true,
+        provider: 'manual',
+        manual: { records: [{ type: 'A', value: '192.0.2.10' }] },
+      }),
+    ).resolves.toEqual({ warning: null })
   })
 
   it('tests a manual provider and reprovisions all existing domains', async () => {
