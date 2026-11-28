@@ -1,6 +1,10 @@
 import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
-import { imageDomainProviderResponseSchema, updateImageDomainSettingsSchema } from '@shared/schemas'
+import {
+  imageDomainProviderResponseSchema,
+  saveImageDomainProviderResponseSchema,
+  updateImageDomainSettingsSchema,
+} from '@shared/schemas'
 import { requestLanguage } from '../../middleware/error-handler'
 import { requireFeature } from '../../middleware/require-feature'
 import { localizeStoredError } from '../../usecases/image-hosting/domain-errors'
@@ -39,7 +43,7 @@ const saveRoute = authRoute(
       body: { content: { 'application/json': { schema: updateImageDomainSettingsSchema } }, required: true },
     },
     responses: {
-      200: jsonContent(successSchema, 'Saved'),
+      200: jsonContent(saveImageDomainProviderResponseSchema, 'Saved'),
       400: errorResponse('Invalid provider configuration'),
     },
   },
@@ -79,8 +83,9 @@ const imageDomainProvider = app
     )
   })
   .openapi(saveRoute, async (c) => {
-    await saveImageDomainProvider(c.get('deps'), c.req.valid('json'))
-    return c.json({ success: true } as const, 200)
+    const { warning } = await saveImageDomainProvider(c.get('deps'), c.req.valid('json'))
+    c.header('Vary', 'Accept-Language', { append: true })
+    return c.json({ success: true as const, warning: localizeStoredError(warning, requestLanguage(c.req.raw)) }, 200)
   })
   .openapi(testRoute, async (c) => {
     await testImageDomainProvider(c.get('deps'))

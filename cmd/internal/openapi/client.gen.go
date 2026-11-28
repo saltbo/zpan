@@ -2092,6 +2092,21 @@ func (e PublicCaptcha1Enabled) Valid() bool {
 	}
 }
 
+// Defines values for SaveImageDomainProviderResponseSuccess.
+const (
+	SaveImageDomainProviderResponseSuccessTrue SaveImageDomainProviderResponseSuccess = true
+)
+
+// Valid indicates whether the value is a known member of the SaveImageDomainProviderResponseSuccess enum.
+func (e SaveImageDomainProviderResponseSuccess) Valid() bool {
+	switch e {
+	case SaveImageDomainProviderResponseSuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SignupMode.
 const (
 	Closed     SignupMode = "closed"
@@ -3831,13 +3846,13 @@ func (e CreateObject201JSONResponseBodyUploadWorkflowUploadUrlField) Valid() boo
 
 // Defines values for CreateObject201JSONResponseBodyUploadWorkflowVersion.
 const (
-	N1 CreateObject201JSONResponseBodyUploadWorkflowVersion = "1"
+	CreateObject201JSONResponseBodyUploadWorkflowVersionN1 CreateObject201JSONResponseBodyUploadWorkflowVersion = "1"
 )
 
 // Valid indicates whether the value is a known member of the CreateObject201JSONResponseBodyUploadWorkflowVersion enum.
 func (e CreateObject201JSONResponseBodyUploadWorkflowVersion) Valid() bool {
 	switch e {
-	case N1:
+	case CreateObject201JSONResponseBodyUploadWorkflowVersionN1:
 		return true
 	default:
 		return false
@@ -4213,21 +4228,6 @@ func (e UpsertAuthProviderJSONBodyType) Valid() bool {
 	}
 }
 
-// Defines values for SaveImageDomainProvider200JSONResponseBodySuccess.
-const (
-	SaveImageDomainProvider200JSONResponseBodySuccessTrue SaveImageDomainProvider200JSONResponseBodySuccess = true
-)
-
-// Valid indicates whether the value is a known member of the SaveImageDomainProvider200JSONResponseBodySuccess enum.
-func (e SaveImageDomainProvider200JSONResponseBodySuccess) Valid() bool {
-	switch e {
-	case SaveImageDomainProvider200JSONResponseBodySuccessTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for TestImageDomainProvider200JSONResponseBodySuccess.
 const (
 	TestImageDomainProvider200JSONResponseBodySuccessTrue TestImageDomainProvider200JSONResponseBodySuccess = true
@@ -4452,13 +4452,13 @@ func (e CreateTeamInviteLinkJSONBodyRole) Valid() bool {
 
 // Defines values for JoinTeam200JSONResponseBodyOk.
 const (
-	JoinTeam200JSONResponseBodyOkTrue JoinTeam200JSONResponseBodyOk = true
+	True JoinTeam200JSONResponseBodyOk = true
 )
 
 // Valid indicates whether the value is a known member of the JoinTeam200JSONResponseBodyOk enum.
 func (e JoinTeam200JSONResponseBodyOk) Valid() bool {
 	switch e {
-	case JoinTeam200JSONResponseBodyOkTrue:
+	case True:
 		return true
 	default:
 		return false
@@ -6629,6 +6629,15 @@ type QuotaOverviewItem struct {
 	Used                    int      `json:"used"`
 }
 
+// SaveImageDomainProviderResponse defines model for SaveImageDomainProviderResponse.
+type SaveImageDomainProviderResponse struct {
+	Success SaveImageDomainProviderResponseSuccess `json:"success"`
+	Warning *string                                `json:"warning"`
+}
+
+// SaveImageDomainProviderResponseSuccess defines model for SaveImageDomainProviderResponse.Success.
+type SaveImageDomainProviderResponseSuccess bool
+
 // SaveShareResult defines model for SaveShareResult.
 type SaveShareResult struct {
 	Saved []struct {
@@ -8192,9 +8201,6 @@ type GenerateInviteCodesJSONBody struct {
 type ValidateInviteCodeJSONBody struct {
 	Code string `json:"code"`
 }
-
-// SaveImageDomainProvider200JSONResponseBodySuccess defines parameters for SaveImageDomainProvider.
-type SaveImageDomainProvider200JSONResponseBodySuccess bool
 
 // TestImageDomainProvider200JSONResponseBodySuccess defines parameters for TestImageDomainProvider.
 type TestImageDomainProvider200JSONResponseBodySuccess bool
@@ -28423,10 +28429,8 @@ func (r GetImageDomainProviderResponse) ContentType() string {
 type SaveImageDomainProviderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		Success SaveImageDomainProvider200JSONResponseBodySuccess `json:"success"`
-	}
-	JSON400 *Error
+	JSON200      *SaveImageDomainProviderResponse
+	JSON400      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -37341,9 +37345,7 @@ func ParseSaveImageDomainProviderResponse(rsp *http.Response) (*SaveImageDomainP
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Success SaveImageDomainProvider200JSONResponseBodySuccess `json:"success"`
-		}
+		var dest SaveImageDomainProviderResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

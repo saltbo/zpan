@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ApiError, getImageDomainProvider, saveImageDomainProvider, testImageDomainProvider } from '@/lib/api'
@@ -96,7 +97,7 @@ vi.mock('react-i18next', () => ({
     },
   }),
 }))
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
 vi.mock('@/lib/api', async (importOriginal) => ({
   ApiError: (await importOriginal<typeof import('@/lib/api')>()).ApiError,
   getImageDomainProvider: vi.fn(),
@@ -141,7 +142,7 @@ function renderSection() {
 
 beforeEach(() => {
   vi.mocked(getImageDomainProvider).mockResolvedValue(response)
-  vi.mocked(saveImageDomainProvider).mockResolvedValue({ success: true })
+  vi.mocked(saveImageDomainProvider).mockResolvedValue({ success: true, warning: null })
   vi.mocked(testImageDomainProvider).mockResolvedValue({ success: true })
   vi.stubGlobal(
     'ResizeObserver',
@@ -236,6 +237,26 @@ describe('ImageDomainProviderSection', () => {
 
     expect((await view.findByRole('alert')).textContent).toBe('Provider unavailable')
     expect(view.getByLabelText('DNS records').getAttribute('aria-invalid')).toBeNull()
+  })
+
+  it('confirms a save without a cleanup warning', async () => {
+    const view = renderSection()
+    fireEvent.click(await view.findByRole('button', { name: 'Edit' }))
+    fireEvent.click(view.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledOnce())
+    expect(toast.warning).not.toHaveBeenCalled()
+  })
+
+  it('shows the server warning when the old Cloudflare setup could not be removed [spec: image-hosting-config/switch-provider-cleanup-failure]', async () => {
+    const warning = 'The previous Cloudflare setup could not be removed.'
+    vi.mocked(saveImageDomainProvider).mockResolvedValue({ success: true, warning })
+    const view = renderSection()
+    fireEvent.click(await view.findByRole('button', { name: 'Edit' }))
+    fireEvent.click(view.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(toast.warning).toHaveBeenCalledWith('Saved', expect.objectContaining({ description: warning })),
+    )
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('runs the provider test action', async () => {

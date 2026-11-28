@@ -152,10 +152,12 @@ export function ImageDomainProviderSection() {
         manual: { records: parseRecords(form.records) },
       })
     },
-    onSuccess: () => {
+    onSuccess: ({ warning }) => {
       queryClient.invalidateQueries({ queryKey })
       setOpen(false)
-      toast.success(t('admin.imageDomains.saved'))
+      // The old provider's setup could not be removed: keep the server's message up long enough to act on.
+      if (warning) toast.warning(t('admin.imageDomains.saved'), { description: warning, duration: 20_000 })
+      else toast.success(t('admin.imageDomains.saved'))
     },
   })
   const fieldError = serverFieldError(saveMutation.error, SERVER_FIELDS)

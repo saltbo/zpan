@@ -35,6 +35,7 @@ import type {
   RedeemGiftCardResponse,
   ReplaceStorageInput,
   ReplaceTorrentSettingsInput,
+  SaveImageDomainProviderResponse,
   ShareObjectItem,
   ShareObjectsResponse,
   ShareReadmeResponse,
@@ -997,7 +998,7 @@ export function getImageDomainProvider() {
 }
 
 export function saveImageDomainProvider(data: ImageDomainProviderData) {
-  return unwrap<{ success: true }>(imageDomainProviderApi.index.$put({ json: data }))
+  return unwrap<SaveImageDomainProviderResponse>(imageDomainProviderApi.index.$put({ json: data }))
 }
 
 export function testImageDomainProvider() {

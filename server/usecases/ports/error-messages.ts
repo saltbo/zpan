@@ -274,6 +274,8 @@ export const ZH_ERROR_MESSAGES = {
     'Cloudflare 拒绝了此 API 令牌，请确认令牌有效且拥有此区域所需的权限。',
   'The custom domain is not verified yet. Check that its DNS record points to the target shown.':
     '自定义域名尚未通过验证，请检查其 DNS 记录是否指向所示目标。',
+  'The previous Cloudflare setup could not be removed. Delete its custom hostnames, rewrite rule, and Worker route in Cloudflare by hand.':
+    '无法移除之前的 Cloudflare 配置，请在 Cloudflare 中手动删除其自定义主机名、重写规则和 Worker 路由。',
 
   // Admin analytics
   'admin analytics uses UTC calendar boundaries': '管理统计按 UTC 日历边界计算',
