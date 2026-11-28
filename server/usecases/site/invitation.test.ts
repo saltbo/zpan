@@ -97,29 +97,25 @@ describe('site-invitation usecase', () => {
       expect(sentHtml).toContain('https://app.example.com/sign-up?invite=tok-1')
     })
 
-    it('returns conflict naming an existing invitation without sending [spec: error-messages/exception-text]', async () => {
-      const { deps, send } = makeDeps({
-        siteInvitations: {
-          createSiteInvitation: async () => {
-            throw new Error('A pending invitation already exists for this email')
-          },
-        },
-      })
+    it.each([
+      ['pending_exists', 'A pending invitation already exists for this email', '该邮箱已有待接受的邀请'],
+      ['user_exists', 'A user with this email already exists', '该邮箱已注册'],
+    ] as const)('answers the %s conflict with 409 without sending [spec: site-invitations/duplicate]', async (result, en, zh) => {
+      const { deps, send } = makeDeps({ siteInvitations: { createSiteInvitation: async () => result } })
       const out = await createSiteInvitation(deps, platform, {
         userId: 'u1',
         email: 'dupe@example.com',
         requestUrl: 'https://app.example.com/api/admin/site-invitations',
       })
-      expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
       expect(out.error.httpStatus).toBe(409)
-      expect(out.error.message).toBe('A pending invitation already exists for this email')
-      expect(out.error.localizedMessage('zh')).toBe('该邮箱已有待接受的邀请')
+      expect(out.error.message).toBe(en)
+      expect(out.error.localizedMessage('zh')).toBe(zh)
       expect(send).not.toHaveBeenCalled()
     })
 
-    it('answers an unexpected failure with a product message and keeps its text for the log [spec: error-messages/exception-text]', async () => {
-      const { deps } = makeDeps({
+    it('answers a failure to save with 500 and a product message, keeping its text for the log [spec: error-messages/exception-text]', async () => {
+      const { deps, send } = makeDeps({
         siteInvitations: {
           createSiteInvitation: async () => {
             throw new Error('D1_ERROR: database is locked')
@@ -132,11 +128,13 @@ describe('site-invitation usecase', () => {
         requestUrl: 'https://app.example.com/api/admin/site-invitations',
       })
       if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(500)
       expect(out.error.message).toBe('Failed to create invitation')
       expect(out.error.meta.diagnostics?.message).toBe('D1_ERROR: database is locked')
+      expect(send).not.toHaveBeenCalled()
     })
 
-    it('falls back to a default message when a non-Error is thrown', async () => {
+    it('answers a non-Error failure with 500 and the default message', async () => {
       const { deps } = makeDeps({
         siteInvitations: {
           createSiteInvitation: async () => {
@@ -146,12 +144,11 @@ describe('site-invitation usecase', () => {
       })
       const out = await createSiteInvitation(deps, platform, {
         userId: 'u1',
-        email: 'dupe@example.com',
+        email: 'new@example.com',
         requestUrl: 'https://app.example.com/api/admin/site-invitations',
       })
-      expect(out.ok).toBe(false)
       if (out.ok) throw new Error('expected failure')
-      expect(out.error.httpStatus).toBe(409)
+      expect(out.error.httpStatus).toBe(500)
       expect(out.error.message).toBe('Failed to create invitation')
     })
 

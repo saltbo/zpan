@@ -242,6 +242,7 @@ describe('registration gate — closed mode', () => {
       .where(eq(authSchema.user.email, 'first@example.com'))
       .limit(1)
     const invitation = await createSiteInvitationRepo(ctx.db).createSiteInvitation(admin.id, 'invited@example.com')
+    if (typeof invitation === 'string') throw new Error(invitation)
 
     const res = await signUp(ctx, 'invited@example.com', { siteInvitationToken: invitation.token })
 
@@ -258,6 +259,7 @@ describe('registration gate — closed mode', () => {
       .where(eq(authSchema.user.email, 'first@example.com'))
       .limit(1)
     const invitation = await createSiteInvitationRepo(ctx.db).createSiteInvitation(admin.id, 'invited@example.com')
+    if (typeof invitation === 'string') throw new Error(invitation)
 
     const res = await signUp(ctx, 'invited@example.com', { siteInvitationToken: invitation.token })
     const body = (await res.json()) as { user: { id: string } }
@@ -281,6 +283,7 @@ describe('registration gate — closed mode', () => {
       .where(eq(authSchema.user.email, 'first@example.com'))
       .limit(1)
     const invitation = await createSiteInvitationRepo(ctx.db).createSiteInvitation(admin.id, 'invited@example.com')
+    if (typeof invitation === 'string') throw new Error(invitation)
 
     const res = await signUp(ctx, 'other@example.com', { siteInvitationToken: invitation.token })
 

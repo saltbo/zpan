@@ -43,6 +43,20 @@ Feature: Site invitations
     When an admin invites the same email again
     Then the API responds 409
 
+  @site-invitations/existing-user @api
+  Scenario: Inviting the email of an existing user is rejected
+    Given a user registered with an email
+    When an admin invites that email
+    Then the API responds 409 saying a user with this email already exists
+    And no invitation is created
+
+  @site-invitations/save-failure @api
+  Scenario: An invitation that cannot be saved is a server error, not a conflict
+    Given an email with no user and no pending invitation
+    When an admin invites it and the invitation cannot be saved
+    Then the API responds 500 with a product message
+    And the failure's own text appears only in the server log
+
   @site-invitations/by-token @api
   Scenario: An invitation can be fetched by token
     Given an existing invitation

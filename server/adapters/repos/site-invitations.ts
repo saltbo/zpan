@@ -5,7 +5,7 @@ import { generateId, generateToken } from '../../../shared/ids'
 import * as authSchema from '../../db/auth-schema'
 import { siteInvitations, systemOptions } from '../../db/schema'
 import type { Database } from '../../platform/interface'
-import type { KeysetPage, KeysetPageOpts, SiteInvitationRepo } from '../../usecases/ports'
+import type { CreateSiteInvitationResult, KeysetPage, KeysetPageOpts, SiteInvitationRepo } from '../../usecases/ports'
 import { afterCreatedAtId, keysetPage } from './keyset'
 
 const SITE_INVITE_EXPIRY_MS = 1000 * 60 * 60 * 24 * 7
@@ -70,7 +70,11 @@ async function listSiteInvitations(db: Database, opts: KeysetPageOpts): Promise<
   return { items: page.rows.map(mapInvitation), nextBoundary: page.next }
 }
 
-async function createSiteInvitation(db: Database, adminUserId: string, rawEmail: string): Promise<SiteInvitation> {
+async function createSiteInvitation(
+  db: Database,
+  adminUserId: string,
+  rawEmail: string,
+): Promise<CreateSiteInvitationResult> {
   const email = normalizeEmail(rawEmail)
   const now = new Date()
 
@@ -79,7 +83,7 @@ async function createSiteInvitation(db: Database, adminUserId: string, rawEmail:
     .from(authSchema.user)
     .where(eq(authSchema.user.email, email))
     .limit(1)
-  if (existingUser) throw new Error('A user with this email already exists')
+  if (existingUser) return 'user_exists'
 
   const [pendingInvite] = await db
     .select()
@@ -94,7 +98,7 @@ async function createSiteInvitation(db: Database, adminUserId: string, rawEmail:
     )
     .orderBy(desc(siteInvitations.createdAt))
     .limit(1)
-  if (pendingInvite) throw new Error('A pending invitation already exists for this email')
+  if (pendingInvite) return 'pending_exists'
 
   const row: typeof siteInvitations.$inferInsert = {
     id: generateId(),
