@@ -9,9 +9,11 @@ import type { Platform } from '../../platform/interface'
 import {
   AppError,
   badRequest,
+  type CreateSiteInvitationResult,
   conflict,
   type EmailGateway,
   externalError,
+  internalError,
   type KeysetPage,
   type KeysetPageOpts,
   notFound,
@@ -23,8 +25,8 @@ export type SiteInvitationDeps = {
   email: EmailGateway
 }
 
-// createSiteInvitation returns a 409 carrying the repo's message on a duplicate
-// pending invite. Both create and resend return emailNotConfigured() when email
+// createSiteInvitation returns a 409 when a user or a pending invitation already
+// has the email, and a 500 when the invitation cannot be saved. Both create and resend return emailNotConfigured() when email
 // delivery is disabled or unconfigured, before any invitation row changes.
 export type CreateSiteInvitationOutcome = { ok: true; invitation: SiteInvitation } | { ok: false; error: AppError }
 
@@ -89,12 +91,16 @@ export async function createSiteInvitation(
   // Check email before creating, so a missing mailer never leaves an invitation
   // row behind.
   if (!(await deps.email.isConfigured(platform))) return { ok: false, error: emailNotConfigured() }
-  let invitation: SiteInvitation
+  let invitation: CreateSiteInvitationResult
   try {
     invitation = await deps.siteInvitations.createSiteInvitation(userId, email)
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error)
-    return { ok: false, error: externalError(conflict, text, 'Failed to create invitation') }
+    return { ok: false, error: externalError(internalError, text, 'Failed to create invitation') }
+  }
+  if (invitation === 'user_exists') return { ok: false, error: conflict('A user with this email already exists') }
+  if (invitation === 'pending_exists') {
+    return { ok: false, error: conflict('A pending invitation already exists for this email') }
   }
   await sendSiteInvitationEmail(deps, platform, requestUrl, invitation)
   return { ok: true, invitation }

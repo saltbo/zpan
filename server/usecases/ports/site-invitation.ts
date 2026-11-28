@@ -1,6 +1,9 @@
 import type { SiteInvitation } from '@shared/types'
 import type { KeysetPage, KeysetPageOpts } from './pagination'
 
+// The two conflicts that refuse a new invitation; any other failure throws.
+export type CreateSiteInvitationResult = SiteInvitation | 'user_exists' | 'pending_exists'
+
 export type ResendSiteInvitationResult = SiteInvitation | 'not_found' | 'already_accepted' | 'already_revoked'
 
 export type RevokeSiteInvitationResult = 'ok' | 'not_found' | 'already_accepted' | 'already_revoked'
@@ -10,7 +13,7 @@ export type AcceptSiteInvitationResult = 'ok' | 'not_found' | 'revoked' | 'accep
 export interface SiteInvitationRepo {
   getSiteName(): Promise<string>
   listSiteInvitations(opts: KeysetPageOpts): Promise<KeysetPage<SiteInvitation>>
-  createSiteInvitation(adminUserId: string, rawEmail: string): Promise<SiteInvitation>
+  createSiteInvitation(adminUserId: string, rawEmail: string): Promise<CreateSiteInvitationResult>
   resendSiteInvitation(invitationId: string): Promise<ResendSiteInvitationResult>
   revokeSiteInvitation(invitationId: string, adminUserId: string): Promise<RevokeSiteInvitationResult>
   getSiteInvitationByToken(token: string): Promise<SiteInvitation | null>
