@@ -298,6 +298,13 @@ const streamChunkRoute = authRoute(
   },
 )
 
+// The downloader a downloader-credential route runs for.
+function downloaderIdOf(c: { get(name: 'principal'): Env['Variables']['principal'] }): string {
+  const principal = c.get('principal')
+  if (principal?.kind !== 'downloader') throw unauthorized()
+  return principal.downloaderId
+}
+
 const downloadTasksRoute = createRouter()
   .openapi(listRoute, async (c) => {
     const query = c.req.valid('query')
@@ -374,18 +381,14 @@ const downloadTasksRoute = createRouter()
     return c.body(null, 204)
   })
   .openapi(streamStateRoute, async (c) => {
-    const principal = c.get('principal')
-    if (principal?.kind !== 'downloader') throw unauthorized()
     const taskId = c.req.valid('param').id
-    return c.json(await getTaskStreamState(c.get('deps'), { taskId, downloaderId: principal.downloaderId }), 200)
+    return c.json(await getTaskStreamState(c.get('deps'), { taskId, downloaderId: downloaderIdOf(c) }), 200)
   })
   .openapi(streamChunkRoute, async (c) => {
-    const principal = c.get('principal')
-    if (principal?.kind !== 'downloader') throw unauthorized()
     const { id: taskId, firstPiece } = c.req.valid('param')
     const bytes = new Uint8Array(await c.req.arrayBuffer())
     return c.json(
-      await putTaskStreamChunk(c.get('deps'), { taskId, downloaderId: principal.downloaderId, firstPiece, bytes }),
+      await putTaskStreamChunk(c.get('deps'), { taskId, downloaderId: downloaderIdOf(c), firstPiece, bytes }),
       201,
     )
   })

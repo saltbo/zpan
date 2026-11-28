@@ -27,4 +27,19 @@ describe('stream tokens', () => {
     expect(await decodeStreamToken(platform(), `${token}.extra`)).toBeNull()
     expect(await decodeStreamToken(platform(), 'garbage')).toBeNull()
   })
+
+  it('needs the auth secret, and refuses a signed payload without an expiry', async () => {
+    await expect(encodeStreamToken(platform(''), 'file-1', new Date())).rejects.toThrow('BETTER_AUTH_SECRET')
+    const payload = Buffer.from('file-1').toString('base64url')
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode('zpan:torrent-stream:v1:test-secret'),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    )
+    const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload))
+    const token = `${payload}.${Buffer.from(signature).toString('base64url')}`
+    expect(await decodeStreamToken(platform(), token)).toBeNull()
+  })
 })

@@ -36,17 +36,12 @@ export async function decodeStreamToken(
 ): Promise<{ torrentFileId: string } | null> {
   const [payload, signature, extra] = token.split('.')
   if (!payload || !signature || extra !== undefined) return null
-  let valid = false
-  try {
-    valid = await crypto.subtle.verify(
-      'HMAC',
-      await signingKey(platform),
-      new Uint8Array(Buffer.from(signature, 'base64url')),
-      new TextEncoder().encode(payload),
-    )
-  } catch {
-    return null
-  }
+  const valid = await crypto.subtle.verify(
+    'HMAC',
+    await signingKey(platform),
+    new Uint8Array(Buffer.from(signature, 'base64url')),
+    new TextEncoder().encode(payload),
+  )
   if (!valid) return null
   const [torrentFileId, expires] = Buffer.from(payload, 'base64url').toString('utf8').split('.')
   if (!torrentFileId || !expires || Number(expires) < now) return null
