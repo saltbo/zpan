@@ -71,6 +71,11 @@ type CloudflareWorkerRoute = {
 const IMAGE_PATH_PREFIX = '/ih'
 const IMAGE_REWRITE_RULE_REF = 'zpan_image_hosting_rewrite'
 const IMAGE_WORKER_ROUTE = `*${IMAGE_PATH_PREFIX}/*`
+// The setup failures an admin can fix are thrown as catalog messages, which the use
+// case shows as they are. Cloudflare's own text maps to a generic message there.
+const FALLBACK_ORIGIN_PENDING = 'The Cloudflare fallback origin is still being set up. Wait a moment and test again.'
+const TOKEN_REFUSED =
+  'Cloudflare refused the API token. Check that it is valid and has the permissions this zone needs.'
 
 function cloudflareError(body: CloudflareEnvelope<unknown>, fallback: string): string {
   return (
@@ -105,10 +110,12 @@ async function cloudflareRequest<T>(
   })
   const body = (await response.json()) as CloudflareEnvelope<T>
   if (!response.ok || !body.success) {
-    throw new CloudflareRequestError(
-      cloudflareError(body, `Cloudflare request failed (${response.status})`),
-      response.status,
-    )
+    const message = cloudflareError(body, `Cloudflare request failed (${response.status})`)
+    if (response.status === 401 || response.status === 403) {
+      console.warn(`image_domain.cloudflare.refused status=${response.status} error=${message}`)
+      throw new CloudflareRequestError(TOKEN_REFUSED, response.status)
+    }
+    throw new CloudflareRequestError(message, response.status)
   }
   return body
 }
@@ -197,7 +204,7 @@ function isHostnameInZone(hostname: string, zoneName: string): boolean {
 async function ensureCnameTarget(config: CloudflareConfig, zoneName: string, fallbackOrigin: string | null) {
   const target = config.cnameTarget.toLowerCase()
   if (!isHostnameInZone(target, zoneName)) {
-    throw new Error(`Cloudflare CNAME target must be inside the ${zoneName} zone`)
+    throw new Error(`The CNAME target must be a hostname inside the Cloudflare zone ${zoneName}`)
   }
 
   const records = await cloudflareRequest<CloudflareDnsRecord[]>(
@@ -206,13 +213,13 @@ async function ensureCnameTarget(config: CloudflareConfig, zoneName: string, fal
   )
   const existing = records.result[0]
   if (existing) {
-    if (!existing.proxied) throw new Error(`Cloudflare DNS record ${target} must be proxied`)
+    if (!existing.proxied) throw new Error(`Turn on the Cloudflare proxy for the DNS record ${target}`)
     if (
       fallbackOrigin &&
       target !== fallbackOrigin &&
       (existing.type !== 'CNAME' || existing.content !== fallbackOrigin)
     ) {
-      throw new Error(`Cloudflare DNS record ${target} must be a CNAME to ${fallbackOrigin}`)
+      throw new Error(`Change the DNS record ${target} to a CNAME that points to ${fallbackOrigin}`)
     }
     return
   }
@@ -229,17 +236,17 @@ async function ensureCnameTarget(config: CloudflareConfig, zoneName: string, fal
 
 async function requireProxiedOrigin(config: CloudflareConfig, zoneName: string, hostname: string): Promise<void> {
   if (!isHostnameInZone(hostname, zoneName)) {
-    throw new Error(`Cloudflare origin hostname must be inside the ${zoneName} zone`)
+    throw new Error(`The origin hostname must be inside the Cloudflare zone ${zoneName}`)
   }
   const records = await cloudflareRequest<CloudflareDnsRecord[]>(
     config,
     `/dns_records?name=${encodeURIComponent(hostname)}&per_page=100`,
   )
   const record = records.result[0]
-  if (!record) throw new Error(`Cloudflare origin DNS record ${hostname} does not exist`)
-  if (!record.proxied) throw new Error(`Cloudflare origin DNS record ${hostname} must be proxied`)
+  if (!record) throw new Error(`Add a proxied DNS record for the origin hostname ${hostname} in Cloudflare`)
+  if (!record.proxied) throw new Error(`Turn on the Cloudflare proxy for the DNS record ${hostname}`)
   if (record.type !== 'A' && record.type !== 'AAAA' && record.type !== 'CNAME') {
-    throw new Error(`Cloudflare origin DNS record ${hostname} must be A, AAAA, or CNAME`)
+    throw new Error(`The DNS record ${hostname} must be an A, AAAA, or CNAME record`)
   }
 }
 
@@ -260,9 +267,7 @@ async function ensureFallbackOrigin(config: CloudflareConfig, zoneName: string):
     body: JSON.stringify({ origin: config.cnameTarget }),
   })
   if (result.result.status !== 'active') {
-    throw new Error(
-      `Cloudflare fallback origin setup is ${result.result.status ?? 'pending'}; wait a moment and test again`,
-    )
+    throw new Error(FALLBACK_ORIGIN_PENDING)
   }
 }
 
@@ -286,9 +291,7 @@ async function ensureExternalFallbackOrigin(
       body: JSON.stringify({ origin }),
     })
     if (result.result.status !== 'active') {
-      throw new Error(
-        `Cloudflare fallback origin setup is ${result.result.status ?? 'pending'}; wait a moment and test again`,
-      )
+      throw new Error(FALLBACK_ORIGIN_PENDING)
     }
   }
 
@@ -374,7 +377,7 @@ async function ensureImageWorkerRoute(config: Extract<CloudflareConfig, { routin
   if (existing?.script === config.workerName) return
   if (existing) {
     throw new Error(
-      `Cloudflare Worker route ${IMAGE_WORKER_ROUTE} is already assigned to ${existing.script ?? 'no script'}`,
+      `The Cloudflare Worker route ${IMAGE_WORKER_ROUTE} is already in use. Remove that route and test again.`,
     )
   }
   await cloudflareRequest<CloudflareWorkerRoute>(config, '/workers/routes', {

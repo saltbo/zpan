@@ -250,13 +250,54 @@ describe('image domain provider gateway', () => {
 
   it('reports Cloudflare API failures without swallowing them', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ success: false, errors: [{ code: 1000, message: 'token rejected' }] }), {
+      new Response(JSON.stringify({ success: false, errors: [{ code: 1000, message: 'zone is locked' }] }), {
+        status: 500,
+      }),
+    )
+    const gateway = createImageDomainProviderGateway(options(cloudflareValues))
+    const config = await gateway.getConfig()
+    await expect(gateway.test(config!.settings)).rejects.toThrow('zone is locked')
+  })
+
+  it('asks for a working API token when Cloudflare refuses it [spec: error-messages/image-domain-status]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ success: false, errors: [{ code: 10000, message: 'Authentication error' }] }), {
         status: 403,
       }),
     )
     const gateway = createImageDomainProviderGateway(options(cloudflareValues))
     const config = await gateway.getConfig()
-    await expect(gateway.test(config!.settings)).rejects.toThrow('token rejected')
+    await expect(gateway.test(config!.settings)).rejects.toThrow(
+      'Cloudflare refused the API token. Check that it is valid and has the permissions this zone needs.',
+    )
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Authentication error'))
+  })
+
+  it('asks to turn on the proxy for an unproxied CNAME target [spec: error-messages/image-domain-status]', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: { name: 'example.com' } }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: { origin: 'ssl.example.com', status: 'active' } }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: [{ id: 'dns-1', type: 'CNAME', name: 'ssl.example.com', content: 'x', proxied: false }],
+          }),
+          { status: 200 },
+        ),
+      )
+    const gateway = createImageDomainProviderGateway(options(cloudflareValues))
+    const config = await gateway.getConfig()
+    await expect(gateway.test(config!.settings)).rejects.toThrow(
+      'Turn on the Cloudflare proxy for the DNS record ssl.example.com',
+    )
   })
 
   it('reuses an active Cloudflare setup without creating duplicate resources', async () => {
@@ -409,7 +450,7 @@ describe('image domain provider gateway', () => {
     const gateway = createImageDomainProviderGateway(options(cloudflareValues))
     const config = await gateway.getConfig()
     await expect(gateway.test(config!.settings)).rejects.toThrow(
-      'Cloudflare fallback origin setup is pending; wait a moment and test again',
+      'The Cloudflare fallback origin is still being set up. Wait a moment and test again.',
     )
   })
 

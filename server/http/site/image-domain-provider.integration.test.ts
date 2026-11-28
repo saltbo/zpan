@@ -65,6 +65,29 @@ describe('Admin image-domain provider API', () => {
     })
   })
 
+  it('shows the stored provider error as a product message in the request language [spec: error-messages/image-domain-status]', async () => {
+    const { app, db, deps } = await createTestApp()
+    await seedProLicense(db)
+    const headers = { ...(await adminHeaders(app)), 'Accept-Language': 'zh-CN' }
+    await app.request('/api/site/settings/image-domains', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(manualSettings),
+    })
+    const read = async (error: string) => {
+      await deps.systemOptions.setMany([{ key: 'image_domain_error', value: error }])
+      const response = await app.request('/api/site/settings/image-domains', { headers })
+      expect(response.headers.get('Vary')).toContain('Accept-Language')
+      return ((await response.json()) as { status: string; error: string }).error
+    }
+
+    // Stored before this rule: the provider's own text.
+    await expect(read('fallback origin inactive')).resolves.toBe('自定义域名服务测试失败，请检查其设置。')
+    await expect(read('Turn on the Cloudflare proxy for the DNS record ssl.example.com')).resolves.toBe(
+      '请为 DNS 记录 ssl.example.com 开启 Cloudflare 代理',
+    )
+  })
+
   it('returns a validation error for an invalid manual DNS record', async () => {
     const { app, db } = await createTestApp()
     await seedProLicense(db)

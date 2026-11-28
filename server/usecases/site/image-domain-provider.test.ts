@@ -14,6 +14,10 @@ import {
   testImageDomainProvider,
 } from './image-domain-provider'
 
+const PROVIDER_FAILED = 'The custom-domain provider test failed. Check its settings.'
+const DOMAIN_NOT_VERIFIED =
+  'The custom domain is not verified yet. Check that its DNS record points to the target shown.'
+
 function domain(overrides: Partial<ImageHostingConfigRecord> = {}): ImageHostingConfigRecord {
   return {
     orgId: 'org-1',
@@ -224,8 +228,39 @@ describe('image-domain provider settings', () => {
     expect(error.localizedMessage('zh')).toBe('自定义域名服务测试失败，请检查其设置。')
     expect(error.meta.diagnostics?.message).toBe('fallback origin inactive')
     expect(deps.setMany).toHaveBeenCalledWith(
-      expect.arrayContaining([{ key: 'image_domain_error', value: 'fallback origin inactive' }]),
+      expect.arrayContaining([{ key: 'image_domain_error', value: PROVIDER_FAILED }]),
     )
+  })
+
+  it('stores a failure the admin can fix as its own message [spec: error-messages/image-domain-status]', async () => {
+    const deps = harness(cloudflareConfig)
+    deps.imageDomains.test = async () => {
+      throw new Error('Turn on the Cloudflare proxy for the DNS record ssl.example.com')
+    }
+    const error = (await testImageDomainProvider(deps).catch((e: unknown) => e)) as AppError
+    expect(error.localizedMessage('zh')).toBe('请为 DNS 记录 ssl.example.com 开启 Cloudflare 代理')
+    expect(deps.setMany).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { key: 'image_domain_error', value: 'Turn on the Cloudflare proxy for the DNS record ssl.example.com' },
+      ]),
+    )
+  })
+
+  it('shows product messages for stored provider and domain errors, including raw text stored earlier [spec: error-messages/image-domain-status]', async () => {
+    const deps = harness({ ...cloudflareConfig, error: 'fallback origin inactive' }, [
+      domain({ domainStatus: 'failed', domainError: 'custom hostname does not CNAME to this zone.' }),
+      domain({
+        orgId: 'org-2',
+        domainStatus: 'failed',
+        domainError: 'The DNS record img.example.com must be an A, AAAA, or CNAME record',
+      }),
+    ])
+    const result = await getImageDomainProvider(deps)
+    expect(result.error).toBe(PROVIDER_FAILED)
+    expect(result.domains.map((item) => item.error)).toEqual([
+      DOMAIN_NOT_VERIFIED,
+      'The DNS record img.example.com must be an A, AAAA, or CNAME record',
+    ])
   })
 
   it('rejects a provider test before configuration exists', async () => {
@@ -278,6 +313,7 @@ describe('image-domain provider settings', () => {
   })
 
   it('marks a domain failed when Cloudflare reconciliation throws', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const deps = harness(cloudflareConfig, [domain({ domainStatus: 'pending_dns' })])
     deps.imageDomains.refresh = async () => {
       throw new Error('hostname lookup failed')
@@ -287,7 +323,25 @@ describe('image-domain provider settings', () => {
 
     expect(deps.update).toHaveBeenCalledWith(
       'org-1',
-      expect.objectContaining({ domainStatus: 'failed', domainError: 'hostname lookup failed' }),
+      expect.objectContaining({ domainStatus: 'failed', domainError: DOMAIN_NOT_VERIFIED }),
+    )
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('hostname lookup failed'))
+  })
+
+  it('stores a product message in place of the provider verification text [spec: error-messages/image-domain-status]', async () => {
+    const deps = harness(cloudflareConfig, [domain({ domainStatus: 'pending_dns' })])
+    deps.imageDomains.refresh = async () => ({
+      externalId: 'host-1',
+      status: 'pending_dns',
+      dnsRecords: [],
+      error: 'custom hostname does not CNAME to this zone.',
+    })
+
+    await reconcileImageDomains(deps)
+
+    expect(deps.update).toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({ domainStatus: 'pending_dns', domainError: DOMAIN_NOT_VERIFIED }),
     )
   })
 

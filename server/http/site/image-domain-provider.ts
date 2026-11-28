@@ -1,7 +1,9 @@
 import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { imageDomainProviderResponseSchema, updateImageDomainSettingsSchema } from '@shared/schemas'
+import { requestLanguage } from '../../middleware/error-handler'
 import { requireFeature } from '../../middleware/require-feature'
+import { localizeStoredError } from '../../usecases/image-hosting/domain-errors'
 import {
   getImageDomainProvider,
   saveImageDomainProvider,
@@ -62,7 +64,20 @@ const testRoute = authRoute(
 const app = createRouter()
 
 const imageDomainProvider = app
-  .openapi(getRoute, async (c) => c.json(await getImageDomainProvider(c.get('deps')), 200))
+  .openapi(getRoute, async (c) => {
+    const provider = await getImageDomainProvider(c.get('deps'))
+    // The provider and domain errors are product messages, shown in the request's language.
+    c.header('Vary', 'Accept-Language', { append: true })
+    const language = requestLanguage(c.req.raw)
+    return c.json(
+      {
+        ...provider,
+        error: localizeStoredError(provider.error, language),
+        domains: provider.domains.map((domain) => ({ ...domain, error: localizeStoredError(domain.error, language) })),
+      },
+      200,
+    )
+  })
   .openapi(saveRoute, async (c) => {
     await saveImageDomainProvider(c.get('deps'), c.req.valid('json'))
     return c.json({ success: true } as const, 200)

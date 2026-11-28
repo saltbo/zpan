@@ -66,6 +66,15 @@ Feature: Error messages
     And a reason the product names itself, such as a missing captcha site key or an existing invitation, is still shown
     And the exception's or the provider's own text appears only in the server log
 
+  @error-messages/image-domain-status @api @web
+  Scenario: A custom-domain setup error shows a product message
+    Given an image custom-domain provider whose last test failed, or a workspace custom domain that is not verified
+    When an admin opens the provider settings, or a workspace owner opens the custom-domain settings
+    Then the error is a product sentence in the request's language, not the provider's own text
+    And a failure the admin can fix, such as a DNS record that must be proxied or a fallback origin still being set up, says what to fix
+    And any other failure, including one stored before this rule, shows a generic message
+    And the provider's own text appears only in the server log
+
   @error-messages/license-refresh @api
   Scenario: A failed license refresh shows a product message
     Given a site bound to ZPan Cloud whose last license refresh failed

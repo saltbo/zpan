@@ -256,6 +256,25 @@ export const ZH_ERROR_MESSAGES = {
   'Image custom-domain provider is not ready': '图床自定义域名服务尚未就绪',
   'Invalid certificate': '证书无效',
 
+  // Image custom-domain setup: what an admin can fix, and the message for anything else
+  'The CNAME target must be a hostname inside the Cloudflare zone {zone}':
+    'CNAME 目标必须是 Cloudflare 区域 {zone} 内的主机名',
+  'The origin hostname must be inside the Cloudflare zone {zone}': '回源主机名必须位于 Cloudflare 区域 {zone} 内',
+  'Turn on the Cloudflare proxy for the DNS record {record}': '请为 DNS 记录 {record} 开启 Cloudflare 代理',
+  'Change the DNS record {record} to a CNAME that points to {target}':
+    '请将 DNS 记录 {record} 改为指向 {target} 的 CNAME 记录',
+  'Add a proxied DNS record for the origin hostname {record} in Cloudflare':
+    '请在 Cloudflare 中为回源主机名 {record} 添加已开启代理的 DNS 记录',
+  'The DNS record {record} must be an A, AAAA, or CNAME record': 'DNS 记录 {record} 必须是 A、AAAA 或 CNAME 记录',
+  'The Cloudflare fallback origin is still being set up. Wait a moment and test again.':
+    'Cloudflare 回退源仍在设置中，请稍后再测试。',
+  'The Cloudflare Worker route {route} is already in use. Remove that route and test again.':
+    'Cloudflare Worker 路由 {route} 已被占用，请移除该路由后再测试。',
+  'Cloudflare refused the API token. Check that it is valid and has the permissions this zone needs.':
+    'Cloudflare 拒绝了此 API 令牌，请确认令牌有效且拥有此区域所需的权限。',
+  'The custom domain is not verified yet. Check that its DNS record points to the target shown.':
+    '自定义域名尚未通过验证，请检查其 DNS 记录是否指向所示目标。',
+
   // Admin analytics
   'admin analytics uses UTC calendar boundaries': '管理统计按 UTC 日历边界计算',
   'createdFrom must be before createdTo': 'createdFrom 须早于 createdTo',
