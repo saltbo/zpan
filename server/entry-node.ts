@@ -15,6 +15,7 @@ import { type DeployPlatform, setDeployPlatform } from './runtime-platform'
 import { syncPendingRemoteDownloadUsageReports } from './usecases/downloads/remote-download-usage'
 import { sweepMediaLibraries } from './usecases/media-library-scan'
 import { purgeExpiredTrash, resolveTrashRetentionDays } from './usecases/object'
+import { purgeDeletedOrganizations } from './usecases/organization-purge'
 import { purgeExpiredResourceChanges } from './usecases/resource-changes'
 import { reconcileImageDomains } from './usecases/site/image-domain-provider'
 import { buildCloudInstanceInfo, runtimeInfo } from './usecases/site/instance-info'
@@ -158,6 +159,8 @@ function purgeExpiredTrashJob(): void {
     try {
       const purged = await purgeExpiredTrash(deps, resolveTrashRetentionDays(process.env.ZPAN_TRASH_RETENTION_DAYS))
       if (purged > 0) console.log(`trash.purge.done count=${purged}`)
+      const orgs = await purgeDeletedOrganizations(deps)
+      if (orgs > 0) console.log(`org.purge.done count=${orgs}`)
     } catch (err) {
       console.error(`trash.purge.error code=${err instanceof Error ? err.message : String(err)}`)
     }

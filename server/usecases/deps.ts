@@ -16,6 +16,7 @@ import type {
   ChangelogProvider,
   CloudStoreRepo,
   CloudTrafficReportRepo,
+  DeletedOrganizationRepo,
   DownloaderBootstrapCredentialRepo,
   DownloaderRepo,
   DownloadTaskRepo,
@@ -78,6 +79,7 @@ export interface Deps {
   changelog: ChangelogProvider
   cloudStore: CloudStoreRepo
   cloudTrafficReports: CloudTrafficReportRepo
+  deletedOrganizations: DeletedOrganizationRepo
   downloaders: DownloaderRepo
   downloaderBootstrapCredentials: DownloaderBootstrapCredentialRepo
   downloadTasks: DownloadTaskRepo

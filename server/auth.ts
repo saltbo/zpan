@@ -45,6 +45,7 @@ import { generateUserOrgSlug, isPersonalOrgLike } from '../shared/org-slugs'
 import { createEmailGateway } from './adapters/gateways/email'
 import { deleteApiKeysScopedToOrganization, normalizeLegacyApiKeysForUser } from './adapters/repos/api-key-scopes'
 import { createAuditRepo } from './adapters/repos/audit'
+import { createDeletedOrganizationRepo } from './adapters/repos/deleted-organization'
 import { createDownloadTokenGateway } from './adapters/repos/download-tokens'
 import { createDownloaderBootstrapCredentialRepo } from './adapters/repos/downloader-bootstrap'
 import { createInviteRepo } from './adapters/repos/invite'
@@ -61,6 +62,7 @@ import { handleOAuthClientRegistrationManagement } from './auth/oauth-client-reg
 import { oauthPushedAuthorizationRequests } from './auth/oauth-par'
 import { createOAuthProviderOptions } from './auth/oauth-provider'
 import type { AuthSecretConfig } from './auth-secrets'
+import { createDeps } from './composition'
 import * as authSchema from './db/auth-schema'
 import { orgQuotaEntitlements, orgQuotas, systemOptions } from './db/schema'
 import { executeWriteTransaction } from './db/transaction'
@@ -78,6 +80,8 @@ import { isLocalNetworkOrigin } from './lib/local-origin'
 import { hashPassword, verifyPassword as verifyPasswordHash } from './lib/password'
 import { createDbProxy, createPlatformProxy } from './platform/context'
 import type { Database, Platform } from './platform/interface'
+import { purgeDeletedOrganization } from './usecases/organization-purge'
+import type { StoredObjectRef } from './usecases/ports'
 import { loadCaptchaConfig } from './usecases/site/captcha'
 import { checkTeamLimit, getEffectiveSignupMode } from './usecases/site/licensing'
 
@@ -460,6 +464,7 @@ export async function createAuth(
   const resourceAudience = baseURL ? `${new URL(baseURL).origin}/api` : undefined
   const oauthProviderOptions = createOAuthProviderOptions({ db, resourceAudience })
   const usesNativeWebDavRateLimit = Boolean(authPlatform.getBinding(WEBDAV_RATE_LIMITER_BINDING))
+  const imageObjectsOfDeletingOrgs = new Map<string, StoredObjectRef[]>()
   // Observe-only: logs which stored JWKS row the deployed secrets cannot
   // decrypt, once per isolate, without changing the failing response.
   const jwksDecryptMonitor = createJwksDecryptMonitor({
@@ -748,8 +753,28 @@ export async function createAuth(
             const isTeam = !isPersonalOrgLike(organization)
             await createOrgQuota(db, organization.id, new Date(), isTeam)
           },
+          // Image hostings are removed with the organization by foreign key, so
+          // their objects are read first and released by the purge after it.
+          beforeDeleteOrganization: async ({ organization }) => {
+            imageObjectsOfDeletingOrgs.set(
+              organization.id,
+              await createDeletedOrganizationRepo(db).listImageHostingObjects(organization.id),
+            )
+          },
           afterDeleteOrganization: async ({ organization }) => {
             await deleteApiKeysScopedToOrganization(db, organization.id)
+            const imageObjects = imageObjectsOfDeletingOrgs.get(organization.id) ?? []
+            imageObjectsOfDeletingOrgs.delete(organization.id)
+            // Purging a large space outlasts the request; the daily trash sweep
+            // finishes a purge the background task did not.
+            const purge = purgeDeletedOrganization(createDeps(authPlatform), organization.id, imageObjects).catch(
+              (error: unknown) => {
+                console.error(
+                  `org.purge.error org=${organization.id} code=${error instanceof Error ? error.message : String(error)}`,
+                )
+              },
+            )
+            if (backgroundTaskHandler) backgroundTaskHandler(purge)
           },
           afterAcceptInvitation: async ({ user, organization }) => {
             await createNotificationRepo(db).create({
