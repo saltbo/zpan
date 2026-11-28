@@ -57,6 +57,15 @@ Feature: Site invitations
     Then the API responds 500 with a product message
     And the failure's own text appears only in the server log
 
+  @site-invitations/send-failure @api
+  Scenario: An invitation whose email cannot be sent is not kept
+    Given email delivery is configured but the email provider cannot be reached
+    When an admin invites an email address with no user and no pending invitation
+    Then the API responds 502 saying the invitation email could not be sent
+    And no pending invitation is left for that email
+    When the provider works again and the admin invites the same email
+    Then the invitation is created and sent
+
   @site-invitations/by-token @api
   Scenario: An invitation can be fetched by token
     Given an existing invitation

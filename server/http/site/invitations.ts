@@ -71,6 +71,7 @@ const createRouteDoc = authRoute(
       400: errorResponse('Email delivery is not configured'),
       401: errorResponse('Unauthorized'),
       409: errorResponse('Invitation conflict'),
+      502: errorResponse('The invitation email could not be sent; no invitation is kept'),
     },
   },
 )
@@ -88,6 +89,7 @@ const resendRoute = authRoute(
       200: jsonContent(siteInvitationSchema, 'Resent invitation'),
       400: errorResponse('Invitation is no longer pending, or email delivery is not configured'),
       404: errorResponse('Invitation not found'),
+      502: errorResponse('The invitation email could not be sent'),
     },
   },
 )

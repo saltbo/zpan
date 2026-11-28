@@ -131,6 +131,10 @@ async function createSiteInvitation(
   })
 }
 
+async function deleteSiteInvitation(db: Database, invitationId: string): Promise<void> {
+  await db.delete(siteInvitations).where(eq(siteInvitations.id, invitationId))
+}
+
 async function resendSiteInvitation(
   db: Database,
   invitationId: string,
@@ -281,6 +285,7 @@ export function createSiteInvitationRepo(db: Database): SiteInvitationRepo {
     getSiteName: () => getSiteName(db),
     listSiteInvitations: (opts) => listSiteInvitations(db, opts),
     createSiteInvitation: (adminUserId, rawEmail) => createSiteInvitation(db, adminUserId, rawEmail),
+    deleteSiteInvitation: (invitationId) => deleteSiteInvitation(db, invitationId),
     resendSiteInvitation: (invitationId) => resendSiteInvitation(db, invitationId),
     revokeSiteInvitation: (invitationId, adminUserId) => revokeSiteInvitation(db, invitationId, adminUserId),
     getSiteInvitationByToken: (token) => getSiteInvitationByToken(db, token),
