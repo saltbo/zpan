@@ -82,8 +82,8 @@ describe('BrandingSection', () => {
   it.each([
     ['logo', 'logo-upload', 413, 'Logo too large. Max 256 KB.'],
     ['favicon', 'favicon-upload', 400, 'Invalid file type for favicon'],
-    ['theme_canvas_color', 'theme-canvas', 422, 'theme_canvas_color must be a CSS hex color'],
-    ['theme_mode', 'theme-mode', 422, 'theme_mode must be preset or custom'],
+    ['theme_canvas_color', 'theme-canvas', 422, 'Enter a hex color, such as #1a73e8'],
+    ['theme_mode', 'theme-mode', 422, 'Choose a preset or a custom theme'],
   ])('shows a rejection naming %s under that field [spec: form-errors/branding]', async (field, id, status, message) => {
     await saveRejectedWith(rejection(status, message, field))
 
@@ -95,8 +95,8 @@ describe('BrandingSection', () => {
   })
 
   it('keeps a rejection naming a field the drawer does not show above the save button [spec: form-errors/branding]', async () => {
-    await saveRejectedWith(rejection(422, 'wordmark_text must be 24 characters or fewer', 'wordmark_text'))
+    await saveRejectedWith(rejection(422, 'Keep the wordmark to 24 characters or fewer', 'wordmark_text'))
 
-    expect((await screen.findByRole('alert')).textContent).toBe('wordmark_text must be 24 characters or fewer')
+    expect((await screen.findByRole('alert')).textContent).toBe('Keep the wordmark to 24 characters or fewer')
   })
 })

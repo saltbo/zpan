@@ -420,13 +420,26 @@ describe('PUT /api/site/settings/branding rejection field [spec: branding/reject
     theme_sidebar_accent_color: '#dbeafe',
     theme_ring_color: '#0f172a',
   }
-  const cases: { name: string; status: number; field: string; fill: (form: FormData) => void }[] = [
-    { name: 'an invalid theme_mode', status: 422, field: 'theme_mode', fill: (f) => f.set('theme_mode', 'dark') },
-    { name: 'an invalid theme_preset', status: 422, field: 'theme_preset', fill: (f) => f.set('theme_preset', 'nope') },
+  const cases: { name: string; status: number; field: string; message?: string; fill: (form: FormData) => void }[] = [
+    {
+      name: 'an invalid theme_mode',
+      status: 422,
+      field: 'theme_mode',
+      message: 'Choose a preset or a custom theme',
+      fill: (f) => f.set('theme_mode', 'dark'),
+    },
+    {
+      name: 'an invalid theme_preset',
+      status: 422,
+      field: 'theme_preset',
+      message: 'Choose one of the theme presets',
+      fill: (f) => f.set('theme_preset', 'nope'),
+    },
     {
       name: 'an invalid custom color',
       status: 422,
       field: 'theme_canvas_color',
+      message: 'Enter a hex color, such as #1a73e8',
       fill: (f) => {
         f.set('theme_mode', 'custom')
         for (const [k, v] of Object.entries(colors)) f.set(k, v)
@@ -437,6 +450,7 @@ describe('PUT /api/site/settings/branding rejection field [spec: branding/reject
       name: 'a custom theme missing a color',
       status: 422,
       field: 'theme_ring_color',
+      message: 'Enter a color for the custom theme',
       fill: (f) => {
         f.set('theme_mode', 'custom')
         for (const [k, v] of Object.entries(colors)) if (k !== 'theme_ring_color') f.set(k, v)
@@ -446,6 +460,7 @@ describe('PUT /api/site/settings/branding rejection field [spec: branding/reject
       name: 'a wordmark over 24 chars',
       status: 422,
       field: 'wordmark_text',
+      message: 'Keep the wordmark to 24 characters or fewer',
       fill: (f) => f.set('wordmark_text', 'x'.repeat(25)),
     },
     {
@@ -484,8 +499,28 @@ describe('PUT /api/site/settings/branding rejection field [spec: branding/reject
       c.fill(form)
       const res = await app.request('/api/site/settings/branding', { method: 'PUT', headers, body: form })
       expect(res.status).toBe(c.status)
-      const body = (await res.json()) as { error: { details: { metadata?: { field?: string } }[] } }
+      const body = (await res.json()) as {
+        error: { message: string; details: { metadata?: { field?: string } }[] }
+      }
       expect(body.error.details[0]?.metadata?.field).toBe(c.field)
+      if (c.message) expect(body.error.message).toBe(c.message)
     })
   }
+
+  it('words a theme rejection in the request language without the field name [spec: form-errors/branding]', async () => {
+    const { app, db } = await createTestApp()
+    const headers = await adminHeaders(app)
+    await seedProLicense(db)
+
+    const form = new FormData()
+    form.set('theme_canvas_color', 'blue')
+    const res = await app.request('/api/site/settings/branding', {
+      method: 'PUT',
+      headers: { ...headers, 'Accept-Language': 'zh-CN' },
+      body: form,
+    })
+    expect(res.status).toBe(422)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('请输入十六进制颜色，例如 #1a73e8')
+  })
 })

@@ -70,14 +70,14 @@ function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | T
   const mode = form.get('theme_mode')
   if (mode !== null) {
     if (mode !== 'preset' && mode !== 'custom')
-      return { ok: false, field: 'theme_mode', error: 'theme_mode must be preset or custom' }
+      return { ok: false, field: 'theme_mode', error: 'Choose a preset or a custom theme' }
     values.theme_mode = mode as BrandingThemeMode
   }
 
   const preset = form.get('theme_preset')
   if (preset !== null) {
     if (typeof preset !== 'string' || !isBrandingThemePresetId(preset)) {
-      return { ok: false, field: 'theme_preset', error: 'theme_preset is invalid' }
+      return { ok: false, field: 'theme_preset', error: 'Choose one of the theme presets' }
     }
     values.theme_preset = preset
   }
@@ -86,14 +86,14 @@ function parseThemeUpdate(form: FormData): { ok: true; values: ThemeUpdate } | T
     const value = form.get(field)
     if (value === null) continue
     if (typeof value !== 'string' || !HEX_COLOR_RE.test(value)) {
-      return { ok: false, field, error: msg('{field} must be a CSS hex color', { field }) }
+      return { ok: false, field, error: 'Enter a hex color, such as #1a73e8' }
     }
     values[field] = value
   }
 
   if (values.theme_mode === 'custom') {
     for (const field of CUSTOM_THEME_FIELDS) {
-      if (!values[field]) return { ok: false, field, error: msg('{field} is required for custom theme', { field }) }
+      if (!values[field]) return { ok: false, field, error: 'Enter a color for the custom theme' }
     }
   }
 
@@ -152,7 +152,7 @@ export const brandingAdmin = createRouter()
 
     const wordmarkRaw = form.get('wordmark_text')
     if (typeof wordmarkRaw === 'string' && wordmarkRaw.length > 24) {
-      throw new AppError(422, 'wordmark_text must be 24 characters or fewer', { metadata: { field: 'wordmark_text' } })
+      throw new AppError(422, 'Keep the wordmark to 24 characters or fewer', { metadata: { field: 'wordmark_text' } })
     }
 
     const hidePoweredByRaw = form.get('hide_powered_by')

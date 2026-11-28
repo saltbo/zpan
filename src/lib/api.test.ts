@@ -4660,9 +4660,7 @@ describe('api', () => {
     })
 
     it('throws ApiError on 422 validation failure', async () => {
-      vi.mocked(fetch).mockResolvedValueOnce(
-        makeResponse({ error: 'theme_primary_color must be a CSS hex color' }, false, 422),
-      )
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: 'Enter a hex color, such as #1a73e8' }, false, 422))
 
       await expect(
         saveBranding({
