@@ -193,4 +193,66 @@ describe('deleting a team', () => {
     expect(await leftovers(db, 'stray')).toMatchObject({ liveMatters: 1, quotas: 1 })
     expect(await purgeDeletedOrganizations(deps)).toBe(0)
   })
+
+  it('keeps purging past a task or job it cannot stop, and leaves a failed space for the next sweep', async () => {
+    const pending: Promise<unknown>[] = []
+    const { app, db, deps } = await createTestApp({}, {}, (task) => {
+      pending.push(task)
+    })
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const deleteObjects = vi.spyOn(S3Service.prototype, 'deleteObjects').mockRejectedValue(new Error('s3_down'))
+    const headers = await adminHeaders(app)
+    const now = Date.now()
+    await db.run(sql`
+      INSERT INTO storages (id, bucket, endpoint, region, access_key, secret_key, file_path, custom_host, capacity, used, status, created_at, updated_at)
+      VALUES (${STORAGE_ID}, 'bucket', 'https://s3.example.com', 'auto', 'ak', 'sk', '', '', 0, 0, 'active', ${now}, ${now})
+    `)
+    const createRes = await app.request('/api/auth/organization/create', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Stubborn Team', slug: 'stubborn-team' }),
+    })
+    const team = (await createRes.json()) as { id: string }
+    const [admin] = await db.all<{ id: string }>(sql`SELECT id FROM user WHERE email = 'admin@example.com'`)
+    await seedSpace(db, team.id, 'stub', admin.id)
+    await db.run(sql`UPDATE background_jobs SET status = 'running', cancelable = 0 WHERE org_id = ${team.id}`)
+    vi.spyOn(deps.downloadTasks, 'delete').mockRejectedValueOnce(new Error('task_gone'))
+
+    const res = await app.request('/api/auth/organization/delete', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: team.id }),
+    })
+    expect(res.status).toBe(200)
+    await Promise.all(pending)
+
+    const logged = errors.mock.calls.map(([line]) => String(line))
+    expect(logged).toEqual(
+      expect.arrayContaining([expect.stringContaining(`org.purge.error org=${team.id} code=s3_down`)]),
+    )
+    expect(await leftovers(db, team.id)).toMatchObject({ liveMatters: 3, quotas: 1 })
+
+    // The daily sweep retries it, logs the job and task it cannot stop, and
+    // finishes once storage is reachable again.
+    await db.run(sql`
+      INSERT INTO audit_events (id, org_id, user_id, action, target_type, target_id, target_name, created_at)
+      VALUES ('evt-stub', ${team.id}, NULL, 'team_delete', 'team', ${team.id}, 'Stubborn Team', ${now})
+    `)
+    await db.run(sql`
+      INSERT INTO download_tasks (id, org_id, created_by_user_id, source_type, source_uri, status, created_at, updated_at)
+      VALUES ('stub-task-2', ${team.id}, ${admin.id}, 'http', 'https://example.com/b.iso', 'completed', ${now}, ${now})
+    `)
+    expect(await purgeDeletedOrganizations(deps)).toBe(0)
+    deleteObjects.mockResolvedValue(undefined)
+    expect(await purgeDeletedOrganizations(deps)).toBe(1)
+
+    const swept = errors.mock.calls.map(([line]) => String(line))
+    expect(swept).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(`org.purge.task_error org=${team.id}`),
+        expect.stringContaining(`org.purge.job_error org=${team.id}`),
+      ]),
+    )
+    expect(await leftovers(db, team.id)).toMatchObject({ liveMatters: 0, quotas: 0, grants: 0, liveTasks: 0 })
+  })
 })
