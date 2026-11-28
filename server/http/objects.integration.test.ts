@@ -1877,6 +1877,118 @@ describe('POST /api/objects/:id/transfers', () => {
     expect(body.saved.map((m) => m.name)).toEqual(expect.arrayContaining(['Album', 'pic.png']))
   })
 
+  describe('media metadata [spec: file-metadata/transfer]', () => {
+    async function setMetadata(db: Awaited<ReturnType<typeof createTestApp>>['db'], id: string, media: unknown) {
+      await db.run(sql`UPDATE matters SET metadata = ${JSON.stringify({ media })} WHERE id = ${id}`)
+    }
+
+    async function liveMatters(db: Awaited<ReturnType<typeof createTestApp>>['db'], orgId: string) {
+      const rows = await db.all<{ id: string; name: string; metadata: string | null }>(
+        sql`SELECT id, name, metadata FROM matters WHERE org_id = ${orgId} AND status = 'active'`,
+      )
+      const byName = new Map(rows.map((r) => [r.name, { id: r.id, media: r.metadata && JSON.parse(r.metadata).media }]))
+      return (name: string) => {
+        const row = byName.get(name)
+        if (!row) throw new Error(`${name} is not in ${orgId}`)
+        return row
+      }
+    }
+
+    // The Movies and TV Shows pages read the session's active workspace.
+    async function openSpace(app: TestApp, headers: Record<string, string>, orgId: string) {
+      const res = await app.request('/api/auth/organization/set-active', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationId: orgId }),
+      })
+      const cookies = res.headers.getSetCookie()
+      if (cookies.length > 0) headers.Cookie = cookies.map((cookie) => cookie.split(';')[0]).join('; ')
+    }
+
+    async function setupSpaces(teamId: string) {
+      const { app, db } = await createTestApp()
+      const headers = await authedHeaders(app)
+      await insertStorage(db)
+      const orgId = await getOrgId(db)
+      const userId = await getUserIdByEmail(db, 'test@example.com')
+      await insertTeamOrg(db, teamId)
+      await insertMember(db, teamId, userId, 'owner')
+      await insertStorageEntitlement(db, teamId, 10_000_000)
+      return { app, db, headers, orgId }
+    }
+
+    const tmdbMovie = { kind: 'movie', tmdb: { id: 27205, type: 'movie' }, title: 'Inception' }
+
+    it('moves a scraped movie folder with its metadata pointing at the moved images', async () => {
+      const { app, db, headers, orgId } = await setupSpaces('Teammovie')
+      await insertFolder(db, orgId, { id: 'Mfolder', name: 'Inception (2010)' })
+      await insertFile(db, orgId, { id: 'Mvideo', name: 'Inception.mkv', parent: 'Inception (2010)' })
+      await insertFile(db, orgId, { id: 'Mposter', name: 'Inception-poster.jpg', parent: 'Inception (2010)' })
+      await insertFile(db, orgId, { id: 'Mfanart', name: 'Inception-fanart.jpg', parent: 'Inception (2010)' })
+      await setMetadata(db, 'Mvideo', { ...tmdbMovie, poster: 'Mposter', fanart: 'Mfanart' })
+
+      const res = await transferRequest(app, headers, 'Mfolder', { targetOrgId: 'Teammovie', mode: 'move' })
+      expect(res.status).toBe(201)
+      expect(((await res.json()) as { sourceDeleted: boolean }).sourceDeleted).toBe(true)
+
+      const target = await liveMatters(db, 'Teammovie')
+      expect(target('Inception.mkv').media).toEqual({
+        ...tmdbMovie,
+        poster: target('Inception-poster.jpg').id,
+        fanart: target('Inception-fanart.jpg').id,
+      })
+      await openSpace(app, headers, 'Teammovie')
+      const movies = await app.request('/api/media/movies', { headers })
+      expect(movies.status).toBe(200)
+      const page = (await movies.json()) as { items: Array<{ id: string; media: { poster?: string } }> }
+      expect(page.items.map((item) => [item.id, item.media.poster])).toEqual([
+        [target('Inception.mkv').id, target('Inception-poster.jpg').id],
+      ])
+    })
+
+    it('moves a scraped show with its show and episode images remapped', async () => {
+      const { app, db, headers, orgId } = await setupSpaces('Teamshow')
+      const show = { kind: 'tvshow', tmdb: { id: 1399, type: 'tv' }, title: 'Show' }
+      const episode = { kind: 'episode', tmdb: { id: 1399, type: 'tv' }, season: 1, episode: 1 }
+      await insertFolder(db, orgId, { id: 'Sfolder', name: 'Show (2011)' })
+      await insertFile(db, orgId, { id: 'Sposter', name: 'poster.jpg', parent: 'Show (2011)' })
+      await insertFile(db, orgId, { id: 'Sfanart', name: 'fanart.jpg', parent: 'Show (2011)' })
+      await insertFolder(db, orgId, { id: 'Sseason', name: 'Season 01', parent: 'Show (2011)' })
+      await insertFile(db, orgId, { id: 'Sep', name: 'S01E01.mkv', parent: 'Show (2011)/Season 01' })
+      await insertFile(db, orgId, { id: 'Sthumb', name: 'S01E01-thumb.jpg', parent: 'Show (2011)/Season 01' })
+      await setMetadata(db, 'Sfolder', { ...show, poster: 'Sposter', fanart: 'Sfanart' })
+      await setMetadata(db, 'Sep', { ...episode, still: 'Sthumb' })
+
+      const res = await transferRequest(app, headers, 'Sfolder', { targetOrgId: 'Teamshow', mode: 'move' })
+      expect(res.status).toBe(201)
+
+      const target = await liveMatters(db, 'Teamshow')
+      expect(target('Show (2011)').media).toEqual({
+        ...show,
+        poster: target('poster.jpg').id,
+        fanart: target('fanart.jpg').id,
+      })
+      expect(target('S01E01.mkv').media).toEqual({ ...episode, still: target('S01E01-thumb.jpg').id })
+      await openSpace(app, headers, 'Teamshow')
+      const shows = await app.request('/api/media/shows', { headers })
+      const page = (await shows.json()) as { items: Array<{ id: string }> }
+      expect(page.items.map((item) => item.id)).toEqual([target('Show (2011)').id])
+    })
+
+    it('drops image references to sidecars that did not travel with the video', async () => {
+      const { app, db, headers, orgId } = await setupSpaces('Teamalone')
+      await insertFile(db, orgId, { id: 'Avideo', name: 'Inception.mkv' })
+      await insertFile(db, orgId, { id: 'Aposter', name: 'Inception-poster.jpg' })
+      await setMetadata(db, 'Avideo', { ...tmdbMovie, poster: 'Aposter', fanart: 'Aposter' })
+
+      const res = await transferRequest(app, headers, 'Avideo', { targetOrgId: 'Teamalone', mode: 'copy' })
+      expect(res.status).toBe(201)
+
+      const target = await liveMatters(db, 'Teamalone')
+      expect(target('Inception.mkv').media).toEqual(tmdbMovie)
+    })
+  })
+
   it('rejects transfer into a team the user is not a member of [spec: objects/transfer-permission]', async () => {
     const { app, db } = await createTestApp()
     const headers = await authedHeaders(app)

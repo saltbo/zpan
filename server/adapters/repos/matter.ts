@@ -394,7 +394,7 @@ export function createMatterRepo(db: Database): MatterRepo {
         createdByActorRef: input.createdByActorRef ?? null,
         createdByActorIssuer: input.createdByActorIssuer ?? null,
         createdByTaskId: input.createdByTaskId ?? null,
-        metadata: null,
+        metadata: input.metadata ?? null,
         createdAt: now,
         updatedAt: now,
       }
