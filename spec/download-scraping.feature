@@ -69,11 +69,13 @@ Feature: Download scraping
     Then no file in the downloader's local download directory is modified, renamed or added
 
   @download-scraping/match-rules @domain
-  Scenario: A movie is matched by .nfo, then source id, then search
-    Given a downloaded video
-    When its TMDB movie is settled
-    Then a .nfo in the download is used first, then a source id, then a search in the configured language and English
-    And a search result matches only with title similarity of at least 0.85, the same sequel number, and a year within one
+  Scenario: A movie or show is matched by .nfo, then source id, then search
+    Given a downloaded movie or episode
+    When its TMDB movie or show is settled
+    Then a movie uses the video's own .nfo or a movie.nfo beside it first, then a source id, then a search
+    And an episode uses a tvshow.nfo in its folder or a folder above it first, then a source id, then a search for the show title
+    And a search runs in the configured language and English, with the parsed year and then without it
+    And a search result matches only with title similarity of at least 0.85, the same sequel number, and a year within one: the release year for a movie, the first air year for a show
 
   @download-scraping/yearless-match @domain
   Scenario: A name without a year matches only a well-known film that has the title to itself
