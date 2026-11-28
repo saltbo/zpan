@@ -48,5 +48,6 @@ Feature: Form errors
     Given an admin opens the branding drawer
     When the server rejects the save because of the logo, the favicon or a theme color
     Then the server's message appears under that field and the drawer stays open
+    And the message says what to fix, such as "Enter a hex color, such as #1a73e8", without the field's name in the request
     When the server rejects the save for a reason that names no field in the drawer
     Then its reason appears above the save button
