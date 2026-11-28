@@ -44,6 +44,7 @@ describe('Admin Site Invitations API — auth guards', () => {
 describe('Admin Site Invitations API', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 
   async function seedEmailOptions(ctx: Awaited<ReturnType<typeof createTestApp>>) {
@@ -207,6 +208,47 @@ describe('Admin Site Invitations API', () => {
     expect(body.error.message).toContain('pending invitation already exists')
     expect(body.error.status).toBe('ABORTED')
     expect(body.error.details[0].reason).toBe('ABORTED')
+  })
+
+  it('returns 409 when inviting the email of an existing user [spec: site-invitations/existing-user]', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    await seedEmailOptions(ctx)
+    const headers = await adminHeaders(ctx.app)
+    await authedHeaders(ctx.app, 'member@example.com')
+
+    const res = await ctx.app.request('/api/site/invitations', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'Member@Example.com' }),
+    })
+
+    expect(res.status).toBe(409)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('A user with this email already exists')
+    const rows = await ctx.db.select().from(siteInvitations).where(eq(siteInvitations.email, 'member@example.com'))
+    expect(rows).toHaveLength(0)
+  })
+
+  it('returns 500, not 409, when the invitation cannot be saved [spec: site-invitations/save-failure]', async () => {
+    const ctx = await createTestApp()
+    stubEmailProvider()
+    await seedEmailOptions(ctx)
+    const headers = await adminHeaders(ctx.app)
+    vi.spyOn(ctx.db, 'insert').mockImplementationOnce(() => {
+      throw new Error('D1_ERROR: database is locked')
+    })
+
+    const res = await ctx.app.request('/api/site/invitations', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'invitee@example.com' }),
+    })
+
+    expect(res.status).toBe(500)
+    const body = (await res.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('Failed to create invitation')
+    expect(JSON.stringify(body)).not.toContain('D1_ERROR')
   })
 })
 
@@ -402,6 +444,7 @@ describe('Public Site Invitations API', () => {
 
     const { createSiteInvitationRepo } = await import('../../adapters/repos/site-invitations.js')
     const invitation = await createSiteInvitationRepo(ctx.db).createSiteInvitation(admin.id, 'invitee@example.com')
+    if (typeof invitation === 'string') throw new Error(invitation)
 
     const res = await ctx.app.request(`/api/site/invitations/${invitation.token}`, { headers })
     expect(res.status).toBe(200)
