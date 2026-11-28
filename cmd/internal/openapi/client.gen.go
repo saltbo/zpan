@@ -7030,6 +7030,32 @@ type TorrentSettings struct {
 	RetentionDays int `json:"retentionDays"`
 }
 
+// TorrentStreamChunk defines model for TorrentStreamChunk.
+type TorrentStreamChunk struct {
+	FirstPiece int `json:"firstPiece"`
+	PieceCount int `json:"pieceCount"`
+}
+
+// TorrentStreamState defines model for TorrentStreamState.
+type TorrentStreamState struct {
+	// Chunks Chunks already stored.
+	Chunks []struct {
+		FirstPiece int `json:"firstPiece"`
+		PieceCount int `json:"pieceCount"`
+	} `json:"chunks"`
+
+	// MaxChunkBytes The largest chunk to upload, in bytes; a chunk always holds at least one whole piece.
+	MaxChunkBytes int `json:"maxChunkBytes"`
+	PieceCount    int `json:"pieceCount"`
+	PieceLength   int `json:"pieceLength"`
+
+	// ReadaheadBytes How far past each wanted piece to upload, in bytes.
+	ReadaheadBytes int `json:"readaheadBytes"`
+
+	// Wants Pieces players wait for or read from, ascending. Empty when nobody streams the torrent.
+	Wants []int `json:"wants"`
+}
+
 // TransferResult defines model for TransferResult.
 type TransferResult struct {
 	Saved   []Matter `json:"saved"`
@@ -12015,6 +12041,12 @@ type ClientInterface interface {
 
 	SetDownloadTaskStatus(ctx context.Context, id string, body SetDownloadTaskStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetDownloadTaskTorrentStream request
+	GetDownloadTaskTorrentStream(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutDownloadTaskTorrentStreamChunkWithBody request with any body
+	PutDownloadTaskTorrentStreamChunkWithBody(ctx context.Context, id string, firstPiece int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// StreamEvents request
 	StreamEvents(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -13080,6 +13112,30 @@ func (c *Client) SetDownloadTaskStatusWithBody(ctx context.Context, id string, c
 
 func (c *Client) SetDownloadTaskStatus(ctx context.Context, id string, body SetDownloadTaskStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetDownloadTaskStatusRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetDownloadTaskTorrentStream(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetDownloadTaskTorrentStreamRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PutDownloadTaskTorrentStreamChunkWithBody(ctx context.Context, id string, firstPiece int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutDownloadTaskTorrentStreamChunkRequestWithBody(c.Server, id, firstPiece, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -16817,6 +16873,83 @@ func NewSetDownloadTaskStatusRequestWithBody(server string, id string, contentTy
 	}
 
 	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/status", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetDownloadTaskTorrentStreamRequest generates requests for GetDownloadTaskTorrentStream
+func NewGetDownloadTaskTorrentStreamRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent-stream", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutDownloadTaskTorrentStreamChunkRequestWithBody generates requests for PutDownloadTaskTorrentStreamChunk with any type of body
+func NewPutDownloadTaskTorrentStreamChunkRequestWithBody(server string, id string, firstPiece int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "firstPiece", firstPiece, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/downloads/tasks/%s/torrent-stream/chunks/%s", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -23861,6 +23994,12 @@ type ClientWithResponsesInterface interface {
 
 	SetDownloadTaskStatusWithResponse(ctx context.Context, id string, body SetDownloadTaskStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*SetDownloadTaskStatusResponse, error)
 
+	// GetDownloadTaskTorrentStreamWithResponse request
+	GetDownloadTaskTorrentStreamWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetDownloadTaskTorrentStreamResponse, error)
+
+	// PutDownloadTaskTorrentStreamChunkWithBodyWithResponse request with any body
+	PutDownloadTaskTorrentStreamChunkWithBodyWithResponse(ctx context.Context, id string, firstPiece int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutDownloadTaskTorrentStreamChunkResponse, error)
+
 	// StreamEventsWithResponse request
 	StreamEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error)
 
@@ -25402,6 +25541,75 @@ func (r SetDownloadTaskStatusResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetDownloadTaskStatusResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetDownloadTaskTorrentStreamResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TorrentStreamState
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDownloadTaskTorrentStreamResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDownloadTaskTorrentStreamResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetDownloadTaskTorrentStreamResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PutDownloadTaskTorrentStreamChunkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *TorrentStreamChunk
+	JSON400      *Error
+	JSON401      *Error
+	JSON403      *Error
+	JSON404      *Error
+	JSON409      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r PutDownloadTaskTorrentStreamChunkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PutDownloadTaskTorrentStreamChunkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PutDownloadTaskTorrentStreamChunkResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -30845,6 +31053,24 @@ func (c *ClientWithResponses) SetDownloadTaskStatusWithResponse(ctx context.Cont
 	return ParseSetDownloadTaskStatusResponse(rsp)
 }
 
+// GetDownloadTaskTorrentStreamWithResponse request returning *GetDownloadTaskTorrentStreamResponse
+func (c *ClientWithResponses) GetDownloadTaskTorrentStreamWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetDownloadTaskTorrentStreamResponse, error) {
+	rsp, err := c.GetDownloadTaskTorrentStream(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetDownloadTaskTorrentStreamResponse(rsp)
+}
+
+// PutDownloadTaskTorrentStreamChunkWithBodyWithResponse request with arbitrary body returning *PutDownloadTaskTorrentStreamChunkResponse
+func (c *ClientWithResponses) PutDownloadTaskTorrentStreamChunkWithBodyWithResponse(ctx context.Context, id string, firstPiece int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutDownloadTaskTorrentStreamChunkResponse, error) {
+	rsp, err := c.PutDownloadTaskTorrentStreamChunkWithBody(ctx, id, firstPiece, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutDownloadTaskTorrentStreamChunkResponse(rsp)
+}
+
 // StreamEventsWithResponse request returning *StreamEventsResponse
 func (c *ClientWithResponses) StreamEventsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*StreamEventsResponse, error) {
 	rsp, err := c.StreamEvents(ctx, reqEditors...)
@@ -33828,6 +34054,121 @@ func ParseSetDownloadTaskStatusResponse(rsp *http.Response) (*SetDownloadTaskSta
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetDownloadTaskTorrentStreamResponse parses an HTTP response from a GetDownloadTaskTorrentStreamWithResponse call
+func ParseGetDownloadTaskTorrentStreamResponse(rsp *http.Response) (*GetDownloadTaskTorrentStreamResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDownloadTaskTorrentStreamResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TorrentStreamState
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePutDownloadTaskTorrentStreamChunkResponse parses an HTTP response from a PutDownloadTaskTorrentStreamChunkWithResponse call
+func ParsePutDownloadTaskTorrentStreamChunkResponse(rsp *http.Response) (*PutDownloadTaskTorrentStreamChunkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PutDownloadTaskTorrentStreamChunkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest TorrentStreamChunk
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error

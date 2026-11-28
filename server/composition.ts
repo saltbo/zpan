@@ -55,6 +55,7 @@ import { createStorageUsageBreakdownRepo } from './adapters/repos/storage-usage-
 import { createSystemOptionsRepo } from './adapters/repos/system-options'
 import { createTeamRepo } from './adapters/repos/team'
 import { createTeamInviteRepo } from './adapters/repos/team-invite'
+import { createTorrentStreamRepo } from './adapters/repos/torrent-stream'
 import { createStremThruLinkRepo, createTorrentRepo } from './adapters/repos/torrents'
 import { createUserAdminRepo } from './adapters/repos/user-admin'
 import { createWebDavPathRepo } from './adapters/repos/webdav-path'
@@ -141,6 +142,7 @@ export function createDeps(platform: Platform, options: CreateDepsOptions = {}):
     torrents: createTorrentRepo(db),
     workspaceTorrents: createWorkspaceTorrentRepo(db),
     stremthruLinks: createStremThruLinkRepo(db),
+    torrentStream: createTorrentStreamRepo(db),
     userAdmin: createUserAdminRepo(db),
     webdavPath: createWebDavPathRepo(db, cache),
     webdavState: createWebDavStateRepo(db),

@@ -1607,3 +1607,206 @@ describe('Torrents lists', () => {
     expect(await torrentStatus(ctx.db, torrent.infoHash)).toMatchObject({ status: 'downloading' })
   })
 })
+
+describe('streaming a torrent while it downloads', () => {
+  const STREAM_CAPABILITIES = ['magnet', 'torrent', 'torrent_stream']
+
+  // The torrent's concatenated bytes, padding as zeros.
+  function torrentBytes(torrent: TorrentFixture): Uint8Array {
+    return Buffer.concat(torrent.files.map((file) => file.bytes))
+  }
+
+  function pieces(torrent: TorrentFixture, from: number, to: number): Uint8Array {
+    return torrentBytes(torrent).slice(from * torrent.pieceLength, to * torrent.pieceLength)
+  }
+
+  async function streamState(app: TestApp['app'], dl: Downloader, task: DownloadTask) {
+    const res = await app.request(`/api/downloads/tasks/${task.id}/torrent-stream`, { headers: dl.headers })
+    return {
+      status: res.status,
+      body: (await res.json()) as { wants: number[]; chunks: unknown[]; pieceLength: number },
+    }
+  }
+
+  async function putChunk(app: TestApp['app'], dl: Downloader, task: DownloadTask, first: number, bytes: Uint8Array) {
+    const res = await app.request(`/api/downloads/tasks/${task.id}/torrent-stream/chunks/${first}`, {
+      method: 'PUT',
+      headers: { ...dl.headers, 'Content-Type': 'application/octet-stream' },
+      // A copy: a Buffer view's .buffer is its whole pool.
+      body: Uint8Array.from(bytes).buffer,
+    })
+    return { status: res.status, body: (await res.json()) as { pieceCount?: number; error?: { message: string } } }
+  }
+
+  type Item = { id: string; status: string; files: Array<{ index: number; link?: string }> }
+
+  // Adds the magnet through StremThru and returns the entry once its torrent is known.
+  async function addAndGet(call: Awaited<ReturnType<typeof stremThruKey>>, magnet: string, id?: string) {
+    if (!id) {
+      const added = await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: magnet }) })
+      expect(added.status).toBe(201)
+      id = ((await added.json()) as { data: Item }).data.id
+    }
+    const got = await call(`/v0/store/torz/${id}`)
+    return ((await got.json()) as { data: Item }).data
+  }
+
+  async function generate(call: Awaited<ReturnType<typeof stremThruKey>>, link: string) {
+    const res = await call('/v0/store/torz/link/generate', { method: 'POST', body: JSON.stringify({ link }) })
+    return { status: res.status, body: (await res.json()) as { data?: { link: string } } }
+  }
+
+  async function streamWhileDownloading() {
+    const { ctx, a, b } = await setup()
+    const dl = await downloader(ctx, a.userId, STREAM_CAPABILITIES)
+    const callA = await stremThruKey(ctx, a)
+    const torrent = sampleTorrent('Streamed.Show.S01')
+    const added = await addAndGet(callA, torrent.magnet)
+    const [task] = await dl.poll()
+    expect((await reportInfo(ctx.app, dl, task, torrent.infoBase64)).status).toBe(200)
+    return { ctx, a, b, dl, callA, torrent, task, entryId: added.id }
+  }
+
+  it('plays a torrent as its pieces arrive, before it is ready [spec: torrents/stream-while-downloading]', async () => {
+    const { ctx, dl, callA, torrent, task, entryId } = await streamWhileDownloading()
+
+    // Addons see it downloaded, with links, while check still calls it uncached.
+    const item = await addAndGet(callA, torrent.magnet, entryId)
+    expect(item.status).toBe('downloaded')
+    expect(item.files.map((file) => file.index)).toEqual([0, 2])
+    const check = await callA(`/v0/store/torz/check?hash=${torrent.infoHash}`)
+    expect(((await check.json()) as { data: { items: Array<{ status: string }> } }).data.items[0].status).toBe(
+      'unknown',
+    )
+    const generated = await generate(callA, item.files[0].link as string)
+    expect(generated.status).toBe(200)
+    const link = generated.body.data?.link as string
+    expect(link).toContain('/stremthru/stream/')
+
+    const head = await ctx.app.request(link, { method: 'HEAD' })
+    expect(head.status).toBe(200)
+    expect(head.headers.get('Content-Length')).toBe('70000')
+    expect(head.headers.get('Accept-Ranges')).toBe('bytes')
+
+    // The add asks for the head and tail of its largest file before any player does.
+    expect((await streamState(ctx.app, dl, task)).body.wants).toEqual([0, 4])
+
+    // The player asks before the piece arrives: the answer waits for it.
+    const playing = await ctx.app.request(link, { headers: { Range: 'bytes=100-199' } })
+    expect(playing.status).toBe(206)
+    expect(playing.headers.get('Content-Range')).toBe('bytes 100-199/70000')
+    const body = playing.arrayBuffer()
+    const state = await streamState(ctx.app, dl, task)
+    expect(state.status).toBe(200)
+    expect(state.body.wants).toContain(0)
+    expect(state.body.pieceLength).toBe(torrent.pieceLength)
+
+    // A chunk whose bytes are not the torrent's is refused.
+    const forged = await putChunk(ctx.app, dl, task, 0, new Uint8Array(torrent.pieceLength))
+    expect(forged.status).toBe(400)
+    // Pieces that are not whole are refused.
+    expect((await putChunk(ctx.app, dl, task, 0, pieces(torrent, 0, 1).slice(0, 100))).status).toBe(400)
+
+    const stored = await putChunk(ctx.app, dl, task, 0, pieces(torrent, 0, 2))
+    expect(stored).toEqual({ status: 201, body: { firstPiece: 0, pieceCount: 2 } })
+    expect(new Uint8Array(await body)).toEqual(torrent.files[0].bytes.slice(100, 200))
+
+    // A range across the end of the chunk reads the next one once it arrives.
+    const across = await ctx.app.request(link, { headers: { Range: 'bytes=32700-32799' } })
+    const acrossBody = across.arrayBuffer()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect((await putChunk(ctx.app, dl, task, 2, pieces(torrent, 2, 3))).status).toBe(201)
+    expect(new Uint8Array(await acrossBody)).toEqual(torrent.files[0].bytes.slice(32700, 32800))
+    expect((await streamState(ctx.app, dl, task)).body.chunks).toEqual([
+      { firstPiece: 0, pieceCount: 2 },
+      { firstPiece: 2, pieceCount: 1 },
+    ])
+  }, 20_000)
+
+  it('serves the verified pieces to another workspace that holds the torrent [spec: torrents/stream-shared-across-workspaces]', async () => {
+    const { ctx, b, dl, torrent, task } = await streamWhileDownloading()
+    expect((await putChunk(ctx.app, dl, task, 0, pieces(torrent, 0, 2))).status).toBe(201)
+
+    // A second workspace adds the same torrent while it downloads, and plays it at once.
+    const callB = await stremThruKey(ctx, b)
+    const item = await addAndGet(callB, torrent.magnet)
+    expect(item.status).toBe('downloaded')
+    const link = (await generate(callB, item.files[0].link as string)).body.data?.link as string
+    const res = await ctx.app.request(link, { headers: { Range: 'bytes=0-9' } })
+    expect(res.status).toBe(206)
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(torrent.files[0].bytes.slice(0, 10))
+  }, 20_000)
+
+  it('reads the ready file through the same link once the torrent is ready, and drops its chunks [spec: torrents/stream-after-ready]', async () => {
+    const { ctx, dl, callA, torrent, task, entryId } = await streamWhileDownloading()
+    const item = await addAndGet(callA, torrent.magnet, entryId)
+    const link = (await generate(callA, item.files[0].link as string)).body.data?.link as string
+    expect((await putChunk(ctx.app, dl, task, 0, pieces(torrent, 0, 2))).status).toBe(201)
+    expect([...objects.keys()].some((key) => key.includes('/stream/'))).toBe(true)
+
+    // The downloader finishes: the files land and the torrent verifies.
+    await fillTorrent(ctx.app, dl, task, torrent)
+    await waitForTorrent(ctx.db, torrent.infoHash, 'ready')
+
+    expect([...objects.keys()].some((key) => key.includes('/stream/'))).toBe(false)
+    const [chunks] = await ctx.db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM torrent_stream_chunks`)
+    expect(chunks.count).toBe(0)
+    // The link stays on ZPan's origin: a player's media element refuses ranges
+    // of one file that come from two origins.
+    const res = await ctx.app.request(link, { headers: { Range: 'bytes=70000-' } })
+    expect(res.status).toBe(416)
+    const tail = await ctx.app.request(link, { headers: { Range: 'bytes=69990-' } })
+    expect(tail.status).toBe(206)
+    expect(tail.headers.get('Content-Range')).toBe('bytes 69990-69999/70000')
+    expect(new Uint8Array(await tail.arrayBuffer())).toEqual(torrent.files[0].bytes.slice(69990))
+    // Generating the link again now hands out the file's presigned URL, uncharged.
+    const again = (await generate(callA, item.files[0].link as string)).body.data?.link as string
+    expect(again).not.toContain('/stremthru/stream/')
+    expect(again).toContain((await fileKeys(ctx.db, torrent.infoHash))[0])
+    const [charges] = await ctx.db.all<{ count: number }>(sql`
+      SELECT COUNT(*) AS count FROM audit_events WHERE action = 'object_download' AND target_id = (
+        SELECT id FROM torrent_files WHERE object_key = ${(await fileKeys(ctx.db, torrent.infoHash))[0]})
+    `)
+    expect(charges.count).toBe(1)
+    // The downloader is told the torrent no longer streams from its task.
+    expect((await streamState(ctx.app, dl, task)).status).toBe(409)
+  }, 20_000)
+
+  it('shows the filling workspace its torrent downloaded while it verifies, so addons play it', async () => {
+    const { ctx, a } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const call = await stremThruKey(ctx, a)
+    const torrent = sampleTorrent('Verifying.Show')
+    const added = await addAndGet(call, torrent.magnet)
+    const [task] = await dl.poll()
+    // Verification that cannot finish keeps the torrent verifying.
+    vi.spyOn(S3Service.prototype, 'getObjectStream').mockImplementation(() => new Promise(() => {}))
+    const filling = fillTorrent(ctx.app, dl, task, torrent)
+    await waitForTorrent(ctx.db, torrent.infoHash, 'verifying')
+    const item = await addAndGet(call, torrent.magnet, added.id)
+    expect(item.status).toBe('downloaded')
+    expect(item.files.every((file) => typeof file.link === 'string')).toBe(true)
+    void filling
+  })
+
+  it('keeps a torrent waiting when its downloader does not stream [spec: torrents/stream-needs-capable-downloader]', async () => {
+    const { ctx, a } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const call = await stremThruKey(ctx, a)
+    const torrent = sampleTorrent('Not.Streamed')
+    const added = await addAndGet(call, torrent.magnet)
+    const [task] = await dl.poll()
+    expect((await reportInfo(ctx.app, dl, task, torrent.infoBase64)).status).toBe(200)
+    const item = await addAndGet(call, torrent.magnet, added.id)
+    expect(item.status).toBe('downloading')
+    expect(item.files).toEqual([])
+  })
+
+  it('refuses stream calls from a downloader the task is not assigned to, and forged stream links', async () => {
+    const { ctx, a, task } = await streamWhileDownloading()
+    const other = await downloader(ctx, a.userId, ['http', 'torrent_stream'])
+    expect((await streamState(ctx.app, other, task)).status).toBe(404)
+    const forged = await ctx.app.request('/stremthru/stream/bm90LWEtdG9rZW4.c2ln')
+    expect(forged.status).toBe(404)
+  })
+})

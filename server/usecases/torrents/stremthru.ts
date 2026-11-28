@@ -182,11 +182,15 @@ async function toTorz(deps: Deps, caller: StoreCaller, id: string): Promise<Torz
     throw toStremThruError(error)
   })
   const item = listItem(detail)
-  // Files carry links once they play.
-  const files = detail.playable
-    ? detail.files.map((file) => torzFile(file, encodeFileLink(detail.view.id, file.id)))
-    : []
-  return { ...item, magnet: magnetOf(detail.view, item.hash), files }
+  // Files carry links once they play, and a playable entry is `downloaded`:
+  // addons wait for that status before they generate a link. That includes a
+  // torrent still verifying for the workspace that filled it, and one that
+  // streams while it downloads (docs/design/torrents.md §14); `check` still
+  // reports both uncached.
+  const playable = detail.playable || detail.streamable
+  const files = playable ? detail.files.map((file) => torzFile(file, encodeFileLink(detail.view.id, file.id))) : []
+  const status = playable ? 'downloaded' : item.status
+  return { ...item, status, magnet: magnetOf(detail.view, item.hash), files }
 }
 
 // Adds a magnet or .torrent link to the workspace's Torrents list. An entry the
@@ -331,11 +335,14 @@ export interface GenerateLinkParams {
   caller: StoreCaller
   link: string | undefined
   cloudBaseUrl: string
+  // Builds the stream link of a torrent that streams while it downloads.
+  streamUrl?: (torrentFileId: string, expiresAt: Date) => Promise<string>
   now?: Date
 }
 
 // Resolves an opaque file link within the caller's Torrents list and returns a
-// presigned URL valid for 12 hours.
+// presigned URL valid for 12 hours, or a stream link for a torrent that streams
+// while it downloads.
 export async function generateTorzLink(deps: Deps, params: GenerateLinkParams): Promise<{ link: string }> {
   const { caller } = params
   const ref = params.link ? decodeFileLink(params.link) : null
@@ -349,6 +356,7 @@ export async function generateTorzLink(deps: Deps, params: GenerateLinkParams): 
       fileId: ref.fileId,
       cloudBaseUrl: params.cloudBaseUrl,
       source: 'stremthru',
+      streamUrl: params.streamUrl,
       now: params.now,
     }),
   )

@@ -202,6 +202,16 @@ export function createTorrentRepo(db: Database): TorrentRepo {
       return rows.map(toFile)
     },
 
+    async findFile(id) {
+      const rows = await db
+        .select({ file: torrentFiles, torrent: torrents })
+        .from(torrentFiles)
+        .innerJoin(torrents, eq(torrents.id, torrentFiles.torrentId))
+        .where(and(eq(torrentFiles.id, id), eq(torrentFiles.kind, 'file')))
+        .limit(1)
+      return rows[0] ? { torrent: toTorrent(rows[0].torrent), file: toFile(rows[0].file) } : null
+    },
+
     async listEntries(torrentId): Promise<TorrentEntryRecord[]> {
       const rows = await db
         .select()

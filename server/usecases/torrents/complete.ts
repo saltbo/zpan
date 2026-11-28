@@ -6,6 +6,7 @@
 import type { TorrentVerifyJobRequest } from '@shared/schemas'
 import type { ActorIdentity, BackgroundJobMessage, DownloadTaskRecord, TorrentRecord } from '../ports'
 import { failJoinedTasks, fillingTorrent } from './fill'
+import { purgeStreamChunks } from './stream'
 import { processTorrentVerify, type TorrentVerifyDeps } from './verify'
 
 // The fill task completed its upload. Sidecars whose upload never completed
@@ -30,6 +31,7 @@ export async function completeFillTask(
   if (!complete) {
     if (await deps.torrents.transition(torrent.id, ['downloading'], 'invalid', { now })) {
       await failJoinedTasks(deps, { ...torrent, status: 'invalid' }, now)
+      await purgeStreamChunks(deps, torrent)
     }
     await deps.storageUsage.reconcileStorages([torrent.storageId])
     return

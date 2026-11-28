@@ -820,6 +820,43 @@ export const torrentFiles = sqliteTable(
   ],
 )
 
+// torrent_stream_chunks — whole pieces of a downloading torrent that its filling
+// downloader uploaded ahead of the files, verified against the info dictionary,
+// so players stream it before it is ready (docs/design/torrents.md §14). Each
+// object holds the torrent's concatenated bytes of pieces
+// [first_piece, first_piece + piece_count).
+export const torrentStreamChunks = sqliteTable(
+  'torrent_stream_chunks',
+  {
+    id: text('id').primaryKey(),
+    torrentId: text('torrent_id')
+      .notNull()
+      .references(() => torrents.id, { onDelete: 'cascade' }),
+    firstPiece: integer('first_piece').notNull(),
+    pieceCount: integer('piece_count').notNull(),
+    objectKey: text('object_key').notNull(), // bt/<infoHash>/stream/<first_piece>-<piece_count>
+    size: integer('size').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [uniqueIndex('torrent_stream_chunks_torrent_first_uniq').on(t.torrentId, t.firstPiece)],
+)
+
+// torrent_stream_wants — the pieces players are waiting for or reading from, so
+// the filling downloader uploads the pieces from there on first (§14). A want
+// older than a couple of minutes is stale.
+export const torrentStreamWants = sqliteTable(
+  'torrent_stream_wants',
+  {
+    id: text('id').primaryKey(),
+    torrentId: text('torrent_id')
+      .notNull()
+      .references(() => torrents.id, { onDelete: 'cascade' }),
+    piece: integer('piece').notNull(),
+    wantedAt: integer('wanted_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [uniqueIndex('torrent_stream_wants_torrent_piece_uniq').on(t.torrentId, t.piece)],
+)
+
 // workspace_torrents — one row per torrent a workspace holds, which is its
 // Torrents list (docs/design/torrents.md §3). The status columns carry what
 // happens before the entry has a torrent; once it has one, its status follows

@@ -10,7 +10,12 @@ func TestParseReadsSingleFileTorrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Info{Name: "a.mkv", Files: []File{{Index: 0, Path: "a.mkv", Size: 12}}}
+	want := Info{
+		Name:        "a.mkv",
+		Files:       []File{{Index: 0, Path: "a.mkv", Size: 12}},
+		PieceLength: 16384,
+		Pieces:      []byte("aaaaaaaaaaaaaaaaaaaa"),
+	}
 	if !reflect.DeepEqual(info, want) {
 		t.Fatalf("info = %+v", info)
 	}
@@ -28,9 +33,9 @@ func TestParseReadsFilesInOrderWithPadding(t *testing.T) {
 	}
 	want := Info{Name: "Show", Files: []File{
 		{Index: 0, Path: "Season 01/E01.mkv", Size: 5},
-		{Index: 1, Path: ".pad/3", Size: 3, Padding: true},
-		{Index: 2, Path: "E02.mkv", Size: 4},
-	}}
+		{Index: 1, Path: ".pad/3", Size: 3, Padding: true, Offset: 5},
+		{Index: 2, Path: "E02.mkv", Size: 4, Offset: 8},
+	}, PieceLength: 16, Pieces: []byte{}}
 	if !reflect.DeepEqual(info, want) {
 		t.Fatalf("info = %+v", info)
 	}

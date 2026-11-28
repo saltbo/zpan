@@ -112,6 +112,36 @@ Feature: Torrents
     When an addon adds it and a downloader fills the torrent through the object API
     Then the uploads are stored only under bt/ and in the torrent's files, the entry becomes ready, and the workspace drive stays empty
 
+  @torrents/stream-while-downloading @api
+  Scenario: A torrent plays through StremThru while it is still downloading
+    Given a StremThru add of a torrent not on the instance, downloading on a downloader that streams
+    When an addon asks for the entry and generates a link, and a player reads a range of a file before its pieces arrive
+    Then the entry is downloaded with linked files while check still reports the torrent uncached, the read waits while the downloader is told which piece is wanted, a chunk whose pieces do not match the torrent is refused, and the player receives the file's bytes once verified pieces arrive
+
+  @torrents/stream-shared-across-workspaces @api
+  Scenario: Another workspace streams the same torrent from the same verified pieces
+    Given a torrent that streams while it downloads for one workspace, with some of its pieces uploaded
+    When a second workspace adds it through StremThru and plays a file
+    Then the second workspace gets a link at once and reads the same verified bytes, without waiting for the torrent to be ready
+
+  @torrents/stream-after-ready @api
+  Scenario: A stream link plays on from the ready file once the download finishes
+    Given a stream link issued while the torrent downloaded
+    When the torrent's files land and it verifies
+    Then the uploaded pieces are deleted, the same link serves the ready file's bytes without leaving ZPan's origin, generating the link again hands out the file's presigned URL without another charge, and the downloader stops uploading pieces for the task
+
+  @torrents/stream-needs-capable-downloader @api
+  Scenario: A torrent whose downloader does not stream waits until it is ready
+    Given a StremThru add downloading on a downloader that does not report streaming
+    When an addon asks for the entry
+    Then it is still downloading and has no links
+
+  @torrents/downloader-uploads-wanted-pieces @downloader
+  Scenario: The downloader uploads the pieces players want as they complete
+    Given a torrent task whose pieces partly exist on disk, and a player waiting at a piece
+    When the downloader asks the server what to upload
+    Then it switches the engine to download in order once, and uploads the intact pieces from the wanted one on, in chunks, skipping pieces the server holds and stopping at the first piece not on disk
+
   @torrents/remote-download-in-list @api
   Scenario: A remote download lands in the drive and in the Torrents list
     Given a ready torrent

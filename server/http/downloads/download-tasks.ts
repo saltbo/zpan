@@ -10,6 +10,8 @@ import {
   downloadTaskTimelineSchema,
   listDownloadTasksQuerySchema,
   opaqueIdSchema,
+  torrentStreamChunkSchema,
+  torrentStreamStateSchema,
   updateDownloadTaskSchema,
 } from '@shared/schemas'
 import type { Env } from '../../middleware/platform'
@@ -23,6 +25,7 @@ import {
   updateDownloadTask,
 } from '../../usecases/downloads/downloads'
 import { badRequest, unauthorized } from '../../usecases/ports'
+import { getTaskStreamState, putTaskStreamChunk } from '../../usecases/torrents/stream'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 import {
   createdAtIdCursorCodec,
@@ -252,6 +255,56 @@ const deleteRoute = authRoute(
   },
 )
 
+const streamStateRoute = authRoute(
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL], credential: 'downloader' },
+  {
+    operationId: 'getDownloadTaskTorrentStream',
+    summary: 'Get what to upload for streaming a torrent',
+    description:
+      'For a task that fills a downloading torrent: the pieces players want and the chunks already stored, so the downloader uploads whole pieces from each wanted piece on (docs/design/torrents.md §14). 409 when the task does not fill a downloading torrent.',
+    tags: ['Download Tasks'],
+    method: 'get',
+    path: '/{id}/torrent-stream',
+    request: { params: z.object({ id: opaqueIdSchema }) },
+    responses: {
+      200: jsonContent(torrentStreamStateSchema, 'Stream state'),
+      ...taskErrorResponses,
+    },
+  },
+)
+
+const streamChunkRoute = authRoute(
+  { scopes: [AuthorizationScope.DOWNLOAD_TASKS_CANCEL], credential: 'downloader' },
+  {
+    operationId: 'putDownloadTaskTorrentStreamChunk',
+    summary: 'Upload whole pieces for streaming a torrent',
+    description:
+      "The torrent's concatenated bytes from the first byte of `firstPiece` to the end of a later piece. Every piece is checked against the info dictionary before the chunk is stored; a piece that does not match answers 400.",
+    tags: ['Download Tasks'],
+    method: 'put',
+    path: '/{id}/torrent-stream/chunks/{firstPiece}',
+    request: {
+      params: z.object({ id: opaqueIdSchema, firstPiece: z.coerce.number().int().nonnegative() }),
+      body: {
+        required: true,
+        content: { 'application/octet-stream': { schema: z.string().openapi({ format: 'binary' }) } },
+      },
+    },
+    responses: {
+      201: jsonContent(torrentStreamChunkSchema, 'Stored chunk'),
+      400: errorResponse('A piece does not match, or the chunk does not end on a piece'),
+      ...taskErrorResponses,
+    },
+  },
+)
+
+// The downloader a downloader-credential route runs for.
+function downloaderIdOf(c: { get(name: 'principal'): Env['Variables']['principal'] }): string {
+  const principal = c.get('principal')
+  if (principal?.kind !== 'downloader') throw unauthorized()
+  return principal.downloaderId
+}
+
 const downloadTasksRoute = createRouter()
   .openapi(listRoute, async (c) => {
     const query = c.req.valid('query')
@@ -326,6 +379,18 @@ const downloadTasksRoute = createRouter()
     if (!orgId) throw unauthorized()
     await performDownloadTaskAction(c.get('deps'), orgId, c.req.valid('param').id, 'delete')
     return c.body(null, 204)
+  })
+  .openapi(streamStateRoute, async (c) => {
+    const taskId = c.req.valid('param').id
+    return c.json(await getTaskStreamState(c.get('deps'), { taskId, downloaderId: downloaderIdOf(c) }), 200)
+  })
+  .openapi(streamChunkRoute, async (c) => {
+    const { id: taskId, firstPiece } = c.req.valid('param')
+    const bytes = new Uint8Array(await c.req.arrayBuffer())
+    return c.json(
+      await putTaskStreamChunk(c.get('deps'), { taskId, downloaderId: downloaderIdOf(c), firstPiece, bytes }),
+      201,
+    )
   })
   .openapi(updateRoute, async (c) => {
     const principal = c.get('principal')

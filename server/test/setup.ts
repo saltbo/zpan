@@ -407,6 +407,23 @@ const APP_SCHEMA_SQL = `
   );
   CREATE UNIQUE INDEX IF NOT EXISTS stremthru_links_user_org_file_uniq ON stremthru_links(user_id, org_id, torrent_file_id);
   CREATE INDEX IF NOT EXISTS stremthru_links_expires_idx ON stremthru_links(expires_at);
+  CREATE TABLE IF NOT EXISTS torrent_stream_chunks (
+    id TEXT PRIMARY KEY,
+    torrent_id TEXT NOT NULL REFERENCES torrents(id) ON DELETE CASCADE,
+    first_piece INTEGER NOT NULL,
+    piece_count INTEGER NOT NULL,
+    object_key TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS torrent_stream_chunks_torrent_first_uniq ON torrent_stream_chunks(torrent_id, first_piece);
+  CREATE TABLE IF NOT EXISTS torrent_stream_wants (
+    id TEXT PRIMARY KEY,
+    torrent_id TEXT NOT NULL REFERENCES torrents(id) ON DELETE CASCADE,
+    piece INTEGER NOT NULL,
+    wanted_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS torrent_stream_wants_torrent_piece_uniq ON torrent_stream_wants(torrent_id, piece);
   CREATE TABLE IF NOT EXISTS webdav_dead_properties (
     id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,

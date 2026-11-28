@@ -11,6 +11,13 @@ import { StremThruError, storeToken } from '../domain/stremthru'
 import { formatError } from '../lib/errors'
 import type { Env } from '../middleware/platform'
 import {
+  generatorStream,
+  resolveStream,
+  STREAM_LINK_PATH,
+  streamFileBytes,
+  streamResponseRange,
+} from '../usecases/torrents/stream'
+import {
   addTorz,
   authenticateStoreCaller,
   checkTorz,
@@ -22,6 +29,7 @@ import {
   type StoreCaller,
   toStremThruError,
 } from '../usecases/torrents/stremthru'
+import { decodeStreamToken, encodeStreamToken } from './torrent-stream-token'
 
 type StoreEnv = Env & { Variables: { storeCaller: StoreCaller } }
 type StoreContext = Context<StoreEnv>
@@ -62,8 +70,41 @@ async function generateLink(c: StoreContext) {
     caller: caller(c),
     link: stringField(input, 'link'),
     cloudBaseUrl: cloudBaseUrl(c),
+    streamUrl: async (torrentFileId, expiresAt) => {
+      const token = await encodeStreamToken(c.get('platform'), torrentFileId, expiresAt)
+      return `${new URL(c.req.url).origin}${STREAM_LINK_PATH}${token}`
+    },
   })
   return c.json({ data })
+}
+
+// A stream link (docs/design/torrents.md §14): a downloading torrent is read
+// from its verified chunks as they arrive, and a ready one from its file. Every
+// answer is a ranged one, capped so the player asks for the next part.
+async function streamFile(c: StoreContext) {
+  const ref = await decodeStreamToken(c.get('platform'), c.req.param('token') ?? '')
+  if (!ref) return c.json({ error: { code: 'NOT_FOUND', message: 'Stream link is invalid or expired' } }, 404)
+  const deps = c.get('deps')
+  const target = await resolveStream(deps, ref)
+  const size = target.file.size
+  const headers: Record<string, string> = {
+    'Accept-Ranges': 'bytes',
+    'Cache-Control': 'no-store',
+    'Content-Type': target.file.mime || 'application/octet-stream',
+  }
+  if (c.req.method === 'HEAD') {
+    return new Response(null, { status: 200, headers: { ...headers, 'Content-Length': String(size) } })
+  }
+  const range = streamResponseRange(c.req.header('Range'), size)
+  if (!range) return new Response(null, { status: 416, headers: { ...headers, 'Content-Range': `bytes */${size}` } })
+  return new Response(generatorStream(streamFileBytes(deps, target, range)), {
+    status: 206,
+    headers: {
+      ...headers,
+      'Content-Length': String(range.end - range.start + 1),
+      'Content-Range': `bytes ${range.start}-${range.end}/${size}`,
+    },
+  })
 }
 
 const stremthru = new Hono<StoreEnv>()
@@ -93,6 +134,9 @@ stremthru.use('/v0/store/*', async (c, next) => {
   c.set('orgId', storeCaller.orgId)
   await next()
 })
+
+// Players open stream links without a key: the signed token is the grant.
+stremthru.on(['GET', 'HEAD'], '/stream/:token', streamFile)
 
 stremthru.get('/v0/store/user', (c) => c.json({ data: getStoreUser(caller(c)) }))
 

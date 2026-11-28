@@ -123,7 +123,14 @@ func (m *Manager) Capabilities() []string {
 	seen := map[string]struct{}{}
 	var out []string
 	for _, downloader := range downloaders {
-		for _, sourceType := range downloader.Capabilities().SourceTypes {
+		capabilities := downloader.Capabilities().SourceTypes
+		// An engine that hands over a torrent's metadata keeps its pieces on disk
+		// where the downloader reads them, so it streams torrents while they
+		// download (docs/design/torrents.md §14).
+		if _, ok := downloader.(TorrentMetadataSource); ok {
+			capabilities = append(capabilities, TorrentStreamCapability)
+		}
+		for _, sourceType := range capabilities {
 			if _, ok := seen[sourceType]; ok {
 				continue
 			}
@@ -172,6 +179,19 @@ func (m *Manager) TorrentMetadata(ctx context.Context, task DownloadTask) ([]byt
 		return nil, fmt.Errorf("downloader %s cannot export torrent metadata", downloader.Name())
 	}
 	return source.TorrentMetadata(ctx, task)
+}
+
+// PrepareTorrentStream has the task's engine download the torrent in order for
+// streaming, where the engine can.
+func (m *Manager) PrepareTorrentStream(ctx context.Context, task DownloadTask) error {
+	downloader, err := m.selectDownloader(task)
+	if err != nil {
+		return err
+	}
+	if preparer, ok := downloader.(TorrentStreamPreparer); ok {
+		return preparer.PrepareTorrentStream(ctx, task)
+	}
+	return nil
 }
 
 func (m *Manager) Download(ctx context.Context, task DownloadTask, progress ProgressReporter) (Result, error) {

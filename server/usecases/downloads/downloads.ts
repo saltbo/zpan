@@ -59,6 +59,7 @@ import {
   submittedInfoHash,
   torrentsEnabled,
 } from '../torrents/fill'
+import { TORRENT_STREAM_CAPABILITY } from '../torrents/stream'
 import type { TorrentVerifyDeps } from '../torrents/verify'
 import { ensureDownloadFolderPath } from './download-folders'
 import { RemoteDownloadBillingBlockedError, reportRemoteDownloadUnit } from './remote-download-usage'
@@ -94,6 +95,9 @@ const QUEUE_ASSIGN_BATCH = 20
 const CONTROL_TASK_PAGE_SIZE = 100
 const DOWNLOADER_ACTIVE_NEXT_POLL_SECONDS = 5
 const DOWNLOADER_IDLE_NEXT_POLL_SECONDS = 60
+// A downloader that streams torrents polls at the active pace even when idle:
+// an addon gives up on a new torrent after about 20 seconds, so it must start
+// downloading within seconds of the add (docs/design/torrents.md §14).
 const DOWNLOAD_TASK_TARGET_TYPE = 'download_task'
 const TASK_EVENT_PAGE_SIZE = 100
 
@@ -310,7 +314,11 @@ export async function recordDownloaderHeartbeat(
     assignments: assignments.items,
     controls: [...controls.items, ...cleanupControls],
     nextPollAfterSeconds:
-      assignments.items.length > 0 || hasActiveControls || cleanupControls.length > 0 || heartbeat.currentTasks > 0
+      assignments.items.length > 0 ||
+      hasActiveControls ||
+      cleanupControls.length > 0 ||
+      heartbeat.currentTasks > 0 ||
+      heartbeat.capabilities.includes(TORRENT_STREAM_CAPABILITY)
         ? DOWNLOADER_ACTIVE_NEXT_POLL_SECONDS
         : DOWNLOADER_IDLE_NEXT_POLL_SECONDS,
   }
