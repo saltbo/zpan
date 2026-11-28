@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { Play } from 'lucide-react'
+import { Play, XIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { getObject, type Movie } from '@/lib/api'
 import { useVideoPreview } from './use-video-preview'
 
@@ -16,7 +16,7 @@ interface MovieSheetProps {
 export function MovieSheet({ movie, onOpenChange }: MovieSheetProps) {
   return (
     <Sheet open={movie !== null} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full gap-0 overflow-y-auto p-0 sm:max-w-lg">
+      <SheetContent showCloseButton={false} className="w-full gap-0 overflow-y-auto p-0 sm:max-w-lg">
         {movie && <MovieDetails movie={movie} />}
       </SheetContent>
     </Sheet>
@@ -79,6 +79,12 @@ function MovieDetails({ movie }: { movie: Movie }) {
         {media.overview && <p className="text-sm leading-relaxed">{media.overview}</p>}
         <p className="break-all text-xs text-muted-foreground">{movie.path}</p>
       </div>
+      {/* The close button sits over the fanart, so it carries its own surface
+          to stay legible on any image. */}
+      <SheetClose className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-full border bg-background text-foreground shadow-sm transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-hidden">
+        <XIcon className="size-4" />
+        <span className="sr-only">{t('common.close')}</span>
+      </SheetClose>
       {video.dialog}
     </>
   )
