@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ApiError, createWorkspaceTorrentFileLink, getWorkspaceTorrent } from '@/lib/api'
 import { startDownload } from '@/lib/browser-navigation'
 import { formatDate, formatSize } from '@/lib/format'
-import { TorrentStatusBadge } from './torrent-status-badge'
+import { TorrentStatusBadge, TorrentStatusNote } from './torrent-status-badge'
 
 export const workspaceTorrentQueryKey = (id: string) => ['workspace-torrents', 'detail', id]
 
@@ -98,7 +98,7 @@ export function TorrentSheet({ id, onOpenChange, onSave, onRemove, canEdit }: To
                   <dt className="text-muted-foreground">{t('torrents.col.status')}</dt>
                   <dd>
                     <TorrentStatusBadge status={entry.status} />
-                    {entry.error && <p className="mt-1 text-xs text-destructive">{entry.error}</p>}
+                    <TorrentStatusNote entry={entry} className="mt-1" />
                   </dd>
                   <dt className="text-muted-foreground">{t('torrents.col.size')}</dt>
                   <dd className="tabular-nums">{entry.size === null ? '—' : formatSize(entry.size)}</dd>

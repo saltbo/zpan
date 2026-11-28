@@ -300,9 +300,14 @@ ZPan implements this subset, under both `torz` and `magnets` paths:
 | --- | --- |
 | `GET /v0/store/user` | The key's user, `subscription_status: premium` |
 | `GET …/check?hash=` (up to 500) | Looks up each infoHash; a `ready` torrent returns `cached` with its files, anything else `unknown` |
-| `POST …` with a magnet or torrent link | An entry in the key's workspace Torrents list ([section 4](#4-downloading-a-torrent)); its id is the entry id |
+| `POST …` with a magnet or torrent link | An entry in the key's workspace Torrents list ([section 4](#4-downloading-a-torrent)); its id is the entry id. Adding an entry whose download ran out of remote-download credits answers `PAYMENT_REQUIRED` and starts no second download; one paused by hand is returned as it is, because an addon does not undo a pause |
 | `GET …`, `GET …/{id}`, `DELETE …/{id}` | The workspace's Torrents list. Delete removes the entry; links already issued keep playing, because only eviction deletes bytes |
 | `POST …/link/generate` | A playback link ([section 10](#10-playback-and-metering)) valid for 12 hours |
+
+An entry's status maps onto torz statuses: resolving is `queued`, downloading
+is `downloading`, verifying is `processing`, ready is `downloaded`, and failed
+or paused is `failed`, because a paused download does not finish until someone
+resumes it and addons should stop waiting for it.
 
 `files[]` lists the torrent's `file` rows, with `index` set to `file_idx`,
 because clients pick the file by its index or name in the torrent.
@@ -317,8 +322,11 @@ replaying requests recorded from MediaFusion and Comet in tests.
 ## 9. Web UI
 
 - **Torrents**, in the left menu of a workspace. Each entry shows the
-  torrent's name, size, status (downloading, verifying, ready, failed), where
-  it came from, and when it was added. Opening one lists the torrent's own
+  torrent's name, size, status (resolving, downloading, verifying, paused,
+  ready, failed), where it came from, and when it was added. A failed entry
+  shows why; a paused one shows whether its download ran out of
+  remote-download credits or was paused. An entry waiting on another
+  workspace's paused download only shows that it is paused. Opening one lists the torrent's own
   file tree; each file plays or downloads through a presigned link. *Save to
   drive* transfers it into a chosen folder
   ([section 5](#5-instant-transfer)), and *Remove* takes it off the list.

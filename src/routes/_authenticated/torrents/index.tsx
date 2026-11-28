@@ -12,7 +12,7 @@ import { MoveDialog } from '@/components/files/dialogs/move-dialog'
 import { PageHeader } from '@/components/layout/page-header'
 import { ProBadge } from '@/components/ProBadge'
 import { TorrentSheet, workspaceTorrentQueryKey } from '@/components/torrents/torrent-sheet'
-import { TorrentStatusBadge } from '@/components/torrents/torrent-status-badge'
+import { TorrentStatusBadge, TorrentStatusNote } from '@/components/torrents/torrent-status-badge'
 import { UpgradeHint } from '@/components/UpgradeHint'
 import { Button } from '@/components/ui/button'
 import {
@@ -216,11 +216,7 @@ function TorrentsList() {
                     >
                       {entry.name}
                     </button>
-                    {entry.status === 'failed' && entry.error && (
-                      <div className="truncate text-xs text-destructive" title={entry.error}>
-                        {entry.error}
-                      </div>
-                    )}
+                    <TorrentStatusNote entry={entry} className="line-clamp-2" />
                   </td>
                   <td className="hidden px-4 py-3 tabular-nums sm:table-cell">
                     {entry.size === null ? '—' : formatSize(entry.size)}

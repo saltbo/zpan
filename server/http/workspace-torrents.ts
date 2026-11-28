@@ -50,6 +50,7 @@ function toDTO(item: WorkspaceTorrentItem): WorkspaceTorrent {
     fileCount: view.torrent?.fileCount ?? null,
     status: state.status,
     error: state.error,
+    pauseReason: state.pauseReason ?? null,
     source: view.source,
     sourceUri: view.sourceUri,
     playable: isPlayable(view, state),

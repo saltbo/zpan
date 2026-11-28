@@ -63,6 +63,9 @@ export function torzStatus(entryStatus: string): StremThruTorzStatus {
       return 'downloading'
     case 'verifying':
       return 'processing'
+    // A paused download does not finish until someone resumes it, so addons
+    // stop waiting for it.
+    case 'paused':
     case 'failed':
       return 'failed'
     default:

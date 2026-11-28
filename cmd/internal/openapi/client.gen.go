@@ -2311,6 +2311,27 @@ func (e WebDavVerificationStatus) Valid() bool {
 	}
 }
 
+// Defines values for WorkspaceTorrentPauseReason.
+const (
+	WorkspaceTorrentPauseReasonInsufficientCredits WorkspaceTorrentPauseReason = "insufficient_credits"
+	WorkspaceTorrentPauseReasonLessThannil         WorkspaceTorrentPauseReason = "<nil>"
+	WorkspaceTorrentPauseReasonPaused              WorkspaceTorrentPauseReason = "paused"
+)
+
+// Valid indicates whether the value is a known member of the WorkspaceTorrentPauseReason enum.
+func (e WorkspaceTorrentPauseReason) Valid() bool {
+	switch e {
+	case WorkspaceTorrentPauseReasonInsufficientCredits:
+		return true
+	case WorkspaceTorrentPauseReasonLessThannil:
+		return true
+	case WorkspaceTorrentPauseReasonPaused:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WorkspaceTorrentSource.
 const (
 	WorkspaceTorrentSourceDownload  WorkspaceTorrentSource = "download"
@@ -2333,6 +2354,7 @@ func (e WorkspaceTorrentSource) Valid() bool {
 const (
 	WorkspaceTorrentStatusDownloading WorkspaceTorrentStatus = "downloading"
 	WorkspaceTorrentStatusFailed      WorkspaceTorrentStatus = "failed"
+	WorkspaceTorrentStatusPaused      WorkspaceTorrentStatus = "paused"
 	WorkspaceTorrentStatusReady       WorkspaceTorrentStatus = "ready"
 	WorkspaceTorrentStatusResolving   WorkspaceTorrentStatus = "resolving"
 	WorkspaceTorrentStatusVerifying   WorkspaceTorrentStatus = "verifying"
@@ -2345,11 +2367,34 @@ func (e WorkspaceTorrentStatus) Valid() bool {
 		return true
 	case WorkspaceTorrentStatusFailed:
 		return true
+	case WorkspaceTorrentStatusPaused:
+		return true
 	case WorkspaceTorrentStatusReady:
 		return true
 	case WorkspaceTorrentStatusResolving:
 		return true
 	case WorkspaceTorrentStatusVerifying:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkspaceTorrentDetailPauseReason.
+const (
+	WorkspaceTorrentDetailPauseReasonInsufficientCredits WorkspaceTorrentDetailPauseReason = "insufficient_credits"
+	WorkspaceTorrentDetailPauseReasonLessThannil         WorkspaceTorrentDetailPauseReason = "<nil>"
+	WorkspaceTorrentDetailPauseReasonPaused              WorkspaceTorrentDetailPauseReason = "paused"
+)
+
+// Valid indicates whether the value is a known member of the WorkspaceTorrentDetailPauseReason enum.
+func (e WorkspaceTorrentDetailPauseReason) Valid() bool {
+	switch e {
+	case WorkspaceTorrentDetailPauseReasonInsufficientCredits:
+		return true
+	case WorkspaceTorrentDetailPauseReasonLessThannil:
+		return true
+	case WorkspaceTorrentDetailPauseReasonPaused:
 		return true
 	default:
 		return false
@@ -2378,6 +2423,7 @@ func (e WorkspaceTorrentDetailSource) Valid() bool {
 const (
 	WorkspaceTorrentDetailStatusDownloading WorkspaceTorrentDetailStatus = "downloading"
 	WorkspaceTorrentDetailStatusFailed      WorkspaceTorrentDetailStatus = "failed"
+	WorkspaceTorrentDetailStatusPaused      WorkspaceTorrentDetailStatus = "paused"
 	WorkspaceTorrentDetailStatusReady       WorkspaceTorrentDetailStatus = "ready"
 	WorkspaceTorrentDetailStatusResolving   WorkspaceTorrentDetailStatus = "resolving"
 	WorkspaceTorrentDetailStatusVerifying   WorkspaceTorrentDetailStatus = "verifying"
@@ -2389,6 +2435,8 @@ func (e WorkspaceTorrentDetailStatus) Valid() bool {
 	case WorkspaceTorrentDetailStatusDownloading:
 		return true
 	case WorkspaceTorrentDetailStatusFailed:
+		return true
+	case WorkspaceTorrentDetailStatusPaused:
 		return true
 	case WorkspaceTorrentDetailStatusReady:
 		return true
@@ -7081,6 +7129,9 @@ type WorkspaceTorrent struct {
 	// Name The torrent's name, or the link's suggested name before its metadata arrives
 	Name string `json:"name"`
 
+	// PauseReason Why a paused entry waits: `insufficient_credits` when its download ran out of remote-download credits, `paused` when the download was paused
+	PauseReason *WorkspaceTorrentPauseReason `json:"pauseReason"`
+
 	// Playable Whether its files can be played and downloaded
 	Playable bool `json:"playable"`
 
@@ -7097,6 +7148,9 @@ type WorkspaceTorrent struct {
 	// TaskId The download task the entry started, if any
 	TaskId *string `json:"taskId"`
 }
+
+// WorkspaceTorrentPauseReason Why a paused entry waits: `insufficient_credits` when its download ran out of remote-download credits, `paused` when the download was paused
+type WorkspaceTorrentPauseReason string
 
 // WorkspaceTorrentSource `download` for a remote download, `stremthru` for an add from a Stremio addon
 type WorkspaceTorrentSource string
@@ -7123,6 +7177,9 @@ type WorkspaceTorrentDetail struct {
 	// Name The torrent's name, or the link's suggested name before its metadata arrives
 	Name string `json:"name"`
 
+	// PauseReason Why a paused entry waits: `insufficient_credits` when its download ran out of remote-download credits, `paused` when the download was paused
+	PauseReason *WorkspaceTorrentDetailPauseReason `json:"pauseReason"`
+
 	// Playable Whether its files can be played and downloaded
 	Playable bool `json:"playable"`
 
@@ -7139,6 +7196,9 @@ type WorkspaceTorrentDetail struct {
 	// TaskId The download task the entry started, if any
 	TaskId *string `json:"taskId"`
 }
+
+// WorkspaceTorrentDetailPauseReason Why a paused entry waits: `insufficient_credits` when its download ran out of remote-download credits, `paused` when the download was paused
+type WorkspaceTorrentDetailPauseReason string
 
 // WorkspaceTorrentDetailSource `download` for a remote download, `stremthru` for an add from a Stremio addon
 type WorkspaceTorrentDetailSource string

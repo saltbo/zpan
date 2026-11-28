@@ -73,6 +73,7 @@ function entry(overrides: Partial<WorkspaceTorrent> = {}): WorkspaceTorrent {
     fileCount: 2,
     status: 'ready',
     error: null,
+    pauseReason: null,
     source: 'stremthru',
     sourceUri: 'magnet:?xt=urn:btih:a1',
     playable: true,
@@ -138,6 +139,14 @@ beforeEach(() => {
         size: null,
         playable: false,
       }),
+      entry({
+        id: 'e-3',
+        name: 'Tears of Steel',
+        status: 'paused',
+        pauseReason: 'insufficient_credits',
+        size: null,
+        playable: false,
+      }),
     ],
     nextPageToken: null,
   })
@@ -173,6 +182,9 @@ describe('Torrents page', () => {
     const failed = screen.getByTestId('torrent-entry-e-2')
     expect(within(failed).getByText('torrents.status.failed')).toBeTruthy()
     expect(within(failed).getByText('tracker down')).toBeTruthy()
+    const paused = screen.getByTestId('torrent-entry-e-3')
+    expect(within(paused).getByText('torrents.status.paused')).toBeTruthy()
+    expect(within(paused).getByText('torrents.pauseReason.insufficient_credits')).toBeTruthy()
 
     // Opening a row puts it in the URL; the sheet reads the selected entry back.
     await user.click(within(failed).getByText('torrents.source.download'))

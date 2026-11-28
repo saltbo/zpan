@@ -267,6 +267,42 @@ describe('StremThru Store API', () => {
     expect((await entries(db, owner.orgId))[0]).toMatchObject({ id: torz.id, taskId: task.id, status: 'resolving' })
   })
 
+  it('fails a download suspended for credits on get, answers PAYMENT_REQUIRED on add, and shows it paused in the list', async () => {
+    const { app, call, db, owner } = await setup()
+    const link = JSON.stringify({ link: `magnet:?xt=urn:btih:${UNKNOWN_HASH}` })
+    const torz = (await json<{ data: Torz }>(await call('/v0/store/torz', { method: 'POST', body: link }))).data
+    await db.run(sql`
+      UPDATE download_tasks SET status = 'suspended', billing_status = 'insufficient_credits'
+      WHERE org_id = ${owner.orgId}
+    `)
+
+    const got = await json<{ data: Torz }>(await call(`/v0/store/torz/${torz.id}`))
+    expect(got.data).toMatchObject({ id: torz.id, status: 'failed' })
+    const again = await call('/v0/store/torz', { method: 'POST', body: link })
+    expect(again.status).toBe(402)
+    expect(await json(again)).toMatchObject({ error: { code: 'PAYMENT_REQUIRED' } })
+    // Adding it again starts no second download.
+    const tasks = await db.all(sql`SELECT id FROM download_tasks WHERE org_id = ${owner.orgId}`)
+    expect(tasks).toHaveLength(1)
+    const list = await json<{ items: Array<{ id: string; status: string; pauseReason: string | null }> }>(
+      await app.request('/api/torrents', { headers: owner.headers }),
+    )
+    expect(list.items[0]).toMatchObject({ id: torz.id, status: 'paused', pauseReason: 'insufficient_credits' })
+  })
+
+  it('returns an entry paused by hand as failed and leaves its download paused', async () => {
+    const { call, db, owner } = await setup()
+    const link = JSON.stringify({ link: `magnet:?xt=urn:btih:${UNKNOWN_HASH}` })
+    const torz = (await json<{ data: Torz }>(await call('/v0/store/torz', { method: 'POST', body: link }))).data
+    await db.run(sql`UPDATE download_tasks SET status = 'paused' WHERE org_id = ${owner.orgId}`)
+
+    const again = await call('/v0/store/torz', { method: 'POST', body: link })
+    expect(again.status).toBe(201)
+    expect((await json<{ data: Torz }>(again)).data).toMatchObject({ id: torz.id, status: 'failed' })
+    const tasks = await db.all<{ status: string }>(sql`SELECT status FROM download_tasks WHERE org_id = ${owner.orgId}`)
+    expect(tasks).toEqual([{ status: 'paused' }])
+  })
+
   it('returns the issued link again within its lifetime and charges traffic once [spec: torrents/stremthru-link-metered-once]', async () => {
     const start = Date.now()
     const hour = 60 * 60 * 1000
