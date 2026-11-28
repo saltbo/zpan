@@ -30,7 +30,7 @@ async function setup() {
     sourceUri: `magnet:?xt=urn:btih:${torrent.infoHash}`,
     displayName: null,
     taskId: null,
-    status: 'ready',
+    status: 'active',
     createdBy: { type: 'api_key', ref: 'k', issuer: null },
     now: new Date(),
     ...overrides,
@@ -56,7 +56,7 @@ describe('workspace torrents repo', () => {
     const { deps, orgId, torrent, input } = await setup()
     const { entry } = await deps.workspaceTorrents.insert(input())
     await deps.workspaceTorrents.insert(
-      input({ torrentId: null, infoHash: null, sourceUri: 'https://example.com/x.torrent', status: 'resolving' }),
+      input({ torrentId: null, infoHash: null, sourceUri: 'https://example.com/x.torrent', status: 'active' }),
     )
 
     const page = await deps.workspaceTorrents.listByOffset(orgId, { limit: 1, offset: 1 })
@@ -64,7 +64,7 @@ describe('workspace torrents repo', () => {
     expect(page.items).toHaveLength(1)
     expect(await deps.workspaceTorrents.countByTorrent(torrent.id)).toBe(1)
     expect(await deps.workspaceTorrents.findBySourceUri(orgId, 'https://example.com/x.torrent')).toMatchObject({
-      status: 'resolving',
+      status: 'active',
     })
     const paged = await deps.workspaceTorrents.list(orgId, { pageSize: 1 })
     expect(paged.items).toHaveLength(1)
@@ -78,7 +78,7 @@ describe('workspace torrents repo', () => {
     const { deps, orgId, input } = await setup()
     const hash = 'cd'.repeat(20)
     const waiting = (taskId: string) =>
-      input({ torrentId: null, infoHash: hash, sourceUri: `magnet:?xt=urn:btih:${hash}`, status: 'resolving', taskId })
+      input({ torrentId: null, infoHash: hash, sourceUri: `magnet:?xt=urn:btih:${hash}`, status: 'active', taskId })
 
     const [first, second] = await Promise.all([
       deps.workspaceTorrents.insert(waiting('t1')),

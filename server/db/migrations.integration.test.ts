@@ -386,3 +386,34 @@ describe('migration 0089_better-auth-account-issuer-backfill.sql', () => {
     }
   })
 })
+
+describe('migration 0115_workspace-torrents-stored-status.sql', () => {
+  const migration = readFileSync(join(process.cwd(), 'migrations/0115_workspace-torrents-stored-status.sql'), 'utf-8')
+
+  it('keeps failed entries and marks every other entry active, also when run again', () => {
+    const db = new Database(':memory:')
+
+    try {
+      db.exec(`
+        CREATE TABLE workspace_torrents (id TEXT PRIMARY KEY, status TEXT NOT NULL, error TEXT);
+        INSERT INTO workspace_torrents (id, status, error) VALUES
+          ('resolving', 'resolving', NULL),
+          ('downloading', 'downloading', NULL),
+          ('ready', 'ready', NULL),
+          ('failed', 'failed', 'disk full');
+      `)
+
+      db.exec(migration)
+      db.exec(migration)
+
+      expect(db.prepare('SELECT id, status, error FROM workspace_torrents ORDER BY id').all()).toEqual([
+        { id: 'downloading', status: 'active', error: null },
+        { id: 'failed', status: 'failed', error: 'disk full' },
+        { id: 'ready', status: 'active', error: null },
+        { id: 'resolving', status: 'active', error: null },
+      ])
+    } finally {
+      db.close()
+    }
+  })
+})

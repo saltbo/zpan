@@ -243,14 +243,7 @@ async function placeEntry(
       torrent.status === 'verifying' ||
       torrent.status === 'invalid' ||
       (torrent.status === 'downloading' && (await fillerActive(deps, torrent))))
-  const status =
-    torrent?.status === 'ready'
-      ? 'ready'
-      : torrent?.status === 'invalid'
-        ? 'failed'
-        : torrent
-          ? 'downloading'
-          : 'resolving'
+  const status = torrent?.status === 'invalid' ? 'failed' : 'active'
   const error = torrent?.status === 'invalid' ? TORRENT_INVALID_MESSAGE : null
 
   let entryId: string

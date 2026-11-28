@@ -216,7 +216,7 @@ describe('StremThru Store API', () => {
     ])
     expect(await activeFiles(db, owner.orgId)).toEqual([])
     expect(await entries(db, owner.orgId)).toEqual([
-      { id: torz.id, source: 'stremthru', status: 'ready', torrentId: torrent.id, taskId: null },
+      { id: torz.id, source: 'stremthru', status: 'active', torrentId: torrent.id, taskId: null },
     ])
 
     const generated = await call('/v0/store/torz/link/generate', {
@@ -264,7 +264,7 @@ describe('StremThru Store API', () => {
       SELECT id, list_only AS listOnly, target_folder AS targetFolder FROM download_tasks WHERE org_id = ${owner.orgId}
     `)
     expect(task).toMatchObject({ listOnly: 1, targetFolder: '' })
-    expect((await entries(db, owner.orgId))[0]).toMatchObject({ id: torz.id, taskId: task.id, status: 'resolving' })
+    expect((await entries(db, owner.orgId))[0]).toMatchObject({ id: torz.id, taskId: task.id, status: 'active' })
   })
 
   it('fails a download suspended for credits on get, answers PAYMENT_REQUIRED on add, and shows it paused in the list', async () => {
@@ -604,7 +604,7 @@ describe('StremThru removal and re-adding', () => {
 
     expect(torz).toMatchObject({ status: 'queued', files: [] })
     expect(await entries(ctx.db, ctx.owner.orgId)).toEqual([
-      expect.objectContaining({ id: torz.id, status: 'resolving', torrentId: null }),
+      expect.objectContaining({ id: torz.id, status: 'active', torrentId: null }),
     ])
     const tasks = await ctx.db.all<{ listOnly: number }>(sql`
       SELECT list_only AS listOnly FROM download_tasks WHERE org_id = ${ctx.owner.orgId}

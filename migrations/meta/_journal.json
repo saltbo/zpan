@@ -799,6 +799,13 @@
       "when": 1795852039731,
       "tag": "0114_torrent-stream",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "6",
+      "when": 1795872616735,
+      "tag": "0115_workspace-torrents-stored-status",
+      "breakpoints": true
     }
   ]
 }

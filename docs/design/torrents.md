@@ -111,7 +111,7 @@ Torrents list:
 | `source` | `download` (a remote download) or `stremthru` |
 | `source_uri`, `display_name` | The submitted link, and the name shown before metadata (a magnet's `dn`) |
 | `task_id` | The download task the entry started, null when the torrent was already on the instance |
-| `status`, `error` | `resolving`, `downloading`, `ready`, `failed`, and why it failed. Once the entry has a torrent, its status follows the torrent's; these columns carry what happens before there is one, such as a magnet whose metadata never arrives |
+| `status`, `error` | Whether the entry itself failed: `failed` and why (its download stopped, or the torrent it was added for is invalid), otherwise `active`. Every other status the list shows (resolving, downloading, verifying, paused, ready) is derived from the entry's torrent and tasks and never stored, so a query that needs one, such as ready entries, joins `torrents` instead of filtering this column |
 | `created_by_actor_type`, `created_by_actor_ref`, `created_by_actor_issuer` | Who added it: a user, or a StremThru key |
 | `last_played_at` | Set on every playback link and file download from the entry; drives expiry |
 | `created_at`, `updated_at` | |

@@ -858,9 +858,9 @@ export const torrentStreamWants = sqliteTable(
 )
 
 // workspace_torrents — one row per torrent a workspace holds, which is its
-// Torrents list (docs/design/torrents.md §3). The status columns carry what
-// happens before the entry has a torrent; once it has one, its status follows
-// the torrent's.
+// Torrents list (docs/design/torrents.md §3). `status` and `error` record only
+// whether the entry itself failed; the status the list shows is derived from
+// the torrent and the tasks.
 export const workspaceTorrents = sqliteTable(
   'workspace_torrents',
   {
@@ -874,7 +874,7 @@ export const workspaceTorrents = sqliteTable(
     sourceUri: text('source_uri').notNull(),
     displayName: text('display_name'), // shown before metadata, such as a magnet's dn
     taskId: text('task_id'), // the download task the entry started; null when the torrent was on the instance
-    status: text('status').notNull(), // resolving | downloading | ready | failed
+    status: text('status').notNull(), // active | failed
     error: text('error'),
     createdByActorType: text('created_by_actor_type').notNull(),
     createdByActorRef: text('created_by_actor_ref').notNull(),
