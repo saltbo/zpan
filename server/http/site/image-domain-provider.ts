@@ -2,7 +2,7 @@ import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import {
   imageDomainProviderResponseSchema,
-  saveImageDomainProviderResponseSchema,
+  imageDomainProviderSaveResultSchema,
   updateImageDomainSettingsSchema,
 } from '@shared/schemas'
 import { requestLanguage } from '../../middleware/error-handler'
@@ -43,7 +43,7 @@ const saveRoute = authRoute(
       body: { content: { 'application/json': { schema: updateImageDomainSettingsSchema } }, required: true },
     },
     responses: {
-      200: jsonContent(saveImageDomainProviderResponseSchema, 'Saved'),
+      200: jsonContent(imageDomainProviderSaveResultSchema, 'Saved'),
       400: errorResponse('Invalid provider configuration'),
     },
   },

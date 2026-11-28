@@ -290,13 +290,13 @@ export const imageDomainProviderResponseSchema = z
   })
   .openapi('ImageDomainProviderResponse')
 
-export const saveImageDomainProviderResponseSchema = z
+export const imageDomainProviderSaveResultSchema = z
   .object({
     success: z.literal(true),
     // A product message when the old provider's setup could not be removed and needs manual cleanup.
     warning: z.string().nullable(),
   })
-  .openapi('SaveImageDomainProviderResponse')
+  .openapi('ImageDomainProviderSaveResult')
 
 export const siteSettingsSchema = z
   .object({
@@ -351,7 +351,7 @@ export type ImageDomainDnsRecord = z.infer<typeof imageDomainDnsRecordSchema>
 export type ImageDomainSettings = z.infer<typeof imageDomainSettingsSchema>
 export type UpdateImageDomainSettingsInput = z.infer<typeof updateImageDomainSettingsSchema>
 export type ImageDomainProviderResponse = z.infer<typeof imageDomainProviderResponseSchema>
-export type SaveImageDomainProviderResponse = z.infer<typeof saveImageDomainProviderResponseSchema>
+export type ImageDomainProviderSaveResult = z.infer<typeof imageDomainProviderSaveResultSchema>
 export type UpdateSiteIdentityInput = z.infer<typeof updateSiteIdentitySchema>
 export type UpdateSiteRegistrationInput = z.infer<typeof updateSiteRegistrationSchema>
 export type UpdateSiteCaptchaInput = z.infer<typeof updateSiteCaptchaSchema>

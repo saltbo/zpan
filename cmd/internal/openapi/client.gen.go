@@ -1906,6 +1906,21 @@ func (e ImageDomainProviderResponseDomainsStatus) Valid() bool {
 	}
 }
 
+// Defines values for ImageDomainProviderSaveResultSuccess.
+const (
+	ImageDomainProviderSaveResultSuccessTrue ImageDomainProviderSaveResultSuccess = true
+)
+
+// Valid indicates whether the value is a known member of the ImageDomainProviderSaveResultSuccess enum.
+func (e ImageDomainProviderSaveResultSuccess) Valid() bool {
+	switch e {
+	case ImageDomainProviderSaveResultSuccessTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ImageDomainProviderStatus.
 const (
 	ImageDomainProviderStatusDisabled   ImageDomainProviderStatus = "disabled"
@@ -2086,21 +2101,6 @@ const (
 func (e PublicCaptcha1Enabled) Valid() bool {
 	switch e {
 	case PublicCaptcha1EnabledTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SaveImageDomainProviderResponseSuccess.
-const (
-	SaveImageDomainProviderResponseSuccessTrue SaveImageDomainProviderResponseSuccess = true
-)
-
-// Valid indicates whether the value is a known member of the SaveImageDomainProviderResponseSuccess enum.
-func (e SaveImageDomainProviderResponseSuccess) Valid() bool {
-	switch e {
-	case SaveImageDomainProviderResponseSuccessTrue:
 		return true
 	default:
 		return false
@@ -6187,6 +6187,15 @@ type ImageDomainProviderResponseDomainsProvider string
 // ImageDomainProviderResponseDomainsStatus defines model for ImageDomainProviderResponse.Domains.Status.
 type ImageDomainProviderResponseDomainsStatus string
 
+// ImageDomainProviderSaveResult defines model for ImageDomainProviderSaveResult.
+type ImageDomainProviderSaveResult struct {
+	Success ImageDomainProviderSaveResultSuccess `json:"success"`
+	Warning *string                              `json:"warning"`
+}
+
+// ImageDomainProviderSaveResultSuccess defines model for ImageDomainProviderSaveResult.Success.
+type ImageDomainProviderSaveResultSuccess bool
+
 // ImageDomainProviderStatus defines model for ImageDomainProviderStatus.
 type ImageDomainProviderStatus string
 
@@ -6628,15 +6637,6 @@ type QuotaOverviewItem struct {
 	TrafficUsed             int      `json:"trafficUsed"`
 	Used                    int      `json:"used"`
 }
-
-// SaveImageDomainProviderResponse defines model for SaveImageDomainProviderResponse.
-type SaveImageDomainProviderResponse struct {
-	Success SaveImageDomainProviderResponseSuccess `json:"success"`
-	Warning *string                                `json:"warning"`
-}
-
-// SaveImageDomainProviderResponseSuccess defines model for SaveImageDomainProviderResponse.Success.
-type SaveImageDomainProviderResponseSuccess bool
 
 // SaveShareResult defines model for SaveShareResult.
 type SaveShareResult struct {
@@ -28429,7 +28429,7 @@ func (r GetImageDomainProviderResponse) ContentType() string {
 type SaveImageDomainProviderResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *SaveImageDomainProviderResponse
+	JSON200      *ImageDomainProviderSaveResult
 	JSON400      *Error
 }
 
@@ -37345,7 +37345,7 @@ func ParseSaveImageDomainProviderResponse(rsp *http.Response) (*SaveImageDomainP
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest SaveImageDomainProviderResponse
+		var dest ImageDomainProviderSaveResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
