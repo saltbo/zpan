@@ -397,6 +397,32 @@ func (q QBittorrent) TorrentMetadata(ctx context.Context, task downloader.Downlo
 	return data, nil
 }
 
+// PrepareTorrentStream switches the task's torrent to sequential download with
+// each file's first and last pieces first, so the pieces a player reads from the
+// start arrive early (docs/design/torrents.md §14). qBittorrent's Web API only
+// toggles both, so each is toggled only while it is off.
+func (q QBittorrent) PrepareTorrentStream(ctx context.Context, task downloader.DownloadTask) error {
+	qbt, err := q.login(ctx)
+	if err != nil {
+		return err
+	}
+	torrent, ok, err := q.findTask(ctx, qbt, task)
+	if err != nil || !ok {
+		return err
+	}
+	if !torrent.SequentialDownload {
+		if err := qbt.ToggleTorrentSequentialDownloadCtx(ctx, []string{torrent.Hash}); err != nil {
+			return fmt.Errorf("toggle sequential download: %w", err)
+		}
+	}
+	if !torrent.FirstLastPiecePrio {
+		if err := qbt.ToggleFirstLastPiecePrioCtx(ctx, []string{torrent.Hash}); err != nil {
+			return fmt.Errorf("toggle first and last piece priority: %w", err)
+		}
+	}
+	return nil
+}
+
 // exportPending is qBittorrent's 409 for a torrent whose metadata it has not
 // downloaded yet. The client reports the status only in the message.
 func exportPending(err error) bool {

@@ -1,6 +1,6 @@
 # Torrents
 
-> Status: Accepted. Sections 1–13 describe the design as built; [section 14](#14-phases)
+> Status: Accepted. Sections 1–14 describe the design as built; [section 15](#15-phases)
 > lists how it was built.
 > Editions: Pro and Business, self-hosted only
 
@@ -26,6 +26,8 @@ is missing:
   workspace without downloading or copying bytes.
 - The StremThru Store API, through which community Stremio addons such as
   MediaFusion search torrents themselves and use ZPan as their Debrid service.
+- Streaming a torrent while it downloads, so the first viewer of a title does
+  not wait for the whole download.
 
 ## 2. Decisions
 
@@ -54,8 +56,9 @@ is missing:
    The server decides from the task where each upload is stored. Scraping
    stays optional: an unscraped torrent is uploaded with its own tree, and a
    scraped one chooses each file's path and adds sidecars.
-7. A torrent reaches other workspaces only after its pieces are verified
-   against the infoHash.
+7. Bytes of a torrent reach other workspaces only after they are verified
+   against the infoHash: the whole torrent before instant transfer, each piece
+   before it streams ([section 14](#14-streaming-while-downloading)).
 8. A Torrents list entry costs no quota, because only drive files do. Entries
    that came from StremThru expire when the workspace stops playing them, and a
    torrent nobody holds is evicted by least-recent access
@@ -313,7 +316,7 @@ ZPan implements this subset, under both `torz` and `magnets` paths:
 | `GET /v0/store/user` | The key's user, `subscription_status: premium` |
 | `GET …/check?hash=` (up to 500) | Looks up each infoHash; a `ready` torrent returns `cached` with its files, anything else `unknown` |
 | `POST …` with a magnet or torrent link | An entry in the key's workspace Torrents list ([section 4](#4-downloading-a-torrent)); its id is the entry id. Adding an entry whose download ran out of remote-download credits answers `PAYMENT_REQUIRED` and starts no second download; one paused by hand is returned as it is, because an addon does not undo a pause |
-| `GET …`, `GET …/{id}`, `DELETE …/{id}` | The workspace's Torrents list. Delete removes the entry; links already issued keep playing, because only eviction deletes bytes |
+| `GET …`, `GET …/{id}`, `DELETE …/{id}` | The workspace's Torrents list. An entry whose torrent streams is `downloaded`, with links ([section 14](#14-streaming-while-downloading)). Delete removes the entry; links already issued keep playing, because only eviction deletes bytes |
 | `POST …/link/generate` | A playback link ([section 10](#10-playback-and-metering)) valid for 12 hours |
 
 An entry's status maps onto torz statuses: resolving is `queued`, downloading
@@ -363,7 +366,9 @@ Drive files that reference a torrent look and behave like any other file.
 `link/generate` and the Torrents page authorize against the workspace's list
 entry, update the entry's `last_played_at` and the torrent's
 `last_accessed_at`, and return a presigned URL for the file's `bt/` object,
-valid for 12 hours. Bytes flow between the player and the bucket.
+valid for 12 hours. Bytes flow between the player and the bucket. The one
+exception is a torrent that streams before it is ready, whose link reads
+through the server ([section 14](#14-streaming-while-downloading)).
 
 Metering follows direct-share downloads and charges the file's size when a link
 is issued. Players reconnect and seek, and addons regenerate links, so ZPan
@@ -427,7 +432,65 @@ copyright claims (see the positioning in
 Without the entitlement, drive files that reference a torrent remain readable
 and deletable, and the StremThru API answers `PAYMENT_REQUIRED`.
 
-## 14. Phases
+## 14. Streaming while downloading
+
+Commercial Debrid services make a viewer wait for an uncached torrent to finish
+downloading on their side, and addons play a "downloading" placeholder until
+then. ZPan streams the torrent instead, from the pieces its filling downloader
+uploads ahead of the files. Whether that plays smoothly depends on the swarm and
+on the downloader's bandwidth in both directions, because every streamed byte
+is downloaded and uploaded at once.
+
+**Which torrents stream.** A downloader whose engine hands over torrent
+metadata (qBittorrent and Aria2) reports the `torrent_stream` capability. A
+`downloading` or `verifying` torrent whose source downloader reports it streams,
+in every workspace that holds it: the bytes it serves are verified pieces, so
+decision 7 holds without waiting for the whole torrent.
+
+**The downloader's side.** While a task fills a torrent, through its download
+and its upload, the downloader asks every two seconds what to upload
+(`GET /api/downloads/tasks/{id}/torrent-stream`). The answer names the pieces
+players wait for or read from in the last two minutes, the chunks already
+stored, and a readahead of 64 MiB. When a piece is first wanted, the downloader
+switches qBittorrent to sequential download with each file's first and last
+pieces first; Aria2 has no such switch and streams only what it happens to have.
+From each wanted piece to the end of its readahead, the downloader reads pieces
+from the engine's files, keeps those whose SHA-1 matches the dictionary, and
+uploads runs of them, at most 32 MiB or one piece each
+(`PUT …/torrent-stream/chunks/{firstPiece}`), stopping at the first piece not on
+disk. The server hashes every piece again before it stores the chunk at
+`bt/<infoHash>/stream/<first>-<count>` and records it in
+`torrent_stream_chunks`; a piece that does not match refuses the chunk.
+
+**The player's side.** For a torrent that streams, `link/generate` returns
+`/stremthru/stream/<token>`, charged like any link. The token is an HMAC over
+the torrent file and the link's expiry, because players send no headers. `HEAD`
+answers the file's size at once, because MediaFusion's HEAD gives up after eight
+seconds. `GET` answers `206` for at most 32 MiB of the requested range, so the
+player asks for the next part. It reads the range from the chunks as they
+arrive, records the piece it reads in `torrent_stream_wants`, and waits for a
+missing piece, checking every 1.5 seconds, for up to ten minutes. Once the
+torrent is ready the link redirects to the file's presigned URL, and a response
+already running reads on from the file.
+
+**StremThru.** MediaFusion adds an uncached torrent and polls it for about 20
+seconds, until it is `downloaded`, before it plays a placeholder. An entry whose
+torrent streams is therefore `downloaded`, with links, as soon as the
+downloader reported the dictionary. `check` still answers `cached` only for
+`ready` torrents, because addons show `cached` as plays-at-once.
+
+**Cleanup.** When the torrent becomes `ready` or `invalid`, its chunks and wants
+are deleted. Eviction removes any chunk left under `bt/<infoHash>/`.
+
+**Limits.**
+
+- A streamed piece is uploaded twice, once in a chunk and once in its file.
+- Bytes of a streaming torrent pass through the server, and a storage other
+  than R2 charges its egress for them as it would for a presigned read.
+- qBittorrent's Web API has no per-piece priority, so a seek past what the
+  sequential download reached waits until it gets there.
+
+## 15. Phases
 
 A standalone spike confirmed that third-party addons accept ZPan as a
 StremThru store: `mediafusion.elfhosted.com` validated the credential, marked
@@ -461,7 +524,7 @@ The rework, in order, all built (#737, #738, #745):
    list; the StremThru API, playback links, expiry, and eviction read list
    entries; the Torrents page with *Save to drive* and *Remove*.
 
-## 15. Out of scope
+## 16. Out of scope
 
 - **A ZPan Stremio addon.** An addon of ZPan's own would have to search
   torrents, through an indexer such as Prowlarr, before it could look them up.
@@ -472,7 +535,7 @@ The rework, in order, all built (#737, #738, #745):
 - **Usenet.** StremThru's Newz API serves NZB downloads, which have no
   infoHash. Supporting them needs a different key.
 
-## 16. References
+## 17. References
 
 - [StremThru Store API](https://docs.stremthru.13377001.xyz/api/store) and
   [Torz API](https://docs.stremthru.13377001.xyz/api/torz)

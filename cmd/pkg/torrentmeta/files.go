@@ -17,13 +17,43 @@ type File struct {
 	// Padding marks a BEP 47 padding file, which counts for piece boundaries
 	// but is never downloaded as a file.
 	Padding bool
+	// Offset is the file's first byte in the torrent's concatenated bytes.
+	Offset int64
 }
 
 // Info is what the downloader needs of an info dictionary to find each file
-// of the torrent in a finished download.
+// of the torrent in a download, and to check its pieces.
 type Info struct {
 	Name  string
 	Files []File
+	// PieceLength and Pieces (20-byte SHA-1 hashes, concatenated) are zero for a
+	// dictionary without v1 pieces.
+	PieceLength int64
+	Pieces      []byte
+}
+
+// PieceCount is how many v1 pieces the torrent has.
+func (i Info) PieceCount() int {
+	return len(i.Pieces) / 20
+}
+
+// TotalLength is the size of the torrent's concatenated bytes, padding included.
+func (i Info) TotalLength() int64 {
+	var total int64
+	for _, file := range i.Files {
+		total += file.Size
+	}
+	return total
+}
+
+// PieceSize is the length of the piece, shorter for the last one.
+func (i Info) PieceSize(piece int) int64 {
+	return min(i.PieceLength, i.TotalLength()-int64(piece)*i.PieceLength)
+}
+
+// PieceHash is the piece's SHA-1 from the dictionary.
+func (i Info) PieceHash(piece int) []byte {
+	return i.Pieces[piece*20 : (piece+1)*20]
 }
 
 // Parse reads the name and files of a bencoded info dictionary. Paths are
@@ -42,6 +72,12 @@ func Parse(info []byte) (Info, error) {
 		return Info{}, ErrInvalid
 	}
 	out := Info{Name: name}
+	if pieceLength, ok := dict["piece length"].(int64); ok && pieceLength > 0 {
+		if pieces, ok := dict["pieces"].([]byte); ok && len(pieces)%20 == 0 {
+			out.PieceLength = pieceLength
+			out.Pieces = pieces
+		}
+	}
 	list, multi := dict["files"]
 	if !multi {
 		length, ok := dict["length"].(int64)
@@ -55,6 +91,7 @@ func Parse(info []byte) (Info, error) {
 	if !ok || len(entries) == 0 {
 		return Info{}, ErrInvalid
 	}
+	var offset int64
 	for index, value := range entries {
 		entry, ok := value.(map[string]any)
 		if !ok {
@@ -81,7 +118,8 @@ func Parse(info []byte) (Info, error) {
 		}
 		attr, _ := entry["attr"].([]byte)
 		padding := bytes.ContainsRune(attr, 'p') || (len(segments) > 1 && segments[0] == ".pad")
-		out.Files = append(out.Files, File{Index: index, Path: strings.Join(segments, "/"), Size: length, Padding: padding})
+		out.Files = append(out.Files, File{Index: index, Path: strings.Join(segments, "/"), Size: length, Padding: padding, Offset: offset})
+		offset += length
 	}
 	return out, nil
 }

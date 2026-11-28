@@ -54,6 +54,7 @@ import type {
   TeamInviteRepo,
   TeamRepo,
   TorrentRepo,
+  TorrentStreamRepo,
   UserAdminRepo,
   WebDavPathRepo,
   WebDavStateRepo,
@@ -117,6 +118,7 @@ export interface Deps {
   torrents: TorrentRepo
   workspaceTorrents: WorkspaceTorrentRepo
   stremthruLinks: StremThruLinkRepo
+  torrentStream: TorrentStreamRepo
   userAdmin: UserAdminRepo
   webdavPath: WebDavPathRepo
   webdavState: WebDavStateRepo

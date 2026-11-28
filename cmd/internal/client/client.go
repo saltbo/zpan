@@ -861,3 +861,62 @@ func responseError(body []byte) string {
 	}
 	return strings.TrimSpace(string(body))
 }
+
+// TorrentStreamState is what to upload for streaming the torrent a task fills
+// (docs/design/torrents.md §14).
+type TorrentStreamState struct {
+	PieceLength    int64
+	PieceCount     int
+	ReadaheadBytes int64
+	MaxChunkBytes  int64
+	// Wants are the pieces players wait for or read from, ascending.
+	Wants []int
+	// Chunks are the piece ranges already stored.
+	Chunks []TorrentStreamChunk
+}
+
+// TorrentStreamChunk is pieces [FirstPiece, FirstPiece+PieceCount).
+type TorrentStreamChunk struct {
+	FirstPiece int
+	PieceCount int
+}
+
+// TorrentStreamState asks what to upload for streaming the task's torrent. A
+// 409 means the task no longer fills a downloading torrent.
+func (c *Client) TorrentStreamState(ctx context.Context, taskID string) (TorrentStreamState, error) {
+	path := "/api/downloads/tasks/" + taskID + "/torrent-stream"
+	res, err := c.api.GetDownloadTaskTorrentStreamWithResponse(ctx, taskID, bearer(c.token))
+	if err != nil {
+		return TorrentStreamState{}, err
+	}
+	if err := expectStatus("GET", path, res.StatusCode(), res.Body, http.StatusOK); err != nil {
+		return TorrentStreamState{}, err
+	}
+	if res.JSON200 == nil {
+		return TorrentStreamState{}, fmt.Errorf("GET %s failed: empty response", path)
+	}
+	out := TorrentStreamState{
+		PieceLength:    int64(res.JSON200.PieceLength),
+		PieceCount:     res.JSON200.PieceCount,
+		ReadaheadBytes: int64(res.JSON200.ReadaheadBytes),
+		MaxChunkBytes:  int64(res.JSON200.MaxChunkBytes),
+		Wants:          res.JSON200.Wants,
+	}
+	for _, chunk := range res.JSON200.Chunks {
+		out.Chunks = append(out.Chunks, TorrentStreamChunk{FirstPiece: chunk.FirstPiece, PieceCount: chunk.PieceCount})
+	}
+	return out, nil
+}
+
+// PutTorrentStreamChunk uploads the torrent's bytes of whole pieces from
+// firstPiece on. The server checks every piece before it stores them.
+func (c *Client) PutTorrentStreamChunk(ctx context.Context, taskID string, firstPiece int, data []byte) error {
+	path := fmt.Sprintf("/api/downloads/tasks/%s/torrent-stream/chunks/%d", taskID, firstPiece)
+	res, err := c.api.PutDownloadTaskTorrentStreamChunkWithBodyWithResponse(
+		ctx, taskID, firstPiece, "application/octet-stream", bytes.NewReader(data), bearer(c.token),
+	)
+	if err != nil {
+		return err
+	}
+	return expectStatus("PUT", path, res.StatusCode(), res.Body, http.StatusCreated)
+}

@@ -23,6 +23,7 @@ import { createTrafficEventId, recordDownloadIssued } from '../transfer-activity
 import { type EntryState, entryState, loadStateTasks, recordEntryPlayed, stateOf } from './entries'
 import { transferTorrent } from './instant-transfer'
 import { loadTorrentPolicy } from './policy'
+import { canStream } from './stream'
 
 // Playback links are valid for 12 hours, and an issued link is handed out again
 // while it has more than an hour left (§10).
@@ -41,6 +42,9 @@ export interface WorkspaceTorrentDetail extends WorkspaceTorrentItem {
   // The torrent's own tree, by file index; empty before the torrent is known.
   files: TorrentFileRecord[]
   playable: boolean
+  // Not playable yet, but its downloader uploads pieces for streaming
+  // (docs/design/torrents.md §14), so a stream link plays it.
+  streamable: boolean
 }
 
 async function withStates(
@@ -78,7 +82,7 @@ export function isPlayable(view: WorkspaceTorrentView, state: EntryState): boole
 }
 
 export async function getWorkspaceTorrent(
-  deps: Pick<Deps, 'workspaceTorrents' | 'downloadTasks' | 'torrents'>,
+  deps: Pick<Deps, 'workspaceTorrents' | 'downloadTasks' | 'torrents' | 'downloaders'>,
   orgId: string,
   id: string,
 ): Promise<WorkspaceTorrentDetail> {
@@ -86,7 +90,13 @@ export async function getWorkspaceTorrent(
   if (!view) throw notFound('Torrent not found')
   const state = await stateOf(deps, view)
   const files = view.torrent ? await deps.torrents.listFiles(view.torrent.id) : []
-  return { view, state, files, playable: isPlayable(view, state) }
+  const playable = isPlayable(view, state)
+  const streamable =
+    !playable &&
+    files.length > 0 &&
+    (state.status === 'downloading' || state.status === 'verifying') &&
+    (await canStream(deps, view.torrent))
+  return { view, state, files, playable, streamable }
 }
 
 // ─── Playback and download links (§10) ───────────────────────────────────────
@@ -100,6 +110,9 @@ export interface IssueLinkParams {
   fileId: string
   cloudBaseUrl: string
   source: 'stremthru' | 'torrents'
+  // Builds the stream link of a file of a torrent that is not playable yet but
+  // streams (docs/design/torrents.md §14). Without it, such a file is refused.
+  streamUrl?: (torrentFileId: string, expiresAt: Date) => Promise<string>
   now?: Date
 }
 
@@ -118,7 +131,8 @@ export async function issueTorrentFileLink(
   const torrent = detail.view.torrent
   const file = detail.files.find((item) => item.id === params.fileId)
   if (!torrent || !file) throw notFound('Torrent file not found')
-  if (!detail.playable) throw conflict('Torrent file is not playable yet', 'TORRENT_NOT_READY')
+  const streams = !detail.playable && detail.streamable && !!params.streamUrl
+  if (!detail.playable && !streams) throw conflict('Torrent file is not playable yet', 'TORRENT_NOT_READY')
 
   const issued = await deps.stremthruLinks.get(params.userId, params.orgId, file.id)
   if (issued && issued.expiresAt.getTime() - now.getTime() > TORRENT_LINK_REUSE_MIN_REMAINING_MS) {
@@ -149,15 +163,18 @@ export async function issueTorrentFileLink(
   }
 
   const name = file.path.slice(file.path.lastIndexOf('/') + 1)
+  const expiresAt = new Date(now.getTime() + TORRENT_LINK_TTL_SECONDS * 1000)
   let url: string
   try {
-    url = await deps.s3.presignDownload(storage, file.objectKey, name, TORRENT_LINK_TTL_SECONDS)
+    url =
+      streams && params.streamUrl
+        ? await params.streamUrl(file.id, expiresAt)
+        : await deps.s3.presignDownload(storage, file.objectKey, name, TORRENT_LINK_TTL_SECONDS)
     await confirmDownloadTraffic(deps, { eventId: trafficEventId, now })
   } catch (error) {
     await reverseDownloadTraffic(deps, { orgId: params.orgId, bytes, eventId: trafficEventId, now })
     throw error
   }
-  const expiresAt = new Date(now.getTime() + TORRENT_LINK_TTL_SECONDS * 1000)
   await recordEntryPlayed(deps, detail.view, now)
   await deps.stremthruLinks.save({
     userId: params.userId,

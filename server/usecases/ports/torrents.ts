@@ -148,6 +148,8 @@ export interface TorrentRepo {
   deleteEntry(id: string): Promise<void>
   // The torrent's own tree: its file entries by file index.
   listFiles(torrentId: string): Promise<TorrentFileRecord[]>
+  // A file of a torrent's own tree by its entry id, with its torrent.
+  findFile(id: string): Promise<{ torrent: TorrentRecord; file: TorrentFileRecord } | null>
   // Every entry of the torrent, files, sidecars, and folders, by layout path.
   listEntries(torrentId: string): Promise<TorrentEntryRecord[]>
   // Torrents in a final state that no matter row (purged_at IS NULL) references
@@ -192,6 +194,33 @@ export interface StremThruLinkRepo {
     expiresAt: Date
     now: Date
   }): Promise<void>
+}
+
+// ─── Streaming a downloading torrent (docs/design/torrents.md §14) ──────────
+
+// Whole pieces [firstPiece, firstPiece + pieceCount) of a torrent, verified and
+// stored as one object of the torrent's concatenated bytes.
+export interface TorrentStreamChunkRecord {
+  torrentId: string
+  firstPiece: number
+  pieceCount: number
+  objectKey: string
+  size: number
+}
+
+export interface TorrentStreamRepo {
+  // The torrent's chunks, by first piece.
+  listChunks(torrentId: string): Promise<TorrentStreamChunkRecord[]>
+  // A chunk holding the piece, if any.
+  findChunk(torrentId: string, piece: number): Promise<TorrentStreamChunkRecord | null>
+  // Records a chunk; a chunk already at that first piece stays.
+  insertChunk(input: TorrentStreamChunkRecord & { now: Date }): Promise<void>
+  // Records that a player waits for or reads from the piece now.
+  want(torrentId: string, piece: number, now: Date): Promise<void>
+  // Pieces wanted since `since`, ascending.
+  listWants(torrentId: string, since: Date): Promise<number[]>
+  // Forgets the torrent's chunks and wants and returns the chunks it had.
+  purge(torrentId: string): Promise<TorrentStreamChunkRecord[]>
 }
 
 // ─── Torrents lists (docs/design/torrents.md §3 workspace_torrents) ──────────

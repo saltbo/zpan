@@ -298,6 +298,17 @@ type TorrentMetadataExportProbe interface {
 	CanExportTorrentMetadata(ctx context.Context) bool
 }
 
+// TorrentStreamCapability is reported by a downloader that uploads a torrent's
+// pieces for streaming while it downloads (docs/design/torrents.md §14).
+const TorrentStreamCapability = "torrent_stream"
+
+// TorrentStreamPreparer is an engine that can download a torrent in order, from
+// its first pieces on and with each file's first and last pieces early, so the
+// pieces players want arrive first.
+type TorrentStreamPreparer interface {
+	PrepareTorrentStream(ctx context.Context, task DownloadTask) error
+}
+
 type TaskResetter interface {
 	ResetTask(ctx context.Context, task DownloadTask) error
 }

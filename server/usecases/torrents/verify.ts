@@ -17,8 +17,9 @@ import {
 import type { Deps } from '../deps'
 import type { BackgroundJobMessage, S3StorageCredentials, Sha1Hasher } from '../ports'
 import { completeJoinedTasks, failJoinedTasks, type TorrentFillDeps } from './fill'
+import { purgeStreamChunks } from './stream'
 
-export type TorrentVerifyDeps = TorrentFillDeps & Pick<Deps, 'pieceHasher'>
+export type TorrentVerifyDeps = TorrentFillDeps & Pick<Deps, 'pieceHasher' | 'torrentStream'>
 
 type VerifyMessage = BackgroundJobMessage<TorrentVerifyJobRequest>
 
@@ -147,6 +148,7 @@ export async function processTorrentVerify(deps: TorrentVerifyDeps, message: Ver
     if (mismatch !== null) {
       await deps.torrents.transition(torrent.id, ['verifying'], 'invalid', { now })
       await failJoinedTasks(deps, torrent, now)
+      await purgeStreamChunks(deps, torrent)
       console.error(
         `torrents.verify.invalid torrent=${torrent.id} piece=${mismatch} downloader=${torrent.sourceDownloaderId ?? ''}`,
       )
@@ -163,6 +165,8 @@ export async function processTorrentVerify(deps: TorrentVerifyDeps, message: Ver
     const verified = full ? 'full' : 'sampled'
     await deps.torrents.transition(torrent.id, ['verifying'], 'ready', { verified, now })
     await completeJoinedTasks(deps, { ...torrent, status: 'ready', verified }, now)
+    // Streams read the verified files from now on (docs/design/torrents.md §14).
+    await purgeStreamChunks(deps, torrent)
     await deps.backgroundJobs.update(orgId, jobId, {
       status: 'completed',
       progress: { fileCount: info.pieceCount, processedBytes: info.totalLength },

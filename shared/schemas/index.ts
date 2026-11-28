@@ -321,8 +321,13 @@ export {
   replaceStorageSchema,
   updateStorageEgressBillingSchema,
 } from './storage'
-export type { TorrentVerifyJobRequest } from './torrents'
-export { torrentInfoSchema, torrentVerifyJobRequestSchema } from './torrents'
+export type { TorrentStreamState, TorrentVerifyJobRequest } from './torrents'
+export {
+  torrentInfoSchema,
+  torrentStreamChunkSchema,
+  torrentStreamStateSchema,
+  torrentVerifyJobRequestSchema,
+} from './torrents'
 
 export const signInSchema = z.object({
   email: z.string().email(),

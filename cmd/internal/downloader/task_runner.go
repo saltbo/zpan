@@ -43,6 +43,7 @@ type TaskRunner struct {
 	logger     *slog.Logger
 	running    map[string]context.CancelCauseFunc
 	reports    map[string]*torrentReport
+	streams    map[string]*torrentStreamer
 	speeds     map[string]transferSpeeds
 	attempts   map[string]int
 	wg         sync.WaitGroup
@@ -283,6 +284,7 @@ func (w *TaskRunner) downloadThenUpload(
 		return
 	}
 
+	defer w.stopTorrentStream(task.ID)
 	var lastProgressLog time.Time
 	// ProgressReporter reporting is pure telemetry: it never decides whether to stop.
 	// Control transitions (pause/cancel/suspend) arrive through the task poll
@@ -309,6 +311,7 @@ func (w *TaskRunner) downloadThenUpload(
 		}
 		if report := w.reportState(task.ID); report != nil {
 			w.reportDuringDownload(ctx, log, task, report, w.cancelFunc(task.ID))
+			w.streamTorrent(ctx, log, task)
 		}
 		return nil
 	})
@@ -570,6 +573,9 @@ func (w *TaskRunner) uploadAndComplete(
 			return
 		}
 	}
+	// Players keep streaming the torrent from its pieces while its files upload.
+	w.streamTorrent(ctx, log, task)
+	defer w.stopTorrentStream(task.ID)
 	if _, err := w.updateTask(ctx, task.ID, client.TaskPatch{
 		Status:   "uploading",
 		Progress: downloadProgressPatch(result.Size, &result.Size, zero),
