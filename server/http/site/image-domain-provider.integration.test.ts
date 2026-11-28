@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { organization } from '../../db/auth-schema'
 import { adminHeaders, createTestApp, seedProLicense } from '../../test/setup'
 
 const manualSettings = {
@@ -81,8 +82,25 @@ describe('Admin image-domain provider API', () => {
       return ((await response.json()) as { status: string; error: string }).error
     }
 
+    await db.insert(organization).values({ id: 'org-761', name: 'Images', slug: 'images-761', createdAt: new Date() })
+    await deps.imageHostingConfigs.create({
+      orgId: 'org-761',
+      customDomain: 'img.example.com',
+      domainProvider: 'manual',
+      providerHostnameId: null,
+      domainStatus: 'failed',
+      domainError: 'custom hostname does not CNAME to this zone.',
+      verificationToken: null,
+      refererAllowlist: null,
+    })
+
     // Stored before this rule: the provider's own text.
     await expect(read('fallback origin inactive')).resolves.toBe('自定义域名服务测试失败，请检查其设置。')
+    const response = await app.request('/api/site/settings/image-domains', { headers })
+    const body = (await response.json()) as { domains: Array<{ error: string | null }> }
+    expect(body.domains.map((domain) => domain.error)).toEqual([
+      '自定义域名尚未通过验证，请检查其 DNS 记录是否指向所示目标。',
+    ])
     await expect(read('Turn on the Cloudflare proxy for the DNS record ssl.example.com')).resolves.toBe(
       '请为 DNS 记录 ssl.example.com 开启 Cloudflare 代理',
     )

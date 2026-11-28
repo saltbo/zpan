@@ -274,6 +274,92 @@ describe('image domain provider gateway', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('Authentication error'))
   })
 
+  const ok = (result: unknown) => new Response(JSON.stringify({ success: true, result }), { status: 200 })
+  const originValues = {
+    ...cloudflareValues,
+    image_domain_cloudflare_routing_mode: 'origin',
+    image_domain_cloudflare_origin_hostname: 'origin.example.com',
+  }
+
+  it.each([
+    [
+      'a CNAME target outside the zone',
+      cloudflareValues,
+      [ok({ name: 'other.com' }), ok({ origin: 'ssl.example.com', status: 'active' })],
+      'The CNAME target must be a hostname inside the Cloudflare zone other.com',
+    ],
+    [
+      'a CNAME target that points elsewhere',
+      cloudflareValues,
+      [
+        ok({ name: 'example.com' }),
+        ok({ origin: 'origin.example.com', status: 'active' }),
+        ok([{ id: 'dns-1', type: 'A', name: 'ssl.example.com', content: '192.0.2.1', proxied: true }]),
+      ],
+      'Change the DNS record ssl.example.com to a CNAME that points to origin.example.com',
+    ],
+    [
+      'a Worker route used by another script',
+      cloudflareValues,
+      [
+        ok({ name: 'example.com' }),
+        ok({ origin: 'ssl.example.com', status: 'active' }),
+        ok([{ id: 'dns-1', type: 'AAAA', name: 'ssl.example.com', content: '100::', proxied: true }]),
+        ok({ id: 'ruleset-1', rules: [] }),
+        ok({ id: 'rule-1' }),
+        ok([{ id: 'route-1', pattern: '*/ih/*', script: 'other' }]),
+      ],
+      'The Cloudflare Worker route */ih/* is already in use. Remove that route and test again.',
+    ],
+    [
+      'an origin hostname outside the zone',
+      originValues,
+      [ok({ name: 'other.com' })],
+      'The origin hostname must be inside the Cloudflare zone other.com',
+    ],
+    [
+      'a missing origin record',
+      originValues,
+      [ok({ name: 'example.com' }), ok([])],
+      'Add a proxied DNS record for the origin hostname origin.example.com in Cloudflare',
+    ],
+    [
+      'an unproxied origin record',
+      originValues,
+      [
+        ok({ name: 'example.com' }),
+        ok([{ id: 'dns-1', type: 'A', name: 'origin.example.com', content: '192.0.2.1', proxied: false }]),
+      ],
+      'Turn on the Cloudflare proxy for the DNS record origin.example.com',
+    ],
+    [
+      'an origin record of the wrong type',
+      originValues,
+      [
+        ok({ name: 'example.com' }),
+        ok([{ id: 'dns-1', type: 'TXT', name: 'origin.example.com', content: 'x', proxied: true }]),
+      ],
+      'The DNS record origin.example.com must be an A, AAAA, or CNAME record',
+    ],
+    [
+      'an origin fallback still being set up',
+      originValues,
+      [
+        ok({ name: 'example.com' }),
+        ok([{ id: 'dns-1', type: 'A', name: 'origin.example.com', content: '192.0.2.1', proxied: true }]),
+        ok({ origin: 'old.example.com', status: 'active' }),
+        ok({ origin: 'origin.example.com', status: 'pending' }),
+      ],
+      'The Cloudflare fallback origin is still being set up. Wait a moment and test again.',
+    ],
+  ])('names what to fix for %s [spec: error-messages/image-domain-status]', async (_case, values, responses, message) => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    for (const response of responses) fetchSpy.mockResolvedValueOnce(response)
+    const gateway = createImageDomainProviderGateway(options(values))
+    const config = await gateway.getConfig()
+    await expect(gateway.test(config!.settings)).rejects.toThrow(message)
+  })
+
   it('asks to turn on the proxy for an unproxied CNAME target [spec: error-messages/image-domain-status]', async () => {
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(
