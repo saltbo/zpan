@@ -105,6 +105,35 @@ describe('entryState', () => {
     ).toBe('failed')
   })
 
+  it('pauses while the download waits to be resumed, and says when credits ran out', () => {
+    const suspended = task('own', 'suspended', { orgId: 'org', billingStatus: 'insufficient_credits' })
+    // Before the torrent is known, as when a StremThru add found no credits.
+    expect(entryState(view({ taskId: 'own' }), tasks(suspended))).toEqual({
+      status: 'paused',
+      error: null,
+      pauseReason: 'insufficient_credits',
+    })
+    for (const status of ['paused', 'pausing']) {
+      expect(entryState(view({ taskId: 'own' }), tasks(task('own', status)))).toEqual({
+        status: 'paused',
+        error: null,
+        pauseReason: 'paused',
+      })
+    }
+    const downloading = view({ torrent: torrent('downloading'), taskId: 'own' })
+    expect(entryState(downloading, tasks(suspended)).pauseReason).toBe('insufficient_credits')
+    // The torrent's filler still runs, so the torrent still downloads.
+    expect(entryState(downloading, tasks(suspended, task('fill', 'downloading'))).status).toBe('downloading')
+  })
+
+  it('pauses while it waits on a paused filler, keeping another workspace’s reason private', () => {
+    const waiting = view({ torrent: torrent('downloading') })
+    const ownFiller = task('fill', 'suspended', { orgId: 'org', billingStatus: 'insufficient_credits' })
+    expect(entryState(waiting, tasks(ownFiller)).pauseReason).toBe('insufficient_credits')
+    const otherFiller = task('fill', 'suspended', { orgId: 'other', billingStatus: 'insufficient_credits' })
+    expect(entryState(waiting, tasks(otherFiller))).toEqual({ status: 'paused', error: null, pauseReason: 'paused' })
+  })
+
   it('shows what happens before there is a torrent', () => {
     expect(entryState(view(), tasks()).status).toBe('resolving')
     expect(entryState(view({ status: 'failed', error: 'gone' }), tasks())).toEqual({ status: 'failed', error: 'gone' })

@@ -4,8 +4,18 @@ import { z } from '@hono/zod-openapi'
 
 const int64 = () => z.number().int().min(0).openapi({ type: 'integer', format: 'int64' })
 
-export const WORKSPACE_TORRENT_STATUSES = ['resolving', 'downloading', 'verifying', 'ready', 'failed'] as const
+export const WORKSPACE_TORRENT_STATUSES = [
+  'resolving',
+  'downloading',
+  'verifying',
+  'paused',
+  'ready',
+  'failed',
+] as const
 export type WorkspaceTorrentStatus = (typeof WORKSPACE_TORRENT_STATUSES)[number]
+
+export const WORKSPACE_TORRENT_PAUSE_REASONS = ['insufficient_credits', 'paused'] as const
+export type WorkspaceTorrentPauseReason = (typeof WORKSPACE_TORRENT_PAUSE_REASONS)[number]
 
 export const WORKSPACE_TORRENT_SOURCES = ['download', 'stremthru'] as const
 export type WorkspaceTorrentSource = (typeof WORKSPACE_TORRENT_SOURCES)[number]
@@ -19,6 +29,12 @@ export const workspaceTorrentSchema = z
     fileCount: z.number().int().min(0).nullable(),
     status: z.enum(WORKSPACE_TORRENT_STATUSES),
     error: z.string().nullable().describe('Why the entry failed'),
+    pauseReason: z
+      .enum(WORKSPACE_TORRENT_PAUSE_REASONS)
+      .nullable()
+      .describe(
+        'Why a paused entry waits: `insufficient_credits` when its download ran out of remote-download credits, `paused` when the download was paused',
+      ),
     source: z
       .enum(WORKSPACE_TORRENT_SOURCES)
       .describe('`download` for a remote download, `stremthru` for an add from a Stremio addon'),

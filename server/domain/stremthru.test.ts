@@ -16,10 +16,11 @@ const HASH = 'ab'.repeat(20)
 
 describe('StremThru protocol shapes', () => {
   it('maps Torrents list statuses onto torz statuses', () => {
-    expect(['resolving', 'downloading', 'verifying', 'ready', 'failed'].map(torzStatus)).toEqual([
+    expect(['resolving', 'downloading', 'verifying', 'paused', 'ready', 'failed'].map(torzStatus)).toEqual([
       'queued',
       'downloading',
       'processing',
+      'failed',
       'downloaded',
       'failed',
     ])

@@ -24,18 +24,36 @@ export const TORRENT_NOT_KEPT_MESSAGE = 'The downloader did not report the torre
 
 const TERMINAL_STATUSES = ['completed', 'failed', 'canceled']
 const STOPPED_STATUSES = ['failed', 'canceled']
+// A task in one of these goes nowhere until someone resumes it.
+const HALTED_STATUSES = ['suspended', 'pausing', 'paused']
 
 export type EntryDeps = Pick<Deps, 'workspaceTorrents' | 'torrents' | 'downloadTasks'>
 
-export type EntryStatus = 'resolving' | 'downloading' | 'verifying' | 'ready' | 'failed'
+export type EntryStatus = 'resolving' | 'downloading' | 'verifying' | 'paused' | 'ready' | 'failed'
+
+// Why a paused entry waits: its download ran out of remote-download credits, or
+// it was paused.
+export type EntryPauseReason = 'insufficient_credits' | 'paused'
 
 export interface EntryState {
   status: EntryStatus
   error: string | null
+  pauseReason?: EntryPauseReason
 }
 
 function active(task: DownloadTaskRecord | null | undefined): boolean {
   return !!task && !task.deletedAt && !TERMINAL_STATUSES.includes(task.status)
+}
+
+function halted(task: DownloadTaskRecord | null | undefined): boolean {
+  return !!task && active(task) && HALTED_STATUSES.includes(task.status)
+}
+
+// A paused entry of the workspace's own download says why; one waiting on a
+// download another workspace paused only says that it waits.
+function pausedState(task: DownloadTaskRecord, own: boolean): EntryState {
+  const credits = own && task.status === 'suspended' && task.billingStatus === 'insufficient_credits'
+  return { status: 'paused', error: null, pauseReason: credits ? 'insufficient_credits' : 'paused' }
 }
 
 function stopped(task: DownloadTaskRecord | null | undefined): boolean {
@@ -78,15 +96,18 @@ export function entryState(view: WorkspaceTorrentView, tasks: ReadonlyMap<string
         return { status: 'failed', error: TORRENT_EVICTED_MESSAGE }
       default: {
         const filler = torrent.sourceTaskId ? tasks.get(torrent.sourceTaskId) : undefined
-        if (active(own) || (active(filler) && (filler?.torrentId == null || filler.torrentId === torrent.id))) {
-          return { status: 'downloading', error: null }
-        }
+        const fills = active(filler) && (filler?.torrentId == null || filler.torrentId === torrent.id)
+        if (active(own) && !halted(own)) return { status: 'downloading', error: null }
+        if (fills && !halted(filler)) return { status: 'downloading', error: null }
+        if (own && halted(own)) return pausedState(own, true)
+        if (filler && fills && halted(filler)) return pausedState(filler, filler.orgId === view.orgId)
         if (stopped(own)) return { status: 'failed', error: own?.errorMessage ?? TORRENT_STOPPED_MESSAGE }
         return { status: 'failed', error: TORRENT_STOPPED_MESSAGE }
       }
     }
   }
   if (stopped(own)) return { status: 'failed', error: own?.errorMessage ?? TORRENT_STOPPED_MESSAGE }
+  if (own && halted(own)) return pausedState(own, true)
   if (own?.status === 'completed') return { status: 'failed', error: TORRENT_NOT_KEPT_MESSAGE }
   return { status: view.status === 'ready' ? 'ready' : view.status, error: null }
 }

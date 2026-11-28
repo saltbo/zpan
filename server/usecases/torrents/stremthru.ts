@@ -191,7 +191,8 @@ async function toTorz(deps: Deps, caller: StoreCaller, id: string): Promise<Torz
 
 // Adds a magnet or .torrent link to the workspace's Torrents list. An entry the
 // workspace already has is returned as it is, unless it failed, when it is
-// added anew.
+// added anew, or its download ran out of credits, which is PAYMENT_REQUIRED. One
+// paused by hand is returned as it is: an addon does not undo a pause.
 export async function addTorz(deps: Deps, caller: StoreCaller, link: string | undefined): Promise<Torz> {
   const source = link ? torzSource(link) : null
   if (!source) throw new StremThruError('BAD_REQUEST', 'A magnet link or torrent URL is required')
@@ -205,6 +206,10 @@ export async function addTorz(deps: Deps, caller: StoreCaller, link: string | un
     (knownHash ? await deps.workspaceTorrents.findByInfoHash(caller.orgId, knownHash) : null)
   if (existing) {
     const detail = await getWorkspaceTorrent(deps, caller.orgId, existing.id)
+    // Addons show their "need premium" notice for this, instead of a transfer error.
+    if (detail.state.pauseReason === 'insufficient_credits') {
+      throw new StremThruError('PAYMENT_REQUIRED', 'Insufficient remote-download credits')
+    }
     if (detail.state.status !== 'failed') return toTorz(deps, caller, existing.id)
   }
   const id = await withStoreErrors(() => placeEntry(deps, caller, source, existing?.infoHash ?? knownHash, existing))
