@@ -172,6 +172,18 @@ describe('ImageDomainProviderSection', () => {
     expect(view.getByText(new RegExp(count))).toBeTruthy()
   })
 
+  it('shows the stored provider error the server sends [spec: error-messages/image-domain-status]', async () => {
+    locale.value = 'zh'
+    vi.mocked(getImageDomainProvider).mockResolvedValue({
+      ...response,
+      status: 'error',
+      error: '请为 DNS 记录 ssl.example.com 开启 Cloudflare 代理',
+    })
+    const view = renderSection()
+    fireEvent.click(await view.findByRole('button', { name: '编辑' }))
+    expect(await view.findByText('请为 DNS 记录 ssl.example.com 开启 Cloudflare 代理')).toBeTruthy()
+  })
+
   it('saves manual A and AAAA records as structured values', async () => {
     const view = renderSection()
     fireEvent.click(await view.findByRole('button', { name: 'Edit' }))

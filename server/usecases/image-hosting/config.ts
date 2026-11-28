@@ -15,6 +15,7 @@ import {
 } from '../ports'
 import { loadBindingState } from '../site/licensing'
 import { cacheVerifiedImageDomain, invalidateImageDomain } from './domain-cache'
+import { storedDomainError } from './domain-errors'
 
 export type ImageHostingConfigDeps = {
   imageHostingConfigs: ImageHostingConfigRepo
@@ -48,10 +49,11 @@ async function refreshDomain(
   }
   const result = await deps.imageDomains.refresh(provider, row.customDomain, row.providerHostnameId)
   const verifiedAt = result.status === 'verified' ? new Date() : null
+  const domainError = storedDomainError(row.customDomain, result.error)
   await deps.imageHostingConfigs.update(row.orgId, {
     providerHostnameId: result.externalId,
     domainStatus: result.status,
-    domainError: result.error,
+    domainError,
     domainLastCheckedAt: new Date(),
     domainVerifiedAt: verifiedAt,
   })
@@ -60,7 +62,7 @@ async function refreshDomain(
     ...row,
     providerHostnameId: result.externalId,
     domainStatus: result.status,
-    domainError: result.error,
+    domainError,
     domainLastCheckedAt: new Date(),
     domainVerifiedAt: verifiedAt,
   }
@@ -165,7 +167,7 @@ export async function putImageHostingConfig(
     providerHostnameId:
       binding?.externalId ?? (newDomain === oldDomain ? (existing?.providerHostnameId ?? null) : null),
     domainStatus: binding?.status ?? (newDomain === oldDomain ? (existing?.domainStatus ?? null) : null),
-    domainError: binding?.error ?? null,
+    domainError: binding && newDomain ? storedDomainError(newDomain, binding.error) : null,
     verificationToken:
       newDomain && provider?.settings.provider === 'manual'
         ? newDomain === oldDomain

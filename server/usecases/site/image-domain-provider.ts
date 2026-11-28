@@ -1,6 +1,7 @@
 import type { ImageDomainProviderResponse, ImageDomainSettings, UpdateImageDomainSettingsInput } from '@shared/schemas'
 import { generateToken } from '../../../shared/ids'
 import { cacheVerifiedImageDomain, invalidateImageDomain } from '../image-hosting/domain-cache'
+import { domainErrorMessage, providerErrorMessage, storedDomainError } from '../image-hosting/domain-errors'
 import type {
   ImageDomainProviderConfig,
   ImageDomainProviderGateway,
@@ -51,7 +52,7 @@ export async function getImageDomainProvider(
             hostname: row.customDomain,
             provider: row.domainProvider,
             status: row.domainStatus,
-            error: row.domainError,
+            error: domainErrorMessage(row.domainError),
             lastCheckedAt: row.domainLastCheckedAt?.toISOString() ?? null,
           },
         ]
@@ -77,7 +78,7 @@ export async function getImageDomainProvider(
     settings: maskedSettings(config),
     status,
     lastTestedAt: config.lastTestedAt?.toISOString() ?? null,
-    error: config.error,
+    error: config.error ? providerErrorMessage(config.error) : null,
     domains,
   }
 }
@@ -171,7 +172,7 @@ async function provisionDomain(
     domainProvider: config.settings.provider,
     providerHostnameId: result.externalId,
     domainStatus: result.status,
-    domainError: result.error,
+    domainError: storedDomainError(row.customDomain, result.error),
     verificationToken: config.settings.provider === 'manual' ? (row.verificationToken ?? generateToken(33)) : null,
     domainLastCheckedAt: new Date(),
     domainVerifiedAt: result.status === 'verified' ? new Date() : null,
@@ -198,7 +199,7 @@ export async function testImageDomainProvider(deps: ImageDomainProviderDeps): Pr
     const message = error instanceof Error ? error.message : String(error)
     await deps.systemOptions.setMany([
       { key: IMAGE_DOMAIN_OPTION_KEYS.lastTestedAt, value: new Date().toISOString() },
-      { key: IMAGE_DOMAIN_OPTION_KEYS.error, value: message },
+      { key: IMAGE_DOMAIN_OPTION_KEYS.error, value: providerErrorMessage(message) },
     ])
     throw externalError(badRequest, message, 'The custom-domain provider test failed. Check its settings.')
   }
@@ -224,7 +225,7 @@ export async function reconcileImageDomains(
           await deps.imageHostingConfigs.update(row.orgId, {
             providerHostnameId: result.externalId,
             domainStatus: result.status,
-            domainError: result.error,
+            domainError: storedDomainError(row.customDomain as string, result.error),
             domainLastCheckedAt: checkedAt,
             domainVerifiedAt: result.status === 'verified' ? checkedAt : null,
           })
@@ -234,7 +235,10 @@ export async function reconcileImageDomains(
         } catch (error) {
           await deps.imageHostingConfigs.update(row.orgId, {
             domainStatus: 'failed',
-            domainError: error instanceof Error ? error.message : String(error),
+            domainError: storedDomainError(
+              row.customDomain as string,
+              error instanceof Error ? error.message : String(error),
+            ),
             domainLastCheckedAt: new Date(),
             domainVerifiedAt: null,
           })

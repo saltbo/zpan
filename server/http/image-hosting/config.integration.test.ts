@@ -111,6 +111,33 @@ describe('/api/image-hosting/config provider-backed domains', () => {
     expect(stored?.verificationToken).toBeTruthy()
   })
 
+  it('shows the domain error as a product message in the request language [spec: error-messages/image-domain-status]', async () => {
+    const { app, db, deps } = await createTestApp()
+    await configureManualProvider(deps)
+    const { orgId, headers } = await ownerSession(app, db)
+    await app.request('/api/image-hosting/config', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, customDomain: 'img.example.com' }),
+    })
+    const read = async (domainError: string) => {
+      await deps.imageHostingConfigs.update(orgId, { domainStatus: 'failed', domainError })
+      const response = await app.request('/api/image-hosting/config', {
+        headers: { ...headers, 'Accept-Language': 'zh-CN' },
+      })
+      expect(response.headers.get('Vary')).toContain('Accept-Language')
+      return ((await response.json()) as { domainError: string }).domainError
+    }
+
+    // Stored before this rule: the provider's own text.
+    await expect(read('custom hostname does not CNAME to this zone.')).resolves.toBe(
+      '自定义域名尚未通过验证，请检查其 DNS 记录是否指向所示目标。',
+    )
+    await expect(read('The DNS record img.example.com must be an A, AAAA, or CNAME record')).resolves.toBe(
+      'DNS 记录 img.example.com 必须是 A、AAAA 或 CNAME 记录',
+    )
+  })
+
   it('requires Pro before an owner can configure a custom domain', async () => {
     const { app, db, deps } = await createTestApp()
     await configureManualProvider(deps)

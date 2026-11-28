@@ -2,12 +2,14 @@ import { z } from '@hono/zod-openapi'
 import { AuthorizationScope } from '@shared/authorization'
 import { putIhostConfigSchema } from '../../../shared/schemas'
 import type { IhostConfigResponse } from '../../../shared/types'
+import { requestLanguage } from '../../middleware/error-handler'
 import {
   deleteImageHostingConfig,
   getImageHostingConfigView,
   putImageHostingConfig,
 } from '../../usecases/image-hosting/config'
-import type { ImageDomainProviderConfig, ImageHostingConfigRecord } from '../../usecases/ports'
+import { domainErrorMessage, localizeStoredError } from '../../usecases/image-hosting/domain-errors'
+import type { ErrorLanguage, ImageDomainProviderConfig, ImageHostingConfigRecord } from '../../usecases/ports'
 import { unauthorized } from '../../usecases/ports'
 import { authRoute, errorResponse, jsonBody, jsonContent } from '../openapi'
 import { createRouter } from '../router'
@@ -44,6 +46,7 @@ function providerDnsRecords(provider: ImageDomainProviderConfig | null) {
 function buildResponse(
   row: ImageHostingConfigRecord | null,
   provider: ImageDomainProviderConfig | null,
+  language: ErrorLanguage,
 ): IhostConfigResponse {
   if (!row) {
     return {
@@ -64,7 +67,7 @@ function buildResponse(
     customDomain: row.customDomain,
     domainVerifiedAt: row.domainVerifiedAt?.getTime() ?? null,
     domainStatus,
-    domainError: row.domainError,
+    domainError: localizeStoredError(domainErrorMessage(row.domainError), language),
     dnsInstructions: row.customDomain
       ? providerDnsRecords(provider).map((record) => ({
           recordType: record.type,
@@ -136,14 +139,18 @@ const ihostConfig = app
     const orgId = c.get('orgId')
     if (!orgId) throw unauthorized()
     const result = await getImageHostingConfigView(c.get('deps'), orgId)
-    return c.json(buildResponse(result.config, result.provider), 200)
+    // The domain error is a product message, shown in the request's language.
+    c.header('Vary', 'Accept-Language', { append: true })
+    return c.json(buildResponse(result.config, result.provider, requestLanguage(c.req.raw)), 200)
   })
   .openapi(putRoute, async (c) => {
     const orgId = c.get('orgId')
     if (!orgId) throw unauthorized()
     const result = await putImageHostingConfig(c.get('deps'), orgId, c.req.valid('json'), new URL(c.req.url).hostname)
     if (!result.ok) throw result.error
-    return c.json(buildResponse(result.config, result.provider), 200)
+    // The domain error is a product message, shown in the request's language.
+    c.header('Vary', 'Accept-Language', { append: true })
+    return c.json(buildResponse(result.config, result.provider, requestLanguage(c.req.raw)), 200)
   })
   .openapi(deleteRoute, async (c) => {
     const orgId = c.get('orgId')
