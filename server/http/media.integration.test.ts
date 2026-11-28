@@ -351,6 +351,114 @@ describe('GET /api/media/movies [spec: media-catalog/movies]', () => {
   })
 })
 
+type Page = { items: { id: string }[]; nextPageToken: string | null }
+
+describe('GET /api/media/movies/{id} [spec: media-catalog/movie-link]', () => {
+  it('returns one movie with its poster URL, and 404 for anything that is not a live movie', async () => {
+    const { app, db, orgId } = await setup()
+    await insertMatter(db, orgId, { id: 'poster', name: 'poster.jpg', parent: 'M', type: 'image/jpeg' })
+    await insertMatter(db, orgId, {
+      id: 'movie-1',
+      name: 'bbb.mkv',
+      parent: 'M',
+      metadata: { media: movie({ poster: 'poster' }) },
+    })
+    await insertMatter(db, orgId, { id: 'trashed', name: 't.mkv', trashedAt: Date.now(), metadata: { media: movie() } })
+    await insertMatter(db, orgId, { id: 'plain', name: 'plain.mkv' })
+    await insertMatter(db, orgId, {
+      id: 'a-show',
+      name: 'Show',
+      folder: true,
+      metadata: { media: { kind: 'tvshow', tmdb: { id: 1, type: 'tv' }, title: 'Show' } },
+    })
+    const headers = await adminHeaders(app)
+
+    const res = await app.request('/api/media/movies/movie-1', { headers })
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({
+      id: 'movie-1',
+      path: 'M/bbb.mkv',
+      media: movie({ poster: 'poster' }),
+      posterUrl: 'https://images.example.com/key/poster',
+    })
+    for (const id of ['trashed', 'plain', 'a-show', 'missing']) {
+      expect((await app.request(`/api/media/movies/${id}`, { headers })).status).toBe(404)
+    }
+  })
+})
+
+describe('GET /api/media/movies?search [spec: media-catalog/search]', () => {
+  it('keeps the movies whose title or original title contains the search, ignoring case, paged', async () => {
+    const { app, db, orgId } = await setup()
+    const titles = [
+      ['m1', 'The Matrix', 'The Matrix'],
+      ['m2', 'Spirited Away', '千と千尋の神隠し'],
+      ['m3', 'The Matrix Reloaded', 'The Matrix Reloaded'],
+      ['m4', 'Inception', 'Inception'],
+      ['m5', '100% Wolf', '100% Wolf'],
+    ]
+    for (const [i, [id, title, originalTitle]] of titles.entries()) {
+      await insertMatter(db, orgId, {
+        id,
+        name: `${id}.mkv`,
+        createdAt: 1000 + i,
+        metadata: { media: movie({ title, originalTitle }) },
+      })
+    }
+    const headers = await adminHeaders(app)
+
+    const first = await app.request('/api/media/movies?pageSize=1&search=%20matrix%20', { headers })
+    expect(first.status).toBe(200)
+    const firstPage = (await first.json()) as Page
+    expect(firstPage.items.map((item) => item.id)).toEqual(['m3'])
+    const second = await app.request(
+      `/api/media/movies?pageSize=1&search=matrix&pageToken=${firstPage.nextPageToken}`,
+      { headers },
+    )
+    const secondPage = (await second.json()) as Page
+    expect(secondPage.items.map((item) => item.id)).toEqual(['m1'])
+    expect(secondPage.nextPageToken).toBeNull()
+
+    const byOriginal = (await (await app.request('/api/media/movies?search=千尋', { headers })).json()) as Page
+    expect(byOriginal.items.map((item) => item.id)).toEqual(['m2'])
+    const literal = (await (await app.request('/api/media/movies?search=0%25', { headers })).json()) as Page
+    expect(literal.items.map((item) => item.id)).toEqual(['m5'])
+    const none = (await (await app.request('/api/media/movies?search=zzz', { headers })).json()) as Page
+    expect(none).toEqual({ items: [], nextPageToken: null })
+
+    // A page token belongs to its search.
+    const other = await app.request(`/api/media/movies?pageSize=1&search=the&pageToken=${firstPage.nextPageToken}`, {
+      headers,
+    })
+    expect(other.status).toBe(400)
+  })
+})
+
+describe('GET /api/media/shows?search [spec: media-catalog/search]', () => {
+  it('keeps the shows whose title contains the search, paged', async () => {
+    const { app, db, orgId } = await setup()
+    for (const [i, title] of ['Breaking Bad', 'Better Call Saul', 'Bad Sisters'].entries()) {
+      await insertMatter(db, orgId, {
+        id: `s${i}`,
+        name: title,
+        parent: 'TV',
+        folder: true,
+        createdAt: 1000 + i,
+        metadata: { media: { kind: 'tvshow', tmdb: { id: i + 1, type: 'tv' }, title } },
+      })
+    }
+    const headers = await adminHeaders(app)
+
+    const first = (await (await app.request('/api/media/shows?pageSize=1&search=BAD', { headers })).json()) as Page
+    expect(first.items.map((item) => item.id)).toEqual(['s2'])
+    const second = (await (
+      await app.request(`/api/media/shows?pageSize=1&search=BAD&pageToken=${first.nextPageToken}`, { headers })
+    ).json()) as Page
+    expect(second.items.map((item) => item.id)).toEqual(['s0'])
+    expect(second.nextPageToken).toBeNull()
+  })
+})
+
 function tvshow(overrides: Record<string, unknown> = {}) {
   return { kind: 'tvshow', tmdb: { id: 1396, type: 'tv' }, title: 'Breaking Bad', year: 2008, ...overrides }
 }

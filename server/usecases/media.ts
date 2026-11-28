@@ -98,18 +98,20 @@ export interface EpisodeItem {
 type ImageDeps = Pick<Deps, 'storages' | 's3' | 'quota' | 'licenseBinding' | 'licensingCloud' | 'cloudTrafficReports'>
 type ImageParams = { orgId: string; cloudBaseUrl: string }
 
-// The workspace's scraped movies, newest first. Each poster that resolves to a
+// The workspace's scraped movies, newest first, or those whose title or
+// original title contains the search. Each poster that resolves to a
 // live image gets a short-lived inline URL, metered as a download; a poster
 // that is gone, or whose download the workspace's traffic does not allow, is
 // left out and the card shows the title instead.
 export async function listMovies(
   deps: Pick<Deps, 'matter'> & ImageDeps,
-  params: ImageParams & { pageSize: number; after?: MediaPageBoundary },
+  params: ImageParams & { pageSize: number; after?: MediaPageBoundary; search?: string },
 ): Promise<{ items: MovieItem[]; nextBoundary: MediaPageBoundary | null }> {
   const page = await deps.matter.listMediaPage(params.orgId, {
     kind: 'movie',
     pageSize: params.pageSize,
     after: params.after,
+    search: params.search,
   })
   const movies = page.items.flatMap((matter) =>
     matter.metadata?.media?.kind === 'movie' && matter.dirtype === DirType.FILE
@@ -128,15 +130,16 @@ export async function listMovies(
 }
 
 // The workspace's scraped shows, the folders carrying show media, newest
-// first, with poster URLs as for movies.
+// first, searched and with poster URLs as for movies.
 export async function listShows(
   deps: Pick<Deps, 'matter'> & ImageDeps,
-  params: ImageParams & { pageSize: number; after?: MediaPageBoundary },
+  params: ImageParams & { pageSize: number; after?: MediaPageBoundary; search?: string },
 ): Promise<{ items: ShowItem[]; nextBoundary: MediaPageBoundary | null }> {
   const page = await deps.matter.listMediaPage(params.orgId, {
     kind: 'tvshow',
     pageSize: params.pageSize,
     after: params.after,
+    search: params.search,
   })
   const shows = page.items.flatMap((matter) =>
     matter.metadata?.media?.kind === 'tvshow' && matter.dirtype !== DirType.FILE
@@ -152,6 +155,27 @@ export async function listShows(
     items: shows.map((show, i) => ({ ...show, posterUrl: urls[i] })),
     nextBoundary: page.nextBoundary,
   }
+}
+
+// One scraped movie by its video id, with its poster URL. A matter that is
+// not a live video carrying movie media is not found.
+export async function getMovie(
+  deps: Pick<Deps, 'matter'> & ImageDeps,
+  params: ImageParams & { movieId: string },
+): Promise<MovieItem> {
+  const matter = await deps.matter.get(params.movieId, params.orgId)
+  const media = matter?.metadata?.media
+  if (
+    !matter ||
+    matter.trashedAt !== null ||
+    matter.status !== 'active' ||
+    matter.dirtype !== DirType.FILE ||
+    media?.kind !== 'movie'
+  ) {
+    throw notFound('Movie not found')
+  }
+  const [posterUrl] = await imageUrls(deps, params, [media.poster])
+  return { matter, media, posterUrl }
 }
 
 async function liveShow(deps: Pick<Deps, 'matter'>, orgId: string, showId: string) {

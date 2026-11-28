@@ -7730,12 +7730,18 @@ type CreateMediaLibraryJSONBody struct {
 type ListMoviesParams struct {
 	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+
+	// Search Matches the title or the original title, ignoring case
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
 }
 
 // ListShowsParams defines parameters for ListShows.
 type ListShowsParams struct {
 	PageSize  *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
+
+	// Search Matches the title or the original title, ignoring case
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
 }
 
 // ListShowEpisodesParams defines parameters for ListShowEpisodes.
@@ -11991,6 +11997,9 @@ type ClientInterface interface {
 	// ListMovies request
 	ListMovies(ctx context.Context, params *ListMoviesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetMovie request
+	GetMovie(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListShows request
 	ListShows(ctx context.Context, params *ListShowsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -13209,6 +13218,18 @@ func (c *Client) CreateMediaLibraryScan(ctx context.Context, id string, reqEdito
 
 func (c *Client) ListMovies(ctx context.Context, params *ListMoviesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListMoviesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetMovie(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetMovieRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -17316,10 +17337,56 @@ func NewListMoviesRequest(server string, params *ListMoviesParams) (*http.Reques
 
 		}
 
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "search", *params.Search, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
 		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetMovieRequest generates requests for GetMovie
+func NewGetMovieRequest(server string, id string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/media/movies/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -17373,6 +17440,18 @@ func NewListShowsRequest(server string, params *ListShowsParams) (*http.Request,
 		if params.PageToken != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "pageToken", *params.PageToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "search", *params.Search, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -23764,6 +23843,9 @@ type ClientWithResponsesInterface interface {
 	// ListMoviesWithResponse request
 	ListMoviesWithResponse(ctx context.Context, params *ListMoviesParams, reqEditors ...RequestEditorFn) (*ListMoviesResponse, error)
 
+	// GetMovieWithResponse request
+	GetMovieWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetMovieResponse, error)
+
 	// ListShowsWithResponse request
 	ListShowsWithResponse(ctx context.Context, params *ListShowsParams, reqEditors ...RequestEditorFn) (*ListShowsResponse, error)
 
@@ -25705,6 +25787,38 @@ func (r ListMoviesResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListMoviesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetMovieResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Movie
+	JSON400      *Error
+	JSON404      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r GetMovieResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetMovieResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetMovieResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -30815,6 +30929,15 @@ func (c *ClientWithResponses) ListMoviesWithResponse(ctx context.Context, params
 	return ParseListMoviesResponse(rsp)
 }
 
+// GetMovieWithResponse request returning *GetMovieResponse
+func (c *ClientWithResponses) GetMovieWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetMovieResponse, error) {
+	rsp, err := c.GetMovie(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetMovieResponse(rsp)
+}
+
 // ListShowsWithResponse request returning *ListShowsResponse
 func (c *ClientWithResponses) ListShowsWithResponse(ctx context.Context, params *ListShowsParams, reqEditors ...RequestEditorFn) (*ListShowsResponse, error) {
 	rsp, err := c.ListShows(ctx, params, reqEditors...)
@@ -34248,6 +34371,46 @@ func ParseListMoviesResponse(rsp *http.Response) (*ListMoviesResponse, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetMovieResponse parses an HTTP response from a GetMovieWithResponse call
+func ParseGetMovieResponse(rsp *http.Response) (*GetMovieResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetMovieResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Movie
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

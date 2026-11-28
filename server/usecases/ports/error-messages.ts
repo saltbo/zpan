@@ -98,6 +98,7 @@ export const ZH_ERROR_MESSAGES = {
   'Folder already has media metadata': '该文件夹已有媒体信息',
   'Show media belongs on a folder': '剧集媒体信息只能写在文件夹上',
   'Video media belongs on a file': '视频媒体信息只能写在文件上',
+  'Movie not found': '未找到该电影',
   'Show not found': '未找到该剧集',
   'Search is not allowed for task uploads': '任务上传不允许搜索',
   'File exceeds the 5 TiB maximum': '文件超过 5 TiB 上限',

@@ -65,6 +65,7 @@ import {
   getInstanceInfo,
   getLicenseEntitlements,
   getLicensingStatus,
+  getMovie,
   getOAuthConsentContext,
   getObject,
   getObjectCreator,
@@ -1698,6 +1699,31 @@ describe('api', () => {
       expect(url).not.toContain('pageToken')
     })
 
+    it('searches movies by title', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [movie], nextPageToken: null }))
+
+      await listMovies({ search: 'bunny' })
+
+      const [url] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('search=bunny')
+    })
+
+    it('gets one movie', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse(movie))
+
+      await expect(getMovie('video-1')).resolves.toEqual(movie)
+
+      const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+      expect(url).toContain('/api/media/movies/video-1')
+      expect(init.method).toBe('GET')
+    })
+
+    it('throws ApiError when a movie is not found', async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: { message: 'Movie not found' } }, false, 404))
+
+      await expect(getMovie('missing')).rejects.toMatchObject({ name: 'ApiError', status: 404 })
+    })
+
     it('throws ApiError when listing movies fails', async () => {
       vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ error: { message: 'Forbidden' } }, false, 403))
 
@@ -1736,6 +1762,12 @@ describe('api', () => {
       const [defaultUrl] = vi.mocked(fetch).mock.calls[1] as [string, RequestInit]
       expect(defaultUrl).toContain('pageSize=24')
       expect(defaultUrl).not.toContain('pageToken')
+      expect(defaultUrl).not.toContain('search')
+
+      vi.mocked(fetch).mockResolvedValueOnce(makeResponse({ items: [], nextPageToken: null }))
+      await listShows({ search: 'breaking' })
+      const [searchUrl] = vi.mocked(fetch).mock.calls[2] as [string, RequestInit]
+      expect(searchUrl).toContain('search=breaking')
     })
 
     it('gets one show', async () => {

@@ -1,12 +1,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, getObject, listMovies, type Movie } from '@/lib/api'
+import { ApiError, getMovie, getObject, listMovies, type Movie } from '@/lib/api'
 import { MoviesPage } from './index'
 
-const search: { movie?: string } = {}
-const navigate = vi.fn((options: { search: { movie?: string } }) => {
-  search.movie = options.search.movie
+type Search = { q?: string; movie?: string }
+const search: Search = {}
+const navigate = vi.fn((options: { search: Search | ((prev: Search) => Search) }) => {
+  const next = typeof options.search === 'function' ? options.search({ ...search }) : options.search
+  delete search.q
+  delete search.movie
+  if (next.q) search.q = next.q
+  if (next.movie) search.movie = next.movie
 })
 
 vi.mock('react-i18next', () => ({
@@ -32,6 +37,7 @@ vi.mock('@/components/preview/file-preview-dialog', () => ({
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api')>()),
   listMovies: vi.fn(),
+  getMovie: vi.fn(),
   getObject: vi.fn(),
 }))
 
@@ -66,6 +72,14 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  )
+  delete search.q
   delete search.movie
 })
 
@@ -130,7 +144,7 @@ describe('Movies page [spec: media-catalog/movies]', () => {
     const view = renderPage()
 
     fireEvent.click(await screen.findByRole('button', { name: /Big Buck Bunny/ }))
-    expect(navigate).toHaveBeenCalledWith({ search: { movie: 'video-1' } })
+    expect(search.movie).toBe('video-1')
     view.rerender(
       <QueryClientProvider client={new QueryClient()}>
         <MoviesPage />
@@ -170,5 +184,77 @@ describe('Movies page [spec: media-catalog/movies]', () => {
     expect(await screen.findByText('Movies are unavailable')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
     expect(await screen.findByRole('button', { name: /Sintel/ })).toBeTruthy()
+  })
+})
+
+describe('Movies page [spec: media-catalog/movie-link]', () => {
+  it('opens a linked movie that is not on the loaded page', async () => {
+    search.movie = 'video-2'
+    vi.mocked(listMovies).mockResolvedValue({ items: [bunny], nextPageToken: 'page-2' })
+    vi.mocked(getMovie).mockResolvedValue(sintel)
+    renderPage()
+
+    const sheet = await screen.findByRole('dialog')
+    expect(await within(sheet).findByText('Sintel')).toBeTruthy()
+    expect(within(sheet).getByText('Movies/Sintel (2010)/sintel.mkv')).toBeTruthy()
+    expect(getMovie).toHaveBeenCalledWith('video-2')
+  })
+
+  it('uses the loaded row without fetching when the linked movie is on the page', async () => {
+    search.movie = 'video-1'
+    vi.mocked(listMovies).mockResolvedValue({ items: [bunny], nextPageToken: null })
+    renderPage()
+
+    const sheet = await screen.findByRole('dialog')
+    expect(await within(sheet).findByText('A giant rabbit.')).toBeTruthy()
+    expect(getMovie).not.toHaveBeenCalled()
+  })
+
+  it('says the movie was not found for a link to an unknown movie', async () => {
+    search.movie = 'missing'
+    vi.mocked(listMovies).mockResolvedValue({ items: [bunny], nextPageToken: null })
+    vi.mocked(getMovie).mockRejectedValue(
+      new ApiError(404, { error: { code: 404, message: 'Movie not found', status: 'NOT_FOUND' } }),
+    )
+    renderPage()
+
+    const sheet = await screen.findByRole('dialog')
+    expect(await within(sheet).findByText('movies.notFoundTitle')).toBeTruthy()
+    expect(within(sheet).getByText('movies.notFoundHint')).toBeTruthy()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'common.close' }))
+    expect(search.movie).toBeUndefined()
+  })
+})
+
+describe('Movies page [spec: media-catalog/search]', () => {
+  it('searches on the server with the text kept in the URL, and says when nothing matches', async () => {
+    vi.mocked(listMovies).mockImplementation(async (opts) =>
+      opts?.search ? { items: [], nextPageToken: null } : { items: [bunny, sintel], nextPageToken: null },
+    )
+    const view = renderPage()
+    await screen.findByRole('button', { name: /Sintel/ })
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'movies.search' }), { target: { value: 'nothing' } })
+    expect(search.q).toBe('nothing')
+    expect(navigate).toHaveBeenLastCalledWith(expect.objectContaining({ replace: true }))
+    view.rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <MoviesPage />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByText('movies.noMatchTitle')).toBeTruthy()
+    expect(screen.getByText('movies.noMatchHint')).toBeTruthy()
+    expect(listMovies).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 24, search: 'nothing' })
+  })
+
+  it('starts from the search in the URL', async () => {
+    search.q = 'sin'
+    vi.mocked(listMovies).mockResolvedValue({ items: [sintel], nextPageToken: null })
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: /Sintel/ })).toBeTruthy()
+    expect((screen.getByRole('textbox', { name: 'movies.search' }) as HTMLInputElement).value).toBe('sin')
+    expect(listMovies).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 24, search: 'sin' })
   })
 })
