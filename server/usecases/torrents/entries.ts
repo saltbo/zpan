@@ -3,7 +3,8 @@
 // StremThru add each create an entry; a torrent URL entry learns its torrent
 // when its downloader reports the info dictionary, and merges into an entry the
 // workspace already holds for it. Once an entry has a torrent, the status shown
-// follows the torrent's, and before that its own task's.
+// follows the torrent's, and before that its own task's. An entry stores only
+// whether it failed; entryState() derives the rest.
 
 import { parseMagnetDisplayName } from '../../domain/torrent-info'
 import type { Deps } from '../deps'
@@ -109,7 +110,7 @@ export function entryState(view: WorkspaceTorrentView, tasks: ReadonlyMap<string
   if (stopped(own)) return { status: 'failed', error: own?.errorMessage ?? TORRENT_STOPPED_MESSAGE }
   if (own && halted(own)) return pausedState(own, true)
   if (own?.status === 'completed') return { status: 'failed', error: TORRENT_NOT_KEPT_MESSAGE }
-  return { status: view.status === 'ready' ? 'ready' : view.status, error: null }
+  return { status: 'resolving', error: null }
 }
 
 export async function stateOf(deps: Pick<Deps, 'downloadTasks'>, view: WorkspaceTorrentView): Promise<EntryState> {
@@ -154,7 +155,7 @@ export async function addDownloadEntry(
       source: 'download',
       taskId: task.id,
       torrentId: existing.torrentId ?? torrent?.id ?? null,
-      status: torrent?.status === 'ready' ? 'ready' : torrent || existing.torrentId ? 'downloading' : 'resolving',
+      status: 'active',
       error: null,
       updatedAt: now,
     })
@@ -168,7 +169,7 @@ export async function addDownloadEntry(
     sourceUri: task.sourceUri,
     displayName: displayNameOf({ type: task.sourceType, uri: task.sourceUri }, task.displayName),
     taskId: task.id,
-    status: torrent?.status === 'ready' ? 'ready' : torrent ? 'downloading' : 'resolving',
+    status: 'active',
     createdBy: { type: createdBy.type, ref: createdBy.ref ?? task.createdByUserId, issuer: createdBy.issuer },
     now,
   })
@@ -238,8 +239,7 @@ async function attachEntry(
 // that entry.
 export async function attachWaitingEntries(deps: EntryDeps, torrent: TorrentRecord, now = new Date()) {
   for (const entry of await deps.workspaceTorrents.listWaiting(torrent.infoHash)) {
-    const status = entry.status === 'failed' ? 'failed' : 'downloading'
-    const holder = await attachEntry(deps, entry, torrent, { status, updatedAt: now })
+    const holder = await attachEntry(deps, entry, torrent, { updatedAt: now })
     if (holder) await mergeEntries(deps, holder, entry, { torrent, taskId: holder.taskId ?? entry.taskId, now })
   }
 }
@@ -258,11 +258,11 @@ export async function resolveTaskEntry(
   await attachWaitingEntries(deps, torrent, now)
   const entry = await deps.workspaceTorrents.findByTask(task.id)
   if (!entry || entry.torrentId === torrent.id) return
-  const holder = await attachEntry(deps, entry, torrent, { status: 'downloading', updatedAt: now })
+  const holder = await attachEntry(deps, entry, torrent, { status: 'active', updatedAt: now })
   if (!holder) return
   if (torrent.sourceTaskId === task.id) {
     await mergeEntries(deps, entry, holder, { torrent, taskId: task.id, now })
-    await deps.workspaceTorrents.update(entry.id, { status: 'downloading', updatedAt: now })
+    await deps.workspaceTorrents.update(entry.id, { status: 'active', updatedAt: now })
     return
   }
   await mergeEntries(deps, holder, entry, { torrent, taskId: task.id, now })
@@ -270,7 +270,8 @@ export async function resolveTaskEntry(
 }
 
 // A task that fills a torrent stopped (failed or canceled) before it completed:
-// the entries waiting on that download, and the task's own, are failed. A
+// the entries waiting on that download, and the task's own unless its torrent
+// is ready, are failed. A
 // remote download waiting with a task of its own goes on by downloading itself.
 // The downloader's error text belongs to the task's workspace, so entries of
 // other workspaces get the generic message.
@@ -281,7 +282,8 @@ export async function failWaitingEntries(
   now = new Date(),
 ): Promise<void> {
   const own = await deps.workspaceTorrents.findByTask(task.id)
-  if (own && own.status !== 'ready') {
+  const ownTorrent = own?.torrentId ? await deps.torrents.get(own.torrentId) : null
+  if (own && ownTorrent?.status !== 'ready') {
     await deps.workspaceTorrents.update(own.id, {
       status: 'failed',
       error: error ?? TORRENT_STOPPED_MESSAGE,
@@ -311,7 +313,7 @@ export async function reopenTaskEntry(deps: EntryDeps, taskId: string, now = new
   const entry = await deps.workspaceTorrents.findByTask(taskId)
   if (!entry || entry.status !== 'failed') return
   await deps.workspaceTorrents.update(entry.id, {
-    status: entry.torrentId ? 'downloading' : 'resolving',
+    status: 'active',
     error: null,
     updatedAt: now,
   })

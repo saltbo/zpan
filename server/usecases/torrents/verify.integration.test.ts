@@ -4,6 +4,7 @@ import { S3Service } from '../../adapters/gateways/s3.js'
 import { torrentFileMime } from '../../domain/torrent-info.js'
 import { authedHeaders, createTestApp } from '../../test/setup.js'
 import { buildTorrent, fileBytes, type TorrentFixture } from '../../test/torrent-fixture.js'
+import { stateOf } from './entries.js'
 import { serveTaskFromTorrents } from './fill.js'
 import { transferTorrent } from './instant-transfer.js'
 import { processTorrentVerify, verifyPieceRange } from './verify.js'
@@ -197,6 +198,44 @@ describe('torrent_verify', () => {
       SELECT COUNT(*) AS count FROM matters WHERE org_id = ${other.orgId} AND object LIKE 'bt/%'
     `)
     expect(held.count).toBe(0)
+  })
+
+  it('shows a Torrents list entry ready once its torrent verifies, storing only that it did not fail', async () => {
+    const { app, db, deps } = await createTestApp()
+    await authedHeaders(app, 'verify-entry@example.com')
+    const owner = await personalWorkspace(db, 'verify-entry@example.com')
+    await seedStorage(db, 'r2-entry', 'https://acct.r2.cloudflarestorage.com')
+    const fixture = torrentWithPieces('Entry')
+    const row = await uploadedTorrent(deps, 'r2-entry', fixture)
+    const { entry } = await deps.workspaceTorrents.insert({
+      orgId: owner.orgId,
+      torrentId: row.id,
+      infoHash: row.infoHash,
+      source: 'stremthru',
+      sourceUri: fixture.magnet,
+      displayName: null,
+      taskId: null,
+      status: 'active',
+      createdBy: { type: 'api_key', ref: 'k', issuer: null },
+      now: new Date(),
+    })
+    const shown = async () => {
+      const view = await deps.workspaceTorrents.get(owner.orgId, entry.id)
+      if (!view) throw new Error('entry is gone')
+      return stateOf(deps, view)
+    }
+    expect(await shown()).toEqual({ status: 'verifying', error: null })
+
+    await runVerify(deps, owner, row.id)
+    await waitFor(
+      () => deps.torrents.get(row.id),
+      (torrent) => torrent?.status === 'ready',
+    )
+
+    expect(await shown()).toEqual({ status: 'ready', error: null })
+    expect(await db.all(sql`SELECT status FROM workspace_torrents WHERE id = ${entry.id}`)).toEqual([
+      { status: 'active' },
+    ])
   })
 
   it('verifies a sample of 32 pieces on storages that charge egress', async () => {

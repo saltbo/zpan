@@ -228,9 +228,12 @@ export interface TorrentStreamRepo {
 export const WORKSPACE_TORRENT_SOURCES = ['download', 'stremthru'] as const
 export type WorkspaceTorrentSource = (typeof WORKSPACE_TORRENT_SOURCES)[number]
 
-// What the entry records before it has a torrent; once it has one, the status
-// shown follows the torrent's.
-export const WORKSPACE_TORRENT_STATUSES = ['resolving', 'downloading', 'ready', 'failed'] as const
+// What the entry records of its own: `failed` when it failed (its download
+// stopped, or the torrent it was added for is invalid), otherwise `active`.
+// Every other status the list shows (resolving, downloading, verifying, paused,
+// ready) is derived from its torrent and tasks by entryState(), never stored, so
+// it cannot fall behind them.
+export const WORKSPACE_TORRENT_STATUSES = ['active', 'failed'] as const
 export type WorkspaceTorrentStatus = (typeof WORKSPACE_TORRENT_STATUSES)[number]
 
 export interface WorkspaceTorrentRecord {

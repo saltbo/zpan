@@ -1187,8 +1187,8 @@ describe('Torrents lists', () => {
     await call('/v0/store/torz', { method: 'POST', body: JSON.stringify({ link: pending.magnet }) })
 
     expect((await listEntries(ctx.db, b.orgId)).map((entry) => [entry.source, entry.status, entry.taskId])).toEqual([
-      ['stremthru', 'ready', null],
-      ['stremthru', 'downloading', null],
+      ['stremthru', 'active', null],
+      ['stremthru', 'active', null],
     ])
     const [tasks] = await ctx.db.all<{ count: number }>(sql`
       SELECT COUNT(*) AS count FROM download_tasks WHERE org_id = ${b.orgId}
@@ -1311,7 +1311,7 @@ describe('Torrents lists', () => {
     // It resolved to the torrent the workspace holds: one entry, and the task is done without drive files.
     expect((await getTask(ctx.app, b.headers, listTask.id)).status.state).toBe('completed')
     expect(await listEntries(ctx.db, b.orgId)).toEqual([
-      expect.objectContaining({ source: 'stremthru', status: 'ready', taskId: listTask.id }),
+      expect.objectContaining({ source: 'stremthru', status: 'active', taskId: listTask.id }),
     ])
     expect(await driveFiles(ctx.db, b.orgId)).toEqual([])
     // Adding the link again finds the entry it merged into, by the infoHash its task learned.
@@ -1328,7 +1328,7 @@ describe('Torrents lists', () => {
     expect(remoteTask.id).toBe(remote.id)
     expect((await reportInfo(ctx.app, dl, remoteTask, torrent.infoBase64)).status).toBe(200)
     expect(await listEntries(ctx.db, b.orgId)).toEqual([
-      expect.objectContaining({ source: 'download', status: 'ready', taskId: remote.id }),
+      expect.objectContaining({ source: 'download', status: 'active', taskId: remote.id }),
     ])
     expect(await driveFiles(ctx.db, b.orgId)).toHaveLength(2)
 
@@ -1365,7 +1365,7 @@ describe('Torrents lists', () => {
       body: JSON.stringify({}),
     })
     expect(retried.status).toBeLessThan(300)
-    expect((await listEntries(ctx.db, a.orgId))[0]).toMatchObject({ status: 'resolving' })
+    expect((await listEntries(ctx.db, a.orgId))[0]).toMatchObject({ status: 'active' })
   })
 
   it('settles list-only tasks without a download when the torrent turns up elsewhere, and fails them on an invalid one', async () => {
@@ -1381,7 +1381,7 @@ describe('Torrents lists', () => {
     const [listTask] = (await dl.poll()).filter((task) => task.id !== filling.id)
     expect((await reportInfo(ctx.app, dl, listTask, torrent.infoBase64)).status).toBe(200)
     expect((await getTask(ctx.app, b.headers, listTask.id)).status.state).toBe('completed')
-    expect(await listEntries(ctx.db, b.orgId)).toEqual([expect.objectContaining({ status: 'downloading' })])
+    expect(await listEntries(ctx.db, b.orgId)).toEqual([expect.objectContaining({ status: 'active' })])
 
     // An invalid torrent fails a list-only task, whether met at assignment or on its report.
     const bad = sampleTorrent('Bad Show')
@@ -1444,7 +1444,7 @@ describe('Torrents lists', () => {
     // The torrent URL reports first and becomes the fill: the magnet's entry merges into its entry.
     expect((await reportInfo(ctx.app, dl, urlTask, torrent.infoBase64)).status).toBe(200)
     expect(await listEntries(ctx.db, a.orgId)).toEqual([
-      expect.objectContaining({ source: 'download', taskId: remote.id, status: 'downloading' }),
+      expect.objectContaining({ source: 'download', taskId: remote.id, status: 'active' }),
     ])
   })
 
@@ -1472,7 +1472,7 @@ describe('Torrents lists', () => {
     })
     expect(failed.status).toBe(200)
     expect(await listEntries(ctx.db, b.orgId)).toEqual([
-      expect.objectContaining({ source: 'download', taskId: joined.id, status: 'downloading' }),
+      expect.objectContaining({ source: 'download', taskId: joined.id, status: 'active' }),
     ])
   })
 
@@ -1529,7 +1529,7 @@ describe('Torrents lists', () => {
     expect((await reportInfo(ctx.app, dl, tasks[0], torrent.infoBase64)).status).toBe(200)
     expect((await reportInfo(ctx.app, dl, tasks[0], torrent.infoBase64)).status).toBe(200)
     expect(await listEntries(ctx.db, a.orgId)).toEqual([
-      expect.objectContaining({ id: ids[0], status: 'downloading', taskId: tasks[0].id }),
+      expect.objectContaining({ id: ids[0], status: 'active', taskId: tasks[0].id }),
     ])
   })
 

@@ -319,7 +319,7 @@ describe('Torrents list expiry and capacity', () => {
       sourceUri: `magnet:?xt=urn:btih:${infoHash}`,
       displayName: null,
       taskId: null,
-      status: 'ready',
+      status: 'active',
       createdBy: { type: 'api_key', ref: 'key-1', issuer: null },
       now: createdAt,
     })

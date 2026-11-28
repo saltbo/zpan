@@ -32,7 +32,7 @@ function view(overrides: Partial<WorkspaceTorrentView> = {}): WorkspaceTorrentVi
     sourceUri: 'magnet:?xt=urn:btih:x',
     displayName: null,
     taskId: null,
-    status: 'resolving',
+    status: 'active',
     error: null,
     createdByActorType: 'api_key',
     createdByActorRef: 'k',
@@ -265,13 +265,13 @@ describe('entries as downloads move them along', () => {
       torrentId: 't1',
       source: 'download',
       taskId: 'fill',
-      status: 'downloading',
+      status: 'active',
     })
   })
 
   it('gives entries of other workspaces the generic message when a fill stops', async () => {
-    const own = view({ id: 'own', torrentId: 't1', taskId: 'fill', status: 'downloading' })
-    const waiting = view({ id: 'waiting', orgId: 'org-b', torrentId: 't1', status: 'downloading' })
+    const own = view({ id: 'own', torrentId: 't1', taskId: 'fill' })
+    const waiting = view({ id: 'waiting', orgId: 'org-b', torrentId: 't1' })
     const filled = torrent('downloading', 'fill')
     const { deps, rows } = entryStore([own, waiting], [], filled)
 
@@ -284,5 +284,29 @@ describe('entries as downloads move them along', () => {
 
     expect(rows.get('own')).toMatchObject({ status: 'failed', error: '/srv/org/secret: disk full' })
     expect(rows.get('waiting')).toMatchObject({ status: 'failed', error: TORRENT_STOPPED_MESSAGE })
+  })
+
+  it('keeps an entry whose torrent is ready when its own download stops afterwards', async () => {
+    // Another workspace's fill made the torrent ready while this workspace's own
+    // download still ran; that download then fails.
+    const ready = torrent('ready', 'fill')
+    const own = view({ id: 'own', torrentId: 't1', taskId: 'remote', source: 'download' })
+    const { deps, rows } = entryStore([own], [], ready)
+
+    await failWaitingEntries(deps, task('remote', 'failed', { orgId: 'org', torrentId: 't1' }), 'disk full', now)
+
+    expect(rows.get('own')).toMatchObject({ status: 'active', error: null })
+    expect(entryState({ ...(rows.get('own') as WorkspaceTorrentRecord), torrent: ready }, tasks())).toEqual({
+      status: 'ready',
+      error: null,
+    })
+  })
+
+  it('stores only whether an entry failed, whatever its torrent does', async () => {
+    const waiting = view({ id: 'waiting', infoHash: hash, source: 'download', taskId: 'remote' })
+    const { deps, rows } = entryStore([waiting])
+
+    await attachWaitingEntries(deps, torrent('downloading'), now)
+    expect(rows.get('waiting')).toMatchObject({ torrentId: 't1', status: 'active' })
   })
 })

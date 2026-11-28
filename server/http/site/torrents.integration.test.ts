@@ -202,7 +202,7 @@ describe('Admin torrents API', () => {
       sourceUri: `magnet:?xt=urn:btih:${listed.infoHash}`,
       displayName: null,
       taskId: null,
-      status: 'ready',
+      status: 'active',
       createdBy: { type: 'api_key', ref: 'key-1', issuer: null },
       now: new Date(),
     })
