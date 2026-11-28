@@ -8,6 +8,7 @@ import type { SiteInvitation } from '@shared/types'
 import type { Platform } from '../../platform/interface'
 import {
   AppError,
+  badGateway,
   badRequest,
   type CreateSiteInvitationResult,
   conflict,
@@ -26,7 +27,8 @@ export type SiteInvitationDeps = {
 }
 
 // createSiteInvitation returns a 409 when a user or a pending invitation already
-// has the email, and a 500 when the invitation cannot be saved. Both create and resend return emailNotConfigured() when email
+// has the email, a 500 when the invitation cannot be saved, and a 502 when its
+// email cannot be sent, after deleting the invitation so the admin can retry. Both create and resend return emailNotConfigured() when email
 // delivery is disabled or unconfigured, before any invitation row changes.
 export type CreateSiteInvitationOutcome = { ok: true; invitation: SiteInvitation } | { ok: false; error: AppError }
 
@@ -54,25 +56,36 @@ function emailNotConfigured(): AppError {
 
 // Builds the /sign-up?invite=<token> link off the request URL and sends the
 // invite. requestUrl is the inbound request URL — the invite link is rooted at
-// the same origin.
+// the same origin. A failed send comes back as a 502 with a product message; the
+// provider's own text goes only to the server log.
 async function sendSiteInvitationEmail(
   deps: Pick<SiteInvitationDeps, 'siteInvitations' | 'email'>,
   platform: Platform,
   requestUrl: string,
   invitation: SiteInvitation,
-): Promise<void> {
+): Promise<AppError | null> {
   const siteName = await deps.siteInvitations.getSiteName()
   const inviteLink = new URL('/sign-up', requestUrl)
   inviteLink.searchParams.set('invite', invitation.token)
-  await deps.email.send(platform, {
-    to: invitation.email,
-    subject: `You're invited to register on ${siteName}`,
-    html: buildSignupInviteEmailHtml({
-      siteName,
-      inviteLink: inviteLink.toString(),
-      expiresAt: invitation.expiresAt,
-    }),
-  })
+  try {
+    await deps.email.send(platform, {
+      to: invitation.email,
+      subject: `You're invited to register on ${siteName}`,
+      html: buildSignupInviteEmailHtml({
+        siteName,
+        inviteLink: inviteLink.toString(),
+        expiresAt: invitation.expiresAt,
+      }),
+    })
+    return null
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error)
+    return externalError(
+      badGateway,
+      text,
+      'The invitation email could not be sent. Check the email settings and try again.',
+    )
+  }
 }
 
 export function listSiteInvitations(
@@ -102,7 +115,13 @@ export async function createSiteInvitation(
   if (invitation === 'pending_exists') {
     return { ok: false, error: conflict('A pending invitation already exists for this email') }
   }
-  await sendSiteInvitationEmail(deps, platform, requestUrl, invitation)
+  const sendError = await sendSiteInvitationEmail(deps, platform, requestUrl, invitation)
+  if (sendError) {
+    // The invitee never got the link, so keeping the row would only make the
+    // admin's retry answer 409 for an invitation nobody received.
+    await deps.siteInvitations.deleteSiteInvitation(invitation.id)
+    return { ok: false, error: sendError }
+  }
   return { ok: true, invitation }
 }
 
@@ -116,7 +135,8 @@ export async function resendSiteInvitation(
   if (invitation === 'not_found') return { ok: false, error: notFound('Invitation not found') }
   if (invitation === 'already_accepted') return { ok: false, error: badRequest('Invitation has already been used') }
   if (invitation === 'already_revoked') return { ok: false, error: badRequest('Invitation has been revoked') }
-  await sendSiteInvitationEmail(deps, platform, params.requestUrl, invitation)
+  const sendError = await sendSiteInvitationEmail(deps, platform, params.requestUrl, invitation)
+  if (sendError) return { ok: false, error: sendError }
   return { ok: true, invitation }
 }
 

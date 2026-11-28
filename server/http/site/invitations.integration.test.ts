@@ -250,6 +250,34 @@ describe('Admin Site Invitations API', () => {
     expect(body.error.message).toBe('Failed to create invitation')
     expect(JSON.stringify(body)).not.toContain('D1_ERROR')
   })
+
+  it('leaves no invitation behind when its email cannot be sent, so inviting again works [spec: site-invitations/send-failure]', async () => {
+    const ctx = await createTestApp()
+    await seedEmailOptions(ctx)
+    const headers = await adminHeaders(ctx.app)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new TypeError('fetch failed: getaddrinfo ENOTFOUND mail.example.com')),
+    )
+    const invite = () =>
+      ctx.app.request('/api/site/invitations', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'invitee@example.com' }),
+      })
+
+    const failed = await invite()
+    expect(failed.status).toBe(502)
+    const body = (await failed.json()) as { error: { message: string } }
+    expect(body.error.message).toBe('The invitation email could not be sent. Check the email settings and try again.')
+    expect(JSON.stringify(body)).not.toContain('ENOTFOUND')
+    const rows = await ctx.db.select().from(siteInvitations).where(eq(siteInvitations.email, 'invitee@example.com'))
+    expect(rows).toHaveLength(0)
+
+    stubEmailProvider()
+    const retried = await invite()
+    expect(retried.status).toBe(201)
+  })
 })
 
 // ─── resend/revoke state-machine guards ──────────────────────────────────────

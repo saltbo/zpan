@@ -30,6 +30,7 @@ function makeDeps(overrides: { siteInvitations?: Partial<SiteInvitationRepo>; em
     getSiteName,
     listSiteInvitations: async () => ({ items: [], nextBoundary: null }),
     createSiteInvitation: async () => sampleInvitation,
+    deleteSiteInvitation: async () => {},
     resendSiteInvitation: async () => sampleInvitation,
     revokeSiteInvitation: async () => 'ok',
     getSiteInvitationByToken: async () => null,
@@ -152,6 +153,29 @@ describe('site-invitation usecase', () => {
       expect(out.error.message).toBe('Failed to create invitation')
     })
 
+    it('deletes the invitation and answers 502 with a product message when its email cannot be sent [spec: site-invitations/send-failure]', async () => {
+      const remove = vi.fn(async () => {})
+      const { deps } = makeDeps({
+        siteInvitations: { deleteSiteInvitation: remove },
+        email: {
+          send: async () => {
+            throw new Error('fetch failed: getaddrinfo ENOTFOUND mail.example.com')
+          },
+        },
+      })
+      const out = await createSiteInvitation(deps, platform, {
+        userId: 'u1',
+        email: 'new@example.com',
+        requestUrl: 'https://app.example.com/api/admin/site-invitations',
+      })
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(502)
+      expect(out.error.message).toBe('The invitation email could not be sent. Check the email settings and try again.')
+      expect(out.error.localizedMessage('zh')).toBe('邀请邮件发送失败，请检查邮件设置后重试。')
+      expect(out.error.meta.diagnostics?.message).toBe('fetch failed: getaddrinfo ENOTFOUND mail.example.com')
+      expect(remove).toHaveBeenCalledWith('inv-1')
+    })
+
     it('returns emailNotConfigured without creating when email is not configured', async () => {
       const create = vi.fn(async () => sampleInvitation)
       const { deps, send } = makeDeps({
@@ -184,6 +208,26 @@ describe('site-invitation usecase', () => {
       expect(out).toEqual({ ok: true, invitation: rotated })
       const sentHtml = send.mock.calls[0]![1].html as string
       expect(sentHtml).toContain('invite=tok-2')
+    })
+
+    it('answers 502 with a product message when the resent email cannot be sent', async () => {
+      const remove = vi.fn(async () => {})
+      const { deps } = makeDeps({
+        siteInvitations: { deleteSiteInvitation: remove },
+        email: {
+          send: async () => {
+            throw 'smtp down'
+          },
+        },
+      })
+      const out = await resendSiteInvitation(deps, platform, {
+        id: 'inv-1',
+        requestUrl: 'https://app.example.com/api/admin/site-invitations/inv-1/deliveries',
+      })
+      if (out.ok) throw new Error('expected failure')
+      expect(out.error.httpStatus).toBe(502)
+      expect(out.error.message).toBe('The invitation email could not be sent. Check the email settings and try again.')
+      expect(remove).not.toHaveBeenCalled()
     })
 
     it('returns emailNotConfigured without rotating when email is not configured', async () => {

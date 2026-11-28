@@ -194,6 +194,8 @@ export const ZH_ERROR_MESSAGES = {
   'Invite link has expired': '邀请链接已过期',
   'Configure email delivery before sending invitations': '请先配置邮件发送，再发送邀请',
   'Failed to create invitation': '创建邀请失败',
+  'The invitation email could not be sent. Check the email settings and try again.':
+    '邀请邮件发送失败，请检查邮件设置后重试。',
   'A user with this email already exists': '该邮箱已注册',
   'A pending invitation already exists for this email': '该邮箱已有待接受的邀请',
   'Email must be enabled before email verification can be required': '须先启用邮件，才能要求邮箱验证',
