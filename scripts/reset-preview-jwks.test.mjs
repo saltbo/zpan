@@ -29,12 +29,12 @@ id = "kv"
 [previews]
 [[previews.d1_databases]]
 binding = "DB" # staging
-database_name = "zpan-db-staging"
+database_name = "zpan-db-preview"
 database_id = "staging-id"
 `
 
 const previewConfig = (overrides = {}) => ({
-  d1_databases: [{ binding: 'PREVIEW_DB', database_name: 'zpan-db-staging', database_id: 'staging-id', ...overrides }],
+  d1_databases: [{ binding: 'PREVIEW_DB', database_name: 'zpan-db-preview', database_id: 'staging-id', ...overrides }],
 })
 
 describe('parseArgs', () => {
@@ -68,7 +68,7 @@ describe('readTomlD1Databases', () => {
   it('separates production and preview D1 tables', () => {
     expect(readTomlD1Databases(TOML)).toEqual({
       production: [{ binding: 'DB', database_name: 'zpan-db', database_id: 'prod-id' }],
-      previews: [{ binding: 'DB', database_name: 'zpan-db-staging', database_id: 'staging-id' }],
+      previews: [{ binding: 'DB', database_name: 'zpan-db-preview', database_id: 'staging-id' }],
     })
   })
 })
@@ -239,7 +239,7 @@ describe('run', () => {
     expect(result).toEqual({ deleted: ['old'], backupFile: 'out/jwks-2026-11-12T00-00-00-000Z.json' })
     expect(writes).toHaveLength(1)
     expect(JSON.parse(writes[0].content)).toMatchObject({
-      database: 'zpan-db-staging',
+      database: 'zpan-db-preview',
       databaseId: 'staging-id',
       rows: [{ id: 'old', private_key: 'deadbeef' }],
     })

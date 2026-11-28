@@ -75,7 +75,7 @@ A code-review-only approval (reading the diff without visiting the preview) is *
 
 ### Preview environment details
 
-- All PRs share one staging D1 database (`zpan-db-staging`) — data persists across deployments
+- All PRs share one staging D1 database (`zpan-db-preview`) — data persists across deployments
 - A dev storage backend is pre-configured, so file upload works out of the box
 - If you need a clean state, coordinate with maintainers
 
@@ -106,7 +106,7 @@ pnpm seed:preview-admin
 ```
 
 The command reads `DEV_ADMIN_PASSWORD` from the shell environment or the gitignored local `.dev.vars` file, then targets
-`zpan-db-staging` with `--config wrangler.preview-migrations.json --remote` and upserts only `admin@zpan.space`.
+`zpan-db-preview` with `--config wrangler.preview-migrations.json --remote` and upserts only `admin@zpan.space`.
 To rotate the shared preview password intentionally, run the same command with the new non-production
 `DEV_ADMIN_PASSWORD` value and update the private maintainer credential source in the same change.
 

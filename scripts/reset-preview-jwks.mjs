@@ -15,7 +15,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const PREVIEW_BINDING = 'PREVIEW_DB'
-export const PREVIEW_DATABASE_NAME = 'zpan-db-staging'
+export const PREVIEW_DATABASE_NAME = 'zpan-db-preview'
 export const DEFAULT_CONFIG = 'wrangler.preview-migrations.json'
 export const DEFAULT_BACKUP_DIR = '.local/preview-jwks-backups'
 

@@ -7,7 +7,7 @@ import { generateId } from '../shared/ids'
 
 export const PREVIEW_ADMIN_EMAIL = 'admin@zpan.space'
 
-const STAGING_D1_DB = 'zpan-db-staging'
+const STAGING_D1_DB = 'zpan-db-preview'
 
 interface SeedSqlOptions {
   email: string

@@ -34,7 +34,7 @@ Core architecture: clients upload directly to S3-compatible storage via presigne
 
 Types: cf-workers, docker-service, go-cli
 Stage: live
-Facts: production https://drive.zpan.space; D1 database zpan-db (staging zpan-db-staging, shared by every preview); downloader agent and CLI in `cmd/`
+Facts: production https://drive.zpan.space; D1 database zpan-db (staging zpan-db-preview, shared by every preview); downloader agent and CLI in `cmd/`
 Preview: each PR gets https://<branch>-zpan.saltbo.workers.dev, posted on the PR by Cloudflare Workers Builds
 Exceptions: none
 
