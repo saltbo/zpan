@@ -27710,6 +27710,7 @@ type CreateSiteInvitationResponse struct {
 	JSON400      *Error
 	JSON401      *Error
 	JSON409      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -27774,6 +27775,7 @@ type ResendSiteInvitationResponse struct {
 	JSON200      *SiteInvitation
 	JSON400      *Error
 	JSON404      *Error
+	JSON502      *Error
 }
 
 // Status returns HTTPResponse.Status
@@ -36615,6 +36617,13 @@ func ParseCreateSiteInvitationResponse(rsp *http.Response) (*CreateSiteInvitatio
 		}
 		response.JSON409 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
 	}
 
 	return response, nil
@@ -36694,6 +36703,13 @@ func ParseResendSiteInvitationResponse(rsp *http.Response) (*ResendSiteInvitatio
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
 
 	}
 

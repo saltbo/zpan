@@ -14,6 +14,7 @@ export interface SiteInvitationRepo {
   getSiteName(): Promise<string>
   listSiteInvitations(opts: KeysetPageOpts): Promise<KeysetPage<SiteInvitation>>
   createSiteInvitation(adminUserId: string, rawEmail: string): Promise<CreateSiteInvitationResult>
+  deleteSiteInvitation(invitationId: string): Promise<void>
   resendSiteInvitation(invitationId: string): Promise<ResendSiteInvitationResult>
   revokeSiteInvitation(invitationId: string, adminUserId: string): Promise<RevokeSiteInvitationResult>
   getSiteInvitationByToken(token: string): Promise<SiteInvitation | null>
