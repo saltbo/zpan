@@ -451,7 +451,10 @@ decision 7 holds without waiting for the whole torrent.
 and its upload, the downloader asks every two seconds what to upload
 (`GET /api/downloads/tasks/{id}/torrent-stream`). The answer names the pieces
 players wait for or read from in the last two minutes, the chunks already
-stored, and a readahead of 64 MiB. When a piece is first wanted, the downloader
+stored, and a readahead of 64 MiB. A StremThru add is wanted at the first and
+last piece of its largest file as soon as the dictionary is reported, so the
+start and the container index (which MP4 and MKV often keep at the end) are on
+their way before the player asks. When a piece is first wanted, the downloader
 switches qBittorrent to sequential download with each file's first and last
 pieces first; Aria2 has no such switch and streams only what it happens to have.
 From each wanted piece to the end of its readahead, the downloader reads pieces
@@ -470,8 +473,12 @@ seconds. `GET` answers `206` for at most 32 MiB of the requested range, so the
 player asks for the next part. It reads the range from the chunks as they
 arrive, records the piece it reads in `torrent_stream_wants`, and waits for a
 missing piece, checking every 1.5 seconds, for up to ten minutes. Once the
-torrent is ready the link redirects to the file's presigned URL, and a response
-already running reads on from the file.
+torrent is ready the link reads the file instead, and does not redirect to the
+bucket: a browser's media element refuses ranges of one resource that arrive
+from different origins, and Stremio Web stops with a download error. Generating
+the link again then hands out the file's presigned URL for the rest of the
+viewing, without another charge, so bytes pass through the server only while
+an addon holds on to the stream link (MediaFusion caches it for an hour).
 
 **StremThru.** MediaFusion adds an uncached torrent and polls it for about 20
 seconds, until it is `downloaded`, before it plays a placeholder. An entry whose

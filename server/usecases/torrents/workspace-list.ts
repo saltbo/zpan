@@ -23,7 +23,7 @@ import { createTrafficEventId, recordDownloadIssued } from '../transfer-activity
 import { type EntryState, entryState, loadStateTasks, recordEntryPlayed, stateOf } from './entries'
 import { transferTorrent } from './instant-transfer'
 import { loadTorrentPolicy } from './policy'
-import { canStream } from './stream'
+import { canStream, STREAM_LINK_PATH } from './stream'
 
 // Playback links are valid for 12 hours, and an issued link is handed out again
 // while it has more than an hour left (§10).
@@ -134,14 +134,24 @@ export async function issueTorrentFileLink(
   const streams = !detail.playable && detail.streamable && !!params.streamUrl
   if (!detail.playable && !streams) throw conflict('Torrent file is not playable yet', 'TORRENT_NOT_READY')
 
+  const storage = await deps.storages.get(torrent.storageId)
+  if (!storage) throw notFound('Torrent file not found')
+  const name = file.path.slice(file.path.lastIndexOf('/') + 1)
+
   const issued = await deps.stremthruLinks.get(params.userId, params.orgId, file.id)
   if (issued && issued.expiresAt.getTime() - now.getTime() > TORRENT_LINK_REUSE_MIN_REMAINING_MS) {
     await recordEntryPlayed(deps, detail.view, now)
+    // A stream link issued while the torrent downloaded gives way to a presigned
+    // one once the file plays, for the rest of the same viewing, uncharged.
+    if (detail.playable && new URL(issued.url).pathname.startsWith(STREAM_LINK_PATH)) {
+      const seconds = Math.floor((issued.expiresAt.getTime() - now.getTime()) / 1000)
+      const url = await deps.s3.presignDownload(storage, file.objectKey, name, seconds)
+      await deps.stremthruLinks.save({ ...params, torrentFileId: file.id, url, expiresAt: issued.expiresAt, now })
+      return { url, expiresAt: issued.expiresAt }
+    }
     return { url: issued.url, expiresAt: issued.expiresAt }
   }
 
-  const storage = await deps.storages.get(torrent.storageId)
-  if (!storage) throw notFound('Torrent file not found')
   const bytes = file.size
   const trafficEventId = createTrafficEventId()
   const metered = await meterDownloadTraffic(deps, {
@@ -162,7 +172,6 @@ export async function issueTorrentFileLink(
     }
   }
 
-  const name = file.path.slice(file.path.lastIndexOf('/') + 1)
   const expiresAt = new Date(now.getTime() + TORRENT_LINK_TTL_SECONDS * 1000)
   let url: string
   try {

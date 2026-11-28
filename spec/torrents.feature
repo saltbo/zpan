@@ -125,10 +125,10 @@ Feature: Torrents
     Then the second workspace gets a link at once and reads the same verified bytes, without waiting for the torrent to be ready
 
   @torrents/stream-after-ready @api
-  Scenario: A stream link plays the ready file once the download finishes
+  Scenario: A stream link plays on from the ready file once the download finishes
     Given a stream link issued while the torrent downloaded
     When the torrent's files land and it verifies
-    Then the uploaded pieces are deleted, the link redirects to the file's presigned URL, and the downloader stops uploading pieces for the task
+    Then the uploaded pieces are deleted, the same link serves the ready file's bytes without leaving ZPan's origin, generating the link again hands out the file's presigned URL without another charge, and the downloader stops uploading pieces for the task
 
   @torrents/stream-needs-capable-downloader @api
   Scenario: A torrent whose downloader does not stream waits until it is ready

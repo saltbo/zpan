@@ -10,7 +10,13 @@ import { ZPAN_CLOUD_URL_DEFAULT } from '../../shared/constants'
 import { StremThruError, storeToken } from '../domain/stremthru'
 import { formatError } from '../lib/errors'
 import type { Env } from '../middleware/platform'
-import { generatorStream, resolveStream, streamFileBytes, streamResponseRange } from '../usecases/torrents/stream'
+import {
+  generatorStream,
+  resolveStream,
+  STREAM_LINK_PATH,
+  streamFileBytes,
+  streamResponseRange,
+} from '../usecases/torrents/stream'
 import {
   addTorz,
   authenticateStoreCaller,
@@ -66,23 +72,20 @@ async function generateLink(c: StoreContext) {
     cloudBaseUrl: cloudBaseUrl(c),
     streamUrl: async (torrentFileId, expiresAt) => {
       const token = await encodeStreamToken(c.get('platform'), torrentFileId, expiresAt)
-      return `${new URL(c.req.url).origin}/stremthru/stream/${token}`
+      return `${new URL(c.req.url).origin}${STREAM_LINK_PATH}${token}`
     },
   })
   return c.json({ data })
 }
 
-// A stream link (docs/design/torrents.md §14): a ready torrent's file redirects
-// to its presigned URL; a downloading one is read from its verified chunks as
-// they arrive. Every answer is a ranged one, capped so the player asks for the
-// next part.
+// A stream link (docs/design/torrents.md §14): a downloading torrent is read
+// from its verified chunks as they arrive, and a ready one from its file. Every
+// answer is a ranged one, capped so the player asks for the next part.
 async function streamFile(c: StoreContext) {
   const ref = await decodeStreamToken(c.get('platform'), c.req.param('token') ?? '')
   if (!ref) return c.json({ error: { code: 'NOT_FOUND', message: 'Stream link is invalid or expired' } }, 404)
   const deps = c.get('deps')
-  const resolved = await resolveStream(deps, ref)
-  if (resolved.kind === 'ready') return c.redirect(resolved.url, 302)
-  const { target } = resolved
+  const target = await resolveStream(deps, ref)
   const size = target.file.size
   const headers: Record<string, string> = {
     'Accept-Ranges': 'bytes',

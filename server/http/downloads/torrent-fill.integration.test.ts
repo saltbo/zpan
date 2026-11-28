@@ -1688,21 +1688,17 @@ describe('streaming a torrent while it downloads', () => {
     expect(head.headers.get('Content-Length')).toBe('70000')
     expect(head.headers.get('Accept-Ranges')).toBe('bytes')
 
-    // Nobody waits yet.
-    expect((await streamState(ctx.app, dl, task)).body.wants).toEqual([])
+    // The add asks for the head and tail of its largest file before any player does.
+    expect((await streamState(ctx.app, dl, task)).body.wants).toEqual([0, 4])
 
     // The player asks before the piece arrives: the answer waits for it.
     const playing = await ctx.app.request(link, { headers: { Range: 'bytes=100-199' } })
     expect(playing.status).toBe(206)
     expect(playing.headers.get('Content-Range')).toBe('bytes 100-199/70000')
     const body = playing.arrayBuffer()
-    let state = await streamState(ctx.app, dl, task)
-    for (let i = 0; i < 50 && state.body.wants.length === 0; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 20))
-      state = await streamState(ctx.app, dl, task)
-    }
+    const state = await streamState(ctx.app, dl, task)
     expect(state.status).toBe(200)
-    expect(state.body.wants).toEqual([0])
+    expect(state.body.wants).toContain(0)
     expect(state.body.pieceLength).toBe(torrent.pieceLength)
 
     // A chunk whose bytes are not the torrent's is refused.
@@ -1741,7 +1737,7 @@ describe('streaming a torrent while it downloads', () => {
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(torrent.files[0].bytes.slice(0, 10))
   }, 20_000)
 
-  it('redirects to the file once the torrent is ready and drops its chunks [spec: torrents/stream-after-ready]', async () => {
+  it('reads the ready file through the same link once the torrent is ready, and drops its chunks [spec: torrents/stream-after-ready]', async () => {
     const { ctx, dl, callA, torrent, task, entryId } = await streamWhileDownloading()
     const item = await addAndGet(callA, torrent.magnet, entryId)
     const link = (await generate(callA, item.files[0].link as string)).body.data?.link as string
@@ -1755,10 +1751,23 @@ describe('streaming a torrent while it downloads', () => {
     expect([...objects.keys()].some((key) => key.includes('/stream/'))).toBe(false)
     const [chunks] = await ctx.db.all<{ count: number }>(sql`SELECT COUNT(*) AS count FROM torrent_stream_chunks`)
     expect(chunks.count).toBe(0)
-    const res = await ctx.app.request(link, { headers: { Range: 'bytes=0-9' } })
-    expect(res.status).toBe(302)
-    const keys = await fileKeys(ctx.db, torrent.infoHash)
-    expect(res.headers.get('Location')).toContain(keys[0])
+    // The link stays on ZPan's origin: a player's media element refuses ranges
+    // of one file that come from two origins.
+    const res = await ctx.app.request(link, { headers: { Range: 'bytes=70000-' } })
+    expect(res.status).toBe(416)
+    const tail = await ctx.app.request(link, { headers: { Range: 'bytes=69990-' } })
+    expect(tail.status).toBe(206)
+    expect(tail.headers.get('Content-Range')).toBe('bytes 69990-69999/70000')
+    expect(new Uint8Array(await tail.arrayBuffer())).toEqual(torrent.files[0].bytes.slice(69990))
+    // Generating the link again now hands out the file's presigned URL, uncharged.
+    const again = (await generate(callA, item.files[0].link as string)).body.data?.link as string
+    expect(again).not.toContain('/stremthru/stream/')
+    expect(again).toContain((await fileKeys(ctx.db, torrent.infoHash))[0])
+    const [charges] = await ctx.db.all<{ count: number }>(sql`
+      SELECT COUNT(*) AS count FROM audit_events WHERE action = 'object_download' AND target_id = (
+        SELECT id FROM torrent_files WHERE object_key = ${(await fileKeys(ctx.db, torrent.infoHash))[0]})
+    `)
+    expect(charges.count).toBe(1)
     // The downloader is told the torrent no longer streams from its task.
     expect((await streamState(ctx.app, dl, task)).status).toBe(409)
   }, 20_000)

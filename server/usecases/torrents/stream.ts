@@ -6,7 +6,7 @@
 // bytes and serves every workspace that holds the torrent, not only the one
 // whose download fills it. A stream link reads a file's bytes from those chunks,
 // waits for pieces that have not arrived, and once the torrent is ready reads
-// its files, or redirects to them.
+// its files.
 
 import { parseTorrentInfo, pieceHash, pieceSize, type TorrentInfo, toHex } from '../../domain/torrent-info'
 import { torrentInfoObjectKey, torrentObjectPrefix } from '../../domain/torrents'
@@ -24,6 +24,10 @@ import {
 import { fillingTorrent } from './fill'
 
 const MiB = 1024 * 1024
+
+// Where stream links live; a stored link under it was issued while the
+// torrent streamed.
+export const STREAM_LINK_PATH = '/stremthru/stream/'
 
 // The capability a downloader reports when it uploads pieces for streaming.
 export const TORRENT_STREAM_CAPABILITY = 'torrent_stream'
@@ -201,38 +205,26 @@ export interface StreamTarget {
   torrent: TorrentRecord
   file: TorrentFileRecord
   storage: S3StorageCredentials
-  info: TorrentInfo
-  // Offset of the file's first byte in the torrent's concatenated bytes.
-  offset: number
+  // The piece layout, for a torrent that was not ready yet; a ready one is read
+  // from its files alone.
+  layout: { info: TorrentInfo; offset: number } | null
 }
 
-export type StreamResolution = { kind: 'ready'; url: string } | { kind: 'stream'; target: StreamTarget }
-
-// A ready file redirects to a presigned URL this long.
-const READY_REDIRECT_TTL_SECONDS = 60 * 60
-
-// What a stream link for a torrent file reads: the ready file's presigned URL,
-// or the downloading torrent's chunks.
-export async function resolveStream(
-  deps: TorrentStreamDeps,
-  params: { torrentFileId: string },
-): Promise<StreamResolution> {
+// What a stream link for a torrent file reads. A link stays on ZPan's origin
+// for its lifetime, also once the torrent is ready, because a browser's media
+// element refuses ranges of one resource that arrive from different origins,
+// as a redirect to the bucket would make them.
+export async function resolveStream(deps: TorrentStreamDeps, params: { torrentFileId: string }): Promise<StreamTarget> {
   const located = await deps.torrents.findFile(params.torrentFileId)
   if (!located) throw notFound('Torrent file not found')
   const { torrent, file } = located
   const storage = await storageOf(deps, torrent)
-  if (torrent.status === 'ready') {
-    const name = file.path.slice(file.path.lastIndexOf('/') + 1)
-    return {
-      kind: 'ready',
-      url: await deps.s3.presignDownload(storage, file.objectKey, name, READY_REDIRECT_TTL_SECONDS),
-    }
-  }
+  if (torrent.status === 'ready') return { torrent, file, storage, layout: null }
   if (!STREAMING_STATUSES.includes(torrent.status)) throw notFound('Torrent file not found')
   const info = await loadInfo(deps, storage, torrent)
   const entry = info.files.find((item) => item.fileIdx === file.fileIdx)
   if (!entry) throw notFound('Torrent file not found')
-  return { kind: 'stream', target: { torrent, file, storage, info, offset: entry.offset } }
+  return { torrent, file, storage, layout: { info, offset: entry.offset } }
 }
 
 export interface ByteRange {
@@ -298,7 +290,7 @@ export async function* streamFileBytes(
 ): AsyncGenerator<Uint8Array> {
   const pollMs = options.pollMs ?? STREAM_POLL_INTERVAL_MS
   const waitLimitMs = options.waitLimitMs ?? STREAM_WAIT_LIMIT_MS
-  const { info, file, storage } = target
+  const { layout, file, storage } = target
   let position = range.start
   let waitingSince: number | null = null
 
@@ -311,8 +303,10 @@ export async function* streamFileBytes(
       yield* readObject(deps, storage, file.objectKey, position, range.end)
       return
     }
+    if (!layout) throw new Error('Torrent is no longer available')
+    const { info } = layout
 
-    const global = target.offset + position
+    const global = layout.offset + position
     const piece = Math.floor(global / info.pieceLength)
     const chunk = await deps.torrentStream.findChunk(torrent.id, piece)
     await deps.torrentStream.want(torrent.id, piece, new Date())
@@ -326,7 +320,7 @@ export async function* streamFileBytes(
 
     const chunkStart = chunk.firstPiece * info.pieceLength
     const chunkEnd = chunkStart + chunk.size - 1
-    const last = Math.min(chunkEnd, target.offset + range.end)
+    const last = Math.min(chunkEnd, layout.offset + range.end)
     try {
       for await (const part of readObject(deps, storage, chunk.objectKey, global - chunkStart, last - chunkStart)) {
         position += part.length

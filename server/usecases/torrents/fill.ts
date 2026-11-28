@@ -15,6 +15,7 @@ import { hasFeature } from '../../domain/licensing'
 import {
   parseMagnetInfoHash,
   parseTorrentInfo,
+  type TorrentInfo,
   TorrentInfoError,
   toHex,
   torrentFileMime,
@@ -45,6 +46,7 @@ export type TorrentFillDeps = Pick<
   | 'workspaceTorrents'
   | 'licenseBinding'
   | 'licenseCloudBaseUrl'
+  | 'torrentStream'
 >
 
 export function isTorrentSource(sourceType: string): boolean {
@@ -302,7 +304,7 @@ export async function reportTaskTorrentInfo(
     })
     torrent = result.torrent
     if (result.created) {
-      await startFill(deps, task, torrent, bytes, now)
+      await startFill(deps, task, torrent, bytes, info, now)
       await resolveTaskEntry(deps, task, torrent, now)
       return
     }
@@ -329,7 +331,7 @@ export async function reportTaskTorrentInfo(
     (await deps.torrents.setSource(torrent.id, { taskId: task.id, downloaderId: params.downloaderId }, now))
   ) {
     await deps.torrents.resetEntries(torrent.id)
-    await startFill(deps, task, { ...torrent, sourceTaskId: task.id }, bytes, now)
+    await startFill(deps, task, { ...torrent, sourceTaskId: task.id }, bytes, info, now)
     await resolveTaskEntry(deps, task, { ...torrent, sourceTaskId: task.id }, now)
     return
   }
@@ -349,6 +351,7 @@ async function startFill(
   task: DownloadTaskRecord,
   torrent: TorrentRecord,
   bytes: Uint8Array,
+  info: TorrentInfo,
   now: Date,
 ): Promise<void> {
   const storage = await deps.storages.get(torrent.storageId)
@@ -368,6 +371,24 @@ async function startFill(
     'application/x-bittorrent',
     bytes.length,
   )
+  if (task.listOnly) await wantMainFile(deps, torrent, info, now)
+}
+
+// A StremThru add is about to be played: its largest file's first and last
+// pieces are wanted at once, so a downloader that streams downloads in order
+// from there before the player asks, and has the container's index, which MP4
+// and MKV often keep at the end (docs/design/torrents.md §14).
+async function wantMainFile(
+  deps: Pick<TorrentFillDeps, 'torrentStream'>,
+  torrent: TorrentRecord,
+  info: TorrentInfo,
+  now: Date,
+): Promise<void> {
+  const main = info.files.filter((file) => !file.padding && file.size > 0).sort((a, b) => b.size - a.size)[0]
+  if (!main) return
+  const first = Math.floor(main.offset / info.pieceLength)
+  const last = Math.floor((main.offset + main.size - 1) / info.pieceLength)
+  for (const piece of new Set([first, last])) await deps.torrentStream.want(torrent.id, piece, now)
 }
 
 // ─── After verification ──────────────────────────────────────────────────────
