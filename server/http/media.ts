@@ -14,6 +14,7 @@ import { joinMatterPath } from '../domain/media-library'
 import type { Env } from '../middleware/platform'
 import {
   type EpisodeItem,
+  getMovie,
   getShow,
   listMovies,
   listShowEpisodes,
@@ -107,6 +108,7 @@ const episodeCursorCodec: PageCursorCodec<EpisodePageBoundary> = {
 
 const mediaPageQuerySchema = cursorPageQuerySchema.extend({
   pageSize: z.coerce.number().int().min(1).max(100).default(24),
+  search: z.string().trim().max(200).optional().describe('Matches the title or the original title, ignoring case'),
 })
 
 const episodePageQuerySchema = cursorPageQuerySchema.extend({
@@ -119,7 +121,7 @@ const listMoviesRoute = authRoute(access, {
   operationId: 'listMovies',
   summary: 'List movies',
   description:
-    "Lists the workspace's videos that carry movie media metadata, wherever they sit, newest first. The metadata is written by a downloader that scraped the download.",
+    "Lists the workspace's videos that carry movie media metadata, wherever they sit, newest first. The metadata is written by a downloader that scraped the download. A search keeps the movies whose title or original title contains it.",
   tags: ['Media'],
   method: 'get',
   path: '/movies',
@@ -134,7 +136,7 @@ const listShowsRoute = authRoute(access, {
   operationId: 'listShows',
   summary: 'List TV shows',
   description:
-    "Lists the workspace's folders that carry TV show media metadata, wherever they sit, newest first. The metadata is written by a downloader that scraped a download of the show's episodes.",
+    "Lists the workspace's folders that carry TV show media metadata, wherever they sit, newest first. The metadata is written by a downloader that scraped a download of the show's episodes. A search keeps the shows whose title or original title contains it.",
   tags: ['Media'],
   method: 'get',
   path: '/shows',
@@ -142,6 +144,21 @@ const listShowsRoute = authRoute(access, {
   responses: {
     200: jsonContent(cursorPageSchema(showSchema, 'ShowPage'), 'TV shows'),
     400: errorResponse('No active organization'),
+  },
+})
+
+const getMovieRoute = authRoute(access, {
+  operationId: 'getMovie',
+  summary: 'Get a movie',
+  description: 'Returns one video that carries movie media metadata.',
+  tags: ['Media'],
+  method: 'get',
+  path: '/movies/{id}',
+  request: { params: z.object({ id: opaqueIdSchema.describe("The video's matter id.") }) },
+  responses: {
+    200: jsonContent(movieSchema, 'Movie'),
+    400: errorResponse('No active organization'),
+    404: errorResponse('Movie not found'),
   },
 })
 
@@ -193,10 +210,16 @@ export const media = app
   .openapi(listMoviesRoute, async (c) => {
     const params = mediaParams(c)
     const query = c.req.valid('query')
-    const fingerprint = await pageQueryFingerprint({ orgId: params.orgId, kind: 'movie', pageSize: query.pageSize })
+    const search = query.search || undefined
+    const fingerprint = await pageQueryFingerprint({
+      orgId: params.orgId,
+      kind: 'movie',
+      pageSize: query.pageSize,
+      search,
+    })
     const tokenInput = { query: fingerprint, codec: createdAtIdCursorCodec }
     const after = await decodeOptionalPageToken(c.get('platform'), query.pageToken, tokenInput)
-    const result = await listMovies(c.get('deps'), { ...params, pageSize: query.pageSize, after })
+    const result = await listMovies(c.get('deps'), { ...params, pageSize: query.pageSize, after, search })
     return c.json(
       {
         items: result.items.map(toMovieDTO),
@@ -205,13 +228,23 @@ export const media = app
       200,
     )
   })
+  .openapi(getMovieRoute, async (c) => {
+    const { id } = c.req.valid('param')
+    return c.json(toMovieDTO(await getMovie(c.get('deps'), { ...mediaParams(c), movieId: id })), 200)
+  })
   .openapi(listShowsRoute, async (c) => {
     const params = mediaParams(c)
     const query = c.req.valid('query')
-    const fingerprint = await pageQueryFingerprint({ orgId: params.orgId, kind: 'tvshow', pageSize: query.pageSize })
+    const search = query.search || undefined
+    const fingerprint = await pageQueryFingerprint({
+      orgId: params.orgId,
+      kind: 'tvshow',
+      pageSize: query.pageSize,
+      search,
+    })
     const tokenInput = { query: fingerprint, codec: createdAtIdCursorCodec }
     const after = await decodeOptionalPageToken(c.get('platform'), query.pageToken, tokenInput)
-    const result = await listShows(c.get('deps'), { ...params, pageSize: query.pageSize, after })
+    const result = await listShows(c.get('deps'), { ...params, pageSize: query.pageSize, after, search })
     return c.json(
       {
         items: result.items.map(toShowDTO),

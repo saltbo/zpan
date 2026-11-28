@@ -1064,6 +1064,13 @@ export function createMatterRepo(db: Database): MatterRepo {
         sql`${matters.metadata} ->> '$.media.kind' = ${params.kind}`,
         ...liveConditions(),
       ]
+      if (params.search) {
+        const pattern = `%${params.search.toLowerCase().replace(/[\\%_]/g, (char) => `\\${char}`)}%`
+        conditions.push(sql`(
+          LOWER(${matters.metadata} ->> '$.media.title') LIKE ${pattern} ESCAPE '\\'
+          OR LOWER(COALESCE(${matters.metadata} ->> '$.media.originalTitle', '')) LIKE ${pattern} ESCAPE '\\'
+        )`)
+      }
       if (params.after) {
         conditions.push(
           or(

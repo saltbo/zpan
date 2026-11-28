@@ -200,9 +200,11 @@ export interface MatterRepo {
     options: { onlyIfAbsent: boolean },
   ): Promise<boolean>
   // Live matters whose media.kind is `kind`, newest first (createdAt, then id).
+  // A search keeps those whose media title or original title contains it,
+  // ignoring case.
   listMediaPage(
     orgId: string,
-    params: { kind: MediaMetadata['kind']; pageSize: number; after?: MediaPageBoundary },
+    params: { kind: MediaMetadata['kind']; pageSize: number; after?: MediaPageBoundary; search?: string },
   ): Promise<{ items: Matter[]; nextBoundary: MediaPageBoundary | null }>
   // Live files with media.kind `episode` anywhere under the folder at
   // folderPath, ordered by season, episode, then id.

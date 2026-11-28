@@ -1,10 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, listShows, type Show } from '@/lib/api'
 import { ShowsPage } from './index'
 
-const navigate = vi.fn()
+const search: { q?: string } = {}
+const navigate = vi.fn((options: { search?: { q?: string } }) => {
+  if (options.search) search.q = options.search.q
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -15,6 +18,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => options,
   useNavigate: () => navigate,
+  useSearch: () => search,
 }))
 
 vi.mock('@/hooks/useServerEvents', () => ({ useServerEventSubscription: vi.fn() }))
@@ -45,6 +49,10 @@ function renderPage() {
     </QueryClientProvider>,
   )
 }
+
+beforeEach(() => {
+  delete search.q
+})
 
 afterEach(() => {
   cleanup()
@@ -98,5 +106,37 @@ describe('TV Shows page [spec: media-catalog/shows]', () => {
     expect(await screen.findByText('Shows are unavailable')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
     expect(await screen.findByRole('button', { name: /Game of Thrones/ })).toBeTruthy()
+  })
+})
+
+describe('TV Shows page [spec: media-catalog/search]', () => {
+  it('searches on the server with the text kept in the URL, and says when nothing matches', async () => {
+    vi.mocked(listShows).mockImplementation(async (opts) =>
+      opts?.search ? { items: [], nextPageToken: null } : { items: [breakingBad, thrones], nextPageToken: null },
+    )
+    const view = renderPage()
+    await screen.findByRole('button', { name: /Game of Thrones/ })
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'shows.search' }), { target: { value: 'nothing' } })
+    expect(navigate).toHaveBeenLastCalledWith({ search: { q: 'nothing' }, replace: true })
+    view.rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <ShowsPage />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByText('shows.noMatchTitle')).toBeTruthy()
+    expect(screen.getByText('shows.noMatchHint')).toBeTruthy()
+    expect(listShows).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 24, search: 'nothing' })
+  })
+
+  it('starts from the search in the URL', async () => {
+    search.q = 'break'
+    vi.mocked(listShows).mockResolvedValue({ items: [breakingBad], nextPageToken: null })
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: /Breaking Bad/ })).toBeTruthy()
+    expect((screen.getByRole('textbox', { name: 'shows.search' }) as HTMLInputElement).value).toBe('break')
+    expect(listShows).toHaveBeenCalledWith({ pageToken: undefined, pageSize: 24, search: 'break' })
   })
 })

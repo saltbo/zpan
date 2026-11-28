@@ -580,15 +580,20 @@ export interface Movie {
   posterUrl?: string
 }
 
-export function listMovies(opts: { pageToken?: string; pageSize?: number } = {}) {
+export function listMovies(opts: { pageToken?: string; pageSize?: number; search?: string } = {}) {
   return unwrap<CursorPage<Movie>>(
     mediaApi.movies.$get({
       query: {
         pageSize: String(opts.pageSize ?? 24),
         ...(opts.pageToken ? { pageToken: opts.pageToken } : {}),
+        ...(opts.search ? { search: opts.search } : {}),
       },
     }),
   )
+}
+
+export function getMovie(id: string) {
+  return unwrap<Movie>(mediaApi.movies[':id'].$get({ param: { id } }))
 }
 
 // Scraped TV shows: the show folders the downloader wrote show metadata on.
@@ -607,12 +612,13 @@ export interface Episode {
   stillUrl?: string
 }
 
-export function listShows(opts: { pageToken?: string; pageSize?: number } = {}) {
+export function listShows(opts: { pageToken?: string; pageSize?: number; search?: string } = {}) {
   return unwrap<CursorPage<Show>>(
     mediaApi.shows.$get({
       query: {
         pageSize: String(opts.pageSize ?? 24),
         ...(opts.pageToken ? { pageToken: opts.pageToken } : {}),
+        ...(opts.search ? { search: opts.search } : {}),
       },
     }),
   )
