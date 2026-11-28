@@ -182,14 +182,14 @@ async function toTorz(deps: Deps, caller: StoreCaller, id: string): Promise<Torz
     throw toStremThruError(error)
   })
   const item = listItem(detail)
-  // Files carry links once they play. A torrent that streams while it downloads
-  // (docs/design/torrents.md §14) is `downloaded` to addons, which wait for that
-  // status before they generate a link; `check` still reports it uncached.
-  const files =
-    detail.playable || detail.streamable
-      ? detail.files.map((file) => torzFile(file, encodeFileLink(detail.view.id, file.id)))
-      : []
-  const status = detail.streamable ? 'downloaded' : item.status
+  // Files carry links once they play, and a playable entry is `downloaded`:
+  // addons wait for that status before they generate a link. That includes a
+  // torrent still verifying for the workspace that filled it, and one that
+  // streams while it downloads (docs/design/torrents.md §14); `check` still
+  // reports both uncached.
+  const playable = detail.playable || detail.streamable
+  const files = playable ? detail.files.map((file) => torzFile(file, encodeFileLink(detail.view.id, file.id))) : []
+  const status = playable ? 'downloaded' : item.status
   return { ...item, status, magnet: magnetOf(detail.view, item.hash), files }
 }
 

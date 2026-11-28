@@ -1763,6 +1763,23 @@ describe('streaming a torrent while it downloads', () => {
     expect((await streamState(ctx.app, dl, task)).status).toBe(409)
   }, 20_000)
 
+  it('shows the filling workspace its torrent downloaded while it verifies, so addons play it', async () => {
+    const { ctx, a } = await setup()
+    const dl = await downloader(ctx, a.userId)
+    const call = await stremThruKey(ctx, a)
+    const torrent = sampleTorrent('Verifying.Show')
+    const added = await addAndGet(call, torrent.magnet)
+    const [task] = await dl.poll()
+    // Verification that cannot finish keeps the torrent verifying.
+    vi.spyOn(S3Service.prototype, 'getObjectStream').mockImplementation(() => new Promise(() => {}))
+    const filling = fillTorrent(ctx.app, dl, task, torrent)
+    await waitForTorrent(ctx.db, torrent.infoHash, 'verifying')
+    const item = await addAndGet(call, torrent.magnet, added.id)
+    expect(item.status).toBe('downloaded')
+    expect(item.files.every((file) => typeof file.link === 'string')).toBe(true)
+    void filling
+  })
+
   it('keeps a torrent waiting when its downloader does not stream [spec: torrents/stream-needs-capable-downloader]', async () => {
     const { ctx, a } = await setup()
     const dl = await downloader(ctx, a.userId)

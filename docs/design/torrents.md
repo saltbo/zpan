@@ -316,7 +316,7 @@ ZPan implements this subset, under both `torz` and `magnets` paths:
 | `GET /v0/store/user` | The key's user, `subscription_status: premium` |
 | `GET …/check?hash=` (up to 500) | Looks up each infoHash; a `ready` torrent returns `cached` with its files, anything else `unknown` |
 | `POST …` with a magnet or torrent link | An entry in the key's workspace Torrents list ([section 4](#4-downloading-a-torrent)); its id is the entry id. Adding an entry whose download ran out of remote-download credits answers `PAYMENT_REQUIRED` and starts no second download; one paused by hand is returned as it is, because an addon does not undo a pause |
-| `GET …`, `GET …/{id}`, `DELETE …/{id}` | The workspace's Torrents list. An entry whose torrent streams is `downloaded`, with links ([section 14](#14-streaming-while-downloading)). Delete removes the entry; links already issued keep playing, because only eviction deletes bytes |
+| `GET …`, `GET …/{id}`, `DELETE …/{id}` | The workspace's Torrents list. An entry whose files play is `downloaded`, with links: a ready torrent, one still verifying for the workspace that filled it, and one that streams ([section 14](#14-streaming-while-downloading)). Delete removes the entry; links already issued keep playing, because only eviction deletes bytes |
 | `POST …/link/generate` | A playback link ([section 10](#10-playback-and-metering)) valid for 12 hours |
 
 An entry's status maps onto torz statuses: resolving is `queued`, downloading
@@ -476,7 +476,9 @@ already running reads on from the file.
 **StremThru.** MediaFusion adds an uncached torrent and polls it for about 20
 seconds, until it is `downloaded`, before it plays a placeholder. An entry whose
 torrent streams is therefore `downloaded`, with links, as soon as the
-downloader reported the dictionary. `check` still answers `cached` only for
+downloader reported the dictionary, and a downloader that streams polls for
+tasks every five seconds even when idle, instead of every minute, so that the
+add reaches it within that wait. `check` still answers `cached` only for
 `ready` torrents, because addons show `cached` as plays-at-once.
 
 **Cleanup.** When the torrent becomes `ready` or `invalid`, its chunks and wants

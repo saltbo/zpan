@@ -514,6 +514,15 @@ describe('Download tasks API integration', () => {
       currentTasks: 0,
     })
     expect(idleHeartbeat.nextPollAfterSeconds).toBe(60)
+    // A downloader that streams torrents keeps the active pace while idle, so a
+    // StremThru add starts within an addon's wait.
+    const streamingIdle = await recordDownloaderHeartbeat(app, createdDownloader.token, {
+      ...heartbeat,
+      capabilities: [...heartbeat.capabilities, 'torrent_stream'],
+      currentTasks: 0,
+    })
+    expect(streamingIdle.nextPollAfterSeconds).toBe(5)
+    await recordDownloaderHeartbeat(app, createdDownloader.token, { ...heartbeat, currentTasks: 0 })
 
     const createRes = await app.request('/api/downloads/tasks', {
       method: 'POST',
